@@ -112,7 +112,17 @@ function levelBadge(a: { peak_dbfs: number | null; level_note: string | null }) 
   return null;
 }
 
-type Detail = Row & { items: Item[]; transcript_check_below?: number };
+type Detail = Row & {
+  items: Item[];
+  transcript_check_below?: number;
+  /** Typed by the applicant on the form. Kept beside the transcript because
+   *  these are exactly the words a transcript gets wrong -- a previous
+   *  employer came back as "Donuts" when it was McDonald's. */
+  last_employer?: string | null;
+  last_position?: string | null;
+  last_duration?: string | null;
+  home_area?: string | null;
+};
 
 type State = "to_invite" | "waiting" | "to_review" | "done";
 
@@ -671,6 +681,24 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                         <span>applied {row.applied_date || "—"}</span>
                         {row.retain_until && <span>recordings kept until {row.retain_until}</span>}
                       </div>
+                      {(detail.last_employer || detail.last_position
+                        || detail.last_duration || detail.home_area) && (
+                        // Written by the applicant, not heard by a machine.
+                        // Anything in a transcript that contradicts this line
+                        // is the transcript being wrong.
+                        <div className="mb-3 rounded-lg border border-white/8 bg-white/3 p-2.5">
+                          <p className={`${T_CAPTION} mb-1`}>From their application</p>
+                          <p className="text-[13px] text-zinc-200">
+                            {[detail.last_employer,
+                              detail.last_position,
+                              detail.last_duration && `for ${detail.last_duration}`]
+                              .filter(Boolean).join(" · ") || "—"}
+                          </p>
+                          {detail.home_area && (
+                            <p className={`${T_CAPTION} mt-0.5`}>lives in {detail.home_area}</p>
+                          )}
+                        </div>
+                      )}
                       {row.notes && (
                         <p className={`${T_BODY} mb-3`}>&ldquo;{row.notes}&rdquo;</p>
                       )}

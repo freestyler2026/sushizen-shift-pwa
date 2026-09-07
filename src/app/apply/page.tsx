@@ -32,6 +32,12 @@ const T = {
     position: "What work are you applying for?",
     branch: "Which branch do you prefer?",
     experience: "Experience in food service",
+    lastEmployer: "Where did you work last? (optional)",
+    lastEmployerHint: "The company name, as it is written",
+    lastPosition: "What was your position there? (optional)",
+    lastDuration: "How long were you there? (optional)",
+    homeArea: "Which area do you live in? (optional)",
+    homeAreaHint: "So we can suggest a branch near you",
     availableFrom: "When can you start?",
     apps: "Which of these do you use on this number?",
     appsHelp: "So we can send you the next step. Leave blank if you are not sure — we will text you.",
@@ -70,6 +76,12 @@ const T = {
     position: "Anong trabaho ang inaaplayan mo?",
     branch: "Aling branch ang gusto mo?",
     experience: "Karanasan sa food service",
+    lastEmployer: "Saan ka huling nagtrabaho? (opsyonal)",
+    lastEmployerHint: "Ang pangalan ng kompanya, kung paano ito nakasulat",
+    lastPosition: "Ano ang posisyon mo doon? (opsyonal)",
+    lastDuration: "Gaano ka katagal doon? (opsyonal)",
+    homeArea: "Saang lugar ka nakatira? (opsyonal)",
+    homeAreaHint: "Para makapagmungkahi kami ng branch na malapit sa iyo",
     availableFrom: "Kailan ka pwedeng magsimula?",
     apps: "Alin sa mga ito ang gamit mo sa numerong ito?",
     appsHelp: "Para maipadala namin ang susunod na hakbang. Pwedeng iwanang blangko — ite-text ka namin.",
@@ -128,6 +140,11 @@ export default function ApplyPage() {
     full_name: "", phone: "", position_group: "", branch: "",
     experience_level: "", available_from: "", referrer_name: "", notes: "",
     facebook_url: "",
+    // Typed by the applicant rather than said into a microphone. These are the
+    // three things the transcript gets wrong most often -- a previous employer
+    // came back as "Donuts" when it was McDonald's -- and the person applying
+    // knows how to spell them.
+    last_employer: "", last_position: "", last_duration: "", home_area: "",
     website: "",   // honeypot
   });
   const [apps, setApps] = useState<string[]>([]);
@@ -201,7 +218,9 @@ export default function ApplyPage() {
             setForm({
               full_name: "", phone: "", position_group: "", branch: "",
               experience_level: "", available_from: "", referrer_name: "",
-              notes: "", facebook_url: "", website: "",
+              notes: "", facebook_url: "",
+              last_employer: "", last_position: "", last_duration: "",
+              home_area: "", website: "",
             });
             setApps([]);
           }}
@@ -290,6 +309,51 @@ export default function ApplyPage() {
               <option key={x} value={x}>{t.experiences[x]}</option>
             ))}
           </select>
+        </div>
+
+        {/* All optional. A required field here is where somebody who cannot
+            answer it closes the page. */}
+        <div>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.lastEmployer}</label>
+          <input
+            value={form.last_employer}
+            onChange={(e) => set("last_employer", e.target.value)}
+            className={FIELD}
+            autoComplete="organization"
+          />
+          <p className="mt-1 text-xs text-zinc-500">{t.lastEmployerHint}</p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm text-zinc-300">{t.lastPosition}</label>
+            <input
+              value={form.last_position}
+              onChange={(e) => set("last_position", e.target.value)}
+              className={FIELD}
+              autoComplete="organization-title"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm text-zinc-300">{t.lastDuration}</label>
+            <input
+              value={form.last_duration}
+              onChange={(e) => set("last_duration", e.target.value)}
+              className={FIELD}
+              placeholder="2 years"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.homeArea}</label>
+          <input
+            value={form.home_area}
+            onChange={(e) => set("home_area", e.target.value)}
+            className={FIELD}
+            autoComplete="address-level2"
+          />
+          <p className="mt-1 text-xs text-zinc-500">{t.homeAreaHint}</p>
         </div>
 
         <div>
