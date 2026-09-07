@@ -1,6 +1,59 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-07（音声一次面接をバックオフィス3名の実録音でテスト。下記）
+Last updated: 2026-09-07（スタッフ向け44ページをモバイル実測。重大1件を含む4件を修正）
+
+---
+
+## ✅ 2026-09-07 — スタッフ向け44ページのモバイル点検（修正・デプロイ済み）
+
+**目視ではなく計測した。** 各ページを 375×812 で開き、①横スクロールの発生
+②画面外にはみ出した要素 ③自分の枠内で切れているテキスト を数えるプローブを
+全ページに流した。あわせて**リクエスト数/4秒**も測った（見た目は正常でも
+裏で暴走しているページを取りこぼさないため）。
+
+### 🔴 最重要 — Morning Review が動いていなかった
+
+`/store/management/review` は**「Loading…」から先に進まない**。原因は表示ではなく
+無限ループで、**本番で毎秒42リクエスト**（5秒で212件、その前に5,226件が
+バッファから溢れていた）。
+
+- 原因: `const auth = getAuth();` を**レンダー本体で呼んでいた**。`getAuth()` は
+  localStorage を毎回パースして**新しいオブジェクト**を返すので、`useCallback([auth])`
+  と `useEffect([loadList])` の依存が毎レンダー変わる → 取得→setState→再描画→取得。
+  `setLoading(true)` が毎周回走るので、画面は永久に描画に到達しない。
+- 修正: `const auth = useMemo(() => getAuth(), [])`。
+- 検証: 修正後 **5秒で6リクエスト**、画面は「Nothing to review」まで描画。
+- **このページには専用マニュアルがあり、当番表でマネージャーを誘導している。**
+  つまり案内はしていたが、開いても何も出ない状態だった。
+- ⚠️ 同型（`[auth]` 依存）を持つ他17ファイルも**実測した**。すべて4秒で7〜8件＝
+  正常なバッジポーリング。ループはこの1ページだけ。**grepで疑わしい形を挙げるだけでは
+  結論にならない（実際17件中16件は無害だった）。**
+
+### 直したはみ出し3件
+
+| ページ | 症状 | 原因 |
+|---|---|---|
+| `/zen-music` | **43曲中21曲のドットが画面外**（ドットは曲送りボタン）。524px の1行 | 折り返しなし |
+| `/store/ck-production-plan` | ヘッダが64px超過、**New Plan が「＋」しか見えない**。タイトルが3行に潰れる | 折り返しなし |
+| `/store/receipt-log` | 金額入力が40px超過（**打つ欄が画面外**） | `flex-1` は input を固有幅未満に縮められない → `min-w-0` |
+
+`min-width:auto` が原因という点で、同日直した Backup フォームと**同じ形**。
+
+### 誤検知だったもの（記録しておく）
+- `/store/expense-request` の KPI ラベル、`/store/ck-ingredient-receiving` の
+  "Not Dispatched" は `tracking-[0.15em]` の**末尾レタースペース分**。
+  実画面ではカード内に収まっており、実害なし。**プローブの数字をそのまま
+  不具合として報告しない。**
+
+### 問題なしを確認したページ（38件）
+/week /my-shift /attendance /calendar /inbox /request /incidents /my-assets
+/my-contact /my-pay /private-report /change-pin /handbook /staff-guide
+/swap-approve /store/{cash-report, cashier-log, daily-check, cold-chain,
+procurement, receiving, supplier-receiving, purchase, spot-purchase,
+petty-cash, transport-expense, expense-request, overtime-request, report,
+evaluation, my-nte, policy-docs, emergency-request, ck-inventory,
+ck-production, ck-delivery, ck-ingredient-receiving, management/inbox,
+management/rush-check}
 
 ---
 
