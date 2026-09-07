@@ -580,7 +580,11 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
                     placeholder="₱ Line total"
                     min="0"
                     step="0.01"
-                    className={`${INPUT_BASE} flex-1 text-right`}
+                    // min-w-0: flex-1 cannot shrink an input past its intrinsic
+                    // width, which is about 190px -- so alongside the fixed 80px
+                    // and 96px boxes the row ran 40px off a 375px screen and the
+                    // amount you type was the part hanging over the edge.
+                    className={`${INPUT_BASE} min-w-0 flex-1 text-right`}
                     onFocus={() => setActiveSuggestId(null)}
                   />
                 </div>

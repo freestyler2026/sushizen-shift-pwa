@@ -805,18 +805,21 @@ export default function CKProductionPlanPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* Header. Wraps, because on a 375px phone the title, the city toggle and
+          New Plan do not fit on one line: the row ran 64px off the screen and
+          all that was left of the button was its plus sign, with the title
+          squeezed into three lines beside it. */}
+      <div className="flex flex-wrap items-center justify-between gap-y-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 border border-violet-500/25">
             <ClipboardList className="h-5 w-5 text-violet-400" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className={T_PAGE_TITLE}>CK Production Plan</h1>
             <p className={T_CAPTION}>{city === "dubai" ? "Dubai" : "Manila"} Central Kitchen</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canManage && (
             <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-0.5">
               {(["manila", "dubai"] as const).map(c => (
