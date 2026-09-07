@@ -129,7 +129,13 @@ function Chips({
 }
 
 export default function MorningReviewPage() {
-  const auth = getAuth();
+  // Read once. getAuth() parses localStorage and hands back a fresh object
+  // every call, so calling it in the render body gave loadList -- and the
+  // effect that depends on it -- a new identity on every render: load, set
+  // state, re-render, load again. Measured on production at 42 requests a
+  // second, and the page never got past "Loading…" because setLoading(true)
+  // ran again before anything could paint.
+  const auth = useMemo(() => getAuth(), []);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [review, setReview] = useState<Review | null>(null);
   const [staff, setStaff] = useState<string[]>([]);
