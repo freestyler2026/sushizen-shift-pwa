@@ -25,6 +25,9 @@ interface ParLevelRow {
   supplier: string | null;
   notes: string | null;
   updated_at: string;
+  // 発注カタログの単価。Direct Purchase の手入力が引いているのと同じ表。
+  catalog_unit_price?: number | null;
+  price_source?: string | null;
 }
 
 // One line of the purchase order being built in the modal. `removed` keeps a
@@ -39,6 +42,8 @@ interface OrderLine {
   qty: string;      // as typed, so the field can be empty while editing
   suggested: number;
   removed: boolean;
+  unitPrice: number;      // 0 = カタログに単価が無い
+  priceSource: string;    // 引けなかった理由。空欄の説明が要るため
 }
 
 interface ImportResult {
@@ -59,6 +64,14 @@ function fmtNum(n: number | null | undefined, digits = 1): string {
   if (n == null) return "—";
   return n.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
+
+// Why a line has no price. Said as the thing that is missing, because the three
+// need different fixes: rename, add to the catalogue, or fix the unit.
+const PRICE_WHY: Record<string, string> = {
+  not_in_catalog: "This name is not in the Procurement catalogue. It may be there under a different name.",
+  unit_differs: "The catalogue has a price, but for a different unit — a per-pack rate is not a per-box rate.",
+  price_differs_by_supplier: "Suppliers quote different prices for this name, so none was assumed.",
+};
 
 // The quantity a line will actually be ordered at. A half-typed or blank field
 // reads as 0, which drops the line out of the order rather than sending NaN.
@@ -357,7 +370,9 @@ export default function CkParLevelsPage() {
           category: line.category || "General",
           qty: qtyOf(line),
           unit: line.unit || "pc",
-          unit_price: 0,
+          // カタログにある単価をそのまま渡す。0のまま送っていたので、
+          // 自動生成した明細だけが金額なしで届いていた。
+          unit_price: line.unitPrice,
         }));
 
         const fd = new FormData();
@@ -429,6 +444,8 @@ export default function CkParLevelsPage() {
           qty: String(suggested),
           suggested,
           removed: false,
+          unitPrice: Number(item.catalog_unit_price ?? 0) || 0,
+          priceSource: String(item.price_source || ""),
         };
       })
     );
@@ -446,6 +463,7 @@ export default function CkParLevelsPage() {
   const draftSuppliers = Object.keys(draftGroups)
     .filter((sup) => draftGroups[sup].some((l) => !l.removed && qtyOf(l) > 0));
   const draftLineCount = draft.filter((l) => !l.removed && qtyOf(l) > 0).length;
+  const noPriceCount = draft.filter((l) => !l.removed && qtyOf(l) > 0 && !(l.unitPrice > 0)).length;
 
   const setLineQty = (id: string, qty: string) =>
     setDraft((d) => d.map((l) => (l.id === id ? { ...l, qty } : l)));
@@ -1275,8 +1293,8 @@ export default function CkParLevelsPage() {
                 <p className="mb-3 text-xs text-zinc-400">
                   One order per supplier. Change any quantity below, or remove a line you do not
                   want — a removed line stays here with an <span className="text-zinc-300">Undo</span> next
-                  to it until you close this window. Unit prices are set to 0; update them in
-                  Procurement before approving.
+                  to it until you close this window. Unit prices come from the Procurement
+                  catalogue, the same list the Direct Purchase form uses.
                 </p>
                 {/* Supplier is a heading row, not a column. As a column it was the
                     widest thing in the table and pushed Remove off the right edge
@@ -1288,13 +1306,14 @@ export default function CkParLevelsPage() {
                         <th className="px-2 py-2 text-left">Item</th>
                         <th className="px-2 py-2 text-center">Qty</th>
                         <th className="px-2 py-2 text-center">Unit</th>
+                        <th className="px-2 py-2 text-right">Unit price</th>
                         <th className="px-2 py-2 text-right"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {Object.entries(draftGroups).flatMap(([sup, lines]) => [
                         <tr key={`sup-${sup}`} className="border-t border-white/10 bg-white/[0.03]">
-                          <td colSpan={4} className="px-2 py-1.5 font-medium text-teal-300">
+                          <td colSpan={5} className="px-2 py-1.5 font-medium text-teal-300">
                             {sup}
                             <span className="ml-2 text-[10px] font-normal text-zinc-500">
                               {lines.filter((l) => !l.removed && qtyOf(l) > 0).length} item
@@ -1334,6 +1353,15 @@ export default function CkParLevelsPage() {
                               )}
                             </td>
                             <td className="px-2 py-2 text-center align-middle text-zinc-400">{line.unit || "—"}</td>
+                            <td className="px-2 py-2 text-right align-middle tabular-nums">
+                              {line.unitPrice > 0 ? (
+                                <span className="text-zinc-200">{fmtNum(line.unitPrice, 2)}</span>
+                              ) : (
+                                <span className="text-orange-300/80" title={PRICE_WHY[line.priceSource] || "No price on file"}>
+                                  —
+                                </span>
+                              )}
+                            </td>
                             <td className="px-2 py-2 text-right align-middle">
                               <button
                                 onClick={() => toggleLineRemoved(line.id)}
@@ -1349,6 +1377,14 @@ export default function CkParLevelsPage() {
                     </tbody>
                   </table>
                 </div>
+                {noPriceCount > 0 && (
+                  <p className="mt-3 text-xs text-orange-300/90">
+                    {noPriceCount} of {draftLineCount} line{draftLineCount !== 1 ? "s" : ""} have
+                    no price on file and will be created at 0. Hover the dash to see why — usually
+                    the item is under a different name in the Procurement catalogue, or is not in
+                    it at all. Fill those in on the order before approving.
+                  </p>
+                )}
                 {draftLineCount === 0 && (
                   <p className="mt-3 text-xs text-orange-300">
                     Every line is removed or set to zero. There is nothing to order.

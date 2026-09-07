@@ -26,13 +26,16 @@ global.fetch = mockFetch as unknown as typeof fetch;
 const ROWS = [
   { id: "a", city: "manila", item_type: "supplier", item_name: "OYSTER SAUCE",
     unit: "BTL", par_level: 4, current_stock: 1, category: "Dry Goods",
-    supplier: "CHGL Store", notes: null, updated_at: "2026-09-07" },
+    supplier: "CHGL Store", notes: null, updated_at: "2026-09-07",
+    catalog_unit_price: 185, price_source: "supplier" },
   { id: "b", city: "manila", item_type: "supplier", item_name: "LIGHT SOY SAUCE",
     unit: "BTL", par_level: 3, current_stock: 1, category: "Dry Goods",
-    supplier: "CHGL Store", notes: null, updated_at: "2026-09-07" },
+    supplier: "CHGL Store", notes: null, updated_at: "2026-09-07",
+    catalog_unit_price: 92, price_source: "supplier" },
   { id: "c", city: "manila", item_type: "supplier", item_name: "CHICKEN SKIN",
     unit: "KG", par_level: 6, current_stock: 0, category: "Meat",
-    supplier: "JWE Meat Dealer", notes: null, updated_at: "2026-09-07" },
+    supplier: "JWE Meat Dealer", notes: null, updated_at: "2026-09-07",
+    catalog_unit_price: null, price_source: "not_in_catalog" },
 ];
 
 function jsonOk(body: unknown) {
@@ -136,6 +139,27 @@ describe("CK par levels — direct purchase orders", () => {
     await openModal();
     fireEvent.change(qtyField("CHICKEN SKIN"), { target: { value: "0" } });
     expect(createButton().textContent).toContain("Create 1 Order (2 items)");
+  });
+
+  it("sends the catalogue price, and 0 only where there is none", async () => {
+    // The generated lines used to be posted with unit_price 0 every time, while
+    // the same catalogue filled in prices for anything added by hand on the
+    // Direct Purchase form.
+    await openModal();
+    fireEvent.change(screen.getByPlaceholderText("Enter PIN"), { target: { value: "1234" } });
+    fireEvent.click(createButton());
+    await waitFor(() => expect(posted.length).toBe(2));
+    const chgl = posted.find((p) => p.vendor === "CHGL Store")!;
+    expect(chgl.items.find((i: any) => i.item_name === "OYSTER SAUCE").unit_price).toBe(185);
+    const meat = posted.find((p) => p.vendor === "JWE Meat Dealer")!;
+    expect(meat.items[0].unit_price).toBe(0);
+  });
+
+  it("says how many lines will be created without a price", async () => {
+    // A line at 0 is easy to approve without noticing, so the count is on the
+    // screen before the order is created rather than after.
+    await openModal();
+    expect(screen.getByText(/1 of 3 lines have\s+no price on file/)).toBeTruthy();
   });
 
   it("cannot be submitted when nothing is left to order", async () => {
