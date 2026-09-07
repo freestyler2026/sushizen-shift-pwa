@@ -1,6 +1,46 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-07（CK発注ポップアップの修正／応募者の携帯まわり）
+Last updated: 2026-09-07（食材使用量の画面／CK発注ポップアップ／応募者の携帯まわり）
+
+---
+
+## ✅ 2026-09-07 — マニラの販売から食材使用量を出す画面（`/admin/inventory/ingredient-usage`）
+
+**依頼**: 「マニラで販売された商品に使用された食材をまとめて見られるチャンネルを作りたい。
+それを参考に仕入れが考えられるようにしたい。」
+
+### 測って分かったこと（着手前）
+| | |
+|---|---|
+| **計算エンジンは既にあった** | `rebuild_inv_order_consumptions_from_pos()` が POS × Cost Calc BOM を再帰展開して `inv_order_consumptions` に書く。ドバイは 2026-03-01 以降 39,215行で稼働中 |
+| **画面が1つも無かった** | `/api/admin/inventory/order-consumptions` はフロントから grep 0件（教訓6） |
+| **マニラの入力が 2026-08-02 で死んでいた** | `inv_pos_menu_sales_daily` がマニラだけ 1,589行（ドバイ 39,160行）。直近90日で 3,581個しか見ておらず、実売は 42,594個＝**8%** |
+| ⚠️ **素朴に合計すると59%の水増し** | `manila_sales_by_product` に `storehub_api` と `grab_export` が同居。`manila_sales_by_channel` で StoreHub 内の GrabFood が562件、Grabエクスポートも562件で一致＝**同じ注文**。母集団は `storehub_api` のみ（教訓48） |
+| **レシピ網羅率77〜79%** | 直近90日145品・78,024個のうち81品・59,890個。欠けは Ramen+Sushi Combo / Pork Dumpling / Classic Shoyu Tonkotsu Ramen と、表記ゆれ（`Pork Dumplings`、`Chcken Teriyaki Bento`） |
+
+### 作ったもの
+- `app/ingredient_usage.py` — `manila_sales_by_product`（StoreHubのみ）→ `inv_pos_menu_sales_daily` の橋渡し、使用量API、レシピ網羅率API
+- worker に `run_manila_ingredient_usage`（**毎時・1日ぶんずつ**）。`MANILA_USAGE_ENABLED` / `MANILA_USAGE_BACKFILL_DAYS`
+- `/admin/inventory/ingredient-usage` — 期間・支店で絞り、食材ごとの使用量／発注量／差／原価
+- 支店コードの正規化（`QC`→`CUB`。1店舗が2支店に割れていた／教訓96）
+
+### 検証（本番実データ）
+- 8/31〜9/6 を実行 → **35,091行・errors 0**、コスト **₱326,157**、網羅率 **79%**
+- 使用量は妥当: SALMON 70.2kg / JAPONICA RICE 202kg / CUCUMBER 68.9kg（3店舗1週間）
+- worker が自力で 8/28 を追加（4,927行・errors 0）— 履歴を毎時1日ずつ埋める
+- 画面は 1440 / 900 / 600px で確認。横スクロール0、セルの切れ無し
+
+### ⚠️ 仕入実績との比較は、まだ8割が突き合わせできない
+- **169品中13品しか比較できない。** 名前が繋がらない129品が、その週の原価の **₱260,429／₱326,157（80%）** を占める
+- 原因は表記ゆれではなく**対応表が無いこと**。レシピは `SALMON`、発注は `Fresh Salmon Fillet (1pkt=1.5-1.8kg)`（55回・757kg）。`JAPONICA RICE` は `King Crab Rice 25KG`（SACK）、`SUSHI NORI` は `Nori Sheet (1pkt = 100pcs)`（PKT）
+- **勝手に寄せない**（教訓92）。必要なのは「材料 ↔ 発注品名 ＋ 1パック何g」の対応表で、**次にこれを作れば比較列が実際に動く**
+- 画面は「繋がっていない」「この期間に発注が無い」「パック容量が未定義」を**別々に表示**する。やるべきことが正反対のため
+- ⚠️ 単発の1行を「その名前で買っている」と数えない（`Salmon` 1kg が1回だけ実在した）。90日で3件以上を条件にした
+- 発注側は**支店で絞らない**。店舗は売るがCK/WHが買うため、支店で絞ると TAFT は169品中1品しか残らなかった
+
+### 既知の制約
+- 使用量があるのは現在 7/27〜8/2 と 8/28〜9/6。残りは worker が毎時1日ずつ埋める（45日ぶんで約2日）
+- エンジンは**1食材行につき1コネクション**を開く（教訓7の意図的な設計）。1日約5,000行＝数分。**週単位で回すと20分以上かかるので、必ず1日ずつ**
 
 ---
 
