@@ -32,9 +32,11 @@ const T = {
     position: "What work are you applying for?",
     branch: "Which branch do you prefer?",
     experience: "Experience in food service",
-    lastEmployer: "Where did you work last? (optional)",
+    lastEmployer: "Where did you work last?",
     lastEmployerHint: "The company name, as it is written",
-    lastPosition: "What was your position there? (optional)",
+    firstJob: "This is my first job",
+    firstJobHint: "Tick this and you can leave the two boxes above blank.",
+    lastPosition: "What was your position there?",
     lastDuration: "How long were you there? (optional)",
     homeArea: "Which area do you live in? (optional)",
     homeAreaHint: "So we can suggest a branch near you",
@@ -76,9 +78,11 @@ const T = {
     position: "Anong trabaho ang inaaplayan mo?",
     branch: "Aling branch ang gusto mo?",
     experience: "Karanasan sa food service",
-    lastEmployer: "Saan ka huling nagtrabaho? (opsyonal)",
+    lastEmployer: "Saan ka huling nagtrabaho?",
     lastEmployerHint: "Ang pangalan ng kompanya, kung paano ito nakasulat",
-    lastPosition: "Ano ang posisyon mo doon? (opsyonal)",
+    firstJob: "Ito ang una kong trabaho",
+    firstJobHint: "Lagyan ito ng tsek at pwede mong iwang blangko ang dalawang kahon sa itaas.",
+    lastPosition: "Ano ang posisyon mo doon?",
     lastDuration: "Gaano ka katagal doon? (opsyonal)",
     homeArea: "Saang lugar ka nakatira? (opsyonal)",
     homeAreaHint: "Para makapagmungkahi kami ng branch na malapit sa iyo",
@@ -149,6 +153,13 @@ export default function ApplyPage() {
   });
   const [apps, setApps] = useState<string[]>([]);
   const [bad, setBad] = useState<string[]>([]);
+  // Whether we ask for a former employer. Driven by an explicit "first job"
+  // tick, not by the experience dropdown: that one asks about **food service**,
+  // so somebody who spent two years in retail would answer "None" and skip the
+  // employer we actually want. Drives both the * and the validation, so the
+  // mark and the rule cannot disagree.
+  const [firstJob, setFirstJob] = useState(false);
+  const needsLastJob = !firstJob;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
@@ -172,6 +183,14 @@ export default function ApplyPage() {
     if (form.phone.replace(/\D/g, "").length < 7) missing.push("phone");
     if (!form.position_group) missing.push("position_group");
     if (!form.branch) missing.push("branch");
+    // Required only for somebody who has worked. Asking a first-time job
+    // seeker for a former employer just puts "N/A" in the field, and then
+    // "no experience" and "could not be bothered" look the same.
+    if (!form.experience_level) missing.push("experience_level");
+    if (needsLastJob) {
+      if (!form.last_employer.trim()) missing.push("last_employer");
+      if (!form.last_position.trim()) missing.push("last_position");
+    }
     if (missing.length) { setBad(missing); setErr(t.errRequired); return; }
 
     setBusy(true);
@@ -302,7 +321,7 @@ export default function ApplyPage() {
           <select
             value={form.experience_level}
             onChange={(e) => set("experience_level", e.target.value)}
-            className={FIELD}
+            className={`${FIELD} ${bad.includes("experience_level") ? BAD : ""}`}
           >
             <option value="">{t.choose}</option>
             {EXPERIENCE.map((x) => (
@@ -311,14 +330,18 @@ export default function ApplyPage() {
           </select>
         </div>
 
-        {/* All optional. A required field here is where somebody who cannot
-            answer it closes the page. */}
+        {/* Required once somebody says they have experience, and never before
+            that. This is the field the voice interview stopped asking for,
+            because the machine mis-hears company names — blank here puts that
+            problem back. */}
         <div>
-          <label className="mb-1.5 block text-sm text-zinc-300">{t.lastEmployer}</label>
+          <label className="mb-1.5 block text-sm text-zinc-300">
+            {t.lastEmployer}{needsLastJob && <span className="text-rose-400"> *</span>}
+          </label>
           <input
             value={form.last_employer}
             onChange={(e) => set("last_employer", e.target.value)}
-            className={FIELD}
+            className={`${FIELD} ${bad.includes("last_employer") ? BAD : ""}`}
             autoComplete="organization"
           />
           <p className="mt-1 text-xs text-zinc-500">{t.lastEmployerHint}</p>
@@ -326,11 +349,13 @@ export default function ApplyPage() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-sm text-zinc-300">{t.lastPosition}</label>
+            <label className="mb-1.5 block text-sm text-zinc-300">
+              {t.lastPosition}{needsLastJob && <span className="text-rose-400"> *</span>}
+            </label>
             <input
               value={form.last_position}
               onChange={(e) => set("last_position", e.target.value)}
-              className={FIELD}
+              className={`${FIELD} ${bad.includes("last_position") ? BAD : ""}`}
               autoComplete="organization-title"
             />
           </div>
@@ -343,6 +368,22 @@ export default function ApplyPage() {
               placeholder="2 years"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+            <input
+              type="checkbox"
+              checked={firstJob}
+              onChange={(e) => {
+                setFirstJob(e.target.checked);
+                setBad((b) => b.filter((x) => x !== "last_employer" && x !== "last_position"));
+              }}
+              className="h-4 w-4 accent-violet-500"
+            />
+            {t.firstJob}
+          </label>
+          <p className="mt-1 text-xs text-zinc-500">{t.firstJobHint}</p>
         </div>
 
         <div>
