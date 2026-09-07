@@ -82,8 +82,29 @@ type Item = {
     mime_type: string;
     uploaded_at: string;
     has_audio: boolean;
+    /** Loudest moment in the recording. Null on answers taken before the level
+     *  was measured, which is not the same as silent and must not read as it. */
+    peak_dbfs: number | null;
+    mean_dbfs: number | null;
+    level_note: string | null;
   } | null;
 };
+
+/** Silence, "we did not measure", and normal sound are three different states.
+ *  Collapsing the middle one into either of the others is how a real failure
+ *  gets read as a quirk of the reader's phone. */
+function levelBadge(a: { peak_dbfs: number | null; level_note: string | null }) {
+  if (a.peak_dbfs === null) {
+    return { text: "level not measured", cls: "text-zinc-500" };
+  }
+  if (a.peak_dbfs <= -45) {
+    return { text: `no sound (${a.peak_dbfs.toFixed(0)} dBFS)`, cls: "text-red-300 font-semibold" };
+  }
+  if (a.peak_dbfs <= -30) {
+    return { text: `quiet (${a.peak_dbfs.toFixed(0)} dBFS)`, cls: "text-amber-300" };
+  }
+  return null;
+}
 
 type Detail = Row & { items: Item[] };
 
@@ -673,6 +694,15 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                 <span className={T_CAPTION}>
                                   {mmss(it.answer.duration_seconds)} of {mmss(it.limit_seconds)}
                                 </span>
+                                {/* Said before it is played. Three back-office
+                                    staff recorded on 2026-09-07 and one of them
+                                    produced seven answers at -90 dBFS; nothing
+                                    on this row distinguished them from the
+                                    fourteen that had speech in them. */}
+                                {(() => {
+                                  const b = levelBadge(it.answer);
+                                  return b ? <span className={`text-xs ${b.cls}`}>{b.text}</span> : null;
+                                })()}
                               </div>
                             ) : (
                               <p className={`${T_CAPTION} mt-1.5`}>

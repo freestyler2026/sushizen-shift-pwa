@@ -55,7 +55,7 @@ const T = {
     finish: "Finish",
     doneTitle: "All done",
     doneBody: "Thank you. Someone from Sushi ZEN will message you.",
-    micDenied: "This browser is not letting us use the microphone. Allow it for this site (tap the icon in the address bar), then press Start recording again.",
+    micDenied: "This browser is not letting us use the microphone. Allow it for this site (tap the lock or ⚙ icon in the address bar), then try again.",
     micNone: "No microphone was found on this device. Try a phone with a microphone, or do this later.",
     micBusy: "The microphone is being used by another app. Close it and try again.",
     micUnsupported: "This browser cannot record audio. Chrome works. You can also do this later — your application is already sent.",
@@ -64,6 +64,37 @@ const T = {
     failed: "Could not send that answer. Try recording it again.",
     left: "left",
     againLeft: "You can re-record this answer once.",
+
+    checkTitle: "First, let us check your microphone",
+    checkBody: "Say your name out loud. The bar should move.",
+    checkStart: "Start the check",
+    checkListening: "Listening… keep talking",
+    checkGood: "We can hear you.",
+    checkContinue: "Continue",
+    checkFail: "We could not hear anything.",
+    checkRetry: "Try again",
+    checkWhy: "Almost always one of these ↓",
+    silentAnswer: "That answer had no sound in it, so it was not sent. Your microphone did not pick anything up.",
+    silentRetry: "Record this answer again",
+    meterHint: "The bar moves while you speak.",
+    fixTitle: "How to fix the microphone",
+    fixIos: "iPhone / iPad",
+    fixAndroid: "Android",
+    fixIosSteps: [
+      "**Bluetooth earphones are the usual cause.** If earbuds or a headset are connected, the phone records from those, not from the phone. Take them out of the case and put them in your ear — or turn Bluetooth off in Control Centre and use the phone itself.",
+      "**Allow the microphone for Safari.** Settings → Safari → Microphone → Allow. Then close this page and open the link again.",
+      "**Close anything else using the microphone** — a call, Voice Memos, Messenger or WhatsApp left on a call.",
+      "**Do not cover the bottom edge.** The microphone is beside the charging port. A thick case or a finger over it is enough.",
+      "Still nothing: close Safari completely (swipe up), open the link again, and run the check once more.",
+    ],
+    fixAndroidSteps: [
+      "**Bluetooth earphones are the usual cause.** If earbuds or a headset are connected, the phone records from those, not from the phone. Put them in your ear — or turn Bluetooth off and use the phone itself.",
+      "**Allow the microphone for this site.** Tap the lock or ⚙ icon to the left of the address bar → Permissions → Microphone → Allow. Then reload the page.",
+      "**Allow it for Chrome itself.** Settings → Apps → Chrome → Permissions → Microphone → Allow.",
+      "**Close anything else using the microphone** — a call, a voice recorder, Messenger or WhatsApp left on a call.",
+      "**Do not cover the bottom edge.** The microphone is beside the charging port.",
+      "Still nothing: close Chrome completely, open the link again, and run the check once more.",
+    ],
   },
   tl: {
     heading: "Isa pang hakbang (opsyonal)",
@@ -92,7 +123,7 @@ const T = {
     finish: "Tapusin",
     doneTitle: "Tapos na",
     doneBody: "Salamat. May mag-me-message sa iyo mula sa Sushi ZEN.",
-    micDenied: "Hindi pinapayagan ng browser na ito ang mikropono. I-allow po ito para sa site na ito (pindutin ang icon sa address bar), tapos pindutin ulit ang Mag-record.",
+    micDenied: "Hindi pinapayagan ng browser na ito ang mikropono. I-allow po ito para sa site na ito (pindutin ang lock o ⚙ icon sa address bar), tapos subukan ulit.",
     micNone: "Walang nakitang mikropono sa device na ito. Subukan sa telepono na may mikropono, o gawin na lang mamaya.",
     micBusy: "Ginagamit ng ibang app ang mikropono. Isara po ito at subukan ulit.",
     micUnsupported: "Hindi makapag-record ang browser na ito. Gumagana ang Chrome. Pwede rin gawin mamaya — naipadala na po ang application mo.",
@@ -101,8 +132,116 @@ const T = {
     failed: "Hindi naipadala ang sagot na iyon. Subukang i-record ulit.",
     left: "natitira",
     againLeft: "Pwede mong i-record ulit ang sagot na ito nang isang beses.",
+
+    checkTitle: "Una, subukan muna natin ang mikropono mo",
+    checkBody: "Sabihin nang malakas ang pangalan mo. Dapat gumalaw ang bar.",
+    checkStart: "Simulan ang pagsubok",
+    checkListening: "Nakikinig… magsalita lang po",
+    checkGood: "Naririnig ka namin.",
+    checkContinue: "Magpatuloy",
+    checkFail: "Wala kaming narinig na kahit ano.",
+    checkRetry: "Subukan ulit",
+    checkWhy: "Halos palagi, isa sa mga ito ↓",
+    silentAnswer: "Walang tunog ang sagot na iyon, kaya hindi ito naipadala. Walang nakuha ang mikropono mo.",
+    silentRetry: "I-record ulit ang sagot na ito",
+    meterHint: "Gumagalaw ang bar habang nagsasalita ka.",
+    fixTitle: "Paano ayusin ang mikropono",
+    fixIos: "iPhone / iPad",
+    fixAndroid: "Android",
+    fixIosSteps: [
+      "**Kadalasan ay ang Bluetooth earphones.** Kung may naka-connect na earbuds o headset, doon nagre-record ang telepono, hindi sa telepono mismo. Ilabas sa case at isuot sa tenga — o i-off ang Bluetooth sa Control Centre at gamitin ang telepono mismo.",
+      "**Payagan ang mikropono para sa Safari.** Settings → Safari → Microphone → Allow. Tapos isara ang page na ito at buksan ulit ang link.",
+      "**Isara ang ibang app na gumagamit ng mikropono** — tawag, Voice Memos, Messenger o WhatsApp na naiwang naka-call.",
+      "**Huwag takpan ang ibaba ng telepono.** Nasa tabi ng charging port ang mikropono. Sapat na ang makapal na case o daliri para matakpan.",
+      "Kung wala pa rin: isara nang tuluyan ang Safari (i-swipe pataas), buksan ulit ang link, at ulitin ang pagsubok.",
+    ],
+    fixAndroidSteps: [
+      "**Kadalasan ay ang Bluetooth earphones.** Kung may naka-connect na earbuds o headset, doon nagre-record ang telepono. Isuot sa tenga — o i-off ang Bluetooth at gamitin ang telepono mismo.",
+      "**Payagan ang mikropono para sa site na ito.** Pindutin ang lock o ⚙ icon sa kaliwa ng address bar → Permissions → Microphone → Allow. Tapos i-reload ang page.",
+      "**Payagan din para sa Chrome mismo.** Settings → Apps → Chrome → Permissions → Microphone → Allow.",
+      "**Isara ang ibang app na gumagamit ng mikropono** — tawag, voice recorder, Messenger o WhatsApp na naiwang naka-call.",
+      "**Huwag takpan ang ibaba ng telepono.** Nasa tabi ng charging port ang mikropono.",
+      "Kung wala pa rin: isara nang tuluyan ang Chrome, buksan ulit ang link, at ulitin ang pagsubok.",
+    ],
   },
 };
+
+/** Peak below this counts as "nothing was recorded". Matches the server's
+ *  VOICE_SILENT_PEAK_DBFS. Measured 2026-09-07 on three back-office staff: the
+ *  seven silent answers peaked between -72 and -60 dBFS, the fourteen with
+ *  speech between -8.7 and -0.4. Fifty decibels of empty space in between, so
+ *  the exact line does not matter -- only that there is one. */
+const SILENT_PEAK_DBFS = -45;
+
+function dbfs(amplitude: number) {
+  return amplitude <= 0 ? -120 : Math.max(-120, 20 * Math.log10(amplitude));
+}
+
+type Meter = {
+  /** Loudest sample seen since the meter was attached, in dBFS. */
+  peak: () => number;
+  /** Loudest sample in the last frame, 0..1, for the bar. */
+  now: () => number;
+  stop: () => void;
+};
+
+/** Watch the live microphone stream.
+ *
+ * Reading the stream rather than decoding the finished file: every browser that
+ * can record can also analyse, decodeAudioData cannot read every container it
+ * just wrote, and a bar that moves while you speak is the part that tells the
+ * applicant the microphone works. A number they never see would not have helped
+ * the person who recorded seven silent answers.
+ */
+function attachMeter(stream: MediaStream): Meter | null {
+  type Ctor = typeof AudioContext;
+  const Ctx: Ctor | undefined =
+    window.AudioContext || (window as unknown as { webkitAudioContext?: Ctor }).webkitAudioContext;
+  if (!Ctx) return null;
+  let ctx: AudioContext;
+  try {
+    ctx = new Ctx();
+  } catch {
+    return null;
+  }
+  // iOS starts the context suspended unless it was created inside the tap. It
+  // is, but resume() is still required after the permission prompt.
+  void ctx.resume?.();
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  ctx.createMediaStreamSource(stream).connect(analyser);
+  const buf = new Float32Array(analyser.fftSize);
+  let peak = 0;
+  let last = 0;
+  let raf = 0;
+  const tick = () => {
+    try {
+      analyser.getFloatTimeDomainData(buf);
+      let frame = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = Math.abs(buf[i]);
+        if (v > frame) frame = v;
+      }
+      last = frame;
+      if (frame > peak) peak = frame;
+    } catch { /* context died with the track; keep the last reading */ }
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  return {
+    peak: () => dbfs(peak),
+    now: () => last,
+    stop: () => { cancelAnimationFrame(raf); void ctx.close?.(); },
+  };
+}
+
+/** Which set of instructions to lead with. Only used to order them -- both are
+ *  reachable, because a wrong guess must not hide the one that would work. */
+function guessPlatform(): "ios" | "android" {
+  if (typeof navigator === "undefined") return "android";
+  const ua = navigator.userAgent || "";
+  return /iPhone|iPad|iPod/i.test(ua) ? "ios" : "android";
+}
 
 const BTN = "w-full rounded-xl px-4 py-4 text-base font-semibold transition disabled:opacity-60";
 
@@ -125,7 +264,7 @@ export default function VoiceScreening({
   const t = T[lang];
 
   const [data, setData] = useState<Loaded | null>(null);
-  const [stage, setStage] = useState<"offer" | "consent" | "record" | "later" | "done">(startAt);
+  const [stage, setStage] = useState<"offer" | "consent" | "miccheck" | "record" | "later" | "done">(startAt);
   const [idx, setIdx] = useState(0);
   const [recording, setRecording] = useState(false);
   const [left, setLeft] = useState(0);
@@ -133,11 +272,29 @@ export default function VoiceScreening({
   const [saved, setSaved] = useState(false);
   const [retries, setRetries] = useState(0);
   const [err, setErr] = useState("");
+  // The microphone check, and the same check applied to every answer after it.
+  const [mic, setMic] = useState<"idle" | "listening" | "good" | "bad">("idle");
+  const [bar, setBar] = useState(0);
+  const [showFix, setShowFix] = useState(false);
+  const [fixTab, setFixTab] = useState<"ios" | "android">("android");
+  const [silent, setSilent] = useState(false);
 
   const recRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<BlobPart[]>([]);
   const startedAt = useRef(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const meterRef = useRef<Meter | null>(null);
+  const barTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const aliveRef = useRef(true);
+
+  useEffect(() => { setFixTab(guessPlatform()); }, []);
+  // Investigated once already: a loop left running after the screen is gone
+  // keeps calling setState on something that no longer exists (lesson 94).
+  useEffect(() => () => {
+    aliveRef.current = false;
+    meterRef.current?.stop();
+    if (barTimer.current) clearInterval(barTimer.current);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -164,6 +321,20 @@ export default function VoiceScreening({
   useEffect(() => { void load(); }, [load]);
 
   const stopTimer = () => { if (timer.current) { clearInterval(timer.current); timer.current = null; } };
+  const stopMeter = () => {
+    if (barTimer.current) { clearInterval(barTimer.current); barTimer.current = null; }
+    meterRef.current?.stop();
+    meterRef.current = null;
+  };
+  /** Drives the bar. Ten frames a second is enough to read as live and cheap
+   *  enough not to matter on the phones these are recorded on. */
+  const watchBar = () => {
+    if (barTimer.current) clearInterval(barTimer.current);
+    barTimer.current = setInterval(() => {
+      if (!aliveRef.current) return;
+      setBar(meterRef.current?.now() ?? 0);
+    }, 100);
+  };
   useEffect(() => stopTimer, []);
 
   if (!data || !data.questions.length) return null;
@@ -180,7 +351,50 @@ export default function VoiceScreening({
   async function agree() {
     setErr("");
     await fetch(`/api/voice/${token}/consent`, { method: "POST" });
-    setStage("record");
+    setStage("miccheck");
+  }
+
+  /** Prove the microphone works before asking anybody to answer seven questions
+   *  into it. On 2026-09-07 one of three back-office staff recorded all seven
+   *  answers at -90 dBFS -- fifty minutes of nothing -- and every screen said
+   *  it had been sent. Six seconds here is the whole cost of never doing that
+   *  to somebody again. */
+  async function runMicCheck() {
+    setErr(""); setShowFix(false); setBar(0);
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setErr(t.micUnsupported);
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      setErr(micMessage(e));
+      setMic("bad"); setShowFix(true);
+      return;
+    }
+    const meter = attachMeter(stream);
+    if (!meter) {
+      // No AudioContext: we cannot measure anything, so we must not claim the
+      // microphone is broken. Let them through and rely on the per-answer
+      // check, which will also say "unmeasured" rather than "silent".
+      stream.getTracks().forEach((tr) => tr.stop());
+      setStage("record");
+      return;
+    }
+    meterRef.current = meter;
+    setMic("listening");
+    watchBar();
+    window.setTimeout(() => {
+      if (!aliveRef.current) return;
+      const peak = meterRef.current?.peak() ?? -120;
+      stopMeter();
+      stream.getTracks().forEach((tr) => tr.stop());
+      setBar(0);
+      const ok = peak > SILENT_PEAK_DBFS;
+      setMic(ok ? "good" : "bad");
+      setShowFix(!ok);
+    }, 6000);
   }
 
   /** Says which thing went wrong instead of blaming permissions for all of
@@ -198,7 +412,7 @@ export default function VoiceScreening({
   }
 
   async function start() {
-    setErr(""); setSaved(false);
+    setErr(""); setSaved(false); setSilent(false); setShowFix(false);
 
     // Old browsers, and any page that is somehow not on https, have no
     // mediaDevices at all -- reading .getUserMedia off undefined would throw
@@ -244,15 +458,34 @@ export default function VoiceScreening({
     }
 
     chunks.current = [];
+    // Watched for the whole answer, not sampled: a peak is only meaningful if
+    // nothing was missed.
+    meterRef.current = attachMeter(stream);
+    if (meterRef.current) watchBar();
+
     rec.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
     rec.onstop = () => {
+      const peak = meterRef.current?.peak() ?? null;
+      stopMeter();
+      setBar(0);
       stream.getTracks().forEach((tr) => tr.stop());
       // The recorder's own mimeType is the truth once the options were dropped.
       const type = (rec.mimeType || mime || "audio/webm").split(";")[0];
-      void upload(new Blob(chunks.current, { type }), type);
+
+      if (peak !== null && peak <= SILENT_PEAK_DBFS) {
+        // Not sent. Uploading it would put a file nobody can hear into the
+        // queue and tell the applicant it worked -- which is exactly what
+        // happened before this check existed.
+        setSilent(true);
+        setShowFix(true);
+        return;
+      }
+      void upload(new Blob(chunks.current, { type }), type, peak);
     };
     rec.onerror = () => {
       stopTimer();
+      stopMeter();
+      setBar(0);
       setRecording(false);
       stream.getTracks().forEach((tr) => tr.stop());
       setErr(t.micOther);
@@ -282,8 +515,8 @@ export default function VoiceScreening({
     try { recRef.current?.stop(); } catch { /* already stopped */ }
   }
 
-  async function upload(blob: Blob, type = "audio/webm") {
-    setBusy(true); setErr("");
+  async function upload(blob: Blob, type = "audio/webm", peak: number | null = null) {
+    setBusy(true); setErr(""); setSilent(false);
     try {
       const fd = new FormData();
       // Named for what it is: Safari produces mp4, not webm, and a file whose
@@ -293,6 +526,9 @@ export default function VoiceScreening({
       fd.append("audio", blob, `q${q.seq}.${ext}`);
       fd.append("duration_seconds",
         String(Math.round((Date.now() - startedAt.current) / 1000)));
+      // Sent so the level is on the record, not only in the moment. A silent
+      // answer has to be visible to HR from the list, without opening it.
+      if (peak !== null) fd.append("peak_dbfs", peak.toFixed(1));
       // No Content-Type header: setting it would overwrite the multipart
       // boundary the browser generates and the server would see no file.
       const res = await fetch(`/api/voice/${token}/answer/${q.seq}`, {
@@ -314,6 +550,58 @@ export default function VoiceScreening({
   }
 
   const card = "rounded-2xl border border-white/10 bg-white/5 p-5";
+
+  /** The bar. It is the whole point: a number in a database would not have told
+   *  the person recording that nothing was going in. */
+  const meterBar = (
+    <div className="mt-4">
+      <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
+        <div
+          className={`h-full rounded-full transition-[width] duration-100 ${
+            bar * 100 > 1 ? "bg-emerald-400" : "bg-white/20"}`}
+          // Square root, so ordinary speech fills a useful part of the bar
+          // instead of sitting near the left edge where it reads as "nothing".
+          style={{ width: `${Math.min(100, Math.sqrt(bar) * 130)}%` }}
+        />
+      </div>
+      <p className="mt-1.5 text-center text-xs text-zinc-500">{t.meterHint}</p>
+    </div>
+  );
+
+  /** Steps, in the order they actually solve it. Bluetooth first because a
+   *  headset in a bag records the bag. Both platforms stay reachable — leading
+   *  with the wrong one would be an inconvenience, hiding the right one would
+   *  be a dead end. */
+  const fixPanel = (
+    <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-950/15 p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-amber-100">{t.fixTitle}</h3>
+        <div className="flex gap-1 text-xs">
+          {(["ios", "android"] as const).map((k) => (
+            <button key={k} type="button" onClick={() => setFixTab(k)}
+              className={`rounded-lg px-2 py-1 ${fixTab === k
+                ? "bg-amber-500/25 text-amber-100" : "text-zinc-500"}`}>
+              {k === "ios" ? t.fixIos : t.fixAndroid}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ol className="space-y-2.5 text-sm leading-relaxed text-zinc-300">
+        {(fixTab === "ios" ? t.fixIosSteps : t.fixAndroidSteps).map((step, i) => (
+          <li key={i} className="flex gap-2.5">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-200">
+              {i + 1}
+            </span>
+            <span>
+              {step.split("**").map((part, j) =>
+                j % 2 ? <strong key={j} className="text-white">{part}</strong>
+                      : <span key={j}>{part}</span>)}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
 
   if (stage === "offer") {
     return (
@@ -374,6 +662,68 @@ export default function VoiceScreening({
     );
   }
 
+  if (stage === "miccheck") {
+    return (
+      <div className={`${card} mt-8`}>
+        <h2 className="mb-2 text-lg font-semibold text-white">{t.checkTitle}</h2>
+        <p className="mb-4 text-sm leading-relaxed text-zinc-300">{t.checkBody}</p>
+
+        {mic === "listening" && (
+          <>
+            <p className="text-center text-sm font-medium text-emerald-300">
+              {t.checkListening}
+            </p>
+            {meterBar}
+          </>
+        )}
+
+        {mic === "idle" && (
+          <button type="button" onClick={() => void runMicCheck()}
+            className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
+            {t.checkStart}
+          </button>
+        )}
+
+        {mic === "good" && (
+          <>
+            <p className="mb-4 text-center text-sm font-medium text-emerald-300">
+              ✓ {t.checkGood}
+            </p>
+            <button type="button" onClick={() => setStage("record")}
+              className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
+              {t.checkContinue}
+            </button>
+          </>
+        )}
+
+        {mic === "bad" && (
+          <>
+            <p className="text-sm font-medium text-amber-200">{t.checkFail}</p>
+            <p className="mt-1 text-xs text-zinc-400">{t.checkWhy}</p>
+            {fixPanel}
+            <button type="button" onClick={() => { setMic("idle"); setShowFix(false); }}
+              className={`${BTN} mt-4 bg-violet-500/90 text-white hover:bg-violet-500`}>
+              {t.checkRetry}
+            </button>
+          </>
+        )}
+
+        {/* The way out stays on this screen. Somebody whose microphone will not
+            work must not be trapped on the step that tests it. */}
+        <button type="button" onClick={() => setStage("later")}
+          className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
+          {t.laterHere}
+        </button>
+
+        {err && (
+          <p className="mt-4 rounded-xl border border-red-500/30 bg-red-950/20 p-3 text-sm text-red-200">
+            {err}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (stage === "done") {
     return (
       <div className={`${card} mt-8 text-center`}>
@@ -407,7 +757,7 @@ export default function VoiceScreening({
       )}
       {(!secondary || secondary === primary) && <div className="mb-5" />}
 
-      {!recording && !saved && (
+      {!recording && !saved && !silent && (
         <button type="button" onClick={() => void start()} disabled={busy}
           className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
           {busy ? t.uploading : t.record}
@@ -415,10 +765,13 @@ export default function VoiceScreening({
       )}
 
       {recording && (
-        <button type="button" onClick={stop}
-          className={`${BTN} bg-red-500/90 text-white hover:bg-red-500`}>
-          ● {t.stop}
-        </button>
+        <>
+          <button type="button" onClick={stop}
+            className={`${BTN} bg-red-500/90 text-white hover:bg-red-500`}>
+            ● {t.stop}
+          </button>
+          {meterBar}
+        </>
       )}
 
       {/* The microphone message offers to do this later, so the way out has to
@@ -429,6 +782,22 @@ export default function VoiceScreening({
           className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
           {t.laterHere}
         </button>
+      )}
+
+      {silent && (
+        <div className="mt-4">
+          <p className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-sm text-amber-100">
+            {t.silentAnswer}
+          </p>
+          {showFix && fixPanel}
+          {/* Not counted against the single retake: that allowance exists so
+              answers stay comparable, and this is not a second attempt at
+              answering -- the first one never reached us. */}
+          <button type="button" onClick={() => void start()} disabled={busy}
+            className={`${BTN} mt-4 bg-violet-500/90 text-white hover:bg-violet-500`}>
+            {t.silentRetry}
+          </button>
+        </div>
       )}
 
       {saved && (
