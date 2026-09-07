@@ -27,6 +27,20 @@ interface ParLevelRow {
   updated_at: string;
 }
 
+// One line of the purchase order being built in the modal. `removed` keeps a
+// dropped line visible with an Undo next to it instead of making it vanish —
+// a line that disappears takes its own undo button with it (lesson 56).
+interface OrderLine {
+  id: string;
+  supplier: string;
+  item_name: string;
+  category: string;
+  unit: string;
+  qty: string;      // as typed, so the field can be empty while editing
+  suggested: number;
+  removed: boolean;
+}
+
 interface ImportResult {
   ok: boolean;
   parsed_total: number;
@@ -44,6 +58,13 @@ const cityParam = (c: City) => c.toLowerCase();
 function fmtNum(n: number | null | undefined, digits = 1): string {
   if (n == null) return "—";
   return n.toLocaleString(undefined, { maximumFractionDigits: digits });
+}
+
+// The quantity a line will actually be ordered at. A half-typed or blank field
+// reads as 0, which drops the line out of the order rather than sending NaN.
+function qtyOf(line: OrderLine): number {
+  const n = parseFloat(line.qty);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
@@ -115,6 +136,11 @@ export default function CkParLevelsPage() {
   const [createPin, setCreatePin] = useState("");
   const [creatingOrders, setCreatingOrders] = useState(false);
   const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  // What will actually be ordered. The modal used to render par − stock straight
+  // from the rows, so the only way to change a quantity was to leave, edit the
+  // par level, and come back. Now the modal holds its own copy and this is what
+  // gets sent — nothing recomputes it at submit time.
+  const [draft, setDraft] = useState<OrderLine[]>([]);
 
   // ── fetch rows ────────────────────────────────────────────────────────────
   const loadRows = useCallback(async () => {
@@ -307,23 +333,17 @@ export default function CkParLevelsPage() {
       const auth = getAuth();
       if (!auth) throw new Error("Not authenticated");
 
-      // Group items by supplier where TO ORDER > 0
-      const toOrder = rows.filter((r) => {
-        const sup = (r.supplier || "").trim();
-        if (!sup || sup === "—" || sup === "-" || r.par_level == null || r.current_stock == null) return false;
-        return Math.max(0, r.par_level - r.current_stock) > 0;
-      });
-
-      const bySupplier: Record<string, ParLevelRow[]> = {};
-      for (const r of toOrder) {
-        const sup = r.supplier!;
-        if (!bySupplier[sup]) bySupplier[sup] = [];
-        bySupplier[sup].push(r);
+      // Exactly the lines shown on screen, with the quantities as edited.
+      const bySupplier: Record<string, OrderLine[]> = {};
+      for (const line of draft) {
+        if (line.removed || qtyOf(line) <= 0) continue;
+        if (!bySupplier[line.supplier]) bySupplier[line.supplier] = [];
+        bySupplier[line.supplier].push(line);
       }
 
       const supplierNames = Object.keys(bySupplier);
       if (supplierNames.length === 0) {
-        setCreateResult({ ok: false, msg: "No items with supplier and quantity to order." });
+        setCreateResult({ ok: false, msg: "Nothing left to order — every line was removed or set to zero." });
         return;
       }
 
@@ -332,11 +352,11 @@ export default function CkParLevelsPage() {
       const errors: string[] = [];
 
       for (const vendorName of supplierNames) {
-        const items = bySupplier[vendorName].map((r) => ({
-          item_name: r.item_name,
-          category: r.category || "General",
-          qty: Math.max(0, (r.par_level ?? 0) - (r.current_stock ?? 0)),
-          unit: r.unit || "pc",
+        const items = bySupplier[vendorName].map((line) => ({
+          item_name: line.item_name,
+          category: line.category || "General",
+          qty: qtyOf(line),
+          unit: line.unit || "pc",
           unit_price: 0,
         }));
 
@@ -395,6 +415,42 @@ export default function CkParLevelsPage() {
     }
     return bySupplier;
   })();
+
+  const buildDraft = (): OrderLine[] =>
+    Object.entries(orderGroups).flatMap(([sup, group]) =>
+      group.items.map((item) => {
+        const suggested = Math.max(0, (item.par_level ?? 0) - (item.current_stock ?? 0));
+        return {
+          id: item.id,
+          supplier: sup,
+          item_name: item.item_name,
+          category: item.category || "General",
+          unit: item.unit || "",
+          qty: String(suggested),
+          suggested,
+          removed: false,
+        };
+      })
+    );
+
+  // What the modal will send, grouped for display. Kept in one place so the
+  // table, the supplier count and the submit button cannot disagree.
+  const draftGroups = (() => {
+    const out: Record<string, OrderLine[]> = {};
+    for (const line of draft) {
+      if (!out[line.supplier]) out[line.supplier] = [];
+      out[line.supplier].push(line);
+    }
+    return out;
+  })();
+  const draftSuppliers = Object.keys(draftGroups)
+    .filter((sup) => draftGroups[sup].some((l) => !l.removed && qtyOf(l) > 0));
+  const draftLineCount = draft.filter((l) => !l.removed && qtyOf(l) > 0).length;
+
+  const setLineQty = (id: string, qty: string) =>
+    setDraft((d) => d.map((l) => (l.id === id ? { ...l, qty } : l)));
+  const toggleLineRemoved = (id: string) =>
+    setDraft((d) => d.map((l) => (l.id === id ? { ...l, removed: !l.removed } : l)));
 
   // ── seed from Cost Calc ───────────────────────────────────────────────────
   const handleSeed = async () => {
@@ -709,7 +765,7 @@ export default function CkParLevelsPage() {
           {/* Create Direct Purchase Orders (Supplier tab only) */}
           {tab === "supplier" && (
             <button
-              onClick={() => { setShowCreateModal(true); setCreateResult(null); setCreatePin(""); }}
+              onClick={() => { setDraft(buildDraft()); setShowCreateModal(true); setCreateResult(null); setCreatePin(""); }}
               disabled={Object.keys(orderGroups).length === 0}
               className="rounded-xl border border-teal-500/30 bg-teal-500/15 px-4 py-2 text-sm font-medium text-teal-400 hover:bg-teal-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               title={Object.keys(orderGroups).length === 0 ? "No items with supplier + quantity to order" : ""}
@@ -1088,7 +1144,7 @@ export default function CkParLevelsPage() {
 
       {/* ── Add Item Modal ───────────────────────────────────────────────── */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:pl-60">
           <div className={`${GLASS_CARD} w-full max-w-md p-6 space-y-4`}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-white">
@@ -1195,91 +1251,153 @@ export default function CkParLevelsPage() {
 
       {/* ── Create Direct Purchase Orders Modal ─────────────────────────── */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className={`${GLASS_CARD} w-full max-w-lg p-6 space-y-5`}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">Create Direct Purchase Orders</h2>
-              <button
-                onClick={() => { setShowCreateModal(false); setCreateResult(null); }}
-                className="rounded p-1 text-zinc-400 hover:text-white hover:bg-white/10"
-              >✕</button>
-            </div>
-
-            {/* Order summary by supplier */}
-            <div className="space-y-2">
-              <p className="text-xs text-zinc-400">
-                Orders will be created per supplier for items with quantity to order. Unit prices will be set to 0 — update them in Procurement before approving.
-              </p>
-              <div className="rounded-lg border border-white/10 overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-white/5 text-zinc-500 uppercase tracking-wide">
-                      <th className="px-3 py-2 text-left">Supplier</th>
-                      <th className="px-3 py-2 text-left">Item</th>
-                      <th className="px-3 py-2 text-center">Qty</th>
-                      <th className="px-3 py-2 text-center">Unit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(orderGroups).flatMap(([sup, group]) =>
-                      group.items.map((item, j) => {
-                        const qty = Math.max(0, (item.par_level ?? 0) - (item.current_stock ?? 0));
-                        return (
-                          <tr key={`${sup}-${item.id}`} className="border-t border-white/5">
-                            <td className="px-3 py-2 text-teal-300 font-medium whitespace-nowrap">
-                              {j === 0 ? sup : ""}
-                            </td>
-                            <td className="px-3 py-2 text-white">{item.item_name}</td>
-                            <td className="px-3 py-2 text-center text-orange-300 font-semibold">{fmtNum(qty)}</td>
-                            <td className="px-3 py-2 text-center text-zinc-400">{item.unit || "—"}</td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* PIN input */}
-            <div className="space-y-1.5">
-              <label className="block text-xs text-zinc-400">Your PIN (required to create orders)</label>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={8}
-                placeholder="Enter PIN"
-                value={createPin}
-                onChange={(e) => setCreatePin(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleCreateOrders(); }}
-                className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-teal-500/50"
-              />
-            </div>
-
-            {/* Result */}
-            {createResult && (
-              <div className={`rounded-lg px-3 py-2 text-sm ${createResult.ok ? "bg-teal-500/10 border border-teal-500/30 text-teal-300" : "bg-red-500/10 border border-red-500/30 text-red-400"}`}>
-                {createResult.msg}
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setShowCreateModal(false); setCreateResult(null); }}
-                className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:bg-white/10 transition-all"
-              >
-                {createResult?.ok ? "Close" : "Cancel"}
-              </button>
-              {!createResult?.ok && (
+        // The overlay scrolls and the panel is capped at the viewport. Before
+        // this, a fifty-line order grew taller than the screen and pushed the
+        // PIN field and both buttons off the bottom with nothing to scroll —
+        // the only way through was to zoom the browser out.
+        //
+        // md:pl-60 keeps the panel out from under the sidebar, which sits at
+        // z-[60] — above every modal in the app — so at 768–1279px the left
+        // column of the table was being covered by the menu.
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm p-4 md:pl-60">
+          <div className="flex min-h-full items-start justify-center sm:items-center">
+            <div className={`${GLASS_CARD} flex max-h-[90vh] w-full max-w-2xl flex-col`}>
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+                <h2 className="text-lg font-semibold text-white">Create Direct Purchase Orders</h2>
                 <button
-                  onClick={handleCreateOrders}
-                  disabled={creatingOrders || !createPin.trim()}
-                  className="rounded-xl border border-teal-500/30 bg-teal-500/15 px-5 py-2 text-sm font-semibold text-teal-400 hover:bg-teal-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                >
-                  {creatingOrders ? "Creating…" : `Create ${Object.keys(orderGroups).length} Order${Object.keys(orderGroups).length !== 1 ? "s" : ""}`}
-                </button>
-              )}
+                  onClick={() => { setShowCreateModal(false); setCreateResult(null); }}
+                  className="rounded p-1 text-zinc-400 hover:text-white hover:bg-white/10"
+                >✕</button>
+              </div>
+
+              {/* Lines — scrolls on its own so the PIN and buttons stay put */}
+              <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                <p className="mb-3 text-xs text-zinc-400">
+                  One order per supplier. Change any quantity below, or remove a line you do not
+                  want — a removed line stays here with an <span className="text-zinc-300">Undo</span> next
+                  to it until you close this window. Unit prices are set to 0; update them in
+                  Procurement before approving.
+                </p>
+                {/* Supplier is a heading row, not a column. As a column it was the
+                    widest thing in the table and pushed Remove off the right edge
+                    on a 768px window, inside a box that clipped it. */}
+                <div className="overflow-hidden rounded-lg border border-white/10">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-white/5 uppercase tracking-wide text-zinc-500">
+                        <th className="px-2 py-2 text-left">Item</th>
+                        <th className="px-2 py-2 text-center">Qty</th>
+                        <th className="px-2 py-2 text-center">Unit</th>
+                        <th className="px-2 py-2 text-right"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(draftGroups).flatMap(([sup, lines]) => [
+                        <tr key={`sup-${sup}`} className="border-t border-white/10 bg-white/[0.03]">
+                          <td colSpan={4} className="px-2 py-1.5 font-medium text-teal-300">
+                            {sup}
+                            <span className="ml-2 text-[10px] font-normal text-zinc-500">
+                              {lines.filter((l) => !l.removed && qtyOf(l) > 0).length} item
+                              {lines.filter((l) => !l.removed && qtyOf(l) > 0).length !== 1 ? "s" : ""}
+                            </span>
+                          </td>
+                        </tr>,
+                        ...lines.map((line) => (
+                          <tr
+                            key={line.id}
+                            className={`border-t border-white/5 ${line.removed ? "opacity-40" : ""}`}
+                          >
+                            <td className={`px-2 py-2 align-middle text-white ${line.removed ? "line-through" : ""}`}>
+                              {line.item_name}
+                            </td>
+                            <td className="px-2 py-2 text-center align-middle">
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.1"
+                                inputMode="decimal"
+                                disabled={line.removed || !!createResult?.ok}
+                                value={line.qty}
+                                onChange={(e) => setLineQty(line.id, e.target.value)}
+                                // The list scrolls, and a number field under the
+                                // pointer eats the wheel and changes its value.
+                                // A quantity that moves while you scroll past it
+                                // is how a wrong order gets sent.
+                                onWheel={(e) => e.currentTarget.blur()}
+                                aria-label={`Quantity for ${line.item_name}`}
+                                className="w-16 rounded-lg border border-white/10 bg-white/5 px-1.5 py-1 text-center text-sm font-semibold text-orange-300 outline-none focus:border-teal-500/50 disabled:opacity-50"
+                              />
+                              {qtyOf(line) !== line.suggested && !line.removed && (
+                                <div className="mt-0.5 text-[10px] text-zinc-500">
+                                  par − stock: {fmtNum(line.suggested)}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-2 py-2 text-center align-middle text-zinc-400">{line.unit || "—"}</td>
+                            <td className="px-2 py-2 text-right align-middle">
+                              <button
+                                onClick={() => toggleLineRemoved(line.id)}
+                                disabled={!!createResult?.ok}
+                                className="rounded px-2 py-1 text-[11px] text-zinc-400 hover:bg-white/10 hover:text-white disabled:opacity-40"
+                              >
+                                {line.removed ? "Undo" : "Remove"}
+                              </button>
+                            </td>
+                          </tr>
+                        )),
+                      ])}
+                    </tbody>
+                  </table>
+                </div>
+                {draftLineCount === 0 && (
+                  <p className="mt-3 text-xs text-orange-300">
+                    Every line is removed or set to zero. There is nothing to order.
+                  </p>
+                )}
+              </div>
+
+              {/* PIN + actions — always on screen */}
+              <div className="space-y-4 border-t border-white/10 px-6 py-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs text-zinc-400">Your PIN (required to create orders)</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    placeholder="Enter PIN"
+                    value={createPin}
+                    onChange={(e) => setCreatePin(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCreateOrders(); }}
+                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:border-teal-500/50"
+                  />
+                </div>
+
+                {createResult && (
+                  <div className={`rounded-lg px-3 py-2 text-sm ${createResult.ok ? "bg-teal-500/10 border border-teal-500/30 text-teal-300" : "bg-red-500/10 border border-red-500/30 text-red-400"}`}>
+                    {createResult.msg}
+                  </div>
+                )}
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => { setShowCreateModal(false); setCreateResult(null); }}
+                    className="rounded-lg px-4 py-2 text-sm text-zinc-400 hover:bg-white/10 transition-all"
+                  >
+                    {createResult?.ok ? "Close" : "Cancel"}
+                  </button>
+                  {!createResult?.ok && (
+                    <button
+                      onClick={handleCreateOrders}
+                      disabled={creatingOrders || !createPin.trim() || draftSuppliers.length === 0}
+                      className="rounded-xl border border-teal-500/30 bg-teal-500/15 px-5 py-2 text-sm font-semibold text-teal-400 hover:bg-teal-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      {creatingOrders
+                        ? "Creating…"
+                        : `Create ${draftSuppliers.length} Order${draftSuppliers.length !== 1 ? "s" : ""} (${draftLineCount} item${draftLineCount !== 1 ? "s" : ""})`}
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
