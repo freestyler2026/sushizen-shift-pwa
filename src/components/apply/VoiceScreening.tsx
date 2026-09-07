@@ -30,7 +30,7 @@ type Lang = "en" | "tl";
 const T = {
   en: {
     heading: "One more step (optional)",
-    lead: "Answer a few questions by voice, in your own time. About ten minutes. No appointment, nothing to attend.",
+    lead: "Answer five short questions by voice, in your own time. About five minutes. No appointment, nothing to attend.",
     startNow: "Answer now by voice",
     later: "I will do it later",
     laterNote: "We will message you the link on the number you gave.",
@@ -98,7 +98,7 @@ const T = {
   },
   tl: {
     heading: "Isa pang hakbang (opsyonal)",
-    lead: "Sagutin ang ilang tanong gamit ang boses mo, kahit anong oras. Mga sampung minuto. Walang appointment, walang pupuntahan.",
+    lead: "Sagutin ang limang maikling tanong gamit ang boses mo, kahit anong oras. Mga limang minuto. Walang appointment, walang pupuntahan.",
     startNow: "Sumagot ngayon gamit ang boses",
     later: "Mamaya na lang",
     laterNote: "Ipapadala namin ang link sa numerong ibinigay mo.",
