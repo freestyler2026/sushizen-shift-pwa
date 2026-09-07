@@ -27,8 +27,13 @@ export const MANILA_STANDARDS: Record<string, StandardSpec> = {
   m_quezo_cheese:     { type: "pct", min: 50,  label: "50% of container" },
   // Weighed in kilos until 2026-09-07. The kitchen judges these by how full the
   // container is, so the standard is stated the way the kitchen states it.
-  m_crabstick_cut:    { type: "pct", min: 50,  label: "50% of container" },
-  m_cucumber_cut:     { type: "pct", min: 100, label: "100% of container" },
+  //
+  // The weight is on the label because a percentage of a container cannot be
+  // checked by anybody who is not holding that container, and because the two
+  // changed by different amounts when they moved: the kitchen gave 100% = 1.2 kg
+  // against an old par of 3 kg, and 50% = 0.75 kg against an old par of 0.5 kg.
+  m_crabstick_cut:    { type: "pct", min: 50,  label: "50% container · 0.75 kg" },
+  m_cucumber_cut:     { type: "pct", min: 100, label: "100% container · 1.2 kg" },
   m_seasoned_upo:     { type: "pct", min: 50,  label: "50% of container" },
   m_crabstick_mayo:   { type: "pct", min: 75,  label: "75% of container" },
   m_spicy_tuna_chunk: { type: "pct", min: 75,  label: "75% of container" },
@@ -95,8 +100,8 @@ export const MANILA_LABEL_STANDARDS: Record<string, StandardSpec> = {
   "Box16 Set":                       { type: "qty", min: 30,  label: "30+ pcs" },
   "Box24 Set":                       { type: "qty", min: 30,  label: "30+ pcs" },
   "Quezo Cheese Cut":                { type: "pct", min: 50,  label: "50% of container" },
-  "Crabstick Cut":                   { type: "pct", min: 50,  label: "50% of container" },
-  "Cucumber Cut":                    { type: "pct", min: 100, label: "100% of container" },
+  "Crabstick Cut":                   { type: "pct", min: 50,  label: "50% container · 0.75 kg" },
+  "Cucumber Cut":                    { type: "pct", min: 100, label: "100% container · 1.2 kg" },
   "Cucumber Cut (Backup)":           { type: "pct", min: 100, label: "100% of large strainer" },
   "Shredded Crabstick (Backup)":     { type: "pct", min: 100, label: "100% of container" },
   "Fried Salmon Skin (Backup)":      { type: "pct", min: 50,  label: "50% of container" },
