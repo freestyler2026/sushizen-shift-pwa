@@ -88,3 +88,8 @@ CLAUDE.local.md
 # Finder-style duplicates ("main 2.py", "routes.d 2.ts") — never intentional,
 # and a committed one poisons grep. `git add -f` if you ever want one.
 * [0-9].*
+
+# セッション取得スクリプトのキャプチャログ。人が一度目視するためだけの出力で、
+# どのコードも読み返さず、実行のたびに書き換わる。追跡したままだと
+# セッションを取り直すたびに rebase が止まる。
+scripts/*/*-api-responses.json

@@ -1,6 +1,45 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-07（音声面接2回目・3名21件。無音ゲートは機能、モデルは large-v3 を推奨）
+Last updated: 2026-09-07（文字起こしを実装。large-v3・確信度で「耳で確認」を自動表示）
+
+---
+
+## ✅ 2026-09-07 — 音声面接の文字起こしを実装（本番稼働・21件投入済み）
+
+| 層 | 実装 |
+|---|---|
+| DB | `transcript` / `transcript_engine` / `transcript_confidence` / `transcript_language` |
+| API | `GET /api/admin/hr/voice-screenings/pending-transcripts`（未転記の一覧）<br>`POST .../answers/{seq}/transcript`（1問ぶん書く） |
+| 転記 | `scripts/transcribe_voice.py`（**dyno では動かない**。下記） |
+| 画面 | 再生ボタンの下に転記＋engine＋確信度。低確信度は**アンバーで「Check this one by ear」** |
+
+### ⚠️ モデルは dyno に載らない（実測）
+- **large-v3 = 3.45GB RSS / Standard-2X dyno = 1GB。** medium も1.7GBで載らない。
+  モデルファイル自体も2.9GBで、Herokuのslug上限500MBを超える。
+- したがって**転記は載る machine で実行し、結果だけ書き戻す**。
+  スクリプトは Drive から音声を読み、DBに直接書く。
+  **音声を外部APIに出していない** — 同意文が「Sushi ZEN のHRと採用担当だけが聴く」と
+  約束しているため。転記APIを使うなら**先に同意文を変える必要がある**。
+- 動作要件: Python 3.10+（`app/db.py` が `dict | None` を使う）、ffmpeg、
+  `DATABASE_URL` と `AR_FINANCE_SA_JSON`。
+- 実行: `python scripts/transcribe_voice.py --dry-run` → `--apply`
+- ⚠️ **押す人が要る形なので、押し忘れれば静かに欠測する（教訓45）。**
+  定期実行に載せるなら、載せる先はそのmachine。
+
+### 確信度の閾値
+- `VOICE_TRANSCRIPT_CHECK_BELOW`（既定 −0.45、デプロイ不要で変更可）。
+- 画面はこの値を**サーバから受け取る**（2か所に書かない）。
+- 21件を投入した結果: 確信度 −0.11〜−0.67、**閾値を下回ったのは1件**
+  （3.8秒しか話していない回答）。
+
+### 検証
+- 本番で21件すべて転記（`written 21, failed 0, engine large-v3`）。
+- 画面で確認: 確信度が高い回答には転記のみ、−0.67 の回答にだけ
+  「Check this one by ear」が出る。
+- ⚠️ 検証中に見つけて直したもの: スクリプトの usage が `--dry-run` を案内しながら
+  パーサが拒否していた／キューの見出しが
+  「longest wait first — longest wait first.」と二重に出ていた。
+- Recruitment Guide に転記の節を追記して republish 済み。
 
 ---
 
