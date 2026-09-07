@@ -856,12 +856,16 @@ export default function ZenMusicPage() {
         />
 
         {/* ── Header ── */}
-        <header className="relative flex items-center justify-between px-6 pt-safe pt-6 pb-2">
-          <div>
+        <header className="relative flex items-start justify-between gap-3 px-6 pt-safe pt-6 pb-2">
+          <div className="shrink-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">Now Playing</p>
             <h1 className="text-base font-bold tracking-tight text-white/90">ZEN Music</h1>
           </div>
-          <div className="flex gap-1.5">
+          {/* One dot per track, and there are 43 of them. On a single row that
+              is 524px of dots on a 375px screen: 21 tracks sat past the right
+              edge, unreachable, and the "Now Playing" title was squeezed into
+              three lines to make room. Wrapping keeps every track tappable. */}
+          <div className="flex min-w-0 flex-wrap justify-end gap-1.5">
             {filteredTracks.map((t, i) => (
               <button key={t.id} onClick={() => { setIdx(TRACKS.indexOf(t)); setPlaying(true); }}>
                 <span
