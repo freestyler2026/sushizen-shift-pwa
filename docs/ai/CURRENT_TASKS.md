@@ -1,6 +1,62 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-08（現場が登録した3品を検収し4件修正。未計上0.03%）
+Last updated: 2026-09-09（包材18件の価格更新＋固定原価21品を解除）
+
+## ✅ 2026-09-09 — 植嶋さんの包材価格を反映（18件）＋固定原価21品を解除
+
+Sushi Box は発注量を2万枚に増やして単価が下がったとのこと。
+
+| 品目 | 旧 | 新 |
+|---|---:|---:|
+| Sushi Box 12pcs 4パーツ | ₱5.032 | ₱3.90 |
+| Sushi Box 16pcs 4パーツ | ₱5.032 | ₱4.05 |
+| Sushi Box 24pcs 4パーツ | ₱5.032 | ₱4.32 |
+| Ice Pack | ₱1.305 | **₱1.95（唯一の値上げ）** |
+| Sticker Safe Sealed | ₱1.000 | ₱0.90 |
+| ZEN Safety Sticker | ₱0.900 | 変更なし（既に正） |
+| Napkin (Zen) / Maxe Tissue | ₱0.380 / ₱0.2857 | ₱0.27143（95÷350） |
+| Onigiri Film | ₱3.737 | ₱3.55 |
+| Hotdog Tray | ₱2.568 | ₱2.44 |
+
+### ⚠️ 固定原価が入っていると、材料の値段を直しても効かない
+
+影響する有効品59品のうち **21品に `cost_unit_price` が焼き付いており、配達セット全種**
+（Ramen / Bento / Donburi / Drink / Poke Bowl / Fried Rice / Miso Soup / Side Dish / Onigiri）
+が該当した。**包材を一番使う品が動かない**ので、価格だけ入れても大半が効かない状態だった。
+→ 解除して 57/59 が動いた。
+
+`#4770 Side Dish Delivery Set` は ₱17.42 → **₱10.59（−6.83）**。これは今回の値下げではなく
+**固定値が元々レシピから₱6.8ずれていた**分の是正。
+
+### ⚠️ 発注カタログには反映されない
+
+`proc_curated_catalog_items` は別の一覧で品名も荷姿も違う
+（`Ice Pack (Plane)` ₱2.73 / `Ice Pack with Logo (40pcs/1pkt)` ₱0.13）。
+Sushi Box パーツ・Napkin (Zen)・Hotdog Tray・Onigiri Film は**そもそも載っていない**。
+**Cost Calculation の更新は原価・原価率・P&L には届くが、発注価格には届かない。**
+
+### 手順
+
+- 事前に**トランザクション内で当てて測り ROLLBACK**（教訓54）。書く前に影響を確定させた。
+- 価格は `update_cost_ingredient()` 経由（`ingredient_price_history` に old→new と changed_by が残る）。
+- 固定原価の解除だけ直接 UPDATE。`update_cost_master_item` では外せない
+  （`_resolve_cost_master_pricing_fields` が「新しい値が0以下なら既存値を維持」する）。
+  **画面にも解除手段が無い**のは未解決の課題。
+- バックアップ: `_pkg_price_bk_20260909_ing`(19行) / `_pkg_price_bk_20260909_master`(59行)
+
+### 検証
+
+売価のある有効164品を再走査: 中央値 **32.9%**（前 33.1%）、最高 **71.4%**、100%超 0、
+70%超は3件のみで、いずれも材料単価を実仕入と突合済みの飲料（誤りではない）。
+
+### 残・申し送り
+
+- **同じ物が2レコードに分かれている**: `ZEN Safety Sticker`＝`Sticker Safe Sealed`（19品/20品が使用）、
+  `Napkin (Zen)`＝`Maxe Tissue`。今回は両方に同値を入れたが、**次回また片方だけ直す事故**が起きる。統合要検討。
+- **Sushi Box の3パーツが無効化されたまま**: `12pcs Inner Box`(8795) / `16pcs Cover`(8796) / `24pcs Cover`(8797)。
+  原価計算には効くが選択リストに出ないので、次にレシピを組む人が見つけられない。
+- 発注カタログ側の包材価格は未更新。
+
 
 ## ✅ 2026-09-08（続き10） — 現場が登録した3品の検収と修正
 
