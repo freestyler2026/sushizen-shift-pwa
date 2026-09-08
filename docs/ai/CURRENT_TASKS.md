@@ -1,6 +1,40 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-08（店舗名の未正規化7か所を修正・取込停止の検知を追加）
+Last updated: 2026-09-08（不要になった日次アップロードの特定・原価率の二重計上を修正）
+
+## ✅ 2026-09-08（続き2） — 毎日のアップロードのうち何が不要になったか／原価率の二重計上
+
+### 実際に上がっているファイル（`manila_sales_import_jobs` 直近60日）
+
+| source_kind | 例（ファイル名） | 頻度 | 入る先 | 判定 |
+|---|---|---|---|---|
+| `grab_sales_summary` | `Taft_Sales - 01_09_26 - 07_09_26.csv` | 44日/60・3店舗 | `manila_sales_by_channel` | **不要** |
+| `grab_menu_sales` | `Taft_Menu Sales - ....csv` | 47日/60・3店舗 | `manila_sales_by_product` | **不要** |
+| `grab_peak_hour` | `Taft_Peak Hour Data - ....csv` | 45日/60・3店舗 | `manila_sales_hourly` | **必要** |
+| `grab_offline_hours` | `Taft_Store Offline Hours - ....csv` | 23日/60・3店舗 | `manila_grab_offline_hours` | **必要** |
+| `foodpanda_ops_taft_daily` | `Taft_foodpanda_ops_taft_20260907-...` | 57日/60・3店舗 | `manila_foodpanda_ops_daily` | **必要** |
+
+- **不要2種**: 売上（チャネル）と商品別。どちらも StoreHub が同じものを持つ。
+  週次合計の差は +0.03〜1.3%。商品別は修正後、StoreHub がある日は選ばれない
+- **必要3種の理由**: 時間帯別は StoreHub に書き込みが無く、**シフト下書きの需要予測**が読む。
+  Grab のオフライン時間と Foodpanda の平均調理時間（`average_preparation_time`）は
+  プラットフォーム側の指標で、POS は知り得ない
+- 止めても安全なのは、同時に入れた取込停止検知が StoreHub の欠測を拾うから
+
+### ⚠️ 8か所目 — 日次P&Lの原価率が二重計上していた
+
+`compute_daily_food_cost_rates`（マニラ）が `manila_sales_by_product` を
+**source 無指定**で合計していた。storehub_api と grab_export の両方の数量が
+**原価の分子**に入り、9月実測で毎日 **67〜72% 過大**。一方 grab_export は
+`item_net_sales` が 0 なので分母は膨らまず、**原価率だけが上振れ**する形だった。
+
+    修正前 mean_rate 0.3852 → 修正後 0.2233
+
+⚠️ **0.2233 が正しいとは言っていない。** `pos_item_cost_map` は売れた100品名のうち
+9品しか持たない（数量ベースで21%）。残りはレシピ側で解決している可能性があるが未確認。
+今回直したのは「売れていない数量で原価を計算していた」ことだけ。
+
+---
 
 ## ✅ 2026-09-08（続き） — 店舗名の未正規化が7か所にあった／取込停止の検知を追加
 
