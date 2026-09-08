@@ -1,6 +1,75 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-08（Catalogue vs Invoices — 仕入先を見ていなかった欠陥を修正: 49件→9件）
+Last updated: 2026-09-08（GrabFood 売上を StoreHub 取得に切替・週次CSV廃止）
+
+## ✅ 2026-09-08 — GrabFood 売上を StoreHub 取得に切替（Grabポータル週次CSVを廃止）
+
+**きっかけ**: Rose さんより「Paranaque のデリバリー連携が StoreHub で開通した
+（GrabFood 8/28・Foodpanda 9/7）」。オーナー指示は「他2店舗と同様に StoreHub から取得し、
+既存の系統をカットしたい」。
+
+### 着手前に測って分かったこと
+
+| チャネル | 既存系統 | StoreHub | 結論 |
+|---|---|---|---|
+| **Foodpanda** | `foodpanda_export` は **2026-04-01 で既に停止** | Cubao 4/29〜・Taft 5/6〜・**PAR 9/7〜** | **既に切替済み。作業不要** |
+| **GrabFood** | `grab_export` = **Grabポータルの週次CSVを人が手でアップロード**（8/1以降29ファイル・最終9/8） | 同じ注文を保持（件数は中央値2件差） | 切替可能だが**単純な入替は不可** |
+
+- **実データでは GrabFood は 8/22 から** StoreHub に入っていた（Rose さんの言う 8/28 より6日早い）
+- `grab_export` は冗長な旧系統**ではなかった**。`db.py` に理由付きで
+  「storehub_api は net_sales が総額の約2%なので除外」と書かれていた
+
+### そのまま入れ替えると壊れる（215店舗日で実測）
+
+StoreHub は Grab のプラットフォーム上乗せ分を `total_discount` に計上するため、列の基準が違う。
+
+| 比 | 中央値 | p10 / p90 |
+|---|---:|---|
+| `storehub total_sales` ÷ `grab net_sales` | **1.0000** | 0.95 / 1.05 |
+| `storehub total_sales + total_discount` ÷ `grab total_sales` | **1.0000** | 0.95 / 1.05 |
+| そのまま入替えた場合の `total_sales` | **0.51** | ― 総額が半減する |
+| StoreHub の生の `net_sales` | 総額の約2% | ― |
+
+→ `scoped_channel_rows` で GrabFood の storehub_api 行だけ列を対応付けた。
+
+### ⚠️ 実装中に二重計上の罠を踏んで直した
+
+2系統は**店舗名が違う**（`Paranaque` / `QC` / `Taft` vs `Sushi ZEN - Paranaque` /
+`Sushi ZEN Cubao` / `Sushi Zen - Taft`）。`store_name` で判定すると同じ店だと認識できず
+**両方の行が残り、GrabFood が2回計上される**。本番データで実際に発生することを確認してから
+`store_key`（`_MANILA_STORE_TO_CODE` と同じ規則）を足して解決した。表示名は不変。
+
+**デプロイ前に本番でSQLを流していなければ、売上を倍にしたまま出していた。**
+
+### 検証（本番 2026-09-01〜09-07・新ルール vs CSV）
+
+| 店舗 | 新（StoreHub） | 旧（CSV） | 差 |
+|---|---|---|---|
+| PAR | 667,216 / net 337,909 / 469件 | 664,042 / 336,244 / 459件 | +0.5% |
+| CUB | 585,628 / net 296,775 / 414件 | 578,324 / 293,190 / 402件 | +1.3% |
+| TAFT | 708,193 / net 359,810 / 539件 | 708,009 / 359,718 / 535件 | +0.03% |
+
+- フォールバック確認: 8/10〜8/16 は PAR だけ `grab_export` に落ちる（StoreHub に
+  GrabFood が入る前のため）。**履歴は失われない**
+- `get_manila_sales_by_product` は元から storehub_api を優先していたので商品明細は影響なし
+
+### あわせて修正
+- `get_monthly_trend`（月次トレンド）が source を絞らず `SUM(net_sales)` していたため
+  GrabFood を2系統ぶん足していた。他の集計と同じ優先順位ルールを通した
+
+### 現場に伝えること
+- **Grabポータルの週次CSVアップロードは止めてよい**（3店舗とも）
+- 入金の取得（`ar_payouts` / GitHub Actions の `grab-manila-daily-payout`）は**別系統。止めない**
+
+### 残っていること
+- **8月の月次トレンドで PAR が2行に割れて見える**（8/22以前は `Paranaque`、以降は
+  `Sushi ZEN - Paranaque`）。9月以降は1行。表示名の統合は未実施
+- **StoreHub が止まったときの検知が無い。** `run_manila_sales_gap_check` が見ているのは
+  `manila_daily_sales`（手入力の表）で `manila_sales_by_channel` ではない。
+  CSV時代も「人が上げ忘れる」検知は無かったので新しい穴ではないが、単一系統になった以上
+  ストリーム自身の履歴から検知を作るべき（教訓45）
+
+---
 
 ## ✅ 2026-09-08 — カタログ単価と請求のずれを、その場で直せるようにした
 
