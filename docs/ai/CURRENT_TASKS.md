@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-08（Supplier Price Checks に ③ Catalogue vs Invoices を追加・その場で単価修正）
+Last updated: 2026-09-08（Catalogue vs Invoices — 仕入先を見ていなかった欠陥を修正: 49件→9件）
 
 ## ✅ 2026-09-08 — カタログ単価と請求のずれを、その場で直せるようにした
 
@@ -35,14 +35,48 @@ Last updated: 2026-09-08（Supplier Price Checks に ③ Catalogue vs Invoices �
 - **中央値を使う。** 直近1枚だけだと OCR の取り違え1行でカタログを書き換えることになる
 - 保存は `res.ok` を見る（教訓46）
 
-### 実件数（本番）
-| | 価格のずれ | 単位違い | 比較できた | カタログ全体 |
-|---|---:|---:|---:|---:|
-| マニラ | **17** | 3 | 71 | 463 |
-| ドバイ | **32** | 17 | 138 | 566 |
+### ⚠️ 初版は仕入先を見ておらず、数字の大半が誤りだった（同日中に修正）
 
-上位: Sunny Lettuce ₱95→₱450（+374%）/ Spring Onion ₱170→₱320 / Lemon ₱180→₱40 /
-CABBAGE WHITE AED2.55→6.62 / TOMATO LOCAL AED3.60→7.95
+品名だけで突合したため、**別の会社の請求を「正しい値」として提示していた**。
+
+| | 別の仕入先と比較していた行 |
+|---|---|
+| マニラ | 30件中 **27件** |
+| ドバイ | 81件中 **78件** |
+
+実害の例:
+- `Sunny Lettuce` カタログ ₱95（Richcath's）と ₱140（Three-S）の**両方**に、
+  Green Nature Seafood の ₱450 を提示していた
+- `Ramen Zen Sticker` カタログ AED 575 に対し、Sushi ZEN Warehouse の**社内振替** AED 0.04
+
+1クリックで単価を書き換える画面なので、これは「見づらい」ではなく**押すと壊れる**。
+
+仕入先名は両テーブルとも自由入力で正規名が無い（マニラ カタログ38名／請求80名、
+そのまま畳んで一致するのは11名）。**大小・空白・記号を畳んだ上で、語境界での完全包含**
+だけを同一とみなすことにした。`Chef Middle East` ⊂ `Chef Middle East LLC` は同一、
+`Daruma` ⊄ `Darumaya Japanese Foods` は別。包含先が2つ以上なら決められないので寄せない（教訓92）。
+
+### 実件数（修正後・本番）
+| | 価格のずれ | 単位違い | 閾値内 | 比較できた | 仕入先が違う | 請求が無い | カタログ全体 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| マニラ | **2** | 10 | 25 | 37 | 34 | 392 | 463 |
+| ドバイ | **7** | 26 | 35 | 68 | 70 | 428 | 566 |
+
+内訳は全て合計と一致する（37+34+392=463、68+70+428=566）。
+
+残った9件: Sunny Lettuce ₱140→₱260（Three-S）/ Tomato ₱140→₱90 /
+Butane Gas AED9→34.5（Royal Hygiene）/ TOMATO LOCAL AED3.60→7.95 /
+Gun Label AED70→7 / MANGO AUSTRALIA AED42.8→14 ×2 / LEMON AED7→11 /
+VEGETABLE COOKING OIL AED89→120
+
+### 同時に見つけた3件
+- **`invalidate_drift_count` の呼び出しが0件だった。** 定義だけして繋いでいなかったので、
+  単価を直してもバッジが最大10分古いままだった。docstring に「これが無いと直したのに
+  減らないように見える」と自分で書きながら繋いでいなかった
+- **`ORDER BY invoice_date DESC` は Postgres で NULL が先頭に来る。** 日付の無い請求行5件が
+  「最新の請求」として選ばれていた。日付 NULL は除外
+- **`ensure_*` をリクエストのたびに呼んでいた**（教訓85）。実際に one-off dyno で
+  statement timeout を起こした。1プロセス1回に
 
 ### 検証（本番）
 - 権限: INVENTORY_PURCHASING は manila=True・**dubai=False**（都市スコープが効いている）、STAFF=False
