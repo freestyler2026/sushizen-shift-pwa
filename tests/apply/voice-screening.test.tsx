@@ -48,6 +48,14 @@ async function renderVoice(data: Record<string, unknown> = loaded(),
   await screen.findByText(/One more step|Before you record|First, a minute about/);
 }
 
+/** Consent now leads to the CV step, not straight to the microphone. Skipping
+ *  it is the path most applicants take -- of 135 on file, none attached one to
+ *  the paper form -- so it is also the path these tests walk. */
+async function agreeAndSkipCv() {
+  fireEvent.click(screen.getByText("I understand and agree"));
+  fireEvent.click(await screen.findByText("I do not have one — continue"));
+}
+
 beforeEach(() => { mockFetch.mockReset(); });
 afterEach(() => { setUA(REAL_UA); vi.resetModules(); });
 
@@ -63,7 +71,7 @@ describe("voice screening on a phone", () => {
 
   it("shows the microphone instructions in Tagalog by default", async () => {
     await renderVoice(loaded(), { startAt: "consent" });
-    fireEvent.click(screen.getByText("I understand and agree"));
+    await agreeAndSkipCv();
     fireEvent.click(await screen.findByText("Start the check"));
     // No getUserMedia in this environment, so the failure path opens.
     expect(await screen.findByText(/Paano ayusin ang mikropono/)).toBeTruthy();
@@ -76,7 +84,7 @@ describe("voice screening on a phone", () => {
   it("says the webview is the problem before listing six steps that cannot help", async () => {
     setUA("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 [FB_IAB/FB4A;FBAV/440.0;]");
     await renderVoice(loaded(), { startAt: "consent" });
-    fireEvent.click(screen.getByText("I understand and agree"));
+    await agreeAndSkipCv();
     fireEvent.click(await screen.findByText("Start the check"));
     expect(await screen.findByText(/Buksan muna ito sa browser/)).toBeTruthy();
     expect(screen.getByText(/Kopyahin ang link/)).toBeTruthy();
@@ -85,10 +93,40 @@ describe("voice screening on a phone", () => {
   it("does not claim a webview when it is an ordinary browser", async () => {
     setUA("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36");
     await renderVoice(loaded(), { startAt: "consent" });
-    fireEvent.click(screen.getByText("I understand and agree"));
+    await agreeAndSkipCv();
     fireEvent.click(await screen.findByText("Start the check"));
     await screen.findByText(/Paano ayusin ang mikropono/);
     expect(screen.queryByText(/Buksan muna ito sa browser/)).toBeNull();
+  });
+
+  it("offers the CV step after consent, and lets it be skipped", async () => {
+    await renderVoice(loaded(), { startAt: "consent" });
+    fireEvent.click(screen.getByText("I understand and agree"));
+    // Optional, and it says so -- most applicants here do not have a CV, and a
+    // step that looks required is a step that ends the application.
+    expect(await screen.findByText(/Have a CV\? Attach it \(optional\)/)).toBeTruthy();
+
+    mockFetch.mockClear();
+    fireEvent.click(screen.getByText("I do not have one — continue"));
+    expect(await screen.findByText("Start the check")).toBeTruthy();
+    // Recorded rather than passed over in silence, so HR can tell somebody who
+    // said they have none from somebody who never reached this screen.
+    expect(mockFetch.mock.calls.some(
+      (c) => String(c[0]).endsWith("/resume/skip"))).toBe(true);
+  });
+
+  it.each([
+    ["a CV is already in", { uploaded: true, skipped: false, filename: "cv.pdf", bytes: 1024 }],
+    ["they said they have none", { uploaded: false, skipped: true, filename: "", bytes: 0 }],
+  ])("does not ask for a CV again once %s", async (_label, resume) => {
+    // A dropped connection brings people back here. Being asked again for the
+    // file they just sent reads as the upload having failed.
+    mockFetch.mockImplementation(() => fetchOk(loaded({ consent_given: true, resume })));
+    const Voice = (await import("@/components/apply/VoiceScreening")).default;
+    render(<Voice token="tok" lang="en" startAt="consent" />);
+    // Straight to the questions, which is where a consented token belongs.
+    expect(await screen.findByText(/What did you do in your last job/)).toBeTruthy();
+    expect(screen.queryByText(/Have a CV/)).toBeNull();
   });
 
   it("shows the video step only when one is configured, and loads nothing until asked", async () => {

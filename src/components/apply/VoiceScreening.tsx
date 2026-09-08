@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { formatBytes, prepareIfImage, readError, UPLOAD_LIMIT_BYTES } from "@/lib/image-compress";
+
 /**
  * Async voice screening, shown the moment the application is sent.
  *
@@ -26,6 +28,9 @@ interface Loaded {
   questions: Question[]; answered: number[];
   /** Empty object when none is configured, and then the step does not exist. */
   intro_video?: IntroVideo | Record<string, never>;
+  /** Whether a CV is already in, or the applicant said no. Both mean the step
+   *  is not shown again to somebody who comes back on a dropped connection. */
+  resume?: { uploaded: boolean; skipped: boolean; filename: string; bytes: number };
 }
 
 type Lang = "en" | "tl";
@@ -43,6 +48,18 @@ const T = {
     introNext: "Continue",
     later: "I will do it later",
     laterNote: "We will message you the link on the number you gave.",
+    cvTitle: "Have a CV? Attach it (optional)",
+    cvBody: "A PDF, a Word file, or just a clear photo of it. It is not required — most people applying here do not have one, and skipping changes nothing about your application.",
+    cvPick: "Choose a file",
+    cvChange: "Choose a different file",
+    cvSend: "Attach and continue",
+    cvSkip: "I do not have one — continue",
+    cvSending: "Sending…",
+    cvDone: "Attached",
+    cvContinue: "Continue",
+    cvTooBig: "That file is {size}. The limit is {max} — send a photo of it instead, or a smaller PDF.",
+    cvBadType: "Send a PDF, a Word file, or a photo.",
+    cvFailed: "It did not send. Check your connection and try again, or skip — your application is already in.",
     consentTitle: "Before you record",
     consentBody: [
       "We record your voice answering the questions below.",
@@ -123,6 +140,18 @@ const T = {
     introNext: "Magpatuloy",
     later: "Mamaya na lang",
     laterNote: "Ipapadala namin ang link sa numerong ibinigay mo.",
+    cvTitle: "May CV ka ba? Ilakip mo (opsyonal)",
+    cvBody: "Pwedeng PDF, Word, o malinaw na litrato nito. Hindi ito kailangan — karamihan ng nag-a-apply dito ay wala nito, at walang pagkakaiba sa aplikasyon mo kung lalaktawan mo.",
+    cvPick: "Pumili ng file",
+    cvChange: "Pumili ng ibang file",
+    cvSend: "Ilakip at magpatuloy",
+    cvSkip: "Wala akong CV — magpatuloy",
+    cvSending: "Ipinapadala…",
+    cvDone: "Nailakip na",
+    cvContinue: "Magpatuloy",
+    cvTooBig: "Ang file na iyan ay {size}. Ang limit ay {max} — magpadala na lang ng litrato nito, o mas maliit na PDF.",
+    cvBadType: "Magpadala ng PDF, Word, o litrato.",
+    cvFailed: "Hindi naipadala. Pakicheck ang koneksyon at subukan ulit, o laktawan — nakapasok na ang aplikasyon mo.",
     consentTitle: "Bago ka mag-record",
     consentBody: [
       "Ire-record namin ang boses mo habang sinasagot ang mga tanong sa ibaba.",
@@ -305,7 +334,7 @@ export default function VoiceScreening({
   const t = T[lang];
 
   const [data, setData] = useState<Loaded | null>(null);
-  const [stage, setStage] = useState<"offer" | "intro" | "consent" | "miccheck" | "record" | "later" | "done">(startAt);
+  const [stage, setStage] = useState<"offer" | "intro" | "consent" | "resume" | "miccheck" | "record" | "later" | "done">(startAt);
   const [playing, setPlaying] = useState(false);
   const [idx, setIdx] = useState(0);
   const [recording, setRecording] = useState(false);
@@ -326,6 +355,11 @@ export default function VoiceScreening({
   const [inApp, setInApp] = useState(false);
   const [copied, setCopied] = useState(false);
   const [silent, setSilent] = useState(false);
+  // The CV step. `cvFile` is what they picked but have not sent yet, so the
+  // button can say what it will do rather than firing on the file input.
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [cvDone, setCvDone] = useState(false);
+  const cvInput = useRef<HTMLInputElement | null>(null);
 
   const recRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<BlobPart[]>([]);
@@ -361,7 +395,11 @@ export default function VoiceScreening({
       const first = d.questions.findIndex((q) => !d.answered.includes(q.seq));
       setIdx(first < 0 ? 0 : first);
       const hasIntro = !!(d.intro_video as IntroVideo | undefined)?.url;
-      if (d.consent_given && first >= 0) setStage("record");
+      // Somebody who already dealt with the CV step does not see it again --
+      // neither the one who sent a file nor the one who said they have none.
+      const cvSettled = !!(d.resume?.uploaded || d.resume?.skipped);
+      if (d.resume?.uploaded) setCvDone(true);
+      if (d.consent_given && first >= 0) setStage(cvSettled ? "record" : "resume");
       // An invite link opens at the consent screen, so somebody who arrived
       // that way would never be shown the company video at all -- and that is
       // most people, because the link is what gets sent over Messenger.
@@ -404,7 +442,10 @@ export default function VoiceScreening({
   async function agree() {
     setErr("");
     await fetch(`/api/voice/${token}/consent`, { method: "POST" });
-    setStage("miccheck");
+    // The CV comes after consent, not before it: a CV is personal data kept
+    // under the same retention the consent screen just described, so taking it
+    // first would mean holding something nobody was told about.
+    setStage("resume");
   }
 
   /** Prove the microphone works before asking anybody to answer seven questions
@@ -600,6 +641,64 @@ export default function VoiceScreening({
     } finally {
       setBusy(false);
     }
+  }
+
+  function pickCv(file: File | null) {
+    setErr("");
+    if (!file) { setCvFile(null); return; }
+    if (file.size > UPLOAD_LIMIT_BYTES && file.type !== "application/pdf"
+        && !file.type.startsWith("image/")) {
+      // Word files cannot be shrunk here, so an oversized one is reported now
+      // rather than after a Vercel 413 that arrives as plain text (lesson 24).
+      setErr(t.cvTooBig.replace("{size}", formatBytes(file.size))
+                       .replace("{max}", formatBytes(UPLOAD_LIMIT_BYTES)));
+      setCvFile(null);
+      return;
+    }
+    setCvFile(file);
+  }
+
+  async function sendCv() {
+    if (!cvFile) return;
+    setBusy(true); setErr("");
+    try {
+      // Photos are shrunk in the browser; a phone camera shot is routinely
+      // over the 4.3 MB Vercel body limit and would never reach Heroku.
+      const file = await prepareIfImage(cvFile);
+      if (file.size > UPLOAD_LIMIT_BYTES) {
+        setErr(t.cvTooBig.replace("{size}", formatBytes(file.size))
+                         .replace("{max}", formatBytes(UPLOAD_LIMIT_BYTES)));
+        return;
+      }
+      const fd = new FormData();
+      fd.append("resume", file, file.name);
+      // No Content-Type header: setting it overwrites the multipart boundary
+      // and the server sees no file at all (lesson 23).
+      const res = await fetch(`/api/voice/${token}/resume`, {
+        method: "POST", body: fd,
+      });
+      if (!res.ok) {
+        setErr(res.status === 415 ? t.cvBadType
+                                  : await readError(res, t.cvFailed));
+        return;
+      }
+      setCvDone(true);
+      setCvFile(null);
+    } catch {
+      setErr(t.cvFailed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function skipCv() {
+    // Recorded rather than passed over in silence, so HR can tell somebody who
+    // decided not to send one from somebody who never reached this screen.
+    // The answer is not worth blocking on, so a failure here still continues.
+    try { await fetch(`/api/voice/${token}/resume/skip`, { method: "POST" }); }
+    catch { /* the interview matters more than the note */ }
+    setErr("");
+    setStage("miccheck");
   }
 
   function next() {
@@ -833,6 +932,74 @@ export default function VoiceScreening({
           className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
           {t.decline}
         </button>
+      </div>
+    );
+  }
+
+  if (stage === "resume") {
+    return (
+      <div className={`${card} mt-8`}>
+        {langBar}
+        <h2 className="mb-2 text-lg font-semibold text-white">{t.cvTitle}</h2>
+        <p className="mb-4 text-sm leading-relaxed text-zinc-300">{t.cvBody}</p>
+
+        <input
+          ref={cvInput}
+          type="file"
+          className="hidden"
+          accept="application/pdf,image/*,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={(e) => pickCv(e.target.files?.[0] ?? null)}
+        />
+
+        {cvDone ? (
+          <>
+            <div className="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-3 text-sm text-emerald-200">
+              ✓ {t.cvDone}
+            </div>
+            <button type="button" onClick={() => setStage("miccheck")}
+              className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
+              {t.cvContinue}
+            </button>
+            <button type="button" onClick={() => { setCvDone(false); cvInput.current?.click(); }}
+              className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
+              {t.cvChange}
+            </button>
+          </>
+        ) : (
+          <>
+            {cvFile && (
+              <div className="mb-4 truncate rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-zinc-200">
+                {cvFile.name}
+                <span className="ml-2 text-zinc-500">{formatBytes(cvFile.size)}</span>
+              </div>
+            )}
+            {cvFile ? (
+              <button type="button" disabled={busy} onClick={() => void sendCv()}
+                className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
+                {busy ? t.cvSending : t.cvSend}
+              </button>
+            ) : (
+              <button type="button" onClick={() => cvInput.current?.click()}
+                className={`${BTN} border border-white/15 bg-white/5 text-white hover:bg-white/10`}>
+                {t.cvPick}
+              </button>
+            )}
+            {cvFile && (
+              <button type="button" disabled={busy} onClick={() => cvInput.current?.click()}
+                className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
+                {t.cvChange}
+              </button>
+            )}
+            {/* Always reachable, including while a file is picked: somebody who
+                changes their mind must not have to clear the input first. */}
+            <button type="button" disabled={busy} onClick={() => void skipCv()}
+              className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
+              {t.cvSkip}
+            </button>
+          </>
+        )}
+
+        {err && <p className="mt-4 text-sm text-red-300">{err}</p>}
       </div>
     );
   }

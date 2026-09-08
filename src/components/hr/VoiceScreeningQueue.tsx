@@ -115,6 +115,11 @@ function levelBadge(a: { peak_dbfs: number | null; level_note: string | null }) 
 type Detail = Row & {
   items: Item[];
   transcript_check_below?: number;
+  /** The CV, when there is one. The file itself is never in this payload --
+   *  it is fetched by its own endpoint when somebody opens it (lesson 29).
+   *  `skipped` is the applicant saying they have none, which is a different
+   *  thing from never having reached that screen. */
+  resume?: { uploaded: boolean; skipped: boolean; filename: string; bytes: number };
   /** Typed by the applicant on the form. Kept beside the transcript because
    *  these are exactly the words a transcript gets wrong -- a previous
    *  employer came back as "Donuts" when it was McDonald's. */
@@ -699,6 +704,26 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                           )}
                         </div>
                       )}
+                      {detail.resume?.uploaded ? (
+                        <a
+                          href={`/api/admin/hr/voice-screenings/${row.id}/resume`}
+                          target="_blank" rel="noreferrer"
+                          className="mb-3 flex items-center gap-2 rounded-lg border border-violet-400/25 bg-violet-400/10 px-2.5 py-2 text-[13px] text-violet-200 hover:bg-violet-400/15"
+                        >
+                          <span aria-hidden>📄</span>
+                          <span className="truncate">{detail.resume.filename || "CV"}</span>
+                          {detail.resume.bytes > 0 && (
+                            <span className="ml-auto shrink-0 tabular-nums text-violet-300/60">
+                              {Math.max(1, Math.round(detail.resume.bytes / 1024))} KB
+                            </span>
+                          )}
+                        </a>
+                      ) : detail.resume?.skipped ? (
+                        // Said so, rather than left blank. Otherwise this reads
+                        // the same as somebody who never opened the screen, and
+                        // nobody knows whether to ask them for one.
+                        <p className={`${T_CAPTION} mb-3`}>No CV — they said they do not have one</p>
+                      ) : null}
                       {row.notes && (
                         <p className={`${T_BODY} mb-3`}>&ldquo;{row.notes}&rdquo;</p>
                       )}
