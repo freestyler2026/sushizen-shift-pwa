@@ -1,6 +1,63 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-09（重複していた材料2組を統合。原価変動0）
+Last updated: 2026-09-09（3パーツ有効化・カタログ25行更新・類似名警告は実測により不採用）
+
+## ✅ 2026-09-09（続き2） — 有効化・カタログ価格・類似名チェックの検証
+
+### ① Sushi Box 3パーツを有効化
+
+`#8795 12pcs Inner Box` / `#8796 16pcs Cover` / `#8797 24pcs Cover`。
+レシピからは使われていたが選択リストに出ず、次にレシピを組む人が見つけられない状態だった。
+→ 12パーツすべて active。
+
+### ❌ ② 材料作成時の「類似名の警告」は**実装しない**（実測により）
+
+私が提案した機能だが、**実データで測ったら機能しないことが分かった**ので取りやめた。
+
+| 手法 | `ingredient_master`(213件) の結果 | 今回の2件を捕まえるか |
+|---|---|---|
+| 編集距離 ≥0.80 | 25組ヒット。**全て別物**（Battery AA/AAA、Sushi Box 12/16、Paper Bowl 520/750ml、KNORR PORK/BEEF、DASHINOMOTO/AJINOMOTO） | ❌ 0.38 / 0.29 |
+| 語の重なり | — | ❌ 0.20 / 0.00 |
+| 表記ゆれのみ吸収（pcs→pc等） | **衝突 0件** | ❌ |
+
+**緩めれば全部が誤検知、締めれば何も出ない。** 教訓39（83%がノイズのキューは読まれない）の再演になる。
+
+⚠️ **`Napkin (Zen)`＝`Maxe Tissue` は文字列からは原理的に分からない。**
+同一であることを知っているのは仕入先だけ。構造的な解は
+**材料を発注カタログの品目に紐づける**こと（`ingredient_master.supplier_id` は4件とも NULL）。
+これは相応の作り込みが要るので未着手。
+
+### ✅ 同じ検査を**発注カタログ**に当てると9組の実物が出た
+
+`proc_curated_catalog_items`(984行) に表記ゆれの重複が9組:
+`Food Color Yellow`/`Food color yellow`、`Multi Purpose Plastic(...)`（空白欠落）、
+`Calamansi Extract （BTL)`（全角括弧）、`MAKOTO...`大文字/小文字 ほか。
+**同じチェックでも、当てる先を変えれば意味がある。** カタログ側なら実装価値がある。
+
+### ③ 発注カタログの包材価格を更新（25行）
+
+| 対象 | 旧 | 新 | 行数 |
+|---|---:|---:|---:|
+| Sushi Box 12pc 各パーツ | ₱4.73 | ₱3.90 | 8 |
+| Sushi Box 16pc 各パーツ | ₱4.98 | ₱4.05 | 8 |
+| Sushi Box 24pc 各パーツ | ₱5.25 | ₱4.32 | 8 |
+| Ice Pack (1PKT = 100pcs) | ₱124 | **₱195** | 1 |
+
+**カタログは仕入先×店舗ごとに行がある正しい構造**（重複ではない）。
+単価と単位が一意に対応する行だけを更新し、曖昧なものは触っていない。
+バックアップ: `_cat_pkg_bk_20260909`(44行)。
+
+### ⚠️ 判断待ち（触っていない）
+
+| | 内容 |
+|---|---|
+| Hot Dog Box | `1pkt = 100pcs` と `1pkt = 25pcs` が**両方 ₱61**。植嶋さんは25pc=₱61。100pcs行は荷姿か価格のどちらかが誤り |
+| ZEN Safety Sticker | **カタログに1行も無い**（0件）。発注できない |
+| Paper Napkin (Maxi Tissue) | Warehouse/ALL は ₱95 で正しいが、Mega Crystal の3店舗行は ₱0 |
+| Onigiri Film | Paranaque のみ ₱355 で正しい。Taft/Cubao/ALL の行は無効化されている |
+| `Sushi Box 24pc - Condiuments Tray` | 綴り誤り（Condiments）。Cost Calculation では `Sauce Tray`。同一物か要確認 |
+| Cost Calculation とカタログの品名 | `12pcs` vs `12pc`、`Sushi Tray (Divider)` vs `Divider`、`Cover` vs `Outside Box (Cover)` で不一致 |
+
 
 ## ✅ 2026-09-09（続き） — 同一物の2重登録を統合
 
