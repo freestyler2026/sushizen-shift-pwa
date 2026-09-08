@@ -1,0 +1,855 @@
+<title>Manila Costing Worklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --ink:        #1A1E22;
+    --ink-soft:   #414A52;
+    --muted:      #6B7780;
+    --paper:      #EDEFF0;
+    --surface:    #FFFFFF;
+    --surface-2:  #F5F7F7;
+    --line:       #D6DBDD;
+    --line-soft:  #E6EAEB;
+
+    --accent:     #23616B;
+    --accent-ink: #1B4C55;
+    --accent-soft:#DCEAEC;
+
+    --flag:       #A0442F;   /* confirmed error */
+    --flag-soft:  #F7E6E1;
+    --pending:    #8A6410;   /* waiting on a decision */
+    --pending-soft:#F8EEDA;
+    --done:       #2F6B4F;
+    --done-soft:  #E0EEE6;
+
+    --measure: 40rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:        #E7EBEC;
+      --ink-soft:   #BAC4C7;
+      --muted:      #8B979C;
+      --paper:      #14181B;
+      --surface:    #1D2327;
+      --surface-2:  #232A2E;
+      --line:       #333C41;
+      --line-soft:  #2A3236;
+      --accent:     #6FB3BD;
+      --accent-ink: #8FC9D2;
+      --accent-soft:#1D3338;
+      --flag:       #D98268;
+      --flag-soft:  #33231F;
+      --pending:    #D2A64F;
+      --pending-soft:#302818;
+      --done:       #74B694;
+      --done-soft:  #1B2A22;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:        #E7EBEC;
+    --ink-soft:   #BAC4C7;
+    --muted:      #8B979C;
+    --paper:      #14181B;
+    --surface:    #1D2327;
+    --surface-2:  #232A2E;
+    --line:       #333C41;
+    --line-soft:  #2A3236;
+    --accent:     #6FB3BD;
+    --accent-ink: #8FC9D2;
+    --accent-soft:#1D3338;
+    --flag:       #D98268;
+    --flag-soft:  #33231F;
+    --pending:    #D2A64F;
+    --pending-soft:#302818;
+    --done:       #74B694;
+    --done-soft:  #1B2A22;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 54rem;
+    margin: 0 auto;
+    padding: clamp(1.6rem, 4vw, 3rem) clamp(1rem, 3.5vw, 2rem) 5rem;
+  }
+
+  h1, h2, h3 {
+    font-family: Archivo, "Helvetica Neue", sans-serif;
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0;
+    color: var(--ink);
+  }
+  h1 { font-size: clamp(1.7rem, 4vw, 2.3rem); line-height: 1.15; letter-spacing: -0.015em; }
+  h2 { font-size: 1.02rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-ink); }
+  h3 { font-size: 1.05rem; line-height: 1.35; }
+
+  p { margin: 0 0 0.7rem; max-width: var(--measure); }
+  p:last-child { margin-bottom: 0; }
+
+  code, .mono, .num { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  code {
+    font-size: 0.85em; background: var(--surface-2); border: 1px solid var(--line-soft);
+    border-radius: 4px; padding: 0.08em 0.36em; color: var(--accent-ink); white-space: nowrap;
+  }
+
+  [lang="ja"] { font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif; line-height: 1.8; }
+  h1[lang="ja"] { font-size: clamp(1.35rem, 3.4vw, 1.8rem); line-height: 1.4; letter-spacing: 0; }
+  h2[lang="ja"] { letter-spacing: 0.02em; text-transform: none; font-size: 0.98rem; }
+
+  /* ── header ─────────────────────────────────────────────── */
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.6rem; flex-wrap: wrap; }
+  .eyebrow {
+    font-family: "JetBrains Mono", monospace; font-size: 0.7rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--accent); display: block;
+  }
+  .langbar { display: flex; gap: 0.25rem; }
+  .langbar button {
+    font-family: "JetBrains Mono", monospace; font-size: 0.7rem; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--muted); background: transparent;
+    border: 1px solid var(--line); border-radius: 5px; padding: 0.3rem 0.66rem; cursor: pointer;
+  }
+  .langbar button[aria-pressed="true"] { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+  .langbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  header { border-bottom: 1px solid var(--line); padding-bottom: 1.7rem; margin-bottom: 1.9rem; }
+  .lede { font-size: 1.06rem; color: var(--ink-soft); max-width: 38rem; margin-top: 0.7rem; }
+  .meta { font-family: "JetBrains Mono", monospace; font-size: 0.74rem; color: var(--muted); margin-top: 1.1rem; }
+
+  /* ── measured facts ─────────────────────────────────────── */
+  .facts {
+    display: grid; gap: 1px; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    background: var(--line); border: 1px solid var(--line); border-radius: 10px;
+    overflow: hidden; margin: 1.5rem 0 0;
+  }
+  .fact { background: var(--surface); padding: 0.9rem 1rem 1rem; }
+  .fact b {
+    display: block; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums;
+    font-size: 1.42rem; font-weight: 500; line-height: 1.1; color: var(--accent-ink); margin-bottom: 0.25rem;
+  }
+  .fact span { display: block; font-size: 0.85rem; line-height: 1.4; color: var(--ink-soft); }
+
+  /* ── progress ───────────────────────────────────────────── */
+  .progress { margin: 1.9rem 0 0.6rem; }
+  .progress-track { height: 7px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--done); width: 0%; transition: width .25s ease; }
+  .progress-note { font-size: 0.85rem; color: var(--muted); margin-top: 0.45rem; font-family: "JetBrains Mono", monospace; }
+
+  /* ── sections ───────────────────────────────────────────── */
+  section { margin-top: 2.6rem; }
+  section > h2 { margin-bottom: 0.25rem; }
+  .section-note { font-size: 0.92rem; color: var(--muted); margin-bottom: 1rem; max-width: var(--measure); }
+
+  /* ── task cards ─────────────────────────────────────────── */
+  .task {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 11px;
+    padding: 1.05rem 1.15rem 1.15rem; margin-bottom: 0.85rem;
+    display: grid; grid-template-columns: 1.9rem 1fr; gap: 0 0.85rem; align-items: start;
+  }
+  .task[data-kind="error"]   { border-left: 3px solid var(--flag); }
+  .task[data-kind="missing"] { border-left: 3px solid var(--pending); }
+  .task[data-kind="quick"]   { border-left: 3px solid var(--accent); }
+
+  .tick {
+    appearance: none; width: 1.25rem; height: 1.25rem; margin: 0.28rem 0 0;
+    border: 1.5px solid var(--line); border-radius: 5px; background: var(--surface-2);
+    cursor: pointer; display: grid; place-content: center;
+  }
+  .tick::after { content: "✓"; font-size: 0.85rem; color: var(--surface); opacity: 0; line-height: 1; }
+  .tick:checked { background: var(--done); border-color: var(--done); }
+  .tick:checked::after { opacity: 1; }
+  .tick:disabled { cursor: default; opacity: .55; }
+  .tick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .task-body { min-width: 0; }
+  .task-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.45rem 0.6rem; }
+  .task-name { font-family: "JetBrains Mono", monospace; font-weight: 700; font-size: 0.98rem; color: var(--ink); word-break: break-word; }
+  .task[data-done="1"] .task-name { text-decoration: line-through; color: var(--muted); }
+
+  .chip {
+    font-family: "JetBrains Mono", monospace; font-size: 0.66rem; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 0.16rem 0.46rem; border-radius: 99px; white-space: nowrap;
+  }
+  .chip.error   { background: var(--flag-soft); color: var(--flag); }
+  .chip.pending { background: var(--pending-soft); color: var(--pending); }
+  .chip.quick   { background: var(--accent-soft); color: var(--accent-ink); }
+  .chip.done    { background: var(--done-soft); color: var(--done); }
+  .chip.fixed   { background: var(--done-soft); color: var(--done); }
+
+  .task[data-fixed="1"] { background: var(--surface-2); border-left-color: var(--done); }
+  .fixed-mark {
+    display: grid; place-content: center; width: 1.25rem; height: 1.25rem;
+    margin: 0.28rem 0 0; border-radius: 5px; background: var(--done);
+    color: var(--surface); font-size: 0.85rem; line-height: 1;
+  }
+
+  .figures {
+    display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; margin: 0.5rem 0 0.7rem;
+    font-family: "JetBrains Mono", monospace; font-size: 0.8rem; color: var(--muted);
+  }
+  .figures b { color: var(--ink-soft); font-weight: 500; }
+
+  .rows { display: grid; gap: 0.35rem; margin-top: 0.6rem; }
+  .row {
+    display: grid; grid-template-columns: 7.2rem 1fr; gap: 0.15rem 0.8rem;
+    font-size: 0.93rem; padding: 0.4rem 0; border-top: 1px solid var(--line-soft);
+  }
+  .row:first-child { border-top: none; padding-top: 0; }
+  .row dt {
+    font-family: "JetBrains Mono", monospace; font-size: 0.68rem; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--muted); padding-top: 0.18rem;
+  }
+  .row dd { margin: 0; color: var(--ink-soft); }
+  .row dd strong { color: var(--ink); font-weight: 600; }
+  @media (max-width: 34rem) { .row { grid-template-columns: 1fr; } .row dt { padding-top: 0; } }
+
+  .ask {
+    margin-top: 0.7rem; background: var(--pending-soft); border-radius: 7px;
+    padding: 0.6rem 0.75rem; font-size: 0.92rem; color: var(--ink-soft);
+  }
+  .task[data-kind="error"] .ask { background: var(--flag-soft); }
+  .ask b { color: var(--ink); }
+
+  /* ── plain table ────────────────────────────────────────── */
+  .scroller { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 0.8rem; }
+  th, td { text-align: left; padding: 0.5rem 0.65rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th {
+    font-family: "JetBrains Mono", monospace; font-size: 0.66rem; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  td.n { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  td.bad { color: var(--flag); font-weight: 600; }
+
+  .note {
+    border-left: 2px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0;
+    padding: 0.75rem 0.95rem; margin-top: 1rem; font-size: 0.93rem; color: var(--ink-soft);
+  }
+  .note b { color: var(--ink); }
+
+  .save-state {
+    font-family: "JetBrains Mono", monospace; font-size: 0.72rem; color: var(--muted);
+    margin-top: 0.5rem; min-height: 1.1rem;
+  }
+
+  footer {
+    margin-top: 3.4rem; padding-top: 1.4rem; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 0.85rem;
+  }
+</style>
+
+<div class="wrap">
+
+  <div class="bar">
+    <span class="eyebrow" lang="en">Sushi ZEN Manila · Cost Calculation</span>
+    <span class="eyebrow" lang="ja" hidden>Sushi ZEN マニラ ／ Cost Calculation</span>
+    <div class="langbar">
+      <button type="button" id="btn-en" aria-pressed="true">EN</button>
+      <button type="button" id="btn-ja" aria-pressed="false">日本語</button>
+    </div>
+  </div>
+
+  <header>
+    <h1 lang="en">What is still missing a cost</h1>
+    <h1 lang="ja" hidden>原価が引けていないもの</h1>
+
+    <p class="lede" lang="en">
+      Every item sold in Manila over the last 30 days was checked against Cost Calculation.
+      Two wrong numbers were found and <strong>both are fixed</strong>. What is left is five
+      items with no cost behind them — most need one line from the kitchen rather than any
+      new work.
+    </p>
+    <p class="lede" lang="ja" hidden>
+      直近30日にマニラで売れた全品目を Cost Calculation と突き合わせました。
+      誤った数値が2件見つかり、<strong>2件とも修正済み</strong>です。
+      残っているのは原価が引けていない5品で、その多くは新しい作業ではなく、厨房からの1行で決まります。
+    </p>
+
+    <div class="facts">
+      <div class="fact">
+        <b>99.7%</b>
+        <span lang="en">of items sold now have a cost</span>
+        <span lang="ja" hidden>売れた数量のうち原価が引けている割合</span>
+      </div>
+      <div class="fact">
+        <b>33.1%</b>
+        <span lang="en">median food cost across 161 priced menu items</span>
+        <span lang="ja" hidden>売価のある161品の原価率・中央値</span>
+      </div>
+      <div class="fact">
+        <b>89.5% → 28.2%</b>
+        <span lang="en">worst item on the menu, after the 8 Sep fix</span>
+        <span lang="ja" hidden>最も高かった品・9/8の修正後</span>
+      </div>
+      <div class="fact">
+        <b>₱10,066</b>
+        <span lang="en">of 30-day sales with no cost behind it — 0.1% of the total</span>
+        <span lang="ja" hidden>30日で原価未計上の売上・全体の0.1%</span>
+      </div>
+    </div>
+
+    <div class="progress">
+      <div class="progress-track"><div class="progress-fill" id="fill"></div></div>
+      <div class="progress-note" id="progress-note">— / —</div>
+      <div class="save-state" id="save-state"></div>
+    </div>
+
+    <p class="meta" lang="en">Measured 2026-09-08 over sales 2026-08-09 → 2026-09-07 · all three Manila stores</p>
+    <p class="meta" lang="ja" hidden>2026-09-08 時点・売上期間 2026-08-09〜2026-09-07 ／ マニラ3店舗</p>
+  </header>
+
+  <!-- ═══════════ CONFIRMED ERROR ═══════════ -->
+  <section>
+    <h2 lang="en">Fixed on 8 September</h2>
+    <h2 lang="ja" hidden>2026-09-08 修正済み</h2>
+    <p class="section-note" lang="en">
+      Two wrong numbers. Cost Calculation's arithmetic was correct on both — what was typed in
+      was not. Nothing to do here; kept so the change is traceable and nobody re-enters the
+      old values.
+    </p>
+    <p class="section-note" lang="ja" hidden>
+      誤った数値2件。どちらも Cost Calculation の計算は正しく、入力値が誤っていました。
+      作業は不要です。変更を追跡できるように、また旧値を入れ直さないように残します。
+    </p>
+
+    <div class="task" data-id="karaage-3335" data-kind="error" data-fixed="1">
+      <span class="fixed-mark" aria-hidden="true">✓</span>
+      <div class="task-body">
+        <div class="task-head">
+          <span class="task-name">Chicken Karaage 3pcs</span>
+          <code>id 3335</code>
+          <span class="chip fixed" lang="en">Fixed 8 Sep</span>
+          <span class="chip fixed" lang="ja" hidden>9/8 修正済み</span>
+        </div>
+        <div class="figures">
+          <span><b>₱287.34</b> per set now</span>
+          <span><b>₱26.12</b> what it should be</span>
+          <span><b>11×</b> too high</span>
+          <span><b>6</b> menu items affected</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt lang="en">What is wrong</dt><dt lang="ja" hidden>症状</dt>
+            <dd lang="en">The recipe is a <strong>batch</strong> — <code>CHICKEN THIGH 1000 g</code> plus
+              <code>150 g</code> of marinade — but its <strong><code>Output qty</code> is set to
+              <code>1 set</code></strong>. So the whole kilogram is charged to every single
+              3-piece serving.</dd>
+            <dd lang="ja" hidden>レシピは<strong>仕込み1バッチ</strong>（<code>CHICKEN THIGH 1000 g</code>
+              ＋タレ <code>150 g</code>）ですが、<strong><code>Output qty</code> が
+              <code>1 set</code></strong> になっています。そのため<strong>1kg丸ごとが3個入り1食に課金</strong>されています。</dd>
+          </div>
+          <div class="row">
+            <dt lang="en">The maths is right</dt><dt lang="ja" hidden>計算は正しい</dt>
+            <dd lang="en">1000 g × ₱0.24737 = ₱247.37, plus marinade ₱25.61, ÷ yield 0.95 =
+              <strong>₱287.34 per “set”</strong>. Every step checks out. Cost Calculation is
+              faithfully costing what it was told is one serving.</dd>
+            <dd lang="ja" hidden>1000 g × ₱0.24737 = ₱247.37、タレ ₱25.61 を足し、歩留まり 0.95 で割って
+              <strong>1「セット」あたり ₱287.34</strong>。どの段階も正しく、
+              Cost Calculation は「これが1食」と言われたとおりに計算しているだけです。</dd>
+          </div>
+          <div class="row">
+            <dt lang="en">The yield</dt><dt lang="ja" hidden>歩留まり</dt>
+            <dd lang="en">Already recorded: <code>3311 Marinated Chicken</code> turns
+              <code>CHICKEN THIGH 1000 g</code> into <code>Output qty 1000 g</code>, and both sibling
+              servings use <code>90 g</code> of it (<code>4935 Karaage 3pcs</code>,
+              <code>4017 [old]</code> — ₱26.12 of chicken, ₱49.72 all-in).
+              <strong>1000 ÷ 90 = 11.11 servings per batch.</strong></dd>
+            <dd lang="ja" hidden>既に登録済みでした。<code>3311 Marinated Chicken</code> が
+              <code>CHICKEN THIGH 1000 g</code> を <code>Output qty 1000 g</code> にし、
+              姉妹の1食レシピ2品はいずれもそこから <code>90 g</code> 使います
+              （<code>4935 Karaage 3pcs</code>・<code>4017 [old]</code> — 鶏肉分 ₱26.12、総額 ₱49.72）。
+              <strong>1000 ÷ 90 = 1バッチ 11.11食。</strong></dd>
+          </div>
+          <div class="row">
+            <dt lang="en">Effect</dt><dt lang="ja" hidden>影響</dt>
+            <dd lang="en">Each combo takes it at <code>×0.666</code> = <strong>₱191.37</strong>, which is
+              53–60% of the whole combo's cost. Six <code>+ Karaage &amp; Rice</code> items read 71–90%.
+              None is sold under a name the P&amp;L matches yet, so <strong>nothing is wrong in the
+              accounts today</strong> — but the day one of them starts selling, it will be.</dd>
+            <dd lang="ja" hidden>各コンボが <code>×0.666</code> で取り込むため <strong>₱191.37</strong>、
+              コンボ原価の53〜60%を占めます。<code>+ Karaage &amp; Rice</code> の6品が71〜90%。
+              いずれもP&amp;Lが照合する販売名と一致していないため<strong>現時点の帳簿は歪んでいません</strong>が、
+              売れ始めた瞬間に歪みます。</dd>
+          </div>
+          <div class="row">
+            <dt lang="en">Checked</dt><dt lang="ja" hidden>横展開</dt>
+            <dd lang="en">All of Manila was swept for the same shape — a batch registered as one
+              serving. Two others exist (<code>4603 Homemade Noodle *New June 26</code>,
+              <code>3307 Sushi Vegener 2</code>) but <strong>nothing uses them</strong>, and their
+              correct versions are already in place. This is the only live one.</dd>
+            <dd lang="ja" hidden>マニラ全品で同じ形（バッチを1食として登録）を掃きました。他に2件
+              （<code>4603 Homemade Noodle *New June 26</code>、<code>3307 Sushi Vegener 2</code>）
+              ありますが<strong>どこからも使われておらず</strong>、正しい版が別途あります。
+              実害があるのはこの1件だけです。</dd>
+          </div>
+        </dl>
+        <div class="ask" lang="en">
+          <b>Done — 8 Sep:</b> <code>Output qty</code> changed from <code>1</code> to
+          <code>11.11</code>. The yield was already recorded in Cost Calculation:
+          <code>3311 Marinated Chicken</code> turns <code>CHICKEN THIGH 1000 g</code> into
+          <code>Output qty 1000 g</code>, and <code>4935 Karaage 3pcs</code> uses 90 g of it
+          per serving. 1000 ÷ 90 = 11.11. The item now costs <strong>₱25.86</strong> per set.
+        </div>
+        <div class="ask" lang="ja" hidden>
+          <b>実施済み — 9/8:</b> <code>Output qty</code> を <code>1</code> →
+          <code>11.11</code> に変更しました。歩留まりは Cost Calculation に既にありました。
+          <code>3311 Marinated Chicken</code> が <code>CHICKEN THIGH 1000 g</code> を
+          <code>Output qty 1000 g</code> にし、<code>4935 Karaage 3pcs</code> が1食あたり90g
+          使っています。1000 ÷ 90 = 11.11食。現在の原価は1セット <strong>₱25.86</strong> です。
+        </div>
+      </div>
+    </div>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th lang="en">Menu item that was reading too high</th><th lang="en" class="n">Cost</th>
+            <th lang="en" class="n">Price</th><th lang="en" class="n">Was</th>
+            <th lang="en" class="n">Now</th>
+            <th lang="ja" hidden>原価率が高すぎた品</th><th lang="ja" hidden class="n">原価</th>
+            <th lang="ja" hidden class="n">売価</th><th lang="ja" hidden class="n">修正前</th>
+            <th lang="ja" hidden class="n">現在</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Tokyo Umami Shoyu Ramen + Karaage &amp; Rice</td><td class="n">₱321</td><td class="n">₱359</td><td class="n bad">89.5%</td><td class="n" style="color:var(--done);font-weight:600">28.2%</td></tr>
+          <tr><td>Rich Miso Ramen + Karaage &amp; Rice</td><td class="n">₱329</td><td class="n">₱371</td><td class="n bad">88.7%</td><td class="n" style="color:var(--done);font-weight:600">29.4%</td></tr>
+          <tr><td>Classic Shoyu Tonkotsu Ramen + Karaage &amp; Rice</td><td class="n">₱350</td><td class="n">₱449</td><td class="n bad">77.9%</td><td class="n" style="color:var(--done);font-weight:600">28.9%</td></tr>
+          <tr><td>Rich Miso Tonkotsu Ramen + Karaage &amp; Rice</td><td class="n">₱359</td><td class="n">₱471</td><td class="n bad">76.3%</td><td class="n" style="color:var(--done);font-weight:600">29.6%</td></tr>
+          <tr><td>Volcano Tonkotsu Ramen + Karaage &amp; Rice</td><td class="n">₱361</td><td class="n">₱494</td><td class="n bad">73.2%</td><td class="n" style="color:var(--done);font-weight:600">28.6%</td></tr>
+          <tr><td>Black Tonkotsu Ramen + Karaage &amp; Rice</td><td class="n">₱346</td><td class="n">₱483</td><td class="n bad">71.6%</td><td class="n" style="color:var(--done);font-weight:600">27.9%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="task" data-id="black-tonkotsu-rice" data-kind="error" data-fixed="1">
+      <span class="fixed-mark" aria-hidden="true">✓</span>
+      <div class="task-body">
+        <div class="task-head">
+          <span class="task-name">Black Tonkotsu Ramen + Karaage &amp; Rice</span>
+          <code>id 4972</code>
+          <span class="chip fixed" lang="en">Fixed 8 Sep</span>
+          <span class="chip fixed" lang="ja" hidden>9/8 修正済み</span>
+        </div>
+        <div class="figures">
+          <span><b>0.666 g</b> of rice recorded</span>
+          <span><b>200 g</b> everywhere else</span>
+          <span><b>₱7.04</b> understated</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt lang="en">What is wrong</dt><dt lang="ja" hidden>症状</dt>
+            <dd lang="en">Its <code>Cooked Rice (Japonica)</code> line reads <strong>0.666 g</strong>.
+              <code>0.666</code> is the karaage quantity on the line above — it was pasted into the
+              rice row.</dd>
+            <dd lang="ja" hidden><code>Cooked Rice (Japonica)</code> の行が <strong>0.666 g</strong>
+              になっています。<code>0.666</code> は1つ上の唐揚げの数量で、ご飯の行に貼り付けられています。</dd>
+          </div>
+          <div class="row">
+            <dt lang="en">How we know</dt><dt lang="ja" hidden>根拠</dt>
+            <dd lang="en">All twelve other rice combos use <strong>200 g</strong>, the five sibling
+              <code>+ Karaage &amp; Rice</code> items included. This is the only one below 150 g.</dd>
+            <dd lang="ja" hidden>ご飯付きコンボは他の12品すべてが <strong>200 g</strong> で、
+              同じ <code>+ Karaage &amp; Rice</code> の5品も同様。150g未満はこの1件だけです。</dd>
+          </div>
+        </dl>
+        <div class="ask" lang="en">
+          <b>Done — 8 Sep:</b> changed to <code>200 g</code>. The item's other eight components
+          were left exactly as they were.
+        </div>
+        <div class="ask" lang="ja" hidden>
+          <b>実施済み — 9/8:</b> <code>200 g</code> に変更しました。他の8構成はそのままです。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ NOT IN THE MASTER ═══════════ -->
+  <section>
+    <h2 lang="en">Sold, but not in Cost Calculation</h2>
+    <h2 lang="ja" hidden>売れているのにマスタに無い</h2>
+    <p class="section-note" lang="en">
+      Each of these already has a near twin in the master. The only unknown is what the
+      variant adds.
+    </p>
+    <p class="section-note" lang="ja" hidden>
+      いずれもマスタにほぼ同じ品があります。分からないのは「派生分に何が足されているか」だけです。
+    </p>
+
+    <div class="task" data-id="creamy-avocado" data-kind="missing">
+      <input class="tick" type="checkbox" aria-label="Mark done: Creamy Avocado Hosomaki">
+      <div class="task-body">
+        <div class="task-head">
+          <span class="task-name">Creamy Avocado Hosomaki</span>
+          <span class="chip pending" lang="en">Needs a recipe line</span>
+          <span class="chip pending" lang="ja" hidden>レシピ1行が必要</span>
+        </div>
+        <div class="figures">
+          <span><b>21</b> sold / 30 days</span>
+          <span><b>₱6,291</b> sales</span>
+          <span><b>₱300</b> each</span>
+          <span>all 3 stores</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt lang="en">Start from</dt><dt lang="ja" hidden>写す元</dt>
+            <dd><code>4782 Avocado Hosomaki</code> — <span lang="en">cost <strong>₱50.97</strong>, sells ₱180</span><span lang="ja" hidden>原価 <strong>₱50.97</strong>・売価 ₱180</span></dd>
+          </div>
+          <div class="row">
+            <dt lang="en">Checked</dt><dt lang="ja" hidden>確認済み</dt>
+            <dd lang="en">No “creamy” hosomaki exists in the master under any spelling, active or not.</dd>
+            <dd lang="ja" hidden>「creamy」の細巻はどの表記でも、有効・無効いずれにも存在しません。</dd>
+          </div>
+        </dl>
+        <div class="ask" lang="en"><b>Needed:</b> what does “Creamy” add, and how much — cream cheese? Japanese mayo? grams per roll.</div>
+        <div class="ask" lang="ja" hidden><b>必要な情報:</b>「Creamy」で何をいくら足しているか。クリームチーズか、マヨか。1本あたりのグラム数。</div>
+      </div>
+    </div>
+
+    <div class="task" data-id="spicy-onigiri" data-kind="missing">
+      <input class="tick" type="checkbox" aria-label="Mark done: Spicy Pork Miso Onigiri">
+      <div class="task-body">
+        <div class="task-head">
+          <span class="task-name">Spicy Pork Miso Onigiri</span>
+          <span class="chip pending" lang="en">Needs a recipe line</span>
+          <span class="chip pending" lang="ja" hidden>レシピ1行が必要</span>
+        </div>
+        <div class="figures">
+          <span><b>22</b> sold / 30 days</span>
+          <span><b>₱3,516</b> sales</span>
+          <span><b>₱160</b> each</span>
+          <span>all 3 stores</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt lang="en">Start from</dt><dt lang="ja" hidden>写す元</dt>
+            <dd><code>4828 Pork Miso Onigiri</code> — <span lang="en">cost <strong>₱25.95</strong>, sells ₱88</span><span lang="ja" hidden>原価 <strong>₱25.95</strong>・売価 ₱88</span></dd>
+          </div>
+          <div class="row">
+            <dt lang="en">Checked</dt><dt lang="ja" hidden>確認済み</dt>
+            <dd lang="en">Manila has no spicy variant. The spicy onigiri in the master are Dubai items.</dd>
+            <dd lang="ja" hidden>マニラに spicy 版はありません。マスタにある spicy おにぎりはドバイの品です。</dd>
+          </div>
+        </dl>
+        <div class="ask" lang="en"><b>Needed:</b> what makes it spicy, and how much per piece.</div>
+        <div class="ask" lang="ja" hidden><b>必要な情報:</b> 辛味は何を、1個あたりいくら足しているか。</div>
+      </div>
+    </div>
+
+    <div class="task" data-id="qp-mayo" data-kind="missing">
+      <input class="tick" type="checkbox" aria-label="Mark done: Japanese Mayo (QP Mayo)">
+      <div class="task-body">
+        <div class="task-head">
+          <span class="task-name">Japanese Mayo (QP Mayo)</span>
+          <span class="chip pending" lang="en">Needs a portion size</span>
+          <span class="chip pending" lang="ja" hidden>グラム数が必要</span>
+        </div>
+        <div class="figures">
+          <span><b>1</b> sold / 30 days</span>
+          <span><b>₱22</b> sales</span>
+          <span>1 store</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt lang="en">Material</dt><dt lang="ja" hidden>材料</dt>
+            <dd><code>8825 QP MAYONNAISE</code> — <span lang="en">already priced at <strong>₱0.387 / g</strong></span><span lang="ja" hidden>単価は登録済み <strong>₱0.387/g</strong></span></dd>
+          </div>
+        </dl>
+        <div class="ask" lang="en"><b>Needed:</b> grams per serving. Then it is a one-ingredient item.</div>
+        <div class="ask" lang="ja" hidden><b>必要な情報:</b> 1食あたりのグラム数。決まれば材料1つだけの品として登録できます。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ ALREADY THERE, SWITCHED OFF ═══════════ -->
+  <section>
+    <h2 lang="en">Already in the master, just switched off</h2>
+    <h2 lang="ja" hidden>マスタにあるが無効化されているだけ</h2>
+    <p class="section-note" lang="en">
+      These two were reported as missing at first. They are not — they exist and are deactivated.
+    </p>
+    <p class="section-note" lang="ja" hidden>
+      この2件は当初「無い」と報告しましたが誤りでした。存在していて、無効化されているだけです。
+    </p>
+
+    <div class="task" data-id="noodle-80g" data-kind="quick">
+      <input class="tick" type="checkbox" aria-label="Mark done: Noodle 80g Portion">
+      <div class="task-body">
+        <div class="task-head">
+          <span class="task-name">(Topping) Extra Noodle 80g</span>
+          <code>id 4189</code>
+          <span class="chip quick" lang="en">Reactivate only</span>
+          <span class="chip quick" lang="ja" hidden>有効化するだけ</span>
+        </div>
+        <div class="figures">
+          <span><b>4</b> sold / 30 days</span>
+          <span><b>₱193</b> sales</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt lang="en">Status</dt><dt lang="ja" hidden>状態</dt>
+            <dd lang="en"><code>Noodle 80g Portion</code> exists, is <strong>deactivated</strong>, and is already
+              built correctly from <code>Homemade Noodle 80 g</code> — cost <strong>₱4.82</strong>.</dd>
+            <dd lang="ja" hidden><code>Noodle 80g Portion</code> は存在し、<strong>無効化</strong>されています。
+              中身は <code>Homemade Noodle 80 g</code> で正しく組まれており、原価 <strong>₱4.82</strong>。</dd>
+          </div>
+        </dl>
+        <div class="ask" lang="en"><b>Action:</b> set it active. Nothing else to enter — no decision needed from anyone.</div>
+        <div class="ask" lang="ja" hidden><b>作業:</b> 有効化するだけ。他に入力するものはなく、判断も要りません。</div>
+      </div>
+    </div>
+
+    <div class="task" data-id="spicy-mayo" data-kind="missing">
+      <input class="tick" type="checkbox" aria-label="Mark done: Spicy Mayo 20g">
+      <div class="task-body">
+        <div class="task-head">
+          <span class="task-name">Spicy Mayo (20g)</span>
+          <code>id 4170</code>
+          <span class="chip pending" lang="en">Reactivate + fill in</span>
+          <span class="chip pending" lang="ja" hidden>有効化＋中身の登録</span>
+        </div>
+        <div class="figures">
+          <span><b>2</b> sold / 30 days</span>
+          <span><b>₱45</b> sales</span>
+        </div>
+        <dl class="rows">
+          <div class="row">
+            <dt lang="en">Status</dt><dt lang="ja" hidden>状態</dt>
+            <dd lang="en"><code>Spicy Mayo</code> exists and is deactivated, but it has <strong>no ingredients and
+              no components</strong> — reactivating alone would give it no real cost.</dd>
+            <dd lang="ja" hidden><code>Spicy Mayo</code> は存在し無効化されていますが、
+              <strong>材料も部品も0行</strong>です。有効化しただけでは原価が入りません。</dd>
+          </div>
+          <div class="row">
+            <dt lang="en">Nearby</dt><dt lang="ja" hidden>近い品</dt>
+            <dd><code>4171 Spicy Miso Mayo Sauce</code> ₱0.45/g · <code>4172 Siracha Mayo</code> ₱0.34/g</dd>
+          </div>
+        </dl>
+        <div class="ask" lang="en"><b>Needed:</b> which sauce the 20 g portion is made of.</div>
+        <div class="ask" lang="ja" hidden><b>必要な情報:</b> 20gの中身がどのソースか。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ CHECKED, NOT AN ERROR ═══════════ -->
+  <section>
+    <h2 lang="en">Checked and left alone</h2>
+    <h2 lang="ja" hidden>調べたうえで触っていないもの</h2>
+    <p class="section-note" lang="en">
+      Six more menu items read 58–70%. Their material prices were checked one by one against
+      what we actually pay, and they are correct. These are thin margins, not bad data —
+      recorded here so nobody re-investigates them.
+    </p>
+    <p class="section-note" lang="ja" hidden>
+      原価率58〜70%の品が他に6つあります。材料単価を実際の仕入額と1つずつ突き合わせ、
+      いずれも正しいことを確認しました。データの誤りではなく利幅が薄いだけです。
+      同じ調査を繰り返さないために残します。
+    </p>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th lang="en">Item</th><th lang="en" class="n">Rate</th><th lang="en">Why</th>
+            <th lang="ja" hidden>品名</th><th lang="ja" hidden class="n">率</th><th lang="ja" hidden>理由</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Del Monte Pinapple Juice ACE 240ml</td><td class="n">70.4%</td>
+            <td lang="en">bought near retail</td><td lang="ja" hidden>仕入が小売に近い</td>
+          </tr>
+          <tr>
+            <td>San Miguel Pale Pilsen / Light</td><td class="n">70.3%</td>
+            <td lang="en">bottle ₱55.94 + <strong>₱21.43 packaging</strong></td>
+            <td lang="ja" hidden>瓶 ₱55.94 ＋ <strong>包材 ₱21.43</strong></td>
+          </tr>
+          <tr>
+            <td>Soy Sauce / Additional Soy Sauce</td><td class="n">67.3%</td>
+            <td lang="en">condiment sachet</td><td lang="ja" hidden>調味料の小分け</td>
+          </tr>
+          <tr>
+            <td>Beef Yakiniku Bento</td><td class="n">63.7%</td>
+            <td lang="en">beef</td><td lang="ja" hidden>牛肉</td>
+          </tr>
+          <tr>
+            <td>MISMO 290ml (Coke / Sprite / Royal / Mountain Dew)</td><td class="n">58.2%</td>
+            <td lang="en">can ₱17.73 + ₱11.40 packaging</td>
+            <td lang="ja" hidden>缶 ₱17.73 ＋ 包材 ₱11.40</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note" lang="en">
+      <b>One thing worth a second look:</b> ₱21.43 of packaging on a bottle of beer is more than
+      a third of the bottle itself. That is a recipe decision, not a data error — but it is the
+      reason San Miguel shows almost no margin.
+    </div>
+    <div class="note" lang="ja" hidden>
+      <b>1点だけ再考の余地:</b> ビール1本に包材 ₱21.43 は、瓶そのものの3分の1を超えます。
+      これはデータの誤りではなくレシピ設計の問題ですが、サンミゲルの利幅がほぼ無い理由はここです。
+    </div>
+  </section>
+
+  <!-- ═══════════ HOW THIS WAS CHECKED ═══════════ -->
+  <section>
+    <h2 lang="en">How this was checked</h2>
+    <h2 lang="ja" hidden>調べ方</h2>
+    <p lang="en">
+      Every product sold in the last 30 days was matched to Cost Calculation by name, then
+      through <code>pos_item_cost_map</code> for the names the master spells differently.
+      Separately, all <strong>161</strong> active menu items that carry a selling price had their
+      cost recomputed and compared against it.
+    </p>
+    <p lang="ja" hidden>
+      直近30日に売れた全商品を Cost Calculation と品名で突き合わせ、表記が違うものは
+      <code>pos_item_cost_map</code> を通しました。別途、売価を持つ有効な
+      <strong>161品</strong>すべての原価を再計算して売価と比べています。
+    </p>
+    <div class="note" lang="en">
+      <b>After the two fixes, the whole menu was measured again</b> — 161 priced items,
+      median <strong>33.1%</strong>, highest <strong>70.4%</strong>, none above 100%. Six items
+      still read 58–70%; they are the beverages and condiments in the section above, and their
+      material prices were checked one by one.
+    </div>
+    <div class="note" lang="ja" hidden>
+      <b>2件の修正後、全品を再測しました</b> — 売価のある161品、中央値 <strong>33.1%</strong>、
+      最高 <strong>70.4%</strong>、100%超はゼロ。58〜70%が6品残りますが、
+      これは上のセクションの飲料・調味料で、材料単価は1つずつ確認済みです。
+    </div>
+    <div class="note" lang="en">
+      <b>What this method cannot see:</b> a component item with no selling price of its own —
+      exactly what <code>Chicken Karaage 3pcs</code> is. Those were checked separately by cost
+      ranking, and it was the most expensive of them by a wide margin. If a component is quietly
+      wrong and cheap, this sweep would still miss it.
+    </div>
+    <div class="note" lang="ja" hidden>
+      <b>この方法が見られない範囲:</b> 売価を持たない中間品。
+      <code>Chicken Karaage 3pcs</code> がまさにそれです。中間品は原価の高い順に別途確認し、
+      これが突出して1位でした。ただし<strong>安いまま静かに誤っている中間品</strong>は、
+      この走査では今も見つけられません。
+    </div>
+  </section>
+
+  <footer>
+    <span lang="en">Ticks are kept in your own browser, so the link is safe to share with anyone.
+      Sushi ZEN Workforce OS · measured 2026-09-08.</span>
+    <span lang="ja" hidden>チェックはご自身のブラウザに保存されます。リンクは誰に渡しても構いません。
+      Sushi ZEN Workforce OS ／ 2026-09-08 時点。</span>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var wrap = document.querySelector(".wrap");
+  var bEn = document.getElementById("btn-en");
+  var bJa = document.getElementById("btn-ja");
+
+  /* Language. Scoped to .wrap on purpose: writing lang on <html> would put the
+     root inside this selector and the next click would hide the whole page. */
+  function applyLang(lang) {
+    var nodes = wrap.querySelectorAll("[lang='en'], [lang='ja']");
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].hidden = nodes[i].getAttribute("lang") !== lang;
+    }
+    root.setAttribute("data-lang", lang);
+    bEn.setAttribute("aria-pressed", String(lang === "en"));
+    bJa.setAttribute("aria-pressed", String(lang === "ja"));
+    try { localStorage.setItem("szn-cost-lang", lang); } catch (e) {}
+  }
+  var saved = "en";
+  try { saved = localStorage.getItem("szn-cost-lang") || "en"; } catch (e) {}
+  applyLang(saved === "ja" ? "ja" : "en");
+  bEn.addEventListener("click", function () { applyLang("en"); });
+  bJa.addEventListener("click", function () { applyLang("ja"); });
+
+  /* Checklist. */
+  var tasks = Array.prototype.slice.call(document.querySelectorAll(".task:not([data-fixed])"));
+  var fill = document.getElementById("fill");
+  var note = document.getElementById("progress-note");
+  var saveState = document.getElementById("save-state");
+  var db;
+
+  function paint() {
+    var done = tasks.filter(function (t) { return t.dataset.done === "1"; }).length;
+    fill.style.width = (tasks.length ? (done / tasks.length) * 100 : 0) + "%";
+    var ja = root.getAttribute("data-lang") === "ja";
+    note.textContent = ja
+      ? done + " / " + tasks.length + " 件 完了"
+      : done + " of " + tasks.length + " done";
+  }
+
+  function setDone(task, done, at) {
+    task.dataset.done = done ? "1" : "0";
+    task.querySelector(".tick").checked = !!done;
+    var head = task.querySelector(".task-head");
+    var chip = head.querySelector(".chip.done");
+    if (done) {
+      if (!chip) {
+        chip = document.createElement("span");
+        chip.className = "chip done";
+        head.appendChild(chip);
+      }
+      chip.textContent = at ? "done " + String(at).slice(0, 10) : "done";
+    } else if (chip) {
+      chip.remove();
+    }
+    paint();
+  }
+
+  tasks.forEach(function (t) {
+    setDone(t, false);
+    t.querySelector(".tick").addEventListener("change", function (ev) {
+      var on = ev.target.checked;
+      setDone(t, on);
+      var state = db.read();
+      if (on) state[t.dataset.id] = { at: new Date().toISOString() };
+      else delete state[t.dataset.id];
+      db.write(state);
+    });
+  });
+  paint();
+
+  /* Ticks are kept in this browser only, so the link can be shared with
+     anyone. Nothing here is sent anywhere. */
+  var STORE = "szn-cost-done";
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE) || "{}") || {}; }
+    catch (e) { return {}; }
+  }
+  function save(state) {
+    try { localStorage.setItem(STORE, JSON.stringify(state)); }
+    catch (e) { saveState.textContent = "This browser is not keeping the ticks."; }
+  }
+  db = { read: load, write: save };
+  var initial = load();
+  tasks.forEach(function (t) {
+    var v = initial[t.dataset.id];
+    if (v) setDone(t, true, v.at);
+  });
+
+  /* Progress wording follows the language toggle. */
+  bEn.addEventListener("click", paint);
+  bJa.addEventListener("click", paint);
+})();
+</script>

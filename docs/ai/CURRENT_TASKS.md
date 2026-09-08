@@ -1,6 +1,73 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-08（不要になった日次アップロードの特定・原価率の二重計上を修正）
+Last updated: 2026-09-08（Cost Calculation の誤入力2件を修正・全161品を再走査）
+
+## ✅ 2026-09-08（続き3） — Cost Calculation の誤入力2件を修正
+
+Ramen + Karaage & Rice の6品が原価率 71〜90% だった件。**エンジンの計算は全段階正しく、
+入力値が誤っていた。** `_compute_cost_master_item_totals` を本番で直接呼んで確認。
+
+### 修正1: `#3335 Chicken Karaage 3pcs` の `output_qty` 1 → 11.11
+
+レシピは**仕込み1バッチ**（`CHICKEN THIGH 1000 g` ＋ 唐揚げダレ150g）なのに
+`output_qty = 1 set` だったため、**1kg丸ごとが3個入り1食に課金**されていた（₱287.34/食）。
+各コンボが `×0.666` で取り込み ₱191.37 ＝ コンボ原価の53〜60%。
+
+**歩留まりは既に Cost Calculation にあった**（ユーザー指摘）:
+`#3311 Marinated Chicken` が `CHICKEN THIGH 1000 g` → `output_qty 1000 g`、
+`#4935 Karaage 3pcs` がそこから1食 `90 g`。**1000 ÷ 90 = 11.11食**。→ ₱25.86/食。
+
+| 品 | 修正前 | 修正後 |
+|---|---:|---:|
+| 4965 Tokyo Umami Shoyu + Karaage & Rice | 89.5% | **28.2%** |
+| 4966 Rich Miso + Karaage & Rice | 88.7% | **29.4%** |
+| 4969 Classic Shoyu Tonkotsu + Karaage & Rice | 77.9% | **28.9%** |
+| 4975 Rich Miso Tonkotsu + Karaage & Rice | 76.3% | **29.6%** |
+| 4970 Volcano Tonkotsu + Karaage & Rice | 73.2% | **28.6%** |
+| 4972 Black Tonkotsu + Karaage & Rice | 71.6% | **27.9%** |
+
+`#4877 Side For Ramen + Side Dish & Rice`（売価なし）も ₱199.62 → ₱25.47。
+
+### 修正2: `#4972` の `Cooked Rice (Japonica)` 0.666 g → 200 g
+
+`0.666` は1行上の唐揚げの数量。ご飯付きコンボ13品のうちこの1件だけが150g未満だった。
+
+### 横展開（同型の掃き出し）
+
+「バッチを1食として登録」（`output_qty ≤ 1` かつ材料 ≥ 400g）をマニラ全品で検索 → 32行32件中、
+**有効かつ実際に使われているのは 3335 だけ**。他の active 2件
+（`4603 Homemade Noodle *New June 26`、`3307 Sushi Vegener 2`）は**どこからも参照されておらず**、
+正しい版（`4608` out=5000g、`3932`/`4165` out=1000g）が別途ある。
+
+### 修正後の再走査（売価のある有効161品）
+
+中央値 33.7% → **33.1%**、最高 89.5% → **70.4%**、100%超 **0件**、60%超 12件 → **6件**
+（残る6件は飲料・調味料・牛丼弁当で、材料単価を実仕入と突合済み＝誤りではない）。
+
+### 教訓・手順メモ
+
+- **`output_qty` は「このレシピが何食分か」。バッチ仕込みを 1 にすると原価が食数倍になる。**
+  症状は「その中間品を使う全品が一律に高い」で、**中間品自体は売価0なので原価率の走査に出てこない**。
+- 書き込みは `update_cost_master_item()` を使う（`changed_by` / `history_note` が残る）。
+  DB直接UPDATEはしない。`components=None` を渡せば構成は触られない。
+- ⚠️ **one-off dyno で `ensure_cost_tables()` が statement timeout する。**
+  中身は `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` の連打で ACCESS EXCLUSIVE ロックを取るため、
+  営業時間中は待たされる。列は全て既存なので `app.db._COST_SCHEMA_READY = True` を
+  先に立てて移行だけ飛ばす（書き込みロジックと履歴はそのまま）。教訓85と同型。
+- バックアップ: `_cost_fix_bk_20260908_master`（2行）/ `_cost_fix_bk_20260908_comp`（11行）。
+- 一覧ページ（日英切替・チェック可）: https://claude.ai/code/artifact/0a60f883-8f6b-4b47-aee8-d1dca8f4ae30
+  ※ 共有データ（`db` capability）を付けると公開リンクにできないため、チェックは各自のブラウザ保存にしてある。
+
+### 残（現場の回答待ち）
+
+| 品 | 必要な情報 |
+|---|---|
+| Creamy Avocado Hosomaki | 「Creamy」で何を何g足すか（元: `4782 Avocado Hosomaki` ₱50.97） |
+| Spicy Pork Miso Onigiri | 辛味の中身と量（元: `4828 Pork Miso Onigiri` ₱25.95） |
+| Japanese Mayo (QP Mayo) | 1食あたりのグラム数（`8825 QP MAYONNAISE` ₱0.387/g） |
+| `4170 Spicy Mayo` | 20g の中身がどのソースか＋有効化 |
+| `4189 Noodle 80g Portion` | 有効化のみ（原価 ₱4.82 は正しい）— 判断不要 |
+
 
 ## ✅ 2026-09-08（続き2） — 毎日のアップロードのうち何が不要になったか／原価率の二重計上
 
