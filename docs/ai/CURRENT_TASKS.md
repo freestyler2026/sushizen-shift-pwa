@@ -1,6 +1,53 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-09（包材18件の価格更新＋固定原価21品を解除）
+Last updated: 2026-09-09（重複していた材料2組を統合。原価変動0）
+
+## ✅ 2026-09-09（続き） — 同一物の2重登録を統合
+
+植嶋さんの指摘（`ZEN Safety Sticker`＝`Sticker Safe Sealed`、`Napkin (Zen)`＝`Maxe Tissue`）を受けて統合。
+**Cost Calculation を正本**とした。
+
+| 残した | 吸収した | 移した行 |
+|---|---|---:|
+| `#8806 ZEN Safety Sticker` | `#8803 Sticker Safe Sealed` | 20 |
+| `#8801 Napkin (Zen)` | `#8821 Maxe Tissue` | 25 |
+
+残す側の選定理由: **植嶋さんの一覧が主名として書いている名前**。ナプキンは参照数も多い（36 vs 25）。
+
+### 構造（着手前に確認したこと）
+
+- 参照は3テーブルのみ: `menu_item_components`（正本）/ `menu_item_ingredients`（**ミラー**）/ `ingredient_price_history`
+- `menu_item_ingredients` は `_sync_cost_menu_item_ingredients_from_components()` が
+  正本から再生成する。**手で2か所書かない**（教訓62）
+- `menu_item_components` に `(menu_item_id, ingredient_id)` の一意制約は無い。
+  FKは `ON DELETE RESTRICT` なので、参照が残っている限り誤って消せない
+- **どのレシピも対になる2品を同時に使っていなかった** → 統合で二重計上は起きない
+
+### 削除しない
+
+吸収側は**無効化**し、名前に統合先を書いた
+（`Sticker Safe Sealed [merged into ZEN Safety Sticker]`）。
+削除すると価格履歴と「なぜ無くなったか」が消える。
+名前に書くのは、無効レコードを見つけた人が**再有効化しないため**。
+残す側の `notes` にも旧名と統合日を記録した。
+
+### 検証
+
+- 事前に**トランザクション内で当てて ROLLBACK**（教訓54）→ 原価変動0・重複行0 を確認してから実行
+- 実行後: 触れた45品の**原価変動 0件**。吸収側を指す行は正本・ミラーとも **0**
+- 全品再走査: 164品・中央値 32.9%・最高 71.4%・100%超 0（統合前と同一）
+- バックアップ: `_ing_merge_bk_20260909_ing`(4行) / `_ing_merge_bk_20260909_comp`(45行)
+
+### 他に同型の重複は無い
+
+有効な包材で同一単価の組を10組洗ったが、いずれも**別物**
+（Sushi Box の各パーツ同士、スプーンとフォーク）。統合対象は今回の2組だけ。
+
+### 残
+
+- **重複登録を防ぐ仕組みは無い。** 材料の新規作成に類似名の警告が無いので、同じ事は再発しうる。
+- 発注カタログ（`proc_curated_catalog_items`）側の包材価格は未更新のまま。
+
 
 ## ✅ 2026-09-09 — 植嶋さんの包材価格を反映（18件）＋固定原価21品を解除
 
