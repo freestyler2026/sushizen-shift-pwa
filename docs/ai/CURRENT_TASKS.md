@@ -1,6 +1,56 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-08（5★入力フォームがカードに閉じ込められていた件を修正）
+Last updated: 2026-09-08（現場が登録した3品を検収し4件修正。未計上0.03%）
+
+## ✅ 2026-09-08（続き10） — 現場が登録した3品の検収と修正
+
+現場から「Creamy Avocado Hosomaki / Spicy Pork Miso Onigiri の登録完了、QP Mayo は
+QP Mayo・Japanese Mayo の両名で登録、グラム数は植嶋さんに確認中」と報告。
+確認したところ**4件の修正が必要**だった。
+
+| # | 症状 | 対応 |
+|---|---|---|
+| ① | `Japanese Mayo (QP Mayo)`（POS名・**括弧つき**）が `Japanese Mayo` とも `QP Mayo` とも一致せず、**2品作っても0件のまま** | `#5143` を POS名に改名。`#5144 QP Mayo` は無効化 |
+| ② | `#4828` を `Pork Miso Onigiri` → `Spicy Pork Miso Onigiri` に**改名**したため、POSが売っている無印（30日 17個・₱3,309）が原価を失った | 無印を `#5145` として復元（`#4828` の構成を複製） |
+| ③ | `#4828/5142/5143/5144` に `cost_unit_price` が焼き付き、**後から材料を足しても金額が動かない**状態 | NULL に戻した（`#5142` は 49.84 → **50.97** に是正） |
+| ④ | Creamy も Spicy も中身が無印と完全同一（「Creamy」「Spicy」の材料が0行） | 厨房の回答待ちとして保持。ページに明記 |
+
+### ⚠️ 名前の照合は大小文字と空白しか吸収しない
+
+`_norm_item_name` は `" ".join(str.split()).lower()` のみ。**括弧・記号は別文字**。
+「両方の名前で登録する」では解決せず、**POSと同一の1つの名前**が要る。
+
+### ⚠️ `cost_unit_price` は画面からもAPIからも解除できない
+
+`_resolve_cost_master_pricing_fields` が「新しい値が0以下なら既存値を維持」する分岐を持つため、
+`update_cost_master_item(cost_unit_price=0)` を呼んでも焼き付いた値が残る。
+**今回はここだけ直接 `UPDATE ... SET cost_unit_price = NULL` した**（教訓20の例外・理由をスクリプトに記載）。
+→ 画面に「固定原価を解除する」手段が無いのは未解決の課題。
+
+### 検証（本番）
+
+実際の照合経路（`_norm_item_name` ＋ 正規化SQL）で確認:
+
+| POS名 | 結果 |
+|---|---|
+| Creamy Avocado Hosomaki | → `#5142` 直接一致 |
+| Spicy Pork Miso Onigiri | → `#4828` 直接一致 |
+| Pork Miso Onigiri | → `#5145` 直接一致 |
+| Japanese Mayo (QP Mayo) | → `#5143` 直接一致 |
+
+**30日の未計上: 数量 0.03%（6個）・売上 0.00%（₱237）**（9/8朝は 0.3% / 0.1%）。
+
+バックアップ: `_cost_fix_bk_20260908b_master`(4行) / `_cost_fix_bk_20260908b_comp`(12行)。
+
+### 残（厨房・植嶋さん待ち）
+
+- **Creamy の中身**（現状は無印と同一・₱50.97）
+- **Spicy の中身**（同上。売価も無印から写した ₱88 のままで要確認）
+- **QP Mayo のグラム数** — ⚠️ 現在 **10g** が他レシピから写されて入っており、**回答済みに見える**
+- `4170 Spicy Mayo` / `4189 Noodle 80g Portion` — 無効化されたまま。
+  ⚠️ **有効化だけでは足りない**: POS名は `Spicy Mayo (20g)` / `(Topping) Extra Noodle 80g` で、
+  マスタ名と一致しない。①と同じ括弧の問題。
+
 
 ## ✅ 2026-09-08（続き9） — 5★入力フォームが使えなかった件
 
