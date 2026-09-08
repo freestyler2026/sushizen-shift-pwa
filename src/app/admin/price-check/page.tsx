@@ -792,7 +792,7 @@ export default function PriceCheckPage() {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className={T_PAGE_TITLE}>Price Check</h1>
+            <h1 className={T_PAGE_TITLE}>Menu Price Check</h1>
             <p className={T_BODY}>
               Monitor selling prices and verify discount compliance across all locations.
             </p>

@@ -170,6 +170,7 @@ td.muted { color:var(--muted); font-size:12px; }
   <div class="nav-item" onclick="show('invoice-inbox')"><span class="nav-icon">📥</span><span data-en="Invoice Inbox (Drive)" data-ja="インボイス受信箱（Drive）">Invoice Inbox (Drive)</span></div>
   <div class="nav-item" onclick="show('payments')"><span class="nav-icon">💳</span><span data-en="Payments" data-ja="支払い管理">Payments</span></div>
   <div class="nav-item" onclick="show('vendors')"><span class="nav-icon">🏪</span><span data-en="Vendors & Scorecards" data-ja="仕入先・スコアカード">Vendors &amp; Scorecards</span></div>
+  <div class="nav-item" onclick="show('price-checks')"><span class="nav-icon">🏷️</span><span data-en="Supplier Price Checks" data-ja="仕入価格チェック">Supplier Price Checks</span></div>
   <div class="nav-item" onclick="show('risk-kpi')"><span class="nav-icon">📊</span><span data-en="Risk & KPI" data-ja="リスク・KPI">Risk &amp; KPI</span></div>
   <div class="nav-item" onclick="show('cold-chain-admin')"><span class="nav-icon">❄️</span><span data-en="Cold Chain Monitor" data-ja="コールドチェーン監視">Cold Chain Monitor</span></div>
 </nav>
@@ -1398,6 +1399,61 @@ td.muted { color:var(--muted); font-size:12px; }
         <span class="chip red" data-en="Level 3: HQ" data-ja="レベル3：HQ">L3: HQ</span>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════ SUPPLIER PRICE CHECKS ═══════════ -->
+<div class="section" id="sec-price-checks">
+  <div class="section-hero">
+    <div class="hero-icon">🏷️</div>
+    <div>
+      <div class="section-title" data-en="Supplier Price Checks" data-ja="仕入価格チェック">Supplier Price Checks</div>
+      <div class="section-path">/admin/procurement/price-checks</div>
+      <div class="section-desc" data-en="What suppliers bill us: invoice vs PO, price movement per item, and whether the order catalogue still shows the price we actually pay." data-ja="仕入先から請求されている額：請求 vs PO、品目ごとの価格推移、そして発注カタログの単価が実際に払っている額と合っているか。">Invoice vs PO, price movement per item, and whether the catalogue price matches reality.</div>
+    </div>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">!</span>
+    <span data-en="Two different screens are called price check. The left menu&rsquo;s Menu Price Check watches StoreHub selling prices &mdash; what the customer pays. This page watches supplier prices &mdash; what we pay. They share no data. Both were simply named Price Check until 2026-09, which is why people opened the wrong one." data-ja="「price check」という名前の画面が2つあります。左メニューの Menu Price Check は StoreHub の販売価格＝お客様が払う額を見ています。この画面は仕入価格＝当社が払う額です。データは一切共有していません。2026-09 まで両方とも「Price Check」という名前だったため、間違った方を開く原因になっていました。">Two screens are called price check: Menu Price Check is StoreHub selling prices. This page is supplier prices. No shared data.</span>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="1. Invoice vs PO Variance" data-ja="① 請求 vs PO 差異">1. Invoice vs PO Variance</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Lines where the invoice unit price differs from the price on the purchase order. This is a billing dispute: we agreed one price and were charged another." data-ja="請求書の単価がPOの単価と違う明細。これは請求上の争点で、合意した額と請求された額が違うということです。">Invoice unit price does not match the PO. A billing dispute.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="2. Price Change History" data-ja="② 価格推移">2. Price Change History</div>
+      <p style="color:var(--muted);font-size:12px" data-en="How each item&rsquo;s invoiced price moved between its first and latest invoice in the period. This is a market question: is this supplier getting more expensive?" data-ja="期間内の最初と最後の請求で、品目ごとの請求単価がどう動いたか。これは市場の話で、この仕入先は高くなってきているのか、を見ます。">First vs latest invoiced price per item. A market question.</p>
+    </div>
+  </div>
+
+  <div class="card amber-border">
+    <div class="card-title" data-en="3. Catalogue vs Invoices &mdash; and how to fix a price" data-ja="③ カタログ vs 請求 &mdash; 単価の直し方">3. Catalogue vs Invoices &mdash; and how to fix a price</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="The order catalogue&rsquo;s unit price is typed in by hand; the invoice is what we actually paid. When they drift apart, every order screen quietly shows the wrong amount. This tab compares the catalogue price against the median of the last 3 invoice dates for the same item name, and flags anything more than 30% away." data-ja="発注カタログの単価は手入力で、請求書は実際に払った額です。両者がずれると、発注画面に出る金額が静かに嘘になります。このタブは、カタログ単価と、同じ品名の直近3日付の請求単価の中央値を比べ、30%以上離れている行を出します。">Catalogue price (typed by hand) vs the median of the last 3 invoice dates. Flags anything over 30% away.</p>
+
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Enter your name and PIN first" data-ja="先に名前とPINを入れる">Enter your name and PIN first</strong><p data-en="Open Procurement &rarr; Supplier Price Checks &rarr; tab 3, and fill in the Approver and PIN boxes at the top of the page. The update button needs them." data-ja="Procurement → Supplier Price Checks → ③ を開き、画面上部の Approver と PIN を入れてください。更新ボタンがこれを使います。">Fill in Approver and PIN at the top of the page. The update button needs them.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Read the row before you change anything" data-ja="直す前に行を読む">Read the row before you change anything</strong><p data-en="Catalogue price on the left, invoice median on the right, with the latest invoice date and number underneath. If the latest invoice is months old, the catalogue may well be right and the item simply has not been bought recently." data-ja="左がカタログ単価、右が請求の中央値、その下に直近の請求日と番号。直近の請求が数ヶ月前なら、カタログが正しくて単に最近買っていないだけ、ということもあります。">Catalogue left, invoice median right, latest invoice date underneath. An old date may mean the catalogue is fine.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Set the price and press Update catalogue" data-ja="単価を入れて Update catalogue を押す">Set the price and press Update catalogue</strong><p data-en="The box is pre-filled with the invoice median. Change it if you know a better number &mdash; you are setting the catalogue price, not copying the invoice." data-ja="入力欄には請求の中央値が入っています。より正しい数字を知っていれば書き換えてください。ここで決めるのはカタログの単価で、請求書を写すことではありません。">Pre-filled with the invoice median. Change it if you know better.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Undo stays next to the row" data-ja="Undo は行の隣に残る">Undo stays next to the row</strong><p data-en="The row stays where it is and shows Updated X to Y with an Undo button beside it. Undo puts the old price back. The row only disappears when you press Refresh." data-ja="行はその場に残り、Updated X → Y と Undo が出ます。Undo で元の単価に戻ります。行が消えるのは Refresh を押したときだけです。">The row stays put and shows Undo. It only disappears on Refresh.</p></div></li>
+    </ol>
+
+    <div class="tip info" style="margin-top:12px">
+      <span class="tip-icon">i</span>
+      <span data-en="Unit differs is a separate, collapsed list &mdash; and usually not a problem. When the catalogue buys by the SACK and the invoice bills by the KG, the two prices are not measuring the same thing, so no percentage is shown. A pack holding many pieces is normal. Change these only when the catalogue unit is wrong for how the item is actually ordered. Salt was registered at PHP 400 per SACK while the invoices billed PHP 30 per KG, and both were correct for their own unit." data-ja="「Unit differs」は別の畳んだ一覧で、たいていは問題ではありません。カタログが SACK 単位で請求が KG 単位のとき、2つの価格は同じものを測っていないので % は出しません。1袋に何個も入っているのは普通のことです。直すのは、カタログの単位がその品目の実際の発注のしかたと合っていないときだけ。Salt はカタログ ₱400/SACK・請求 ₱30/KG で、どちらもそれぞれの単位では正しい数字でした。">Unit differs is a separate list with no percentage &mdash; a per-piece price and a per-pack price are not the same measurement.</span>
+    </div>
+
+    <div class="tip" style="margin-top:8px">
+      <span class="tip-icon">!</span>
+      <span data-en="What this report cannot see. Items are matched by name, so a catalogue item whose name has never appeared on an invoice cannot be compared at all. The header says how many those are (Manila 392 of 463, Dubai 428 of 566). Those rows are not fine &mdash; they are unmeasured. Renaming a catalogue item to match the supplier&rsquo;s wording on the invoice brings it into the comparison." data-ja="この画面が見ていない範囲。突合は品名で行うので、請求書に一度も出ていない品名のカタログ行は比較そのものができません。その件数は見出しに出しています（マニラ463件中392件・ドバイ566件中428件）。これは「問題なし」ではなく「測れていない」です。カタログの品名を請求書の表記に合わせると、比較の対象に入ります。">Matched by name. Anything never invoiced under that name is unmeasured, not fine &mdash; the header says how many.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Who can do this" data-ja="誰ができるか">Who can do this</div>
+    <p style="color:var(--muted);font-size:12px" data-en="Anyone who can open Procurement can read all three tabs. Updating a catalogue price needs the same permission as editing the Order Catalog itself, plus your PIN, and every change is written to the audit log with the old and new value. The point of putting the update here is that the people who actually place the orders cannot open the Order Catalog page &mdash; they can fix a price from this screen." data-ja="Procurement を開ける人は3つのタブすべてを見られます。カタログ単価の更新は Order Catalog の編集と同じ権限＋PINが必要で、変更は前後の値とともに監査ログに記録されます。この画面に更新の口を置いたのは、実際に発注している人たちが Order Catalog のページを開けないためです。この画面からなら直せます。">Reading is open to anyone with Procurement access. Updating needs the Order Catalog permission plus your PIN, and is audit-logged.</p>
   </div>
 </div>
 

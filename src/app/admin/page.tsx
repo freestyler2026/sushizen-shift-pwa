@@ -1262,7 +1262,7 @@ function AdminPageInner() {
               href="/admin/price-check"
               className={`${SMALL_BUTTON} relative ${priceCheckFlagged ? "border-red-500/40 text-red-300 hover:bg-red-500/10" : ""}`}
             >
-              <Tag className="mr-1 h-3.5 w-3.5" /> Price Check
+              <Tag className="mr-1 h-3.5 w-3.5" /> Menu Price Check
               {priceCheckFlagged ? (
                 <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
                   {priceCheckFlagged > 9 ? "9+" : priceCheckFlagged}
@@ -1282,7 +1282,7 @@ function AdminPageInner() {
                 <AlertTriangle className="h-5 w-5 shrink-0 text-red-400" />
                 <div>
                   <div className="text-sm font-semibold text-red-200">
-                    Price Check — {priceCheckFlagged} price change{priceCheckFlagged !== 1 ? "s" : ""} detected
+                    Menu Price Check — {priceCheckFlagged} selling-price change{priceCheckFlagged !== 1 ? "s" : ""} detected
                   </div>
                   <div className="text-xs text-red-400/70">
                     StoreHub selling prices have changed from baseline. Please review.

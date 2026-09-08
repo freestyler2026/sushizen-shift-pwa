@@ -1037,7 +1037,7 @@ describe("Price check badge", () => {
 
     await renderAndWait();
     await waitFor(() => {
-      expect(screen.getByText(/3 price changes detected/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 selling-price changes detected/i)).toBeInTheDocument();
     });
   });
 });

@@ -320,7 +320,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/assets", label: "Company Assets", icon: Laptop, adminOnly: true, match: "prefix" , cat: "people" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/incidents/unowned", label: "Waiting for Someone", icon: Hand, adminOnly: true, match: "exact" , cat: "ops" },
-  { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/price-check", label: "Menu Price Check", icon: Tag, adminOnly: true, match: "prefix" , cat: "proc" },
   { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" , cat: "inv" },
   { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" , cat: "money" },
   // The Management Channel's other pages — Par Levels, Patterns, People,

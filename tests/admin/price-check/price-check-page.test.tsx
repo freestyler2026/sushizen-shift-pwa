@@ -270,10 +270,10 @@ describe("PriceCheckPage", () => {
     render(<PriceCheckPage />);
   }
 
-  /** Wait for the page title "Price Check" to appear — proves initial render */
+  /** Wait for the page title "Menu Price Check" to appear — proves initial render */
   async function renderAndLoad(fetchMock = makeFetch()) {
     await renderPage(fetchMock);
-    await screen.findByText("Price Check", {}, { timeout: 5000 });
+    await screen.findByText("Menu Price Check", {}, { timeout: 5000 });
   }
 
   // ── Auth guard ───────────────────────────────────────────────────────────────
@@ -321,7 +321,7 @@ describe("PriceCheckPage", () => {
 
     it("does NOT redirect when role is HQ", async () => {
       await renderPage();
-      await screen.findByText("Price Check");
+      await screen.findByText("Menu Price Check");
       expect(mockRouter.replace).not.toHaveBeenCalled();
     });
 
@@ -329,7 +329,7 @@ describe("PriceCheckPage", () => {
       await setupAuth({ role: "ADMIN" });
       vi.stubGlobal("fetch", makeFetch());
       render(<PriceCheckPage />);
-      await screen.findByText("Price Check");
+      await screen.findByText("Menu Price Check");
       expect(mockRouter.replace).not.toHaveBeenCalled();
     });
 
@@ -337,16 +337,16 @@ describe("PriceCheckPage", () => {
       await setupAuth({ role: "MANILA_MANAGEMENT" });
       vi.stubGlobal("fetch", makeFetch());
       render(<PriceCheckPage />);
-      await screen.findByText("Price Check");
+      await screen.findByText("Menu Price Check");
       expect(mockRouter.replace).not.toHaveBeenCalled();
     });
   });
 
   // ── Page structure ────────────────────────────────────────────────────────────
   describe("page structure", () => {
-    it("renders page title 'Price Check'", async () => {
+    it("renders page title 'Menu Price Check'", async () => {
       await renderPage();
-      expect(screen.getByText("Price Check")).toBeInTheDocument();
+      expect(screen.getByText("Menu Price Check")).toBeInTheDocument();
     });
 
     it("renders subtitle about monitoring selling prices", async () => {
@@ -1389,7 +1389,7 @@ describe("PriceCheckPage", () => {
       await renderPage(fetchMock);
 
       // Wait for initial TAFT load
-      await screen.findByText("Price Check");
+      await screen.findByText("Menu Price Check");
       const callsBefore = (fetchMock as ReturnType<typeof vi.fn>).mock.calls.filter(
         (args: unknown[]) => String(args[0]).includes("/price-check/status")
       ).length;

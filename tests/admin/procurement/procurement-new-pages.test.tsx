@@ -200,7 +200,7 @@ describe("ProcurementPriceChecksPage", () => {
   it("shows access denied for NO_AUTH user", async () => {
     mockAuthReturn = NO_AUTH;
     render(<Page />);
-    await screen.findByText(/Price Checks are only available to authorized admin roles/i);
+    await screen.findByText(/Supplier Price Checks are only available to authorized admin roles/i);
   });
 
   it("renders without error for HQ_AUTH", async () => {

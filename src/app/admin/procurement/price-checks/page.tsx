@@ -837,10 +837,434 @@ function PriceChangeTab({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ③ Catalogue vs latest invoices
+//
+// 発注カタログの単価は手で登録する。請求書は実際に払った額。ずれたままだと
+// 発注画面に出る金額が静かに嘘になる（Salt: カタログ ₱400/SACK・請求 ₱30/KG）。
+//
+// この画面の要点は「気づける」ことではなく **その場で直せる** こと。
+// Order Catalog は `showTo: ["full"]` なので、実際に発注している
+// INVENTORY_PURCHASING の人は開けない。直す口をここに置いてある。
+// ─────────────────────────────────────────────────────────────────────────────
+
+type DriftRow = {
+  catalog_id: string;
+  item_name: string;
+  catalog_unit: string;
+  catalog_price: number;
+  catalog_supplier: string;
+  catalog_category: string;
+  currency_code: string;
+  invoice_price: number;
+  invoice_points: number;
+  invoice_min: number;
+  invoice_max: number;
+  invoice_unit: string;
+  invoice_supplier: string;
+  latest_invoice_date: string;
+  latest_invoice_no: string;
+  latest_invoice_price: number;
+  diff_pct: number;
+  abs_diff_pct: number;
+  diff_amount: number;
+  unit_mismatch: boolean;
+  invoice_spread: number;
+};
+
+type DriftResult = {
+  city: string;
+  threshold_pct: number;
+  catalog_total: number;
+  compared: number;
+  uncomparable: number;
+  within_threshold: number;
+  total: number;
+  rows: DriftRow[];
+  unit_total: number;
+  unit_rows: DriftRow[];
+};
+
+type FixState = {
+  before: number;
+  after: number;
+  beforeUnit: string;
+  afterUnit: string;
+};
+
+function CatalogDriftTab({
+  city, requestedBy, pin,
+}: { city: "dubai" | "manila"; requestedBy: string; pin: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<DriftResult | null>(null);
+  const [minPct, setMinPct] = useState<number | null>(null); // null = server default
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [savingId, setSavingId] = useState("");
+  // 直したセッションのあいだ、直した行を一覧に残す。消えると「元に戻す」も
+  // 一緒に消えるので、「戻せます」が嘘になる（教訓56）。
+  const [fixed, setFixed] = useState<Record<string, FixState>>({});
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [showUnits, setShowUnits] = useState(false);
+
+  const money = city === "dubai" ? "AED" : "₱";
+
+  const load = useCallback(async () => {
+    setBusy(true); setError("");
+    try {
+      const headers = await procurementTokenHeaders(requestedBy, pin);
+      const qs = new URLSearchParams({ market: city, limit: "500" });
+      if (minPct != null) qs.set("min_pct", String(minPct));
+      const res = await fetch(`/api/admin/procurement/price-checks/catalog-drift?${qs.toString()}`, {
+        cache: "no-store", headers,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.detail || String(res.status));
+      setResult(json);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [city, minPct, requestedBy, pin]);
+
+  useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function applyPrice(row: DriftRow, price: number, unit: string) {
+    setSavingId(row.catalog_id);
+    setRowError((m) => ({ ...m, [row.catalog_id]: "" }));
+    try {
+      const headers = await procurementTokenHeaders(requestedBy, pin);
+      const res = await fetch(`/api/admin/procurement/price-checks/catalog-price`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approver_name: requestedBy,
+          pin,
+          city,
+          catalog_id: row.catalog_id,
+          unit_price: price,
+          unit,
+        }),
+      });
+      // 保存のレスポンスを見ないUIは、失敗を成功と同じ見た目にする（教訓46）。
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.detail || `Save failed (${res.status})`);
+      const before = json?.before || {};
+      const after = json?.after || {};
+      setFixed((m) => ({
+        ...m,
+        [row.catalog_id]: {
+          before: Number(before?.unit_price ?? row.catalog_price),
+          after: Number(after?.unit_price ?? price),
+          beforeUnit: String(before?.unit ?? row.catalog_unit),
+          afterUnit: String(after?.unit ?? unit ?? row.catalog_unit),
+        },
+      }));
+      window.dispatchEvent(new Event("procurement-badge-refresh"));
+    } catch (e: any) {
+      setRowError((m) => ({ ...m, [row.catalog_id]: e?.message || String(e) }));
+    } finally {
+      setSavingId("");
+    }
+  }
+
+  async function undo(row: DriftRow) {
+    const f = fixed[row.catalog_id];
+    if (!f) return;
+    setSavingId(row.catalog_id);
+    setRowError((m) => ({ ...m, [row.catalog_id]: "" }));
+    try {
+      const headers = await procurementTokenHeaders(requestedBy, pin);
+      const res = await fetch(`/api/admin/procurement/price-checks/catalog-price`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approver_name: requestedBy, pin, city,
+          catalog_id: row.catalog_id,
+          unit_price: f.before,
+          unit: f.beforeUnit,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.detail || `Undo failed (${res.status})`);
+      setFixed((m) => { const n = { ...m }; delete n[row.catalog_id]; return n; });
+      window.dispatchEvent(new Event("procurement-badge-refresh"));
+    } catch (e: any) {
+      setRowError((m) => ({ ...m, [row.catalog_id]: e?.message || String(e) }));
+    } finally {
+      setSavingId("");
+    }
+  }
+
+  function fmt(n: number) {
+    return `${money}${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  const rows = result?.rows ?? [];
+  const unitRows = result?.unit_rows ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* What this compares, and what it cannot see */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-zinc-300">
+            Catalogue unit price vs the <span className="text-white">median of the last 3 invoices</span> for the same item name.
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-[11px] uppercase tracking-widest text-zinc-500">Flag over</div>
+            <SelectDark
+              value={String(minPct ?? result?.threshold_pct ?? 30)}
+              onChange={(v) => setMinPct(Number(v))}
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-amber-500/50"
+              options={[10, 20, 30, 50, 100].map((n) => ({ value: String(n), label: `${n}%` }))}
+            />
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={busy}
+              className="flex items-center gap-2 rounded-xl border border-amber-600/50 bg-amber-900/25 px-3 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-900/40 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {result && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-zinc-400">
+            <span>
+              Comparing <span className="text-white">{result.compared}</span> of {result.catalog_total} catalogue items
+            </span>
+            <span className="text-zinc-500">
+              {result.uncomparable} have never appeared on an invoice under this name — this report cannot see them
+            </span>
+            <span>{result.within_threshold} within {result.threshold_pct}%</span>
+          </div>
+        )}
+      </section>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+        </div>
+      )}
+
+      {/* Price differs — the actionable queue */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-semibold text-white">
+            Price differs — {rows.length} item{rows.length !== 1 ? "s" : ""}
+          </div>
+          <div className="text-xs text-zinc-500">Same unit on both sides, so the two prices are comparable.</div>
+        </div>
+
+        {!busy && rows.length === 0 && (
+          <div className="mt-4 text-sm text-zinc-500">
+            No catalogue price is more than {result?.threshold_pct ?? 30}% away from its recent invoices.
+          </div>
+        )}
+
+        <div className="mt-4 space-y-2">
+          {rows.map((r) => {
+            const f = fixed[r.catalog_id];
+            const draft = drafts[r.catalog_id] ?? String(r.invoice_price);
+            const up = r.diff_pct > 0;
+            return (
+              <div key={r.catalog_id} className="rounded-xl border border-white/8 bg-black/20 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white">{r.item_name}</div>
+                    <div className="mt-0.5 text-[11px] text-zinc-500">
+                      {[r.catalog_supplier, r.catalog_category].filter(Boolean).join(" · ") || "—"}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4 text-sm">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-500">Catalogue</div>
+                      <div className="tabular-nums text-zinc-200">
+                        {fmt(f ? f.after : r.catalog_price)} <span className="text-zinc-500">/ {f ? f.afterUnit : r.catalog_unit || "—"}</span>
+                      </div>
+                    </div>
+                    <div className={up ? "text-rose-300" : "text-emerald-300"}>
+                      {up ? <TrendingUp className="inline h-4 w-4" /> : <TrendingDown className="inline h-4 w-4" />}
+                      <span className="ml-1 tabular-nums font-semibold">{up ? "+" : ""}{r.diff_pct}%</span>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-500">Invoices (median of {r.invoice_points})</div>
+                      <div className="tabular-nums text-white">
+                        {fmt(r.invoice_price)} <span className="text-zinc-500">/ {r.invoice_unit || "—"}</span>
+                      </div>
+                      <div className="text-[11px] text-zinc-500">
+                        latest {r.latest_invoice_date}
+                        {r.latest_invoice_no ? ` · ${r.latest_invoice_no}` : ""}
+                        {r.invoice_spread > 0 ? ` · range ${fmt(r.invoice_min)}–${fmt(r.invoice_max)}` : ""}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {f ? (
+                    <>
+                      <span className="rounded-lg border border-emerald-700/40 bg-emerald-900/20 px-2.5 py-1 text-xs text-emerald-200">
+                        Updated {fmt(f.before)} → {fmt(f.after)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void undo(r)}
+                        disabled={savingId === r.catalog_id}
+                        className="rounded-lg border border-white/15 px-2.5 py-1 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+                      >
+                        Undo — back to {fmt(f.before)}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-zinc-500">Set catalogue price to</span>
+                      <input
+                        value={draft}
+                        inputMode="decimal"
+                        onChange={(e) => setDrafts((m) => ({ ...m, [r.catalog_id]: e.target.value }))}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        className="w-28 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-sm tabular-nums text-white outline-none focus:border-amber-500/50"
+                      />
+                      <span className="text-xs text-zinc-500">per {r.catalog_unit || "—"}</span>
+                      <button
+                        type="button"
+                        disabled={savingId === r.catalog_id || !(Number(draft) > 0)}
+                        onClick={() => void applyPrice(r, Number(draft), "")}
+                        className="rounded-lg border border-amber-600/50 bg-amber-900/25 px-3 py-1 text-xs font-semibold text-amber-200 hover:bg-amber-900/40 disabled:opacity-50"
+                      >
+                        {savingId === r.catalog_id ? "Saving…" : "Update catalogue"}
+                      </button>
+                    </>
+                  )}
+                  {rowError[r.catalog_id] && (
+                    <span className="text-xs text-red-300">{rowError[r.catalog_id]}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Unit differs — a different job, deliberately not mixed in */}
+      {unitRows.length > 0 && (
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <button
+            type="button"
+            onClick={() => setShowUnits((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <div className="text-sm font-semibold text-white">
+              Unit differs — {unitRows.length} item{unitRows.length !== 1 ? "s" : ""}
+            </div>
+            <div className="text-xs text-zinc-500">
+              {showUnits ? "Hide" : "Show"} — no % here: a per-piece price and a per-pack price are not the same measurement
+            </div>
+          </button>
+
+          {showUnits && (
+            <div className="mt-4 space-y-2">
+              {unitRows.map((r) => {
+                const f = fixed[r.catalog_id];
+                const draft = drafts[r.catalog_id] ?? "";
+                return (
+                  <div key={r.catalog_id} className="rounded-xl border border-white/8 bg-black/20 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-white">{r.item_name}</div>
+                        <div className="mt-0.5 text-[11px] text-zinc-500">
+                          {[r.catalog_supplier, r.catalog_category].filter(Boolean).join(" · ") || "—"}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 text-sm">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-widest text-zinc-500">Catalogue</div>
+                          <div className="tabular-nums text-zinc-200">
+                            {fmt(f ? f.after : r.catalog_price)} <span className="text-zinc-500">/ {f ? f.afterUnit : r.catalog_unit || "—"}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-widest text-zinc-500">Invoices ({r.invoice_points})</div>
+                          <div className="tabular-nums text-white">
+                            {fmt(r.invoice_price)} <span className="text-zinc-500">/ {r.invoice_unit || "—"}</span>
+                          </div>
+                          <div className="text-[11px] text-zinc-500">latest {r.latest_invoice_date}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-xs text-zinc-400">
+                      Buying by the {r.catalog_unit || "?"} while the invoice bills by the {r.invoice_unit || "?"} is normal
+                      (a pack holds many pieces). Only change this if the catalogue unit is wrong for how this item is ordered.
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {f ? (
+                        <>
+                          <span className="rounded-lg border border-emerald-700/40 bg-emerald-900/20 px-2.5 py-1 text-xs text-emerald-200">
+                            Updated {fmt(f.before)}/{f.beforeUnit || "—"} → {fmt(f.after)}/{f.afterUnit || "—"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void undo(r)}
+                            disabled={savingId === r.catalog_id}
+                            className="rounded-lg border border-white/15 px-2.5 py-1 text-xs text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+                          >
+                            Undo
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xs text-zinc-500">Set to</span>
+                          <input
+                            value={draft}
+                            inputMode="decimal"
+                            placeholder="price"
+                            onChange={(e) => setDrafts((m) => ({ ...m, [r.catalog_id]: e.target.value }))}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-24 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-sm tabular-nums text-white outline-none focus:border-amber-500/50"
+                          />
+                          <input
+                            value={drafts[`${r.catalog_id}:unit`] ?? r.catalog_unit}
+                            placeholder="unit"
+                            onChange={(e) => setDrafts((m) => ({ ...m, [`${r.catalog_id}:unit`]: e.target.value }))}
+                            className="w-24 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-sm text-white outline-none focus:border-amber-500/50"
+                          />
+                          <button
+                            type="button"
+                            disabled={savingId === r.catalog_id || !(Number(draft) > 0)}
+                            onClick={() => void applyPrice(r, Number(draft), (drafts[`${r.catalog_id}:unit`] ?? r.catalog_unit) || "")}
+                            className="rounded-lg border border-amber-600/50 bg-amber-900/25 px-3 py-1 text-xs font-semibold text-amber-200 hover:bg-amber-900/40 disabled:opacity-50"
+                          >
+                            {savingId === r.catalog_id ? "Saving…" : "Update catalogue"}
+                          </button>
+                        </>
+                      )}
+                      {rowError[r.catalog_id] && (
+                        <span className="text-xs text-red-300">{rowError[r.catalog_id]}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────────────────
 
-type ActiveTab = "variance" | "changes";
+type ActiveTab = "variance" | "changes" | "catalog";
 
 export default function ProcurementPriceChecksPage() {
   const auth = useMemo(() => getAuth(), []);
@@ -870,7 +1294,7 @@ export default function ProcurementPriceChecksPage() {
   if (!allowed) return (
     <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
       <AlertCircle className="h-4 w-4 shrink-0" />
-      Price Checks are only available to authorized admin roles.
+      Supplier Price Checks are only available to authorized admin roles.
     </div>
   );
 
@@ -880,9 +1304,10 @@ export default function ProcurementPriceChecksPage() {
       <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-white">Price Checks</div>
+            <div className="text-lg font-semibold text-white">Supplier Price Checks</div>
             <div className="mt-1 text-sm text-zinc-400">
-              Compare invoice prices against PO rates and track price movements per item.
+              What we are billed by suppliers — invoice vs PO, price movements, and the order catalogue&apos;s own prices.
+              For StoreHub selling prices, see Menu Price Check.
             </div>
           </div>
           <div className="flex flex-wrap items-end gap-3">
@@ -946,6 +1371,18 @@ export default function ProcurementPriceChecksPage() {
             <TrendingUp className={`h-4 w-4 ${activeTab === "changes" ? "text-violet-400" : "text-zinc-500"}`} />
             ② Price Change History
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("catalog")}
+            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+              activeTab === "catalog"
+                ? "border-amber-600/60 bg-amber-900/30 text-amber-200 shadow-[0_0_12px_rgba(217,119,6,0.15)]"
+                : "border-white/8 bg-white/5 text-zinc-400 hover:border-amber-800/40 hover:bg-amber-950/20 hover:text-amber-300"
+            }`}
+          >
+            <TriangleAlert className={`h-4 w-4 ${activeTab === "catalog" ? "text-amber-400" : "text-zinc-500"}`} />
+            ③ Catalogue vs Invoices
+          </button>
         </div>
       </section>
 
@@ -954,6 +1391,9 @@ export default function ProcurementPriceChecksPage() {
       )}
       {activeTab === "changes" && (
         <PriceChangeTab key={`changes-${city}`} city={city} requestedBy={requestedBy} pin={pin} />
+      )}
+      {activeTab === "catalog" && (
+        <CatalogDriftTab key={`catalog-${city}`} city={city} requestedBy={requestedBy} pin={pin} />
       )}
     </div>
   );

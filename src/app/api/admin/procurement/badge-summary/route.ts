@@ -56,9 +56,13 @@ export async function GET(req: NextRequest) {
   const city = String(req.nextUrl.searchParams.get("city") || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
 
   try {
-    const [queueResult, exceptionsResult] = await Promise.all([
+    const [queueResult, exceptionsResult, driftResult] = await Promise.all([
       fetchJson(req, `/api/admin/procurement/approvals/queue?city=${encodeURIComponent(city)}&limit=200`),
       fetchJson(req, `/api/admin/procurement/exceptions?city=${encodeURIComponent(city)}&limit=300`),
+      // Catalogue prices that no longer match the invoices. `limit=1` because we
+      // only need `total` — the badge must not carry the whole list across.
+      fetchJson(req, `/api/admin/procurement/price-checks/catalog-drift?market=${encodeURIComponent(city)}&limit=1`)
+        .catch(() => ({ res: { ok: false, status: 0 } as any, json: {} as any })),
     ]);
 
     if (!queueResult.res.ok) {
@@ -82,8 +86,13 @@ export async function GET(req: NextRequest) {
 
     const incomingRequestsCount = approvalRows.length;
     const issueCount = exceptionRows.length;
-    const priceCheckPendingCount = 0;
+    // A drift failure must not blank the rest of the badge — the approval and
+    // exception counts are what people act on hourly.
+    const priceCheckPendingCount = driftResult.res?.ok ? Number(driftResult.json?.total || 0) : 0;
+    // Unit mismatches are a different job, not an escalation — leaving them in
+    // `overdue` would keep the badge permanently red and stop meaning anything.
     const priceCheckOverdueCount = 0;
+    const catalogUnitMismatchCount = driftResult.res?.ok ? Number(driftResult.json?.unit_total || 0) : 0;
 
     return NextResponse.json(
       {
@@ -94,6 +103,7 @@ export async function GET(req: NextRequest) {
         issue_critical_count: issueCriticalCount,
         price_check_pending_count: priceCheckPendingCount,
         price_check_overdue_count: priceCheckOverdueCount,
+        catalog_unit_mismatch_count: catalogUnitMismatchCount,
         total_badge_count: incomingRequestsCount + issueCount + priceCheckPendingCount,
       },
       {
