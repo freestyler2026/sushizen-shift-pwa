@@ -1055,12 +1055,24 @@ function CatalogDriftTab({
       </section>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+        <div className="flex items-start gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            {error}
+            {!pin.trim() && (
+              <div className="mt-1 text-red-200/80">
+                Enter your PIN in the box at the top of the page, then press Refresh.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Price differs — the actionable queue */}
+      {/* Price differs — the actionable queue.
+          **読み込めていないときは何も出さない。** 取得に失敗した状態で
+          「0 items — 直すものはありません」と出すのは、この画面が出しうる
+          最悪の嘘（教訓58）。実際に PIN 未入力で出た。 */}
+      {result && (
       <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold text-white">
@@ -1069,7 +1081,7 @@ function CatalogDriftTab({
           <div className="text-xs text-zinc-500">Same unit on both sides, so the two prices are comparable.</div>
         </div>
 
-        {!busy && rows.length === 0 && (
+        {!busy && result && rows.length === 0 && (
           <div className="mt-4 text-sm text-zinc-500">
             No catalogue price is more than {result?.threshold_pct ?? 30}% away from its recent invoices.
           </div>
@@ -1168,6 +1180,7 @@ function CatalogDriftTab({
           })}
         </div>
       </section>
+      )}
 
       {/* Unit differs — a different job, deliberately not mixed in */}
       {unitRows.length > 0 && (
