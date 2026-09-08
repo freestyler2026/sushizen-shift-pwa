@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, AlertTriangle, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, RefreshCcw, RotateCcw, Save, Search, ShieldCheck, SkipForward, Trash2, User, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Link2, Loader2, Percent, Pencil, Plus, RefreshCcw, RotateCcw, Save, Search, ShieldCheck, SkipForward, Trash2, User, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -3863,6 +3863,23 @@ export default function CostCalculationPage() {
             >
               <ShieldCheck className="h-3.5 w-3.5" />
               Sync Check
+            </Link>
+            {/* A link rather than a tab, like Sync Check: the map is its own
+                job with its own queue. It belongs here because an ingredient is
+                where somebody notices the ordering catalogue calls it something
+                else — and without an entry point it would only be reachable by
+                typing the URL. */}
+            <Link
+              href="/admin/cost-calculation/catalog-map"
+              className={cx(
+                "rounded-t-xl border border-b-0 px-4 py-2.5 text-sm font-medium transition flex items-center gap-1.5",
+                pathname === "/admin/cost-calculation/catalog-map"
+                  ? "border-white/15 bg-[#111827] text-white"
+                  : "border-transparent bg-transparent text-zinc-500 hover:text-zinc-300",
+              )}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Ordering Catalogue Map
             </Link>
           </div>
         </div>
