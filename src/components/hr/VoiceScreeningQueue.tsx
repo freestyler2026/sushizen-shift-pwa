@@ -93,6 +93,9 @@ type Item = {
      *  correlated 0.88 with whether two independent passes agreed on the
      *  words, so it is a usable stand-in for "is this transcript true". */
     transcript_confidence: number | null;
+    /** How many times transcription has been tried and failed. Distinguishes
+     *  "has not run yet" from "will never succeed". */
+    transcript_attempts?: number | null;
   } | null;
 };
 
@@ -115,6 +118,9 @@ function levelBadge(a: { peak_dbfs: number | null; level_note: string | null }) 
 type Detail = Row & {
   items: Item[];
   transcript_check_below?: number;
+  /** How many failed tries before the job stops retrying. Sent rather than
+   *  copied here, so the screen and the job cannot disagree (lesson 62). */
+  transcript_max_attempts?: number;
   /** The CV, when there is one. The file itself is never in this payload --
    *  it is fetched by its own endpoint when somebody opens it (lesson 29).
    *  `skipped` is the applicant saying they have none, which is a different
@@ -800,6 +806,21 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                 </div>
                               );
                             })()}
+                            {/* Nothing here at all is what made this look
+                                broken on 2026-09-08: the transcripts were
+                                never being produced, and a card with no
+                                transcript panel says the same thing as a card
+                                whose transcript has not run yet. Now the two
+                                are different (lesson 58 -- "not yet" and
+                                "cannot" must not share a display). */}
+                            {it.answer?.has_audio && !it.answer?.transcript && (
+                              <p className={`${T_CAPTION} mt-2`}>
+                                {(it.answer.transcript_attempts ?? 0)
+                                  >= (detail.transcript_max_attempts ?? 5)
+                                  ? "No transcript — it could not be read after several tries. Play the recording."
+                                  : "Transcript not in yet — it is written within the hour. Play the recording."}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
