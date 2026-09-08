@@ -119,12 +119,23 @@ const T = {
 // request fewer on a prepaid connection, and the form still opens if the API is
 // briefly down -- the applicant only finds out when they press Send.
 const POSITIONS = ["kitchen", "cashier", "pic", "driver", "back_office"];
+// Every option carries where it is. "Central Kitchen" and "Office" say nothing
+// about the city, and an applicant who picks one and then finds out it is an
+// hour away has been wasted -- which is what the store asked us to fix.
+// `area` is the short locator shown in the dropdown; `address` is the full line
+// shown once a branch is picked, so the exact place is on screen before sending.
+// Addresses are the ones on file in proc_branch_delivery_addresses -- not typed
+// from memory. The office has no address on file, so it shows the area only.
 const BRANCHES = [
-  { code: "TAFT", label: "Taft" },
-  { code: "PAR", label: "Parañaque" },
-  { code: "CUB", label: "Cubao" },
-  { code: "CK", label: "Central Kitchen" },
-  { code: "BO", label: "Office" },
+  { code: "TAFT", label: "Taft", area: "Malate, Manila",
+    address: "The Sundry Food Hall Taft, 2661 Dominga Street, Malate, Manila" },
+  { code: "PAR", label: "Parañaque", area: "Don Bosco",
+    address: "The Sundry Food Hall Parañaque, 88 Doña Soledad Ave, Better Living Subdivision, Don Bosco, Parañaque" },
+  { code: "CUB", label: "Cubao", area: "Quezon City",
+    address: "Cubao, Quezon City" },
+  { code: "CK", label: "Central Kitchen", area: "Quezon City",
+    address: "20 1st Ave., Brgy. Bagong Lipunan Ng Crame, Quezon City" },
+  { code: "BO", label: "Office", area: "Taguig", address: "" },
 ];
 const EXPERIENCE = ["none", "under_1y", "1_3y", "over_3y"];
 // Viber first: it is the common one in the Philippines, and an app nobody uses
@@ -160,6 +171,7 @@ export default function ApplyPage() {
   // mark and the rule cannot disagree.
   const [firstJob, setFirstJob] = useState(false);
   const needsLastJob = !firstJob;
+  const branchPicked = BRANCHES.find((b) => b.code === form.branch);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
@@ -311,9 +323,14 @@ export default function ApplyPage() {
           >
             <option value="">{t.choose}</option>
             {BRANCHES.map((b) => (
-              <option key={b.code} value={b.code}>{b.label}</option>
+              <option key={b.code} value={b.code}>{b.label} — {b.area}</option>
             ))}
           </select>
+          {branchPicked && (
+            <div className="mt-1.5 text-xs text-zinc-400">
+              {branchPicked.address || branchPicked.area}
+            </div>
+          )}
         </div>
 
         <div>
