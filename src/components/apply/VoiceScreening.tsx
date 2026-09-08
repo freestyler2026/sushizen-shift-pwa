@@ -308,9 +308,21 @@ function guessPlatform(): "ios" | "android" {
  *  before they work through six steps that cannot help.
  */
 function inAppBrowser(): boolean {
-  if (typeof navigator === "undefined") return false;
+  return clientKind() !== "browser";
+}
+
+/** A short label for which app opened the page. Only this label is sent -- not
+ *  the user agent -- because the only question is "can this window record", and
+ *  the full string identifies a person more precisely than that needs. */
+function clientKind(): string {
+  if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent || "";
-  return /\bFBAN\b|\bFBAV\b|\bFB_IAB\b|Instagram|\bLine\/|Messenger|Viber/i.test(ua);
+  if (/\bFBAN\b|\bFBAV\b|\bFB_IAB\b/i.test(ua)) return "facebook";
+  if (/Messenger/i.test(ua)) return "messenger";
+  if (/Instagram/i.test(ua)) return "instagram";
+  if (/Viber/i.test(ua)) return "viber";
+  if (/\bLine\//i.test(ua)) return "line";
+  return "browser";
 }
 
 const BTN = "w-full rounded-xl px-4 py-4 text-base font-semibold transition disabled:opacity-60";
@@ -370,6 +382,18 @@ export default function VoiceScreening({
   const aliveRef = useRef(true);
 
   useEffect(() => { setFixTab(guessPlatform()); setInApp(inAppBrowser()); }, []);
+  // Reported on load, not at consent: most of the drop-off is before consent,
+  // so recording it there would miss exactly the people we cannot explain.
+  // Failure here must never affect the interview.
+  useEffect(() => {
+    const canRecord = typeof MediaRecorder !== "undefined"
+      && !!navigator.mediaDevices?.getUserMedia;
+    void fetch(`/api/voice/${token}/client`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: clientKind(), can_record: canRecord }),
+    }).catch(() => { /* measurement must not break the page */ });
+  }, [token]);
   // Investigated once already: a loop left running after the screen is gone
   // keeps calling setState on something that no longer exists (lesson 94).
   useEffect(() => () => {
@@ -716,6 +740,35 @@ export default function VoiceScreening({
   const intro = iv && iv.url ? iv : null;
 
   const card = "rounded-2xl border border-white/10 bg-white/5 p-5";
+  // The fix instructions carry their own language, starting in Tagalog.
+  const fx = T[fixLang];
+  /* Shown at the top of the first screen when the page was opened inside
+     Facebook, Messenger, Viber or Instagram -- windows that are not allowed to
+     use the microphone.
+
+     ⚠️ This used to appear only after the microphone check had already failed,
+     which is three taps and a consent screen too late. On 2026-09-08, four of
+     the ten applicants who agreed to be recorded produced no answer at all, and
+     the panel that explains why was behind the wall they hit. The link is
+     posted on Facebook, so its in-app browser is the default way in. */
+  const inAppBanner = inApp ? (
+    <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3">
+      <p className="text-sm font-semibold text-amber-100">{fx.inAppTitle}</p>
+      <p className="mt-1 text-sm leading-relaxed text-zinc-200">{fx.inAppBody}</p>
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+            setCopied(true);
+          } catch { /* clipboard blocked: the instructions above still work */ }
+        }}
+        className="mt-2 rounded-lg border border-amber-300/40 px-3 py-1.5 text-sm text-amber-100"
+      >
+        {copied ? fx.inAppCopied : fx.inAppCopy}
+      </button>
+    </div>
+  ) : null;
 
   /** On every screen, not just the first one. Somebody who arrives from an
    *  invite link starts at the consent screen and never saw the offer screen's
@@ -754,7 +807,6 @@ export default function VoiceScreening({
    *  headset in a bag records the bag. Both platforms stay reachable — leading
    *  with the wrong one would be an inconvenience, hiding the right one would
    *  be a dead end. */
-  const fx = T[fixLang];
   const fixPanel = (
     <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-950/15 p-4">
       {/* Said before the six steps, because none of the six can help here. */}
@@ -816,6 +868,7 @@ export default function VoiceScreening({
   if (stage === "offer") {
     return (
       <div className={`${card} mt-8`}>
+        {inAppBanner}
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">{t.heading}</h2>
           <div className="flex gap-1 text-xs">
@@ -919,6 +972,7 @@ export default function VoiceScreening({
   if (stage === "consent") {
     return (
       <div className={`${card} mt-8`}>
+        {inAppBanner}
         {langBar}
         <h2 className="mb-3 text-lg font-semibold text-white">{t.consentTitle}</h2>
         <ul className="mb-5 space-y-2 text-sm leading-relaxed text-zinc-300">
