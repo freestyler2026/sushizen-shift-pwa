@@ -1,0 +1,456 @@
+<title>植嶋さんへの確認事項</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --ink:        #1A1D1A;
+    --ink-soft:   #414741;
+    --muted:      #6E756D;
+    --paper:      #F4F4F1;
+    --surface:    #FFFFFF;
+    --surface-2:  #F7F8F5;
+    --line:       #DCDDD7;
+    --line-soft:  #E9EAE5;
+
+    --accent:     #2F5D3A;
+    --accent-ink: #24492D;
+    --accent-soft:#E2ECE4;
+
+    --flag:       #A4432B;   /* 矛盾している */
+    --flag-soft:  #F7E7E1;
+    --wait:       #8A6410;   /* 回答待ち */
+    --wait-soft:  #F8EFD9;
+
+    --measure: 38rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:        #E8EAE6;
+      --ink-soft:   #BDC2BB;
+      --muted:      #8D948B;
+      --paper:      #141613;
+      --surface:    #1D211C;
+      --surface-2:  #232722;
+      --line:       #343A32;
+      --line-soft:  #2A2F28;
+      --accent:     #7FB58C;
+      --accent-ink: #9BCBA6;
+      --accent-soft:#1E2E22;
+      --flag:       #D98A6C;
+      --flag-soft:  #32231D;
+      --wait:       #D2A64F;
+      --wait-soft:  #2F2718;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:        #E8EAE6;
+    --ink-soft:   #BDC2BB;
+    --muted:      #8D948B;
+    --paper:      #141613;
+    --surface:    #1D211C;
+    --surface-2:  #232722;
+    --line:       #343A32;
+    --line-soft:  #2A2F28;
+    --accent:     #7FB58C;
+    --accent-ink: #9BCBA6;
+    --accent-soft:#1E2E22;
+    --flag:       #D98A6C;
+    --flag-soft:  #32231D;
+    --wait:       #D2A64F;
+    --wait-soft:  #2F2718;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 50rem;
+    margin: 0 auto;
+    padding: clamp(1.8rem, 4vw, 3.4rem) clamp(1rem, 3.5vw, 2rem) 5rem;
+  }
+
+  h1, h2, h3 {
+    font-family: "Zen Old Mincho", "Yu Mincho", serif;
+    font-weight: 700;
+    margin: 0;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  h1 { font-size: clamp(1.6rem, 4vw, 2.15rem); line-height: 1.4; }
+  h2 { font-size: 1.22rem; line-height: 1.5; }
+  h3 { font-size: 1.02rem; line-height: 1.6; }
+
+  p { margin: 0 0 0.75rem; max-width: var(--measure); }
+  p:last-child { margin-bottom: 0; }
+
+  code, .mono, .n { font-family: "Roboto Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  code {
+    font-size: 0.86em; background: var(--surface-2); border: 1px solid var(--line-soft);
+    border-radius: 4px; padding: 0.1em 0.4em; color: var(--accent-ink); white-space: nowrap;
+  }
+
+  header { border-bottom: 2px solid var(--accent); padding-bottom: 1.6rem; margin-bottom: 2.2rem; }
+  .eyebrow {
+    font-family: "Roboto Mono", monospace; font-size: 0.7rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 0.6rem;
+  }
+  .lede { font-size: 1.02rem; color: var(--ink-soft); max-width: 36rem; margin-top: 0.9rem; }
+  .meta { font-family: "Roboto Mono", monospace; font-size: 0.74rem; color: var(--muted); margin-top: 1.2rem; }
+
+  section { margin-top: 2.8rem; }
+  .sec-head { display: flex; align-items: baseline; gap: 0.7rem; margin-bottom: 0.4rem; }
+  .sec-num {
+    font-family: "Roboto Mono", monospace; font-size: 0.78rem; font-weight: 700;
+    color: var(--surface); background: var(--accent); border-radius: 5px;
+    padding: 0.14rem 0.5rem; letter-spacing: 0.04em;
+  }
+  .sec-note { font-size: 0.93rem; color: var(--muted); margin-bottom: 1.1rem; max-width: var(--measure); }
+
+  /* ── 依頼カード ─────────────────────────────────────────── */
+  .item {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--wait); border-radius: 10px;
+    padding: 1.05rem 1.2rem 1.15rem; margin-bottom: 0.9rem;
+  }
+  .item[data-kind="conflict"] { border-left-color: var(--flag); }
+  .item[data-kind="missing"]  { border-left-color: var(--accent); }
+
+  .item-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.7rem; }
+  .item-no {
+    font-family: "Roboto Mono", monospace; font-weight: 700; font-size: 0.95rem;
+    color: var(--accent-ink);
+  }
+  .item-name {
+    font-family: "Roboto Mono", monospace; font-weight: 700; font-size: 0.97rem;
+    color: var(--ink); word-break: break-word;
+  }
+  .chip {
+    font-family: "Roboto Mono", monospace; font-size: 0.66rem; letter-spacing: 0.05em;
+    text-transform: uppercase; padding: 0.16rem 0.48rem; border-radius: 99px; white-space: nowrap;
+  }
+  .chip.wait     { background: var(--wait-soft); color: var(--wait); }
+  .chip.conflict { background: var(--flag-soft); color: var(--flag); }
+  .chip.missing  { background: var(--accent-soft); color: var(--accent-ink); }
+
+  .body-note { font-size: 0.95rem; color: var(--ink-soft); margin-top: 0.6rem; }
+
+  .ask {
+    margin-top: 0.8rem; background: var(--wait-soft); border-radius: 7px;
+    padding: 0.7rem 0.85rem; font-size: 0.95rem; color: var(--ink-soft);
+  }
+  .item[data-kind="conflict"] .ask { background: var(--flag-soft); }
+  .item[data-kind="missing"] .ask  { background: var(--accent-soft); }
+  .ask b { color: var(--ink); }
+
+  .where {
+    margin-top: 0.6rem; font-size: 0.88rem; color: var(--muted);
+    border-top: 1px dashed var(--line); padding-top: 0.55rem;
+  }
+  .where b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ── 表 ─────────────────────────────────────────────────── */
+  .scroller { overflow-x: auto; margin-top: 0.7rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th {
+    font-family: "Roboto Mono", monospace; font-size: 0.66rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); font-weight: 500;
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  td.m { font-family: "Roboto Mono", monospace; }
+  td.n { font-family: "Roboto Mono", monospace; text-align: right; white-space: nowrap; }
+  td.bad { color: var(--flag); font-weight: 700; }
+  td.ok  { color: var(--accent-ink); }
+
+  .fill {
+    display: inline-block; min-width: 6rem; border-bottom: 1.5px solid var(--line);
+    color: var(--muted); font-family: "Roboto Mono", monospace; font-size: 0.86rem;
+  }
+
+  .note {
+    border-left: 2px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0;
+    padding: 0.8rem 1rem; margin-top: 1.1rem; font-size: 0.94rem; color: var(--ink-soft);
+  }
+  .note b { color: var(--ink); }
+
+  footer { margin-top: 3.4rem; padding-top: 1.4rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.86rem; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <span class="eyebrow">Sushi ZEN Manila ／ 包材・レシピ</span>
+    <h1>植嶋さんへ — 確認をお願いしたい7件</h1>
+    <p class="lede">
+      先日いただいた包材価格をシステムに反映しました。その作業の中で、
+      <strong>金額が入っていない品・荷姿が矛盾している品・同じ物が別名で複数ある品</strong>が出てきました。
+      いずれもこちらでは判断できないものです。<b>7件</b>、番号でご回答いただければこちらで入力します。
+      システムを開いていただく必要はありません。
+    </p>
+    <p class="meta">2026-09-09 時点 ／ マニラ3店舗＋Warehouse</p>
+  </header>
+
+  <div class="note">
+    <b>先にお礼と報告です。</b>
+    Sushi Box（12/16/24pcs）・Ice Pack・Sticker・Napkin・Onigiri Film・Hotdog Tray の
+    新価格は、<b>原価計算と発注カタログの両方に反映済み</b>です。
+    Sushi Box は1パーツ <code>₱5.03 → ₱3.90 / ₱4.05 / ₱4.32</code> となり、
+    12pcs の配達セットは <code>₱36.84 → ₱32.61</code> に下がりました。ありがとうございました。
+  </div>
+
+  <!-- ══════════ ① 矛盾 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">①</span>
+      <h2>登録が矛盾しているもの — 2件</h2>
+    </div>
+    <p class="sec-note">同じ品で荷姿の違う行が同じ金額になっています。こちらでは判断できません。</p>
+
+    <div class="item" data-kind="conflict">
+      <div class="item-head">
+        <span class="item-no">1</span>
+        <span class="item-name">Hot Dog Box (Gyoza 4pc)</span>
+        <span class="chip conflict">荷姿が矛盾</span>
+      </div>
+      <p class="body-note">
+        いただいた連絡は <b>25pc = 1pkt = ₱61</b>（1個 ₱2.44）でした。
+        ところが<b>100個入りも ₱61</b> で登録されています。
+      </p>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>登録されている荷姿</th><th>仕入先</th><th>対象</th><th>単価</th></tr></thead>
+          <tbody>
+            <tr><td class="m bad">1pkt = 100pcs</td><td>Warehouse</td><td>全店</td><td class="n bad">₱61.00</td></tr>
+            <tr><td class="m ok">1pkt = 25pcs</td><td>Mega Crystal Packaging</td><td>Taft / Cubao / Parañaque</td><td class="n ok">₱61.00</td></tr>
+            <tr><td class="m ok">1pkt = 25pcs</td><td>WH Supplier</td><td>Warehouse</td><td class="n ok">₱61.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ask">
+        <b>お願い:</b> どちらが正しいですか。
+        <br>（A）100個入りは存在しない → その行を削除します
+        <br>（B）100個入りも実在する → 正しい金額を教えてください
+      </div>
+      <div class="where"><b>回答後:</b> <code>Procurement → Catalog</code> で削除または金額修正。</div>
+    </div>
+
+    <div class="item" data-kind="conflict">
+      <div class="item-head">
+        <span class="item-no">2</span>
+        <span class="item-name">Ice Pack (1PKT = 40pcs)</span>
+        <span class="chip conflict">金額が空</span>
+      </div>
+      <p class="body-note">
+        <b>100個入り ₱195</b>（いただいた価格）は登録しました。
+        別に <b>40個入り</b>の行が全店向けにあり、金額が空のままです。
+      </p>
+      <div class="ask">
+        <b>お願い:</b> 40個入りは今も使っていますか。
+        使っているなら金額を、使っていないなら「廃止」とお書きください。
+      </div>
+      <div class="where"><b>回答後:</b> <code>Procurement → Catalog</code> で金額入力または行を無効化。</div>
+    </div>
+  </section>
+
+  <!-- ══════════ ② 金額が空 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">②</span>
+      <h2>金額が入っていないもの — 3件</h2>
+    </div>
+    <p class="sec-note">
+      品目はあるのに単価が <code>₱0</code> のままで、店舗が発注書を作れません。
+      いずれも<b>いただいた価格表に載っている品</b>ですが、別の名前・別の仕入先の行が残っています。
+    </p>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">3</span>
+        <span class="item-name">ZEN Safety Sealed Sticker</span>
+        <span class="chip wait">3つの名前で登録</span>
+      </div>
+      <p class="body-note">
+        いただいた <code>10pc = 1sheet = ₱9</code> は原価計算に入れました。
+        ただし発注カタログには<b>似た名前が3つ</b>あり、いずれも金額が空です。
+      </p>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>カタログ上の品名</th><th>単位</th><th>仕入先</th><th>対象</th></tr></thead>
+          <tbody>
+            <tr><td class="m">ZEN Safety Sealed Sticker 1set = 20sheets</td><td class="m">SET</td><td>SPP</td><td>Taft / Cubao / Parañaque</td></tr>
+            <tr><td class="m">Safety Sealed Sticker</td><td class="m">PC</td><td>SPP</td><td>全店</td></tr>
+            <tr><td class="m">ZEN Round Small Sticker 1set = 20sheets</td><td class="m">SET</td><td>（なし）</td><td>Taft / Cubao / Parañaque</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ask">
+        <b>お願い:</b> ①この3つは同じ物ですか、別物ですか
+        ②発注で使うのはどれですか ③その荷姿での金額（<code>1set = 20sheets = 何ペソ</code>）
+        <br>いただいた「10枚1シート ₱9」と、カタログの「1set = 20sheets」の関係も教えてください。
+      </div>
+      <div class="where"><b>回答後:</b> 使う行に金額を入れ、残りは無効化します。</div>
+    </div>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">4</span>
+        <span class="item-name">Paper Napkin (Maxi Tissue)</span>
+        <span class="chip wait">3店舗ぶんが空</span>
+      </div>
+      <p class="body-note">
+        Warehouse からの <b>1PKT = ₱95</b> は正しく入っています（いただいた 350枚＝₱95）。
+        ただし <b>Mega Crystal Packaging</b> 経由の3店舗ぶんと、WH Supplier の行が空です。
+      </p>
+      <div class="ask">
+        <b>お願い:</b> 店舗は Warehouse から取りますか、Mega Crystal から直接買いますか。
+        直接買うなら、その金額を教えてください。使わないなら「Warehouseのみ」とお書きください。
+      </div>
+      <div class="where"><b>回答後:</b> 金額を入れるか、使わない行を無効化します。</div>
+    </div>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">5</span>
+        <span class="item-name">Sushi Box 24pc - Inner Box</span>
+        <span class="chip wait">1店舗だけ空</span>
+      </div>
+      <p class="body-note">
+        24pcs の他のパーツは <code>₱4.32</code> に更新済みですが、
+        <b>Parañaque 向けの Inner Box だけ</b>が ₱0 のままです。仕入先も空欄です。
+        <b>この材料はレシピでも使われている</b>ので、原価にも影響します。
+      </p>
+      <div class="ask">
+        <b>お願い:</b> Parañaque も他店と同じ <code>₱4.32</code> でよいですか。
+        違う場合は金額と仕入先を教えてください。
+      </div>
+      <div class="where"><b>回答後:</b> <code>Procurement → Catalog</code> の該当行に入力します。</div>
+    </div>
+  </section>
+
+  <!-- ══════════ ③ 名前の確認 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">③</span>
+      <h2>同じ物かどうかの確認 — 1件</h2>
+    </div>
+
+    <div class="item" data-kind="missing">
+      <div class="item-head">
+        <span class="item-no">6</span>
+        <span class="item-name">Sushi Box 24pc — Condiuments Tray / Sauce Tray</span>
+        <span class="chip missing">同一物か</span>
+      </div>
+      <p class="body-note">
+        24pcs の箱について、発注カタログに <code>Condiuments Tray</code>（Taft のみ）と
+        <code>Sauce Tray</code> の2つの行があります。原価計算側は <code>Sauce Tray</code> だけです。
+      </p>
+      <div class="ask">
+        <b>お願い:</b> この2つは同じ物ですか。別物なら、それぞれ何のトレーか教えてください。
+      </div>
+      <div class="where"><b>回答後:</b> 同じ物なら一方を無効化し、原価計算の材料に紐づけます。</div>
+    </div>
+  </section>
+
+  <!-- ══════════ ④ レシピ ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">④</span>
+      <h2>レシピの中身 — 1件（既にご依頼中）</h2>
+    </div>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">7</span>
+        <span class="item-name">Japanese Mayo (QP Mayo)</span>
+        <span class="chip wait">グラム数</span>
+      </div>
+      <p class="body-note">1オーダーあたりのグラム数をお待ちしています。</p>
+      <div class="ask">
+        <b>⚠️ ご注意:</b> 現在システムには<b>仮で 10g</b> が入っています。
+        他のレシピから写した数字で、確認された値ではありません。
+        画面上は入力済みに見えるので、<b>ご回答をいただいたら必ず入れ替えます</b>。
+      </div>
+      <div class="where">
+        <b>回答後:</b> <code>Cost Calculation → Products → Japanese Mayo (QP Mayo)</code> の
+        <code>QP MAYONNAISE</code> の行を修正します。
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 回答 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">回答</span>
+      <h2>ご回答のしかた</h2>
+    </div>
+    <p>番号だけで結構です。分かるものから1件ずつでも構いません。</p>
+    <div class="note" style="font-family:'Roboto Mono',monospace; font-size:0.9rem; line-height:1.9">
+      1. Hot Dog Box … 100個入りはありません。25個入りだけです<br>
+      2. Ice Pack 40pcs … 廃止しました<br>
+      3. Sticker … ZEN Safety Sealed のみ使用。1set = 20sheets = ₱18<br>
+      5. Sushi Box 24pc Inner Box … Parañaque も ₱4.32 です<br>
+      7. QP Mayo … 1オーダー 15g<br>
+      …
+    </div>
+    <p style="margin-top:1rem">
+      <b>入力はこちらで行います。</b>システムを開いていただく必要はありません。
+      反映後に改めてご報告します。
+    </p>
+  </section>
+
+  <!-- ══════════ 別件 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">別件</span>
+      <h2>植嶋さんのご担当外かもしれない2件</h2>
+    </div>
+    <p class="sec-note">
+      念のため記載します。どなたに聞けばよいかだけ教えていただければ、こちらから伺います。
+    </p>
+
+    <div class="item" data-kind="missing">
+      <h3 style="margin-bottom:.3rem">Central Kitchen 供給の食材9品に金額が入っていません</h3>
+      <p class="body-note">
+        <code>Sugar</code>（<b>87品のレシピで使用</b>）・<code>Quezo Cheese</code>（13品）・
+        <code>Pork Lard</code>（12品）・<code>Chicken Thigh</code>（10品）・
+        <code>Chili Powder</code>（10品）ほか。いずれも仕入先が <code>CK</code> で、
+        発注カタログ上の金額が空です。
+      </p>
+      <div class="ask">
+        <b>お願い:</b> CK からの供給価格は、どなたが管理されていますか。
+      </div>
+    </div>
+
+    <div class="item" data-kind="missing">
+      <h3 style="margin-bottom:.3rem">「Creamy」「Spicy」の中身が未登録です</h3>
+      <p class="body-note">
+        <code>Creamy Avocado Hosomaki</code> と <code>Spicy Pork Miso Onigiri</code> は、
+        中身が通常版と<b>完全に同一</b>で、「Creamy」「Spicy」にあたる材料が1行も入っていません。
+        そのため原価が通常版と同じ数字のままです。
+      </p>
+      <div class="ask">
+        <b>お願い:</b> 厨房のどなたに伺えばよいか教えてください。
+        （それぞれ「何を・1個あたり何g足しているか」だけで結構です）
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Sushi ZEN Workforce OS ／ 2026-09-09 作成。<br>
+    先日の包材価格（Sushi Box 2万枚発注ぶん）はすべて反映済みです。ありがとうございました。
+  </footer>
+
+</div>
