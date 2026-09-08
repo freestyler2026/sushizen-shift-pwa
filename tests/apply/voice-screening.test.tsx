@@ -99,6 +99,35 @@ describe("voice screening on a phone", () => {
     expect(screen.queryByText(/Buksan muna ito sa browser/)).toBeNull();
   });
 
+  it("warns about the Facebook browser on the first screen, not after the mic check", async () => {
+    // On 2026-09-08 this warning lived behind the microphone check: four of the
+    // ten applicants who agreed to be recorded produced no answer at all, and
+    // the explanation was three taps past where they stopped. The link is
+    // posted on Facebook, so its in-app browser is the default way in.
+    setUA("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 [FB_IAB/FB4A;FBAV/440.0;]");
+    await renderVoice();
+    expect(await screen.findByText(/Buksan muna ito sa browser/)).toBeTruthy();
+    // and the way out is on the same screen
+    expect(screen.getByRole("button", { name: /Kopyahin ang link/ })).toBeTruthy();
+  });
+
+  it("says nothing about browsers when it is an ordinary one", async () => {
+    setUA("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36");
+    await renderVoice();
+    expect(screen.queryByText(/Buksan muna ito sa browser/)).toBeNull();
+  });
+
+  it("reports which browser opened the page, before any decision is made", async () => {
+    // Recorded on load rather than at consent: most of the drop-off happens
+    // before consent, so recording it there would miss the people we cannot
+    // otherwise explain.
+    setUA("Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 [FB_IAB/FB4A;FBAV/440.0;]");
+    await renderVoice();
+    const call = mockFetch.mock.calls.find((c) => String(c[0]).endsWith("/client"));
+    expect(call).toBeTruthy();
+    expect(JSON.parse(String(call?.[1]?.body)).kind).toBe("facebook");
+  });
+
   it("offers the CV step after consent, and lets it be skipped", async () => {
     await renderVoice(loaded(), { startAt: "consent" });
     fireEvent.click(screen.getByText("I understand and agree"));
