@@ -1,6 +1,65 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-08（GrabFood 売上を StoreHub 取得に切替・週次CSV廃止）
+Last updated: 2026-09-08（店舗名の未正規化7か所を修正・取込停止の検知を追加）
+
+## ✅ 2026-09-08（続き） — 店舗名の未正規化が7か所にあった／取込停止の検知を追加
+
+前項の切替のあと「表示を整えて」「検知を作って」「実装全体を点検して」の指示。
+点検で**切替とは無関係の既存バグが3つ**出た。原因はすべて同じ:
+**マニラの店舗名が2通りある**（Grabエクスポート `Paranaque`/`QC`/`Taft`、
+StoreHub `Sushi ZEN - Paranaque`/`Sushi ZEN Cubao`/`Sushi Zen - Taft`）のに、
+生の名前で突き合わせていた。
+
+| # | 症状 | 実測 |
+|---|---|---|
+| ① | **店舗で絞ると片方の系統しか出ない** | Taft を選ぶと GrabFood だけ net 359,718。実際は 510,964（Foodpanda と Offline が丸ごと消えていた・約30%過少） |
+| ② | **商品数量が二重計上** | 9/5 全店 1,195個と表示。実際は 703個（**+70%**） |
+| ③ | **1店舗が2行に割れる** | 月次トレンドの8月に Paranaque と Sushi ZEN - Paranaque が別支店として並ぶ |
+
+**同じ罠が7か所**（`db.py` 5・`main.py` 2）。channel / product / category /
+payment method / product trend / overview の product・category trend、
+および `api_admin_manila_baseroll_prep`（シフト下書きの需要準備。商品側は実際に
+二重計上していた）。
+
+修正: `_manila_store_key_sql()` / `_manila_store_key()` を**唯一の定義**とし、
+絞り込み・優先順位判定・表示名の全経路をそこに通す。系統の判定は
+**(日付, 店舗) 単位**にした。商品名やカテゴリ単位で判定すると、同じ品目の別名が
+両方残る（Grab `Gari Ginger` と POS `Additional Gari Ginger` など実測7品）。
+
+検証: 商品 9/5 全店 **703個**（storehub_api の生合計と一致）・Taft 303 / CUB 163 /
+PAR 237。絞り込みは `Taft` `TAFT` `Sushi Zen - Taft` すべて同じ3チャネルを返す。
+8月の PAR は **1,395,815**（分割前の 801,985 + 593,830 と一致）。
+
+### ⚠️ 自分で入れた不具合を1つ踏んだ
+SQLコメントに `+70%）` と**エスケープしていない `%`** を書き、psycopg2 が書式指定と
+解釈して `IndexError: tuple index out of range`。SQLを組むところまでは通るので、
+**デプロイ後に実関数を呼ぶまで出なかった。** SQLコメントに `%` を書かない。
+
+### 取込停止の検知（`app/db_manila_stream_health.py`）
+
+- 見るのは**画面が実際に使っている系列**（優先順位ルールが返す 店舗×チャネル）
+- 閾値は**系列ごとの実績から**（教訓45）。実測: 日次7系列 p90=1日 /
+  CUB Offline p50 2日・p90 5日・最大6日 / beep は3〜4日ぶんしかない
+  → `max(p90 × 2, 2日)`。過去120日に当てて**誤検知0件**
+- 履歴が足りない系列は黙らせず「判断できない」として別に出す。PAR Foodpanda は
+  9/7 開始で1日ぶんしかないため、**いま止まっても報告されない**ことを明示
+- **1つの障害を12行にしない。** 店舗の全系列が止まれば店舗単位で1行、
+  全店なら1行にまとめる
+
+**認知経路は2つ**:
+1. `worker.run_manila_stream_health_check`（日次）→ Discord。**止まっていなければ何も送らない**
+2. `get_manila_sales_overview` に `stream_health` を追加 → Manila Sales の画面上部に赤帯。
+   数字を読む人が見ているのはこの画面なので、ここに出ないと気づかれない
+
+### ⚠️ 前回の「CSVを止めてよい」は不正確だった
+
+`manila_sales_hourly`（時間帯別）は **Grab CSV だけが書いている**。StoreHub 側に
+書き込みが無い。読み手は `get_manila_sales_hourly` / GrabFoodピーク時間 /
+売上概要、そして **`api_admin_manila_baseroll_prep`（シフト下書きの需要予測）**。
+CSVを止めるとこれらが止まる。`manila_pos_transactions` に `delivered_at` はあるが
+「配達時刻」であって「注文時刻」ではないので、そのままでは代替にならない。
+
+---
 
 ## ✅ 2026-09-08 — GrabFood 売上を StoreHub 取得に切替（Grabポータル週次CSVを廃止）
 
