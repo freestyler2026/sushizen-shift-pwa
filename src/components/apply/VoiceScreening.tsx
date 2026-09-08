@@ -37,17 +37,28 @@ type Lang = "en" | "tl";
 
 const T = {
   en: {
-    heading: "One more step (optional)",
-    lead: "Answer five short questions by voice, in your own time. About five minutes. No appointment, nothing to attend.",
-    startNow: "Answer now by voice",
+    // ⚠️ Do NOT write "you will not have to come in". Shortlisting a candidate
+    // moves them to Screened, "ready for you to book an interview the normal
+    // way" -- an in-person interview still follows. Promising otherwise would
+    // be a promise the process cannot keep.
+    //
+    // The old heading was "One more step (optional)": it led with more work and
+    // with permission to leave, and said nothing about what it is. On
+    // 2026-09-08, nine of nineteen applicants stopped on this screen.
+    heading: "This is your first interview",
+    lead: "Five short questions, answered out loud on your phone — about five minutes, whenever suits you. No appointment, nothing to attend. It is how the hiring manager hears you, instead of only reading your form.",
+    leadQuiet: "Somewhere quiet works best.",
+    startNow: "Start the interview",
     introTitle: "First, a minute about Sushi ZEN",
     introBody: "Watch if you like{len}. It uses mobile data, and you can skip it — that makes no difference to your application.",
     introLen: " — about {n} minute{s}",
     introPlay: "Play the video",
     introSkip: "Skip and continue",
     introNext: "Continue",
-    later: "I will do it later",
-    laterNote: "We will message you the link on the number you gave.",
+    // Kept, and kept honest: skipping this rejects nobody. But it now asks for
+    // something we can act on, instead of being a silent exit.
+    later: "Not now — send me the link",
+    laterNote: "Noted. We will message the link to the number you gave, so you can do this whenever you like.",
     cvTitle: "Have a CV? Attach it (optional)",
     cvBody: "A PDF, a Word file, or just a clear photo of it. It is not required — most people applying here do not have one, and skipping changes nothing about your application.",
     cvPick: "Choose a file",
@@ -129,17 +140,18 @@ const T = {
     ],
   },
   tl: {
-    heading: "Isa pang hakbang (opsyonal)",
-    lead: "Sagutin ang limang maikling tanong gamit ang boses mo, kahit anong oras. Mga limang minuto. Walang appointment, walang pupuntahan.",
-    startNow: "Sumagot ngayon gamit ang boses",
+    heading: "Ito na ang unang interview mo",
+    lead: "Limang maikling tanong, sasagutin gamit ang boses mo sa cellphone — mga limang minuto, kahit anong oras. Walang appointment, walang pupuntahan. Dito ka maririnig ng hiring manager, hindi lang babasahin ang form mo.",
+    leadQuiet: "Mas maganda kung tahimik ang lugar.",
+    startNow: "Simulan ang interview",
     introTitle: "Una, isang minuto tungkol sa Sushi ZEN",
     introBody: "Panoorin kung gusto mo{len}. Gumagamit ito ng mobile data, at pwede mo rin itong laktawan — walang epekto ito sa application mo.",
     introLen: " — mga {n} minuto",
     introPlay: "I-play ang video",
     introSkip: "Laktawan at magpatuloy",
     introNext: "Magpatuloy",
-    later: "Mamaya na lang",
-    laterNote: "Ipapadala namin ang link sa numerong ibinigay mo.",
+    later: "Mamaya na lang — ipadala ang link",
+    laterNote: "Naitala na. Ipapadala namin ang link sa numerong ibinigay mo, para magawa mo ito kahit anong oras.",
     cvTitle: "May CV ka ba? Ilakip mo (opsyonal)",
     cvBody: "Pwedeng PDF, Word, o malinaw na litrato nito. Hindi ito kailangan — karamihan ng nag-a-apply dito ay wala nito, at walang pagkakaiba sa aplikasyon mo kung lalaktawan mo.",
     cvPick: "Pumili ng file",
@@ -720,6 +732,16 @@ export default function VoiceScreening({
     }
   }
 
+  async function askLater() {
+    // Recorded, because the next screen promises "we will message you the
+    // link" and nobody could keep that promise while the press left no trace.
+    // The screen must still move even if the write fails -- the applicant has
+    // said what they want and should not be held on a failed request.
+    try { await fetch(`/api/voice/${token}/later`, { method: "POST" }); }
+    catch { /* the note matters less than not trapping them here */ }
+    setStage("later");
+  }
+
   async function skipCv() {
     // Recorded rather than passed over in silence, so HR can tell somebody who
     // decided not to send one from somebody who never reached this screen.
@@ -880,12 +902,13 @@ export default function VoiceScreening({
             ))}
           </div>
         </div>
-        <p className="mb-5 text-sm leading-relaxed text-zinc-300">{t.lead}</p>
+        <p className="mb-2 text-sm leading-relaxed text-zinc-300">{t.lead}</p>
+        <p className="mb-5 text-sm text-zinc-500">{t.leadQuiet}</p>
         <button type="button" onClick={() => setStage(intro ? "intro" : "consent")}
           className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
           {t.startNow}
         </button>
-        <button type="button" onClick={() => setStage("later")}
+        <button type="button" onClick={() => void askLater()}
           className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
           {t.later}
         </button>

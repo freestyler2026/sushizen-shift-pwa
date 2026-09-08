@@ -45,7 +45,7 @@ async function renderVoice(data: Record<string, unknown> = loaded(),
   const Voice = (await import("@/components/apply/VoiceScreening")).default;
   render(<Voice token="tok" lang="en" {...props} />);
   // Whichever screen this token opens on -- offer, consent, or the video.
-  await screen.findByText(/One more step|Before you record|First, a minute about/);
+  await screen.findByText(/This is your first interview|Before you record|First, a minute about/);
 }
 
 /** Consent now leads to the CV step, not straight to the microphone. Skipping
@@ -128,6 +128,19 @@ describe("voice screening on a phone", () => {
     expect(JSON.parse(String(call?.[1]?.body)).kind).toBe("facebook");
   });
 
+  it("records 'not now', because the next screen promises to send the link", async () => {
+    // The screen said "we will message you the link on the number you gave"
+    // while the press left no trace anywhere, so nobody could send it. On
+    // 2026-09-08 nine of nineteen applicants left on this screen and none of
+    // them could be followed up.
+    await renderVoice();
+    mockFetch.mockClear();
+    fireEvent.click(screen.getByText("Not now — send me the link"));
+    expect(await screen.findByText(/We will message the link/)).toBeTruthy();
+    expect(mockFetch.mock.calls.some(
+      (c) => String(c[0]).endsWith("/later"))).toBe(true);
+  });
+
   it("offers the CV step after consent, and lets it be skipped", async () => {
     await renderVoice(loaded(), { startAt: "consent" });
     fireEvent.click(screen.getByText("I understand and agree"));
@@ -165,7 +178,7 @@ describe("voice screening on a phone", () => {
     await renderVoice(loaded({
       intro_video: { url: "/media/voice-intro.mp4", kind: "file", seconds: 62 },
     }));
-    fireEvent.click(screen.getByText("Answer now by voice"));
+    fireEvent.click(screen.getByText("Start the interview"));
     expect(await screen.findByText(/First, a minute about Sushi ZEN/)).toBeTruthy();
     // Nothing is downloaded before they press play — the screen has just told
     // them it costs them data.
@@ -184,7 +197,7 @@ describe("voice screening on a phone", () => {
     await renderVoice(loaded({
       intro_video: { url: "/media/voice-intro.mp4", kind: "file", seconds: 195 },
     }));
-    fireEvent.click(screen.getByText("Answer now by voice"));
+    fireEvent.click(screen.getByText("Start the interview"));
     expect(await screen.findByText(/about 3 minutes/)).toBeTruthy();
   });
 
@@ -192,7 +205,7 @@ describe("voice screening on a phone", () => {
     await renderVoice(loaded({
       intro_video: { url: "/media/voice-intro.mp4", kind: "file", seconds: 62 },
     }));
-    fireEvent.click(screen.getByText("Answer now by voice"));
+    fireEvent.click(screen.getByText("Start the interview"));
     fireEvent.click(await screen.findByText("Skip and continue"));
     expect(await screen.findByText(/Before you record/)).toBeTruthy();
   });
@@ -210,7 +223,7 @@ describe("voice screening on a phone", () => {
 
   it("has no video step when none is configured", async () => {
     await renderVoice(loaded());
-    fireEvent.click(screen.getByText("Answer now by voice"));
+    fireEvent.click(screen.getByText("Start the interview"));
     expect(await screen.findByText(/Before you record/)).toBeTruthy();
     expect(screen.queryByText(/First, a minute about/)).toBeNull();
   });
