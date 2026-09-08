@@ -645,7 +645,11 @@ export default function VoiceScreening({
 
   function pickCv(file: File | null) {
     setErr("");
-    if (!file) { setCvFile(null); return; }
+    // Cancelling the picker must change nothing. Clearing "Attached" on the
+    // click instead meant the common case -- opening the picker and backing
+    // out -- left the screen saying no CV had been sent while one was already
+    // on the server, and the applicant either sent it twice or skipped.
+    if (!file) return;
     if (file.size > UPLOAD_LIMIT_BYTES && file.type !== "application/pdf"
         && !file.type.startsWith("image/")) {
       // Word files cannot be shrunk here, so an oversized one is reported now
@@ -656,6 +660,7 @@ export default function VoiceScreening({
       return;
     }
     setCvFile(file);
+    setCvDone(false);
   }
 
   async function sendCv() {
@@ -960,7 +965,7 @@ export default function VoiceScreening({
               className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
               {t.cvContinue}
             </button>
-            <button type="button" onClick={() => { setCvDone(false); cvInput.current?.click(); }}
+            <button type="button" onClick={() => cvInput.current?.click()}
               className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
               {t.cvChange}
             </button>
