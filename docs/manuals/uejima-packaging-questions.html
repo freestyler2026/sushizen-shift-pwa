@@ -195,185 +195,227 @@
     <span class="eyebrow">Sushi ZEN Manila ／ 包材・レシピ</span>
     <h1>植嶋さんへ — 確認事項 7件</h1>
     <p class="lede">
-      先日もらった包材価格をシステムに反映しました。その作業の中で、
-      <strong>金額が入っていない品・荷姿が矛盾している品・同じ物が別名で複数ある品</strong>が出てきました。
-      どれもこちらでは判断できません。<b>7件</b>、番号で回答をください。入力はこちらでやります。
-      システムを開く必要はありません。
+      送ってもらった包材価格は <b>Cost Calculation に全部入りました。</b>
+      その後、発注カタログ側を Cost Calculation に合わせる作業をした中で、
+      <strong>こちらでは判断できない点が7件</strong>出てきました。番号で回答をください。
+      入力はこちらでやります。システムを開く必要はありません。
     </p>
     <p class="meta">2026-09-09 時点 ／ マニラ3店舗＋Warehouse</p>
   </header>
 
   <div class="note">
     <b>先に報告です。</b>
-    Sushi Box（12/16/24pcs）・Ice Pack・Sticker・Napkin・Onigiri Film・Hotdog Tray の
-    新価格は<b>原価計算と発注カタログの両方に反映済み</b>です。
-    Sushi Box は1パーツ <code>₱5.03 → ₱3.90 / ₱4.05 / ₱4.32</code> となり、
-    12pcs の配達セットは <code>₱36.84 → ₱32.61</code> に下がりました。助かりました。
+    送ってもらった包材価格は <b>Cost Calculation（アイテムの登録先）に全部入りました。</b>
+    Sushi Box は1パーツ <code>₱5.03 → ₱3.90 / ₱4.05 / ₱4.32</code>、
+    12pcs の配達セットは <code>₱36.84 → ₱32.61</code> に下がっています。助かりました。
     <br><br>
-    <b>Creamy Avocado Hosomaki と Spicy Pork Miso Onigiri も確認済みです。</b>
+    <b>Creamy Avocado Hosomaki と Spicy Pork Miso Onigiri も確認しました。</b>
     「Creamy」はベースの <code>Avocado Hosomaki</code> に入っている <code>QUEZO CHEESE 15g</code>、
-    「Spicy」は <code>Pork Miso for Onigiri</code> に入っている
+    「Spicy」は <code>Pork Miso for Onigiri</code> の
     <code>CHILIBEAN SAUCE (TOBAN JIANG) 15g</code> で、どちらも正しく計上されています。
-    残っているのは QP Mayo のグラム数だけです。
   </div>
 
-  <!-- ══════════ ① 矛盾 ══════════ -->
+  <!-- ══════════ 登録の現状 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">現状</span>
+      <h2>Cost Calculation に入っている内容</h2>
+    </div>
+    <p class="sec-note">
+      <b>ここが正</b>です。発注カタログはこれに合わせます。以下は反映済みの状態です。
+    </p>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>品名</th><th>単位</th><th>単価</th><th>使用レシピ数</th></tr></thead>
+        <tbody>
+          <tr><td class="m">Sushi Box 12pcs（4パーツ各）</td><td class="m">pc</td><td class="n">₱3.90</td><td class="n">各1</td></tr>
+          <tr><td class="m">Sushi Box 16pcs（4パーツ各）</td><td class="m">pc</td><td class="n">₱4.05</td><td class="n">各1</td></tr>
+          <tr><td class="m">Sushi Box 24pcs（4パーツ各）</td><td class="m">pc</td><td class="n">₱4.32</td><td class="n">各1</td></tr>
+          <tr><td class="m">Ice Pack</td><td class="m">pc</td><td class="n">₱1.95</td><td class="n">2</td></tr>
+          <tr><td class="m">ZEN Safety Sticker</td><td class="m">pc</td><td class="n">₱0.90</td><td class="n">39</td></tr>
+          <tr><td class="m">Sticker Round</td><td class="m">pc</td><td class="n">₱0.89</td><td class="n">1</td></tr>
+          <tr><td class="m">Napkin (Zen)</td><td class="m">pc</td><td class="n">₱0.2714</td><td class="n">61</td></tr>
+          <tr><td class="m">Onigiri Film</td><td class="m">pc</td><td class="n">₱3.55</td><td class="n">3</td></tr>
+          <tr><td class="m">Hotdog Tray</td><td class="m">pc</td><td class="n">₱2.44</td><td class="n">5</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body-note">
+      <b>Sushi Box は1箱4パーツ</b>（Cover / Inner Box / Sauce Tray / Sushi Tray (Divider)）で
+      登録されています。以下の質問は、この登録と発注カタログが合っていない箇所だけです。
+    </p>
+  </section>
+
+  <!-- ══════════ ① ══════════ -->
   <section>
     <div class="sec-head">
       <span class="sec-num">①</span>
-      <h2>登録が矛盾しているもの — 2件</h2>
+      <h2>単価が合わない — 1件</h2>
     </div>
-    <p class="sec-note">同じ品で荷姿の違う行が同じ金額になっています。こちらでは判断できません。</p>
 
     <div class="item" data-kind="conflict">
       <div class="item-head">
         <span class="item-no">1</span>
         <span class="item-name">Hot Dog Box (Gyoza 4pc)</span>
-        <span class="chip conflict">荷姿が矛盾</span>
+        <span class="chip conflict">1個あたりが4倍違う</span>
       </div>
-      <p class="body-note">
-        送ってもらった価格表では <b>25pc = 1pkt = ₱61</b>（1個 ₱2.44）でした。
-        ところが<b>100個入りも ₱61</b> で登録されています。
-      </p>
       <div class="scroller">
         <table>
-          <thead><tr><th>登録されている荷姿</th><th>仕入先</th><th>対象</th><th>単価</th></tr></thead>
+          <thead><tr><th>出どころ</th><th>荷姿</th><th>金額</th><th>1個あたり</th></tr></thead>
           <tbody>
-            <tr><td class="m bad">1pkt = 100pcs</td><td>Warehouse</td><td>全店</td><td class="n bad">₱61.00</td></tr>
-            <tr><td class="m ok">1pkt = 25pcs</td><td>Mega Crystal Packaging</td><td>Taft / Cubao / Parañaque</td><td class="n ok">₱61.00</td></tr>
-            <tr><td class="m ok">1pkt = 25pcs</td><td>WH Supplier</td><td>Warehouse</td><td class="n ok">₱61.00</td></tr>
+            <tr><td>送ってもらった価格表</td><td class="m">25pc = 1pkt</td><td class="n">₱61</td><td class="n ok">₱2.44</td></tr>
+            <tr><td>Cost Calculation（登録済み）</td><td class="m">1個</td><td class="n">—</td><td class="n ok">₱2.44</td></tr>
+            <tr><td>発注カタログ</td><td class="m bad">100pc = 1pkt</td><td class="n">₱61</td><td class="n bad">₱0.61</td></tr>
           </tbody>
         </table>
       </div>
-      <div class="ask">
-        <b>確認:</b> どちらが正しいですか。
-        <br>（A）100個入りは存在しない → その行を削除します
-        <br>（B）100個入りも実在する → 正しい金額を教えてください
-      </div>
-      <div class="where"><b>回答後:</b> <code>Procurement → Catalog</code> で削除または金額修正。</div>
-    </div>
-
-    <div class="item" data-kind="conflict">
-      <div class="item-head">
-        <span class="item-no">2</span>
-        <span class="item-name">Ice Pack (1PKT = 40pcs)</span>
-        <span class="chip conflict">金額が空</span>
-      </div>
       <p class="body-note">
-        <b>100個入り ₱195</b>（もらった価格）は登録しました。
-        別に <b>40個入り</b>の行が全店向けにあり、金額が空のままです。
+        カタログにある<b>100個入り ₱61</b> の行だけが、1個 ₱0.61 と<b>4分の1</b>になります。
       </p>
       <div class="ask">
-        <b>確認:</b> 40個入りは今も使っていますか。使っているなら金額を、使っていないなら「廃止」と書いてください。
+        <b>確認:</b> 100個入りという荷姿は実在しますか。
+        <br>（A）無い → その行を消します
+        <br>（B）有る → 正しい金額を教えてください
       </div>
-      <div class="where"><b>回答後:</b> <code>Procurement → Catalog</code> で金額入力または行を無効化。</div>
+      <div class="where"><b>回答後:</b> カタログ側を直します。Cost Calculation は ₱2.44 のままで正しいです。</div>
     </div>
   </section>
 
-  <!-- ══════════ ② 金額が空 ══════════ -->
+  <!-- ══════════ ② ══════════ -->
   <section>
     <div class="sec-head">
       <span class="sec-num">②</span>
-      <h2>金額が入っていないもの — 3件</h2>
+      <h2>まとめ買いの荷姿の金額 — 2件</h2>
     </div>
     <p class="sec-note">
-      品目はあるのに単価が <code>₱0</code> のままで、店舗が発注書を作れません。
-      いずれも<b>もらった価格表に載っている品</b>ですが、別の名前・別の仕入先の行が残っています。
+      1シートあたりの金額はカタログに入っていて、Cost Calculation とも合っています。
+      <b>「1set = 20sheets」の行だけ</b>が空です。
     </p>
 
     <div class="item" data-kind="wait">
       <div class="item-head">
-        <span class="item-no">3</span>
+        <span class="item-no">2</span>
         <span class="item-name">ZEN Safety Sealed Sticker</span>
-        <span class="chip wait">3つの名前で登録</span>
+        <span class="chip wait">setの金額</span>
       </div>
-      <p class="body-note">
-        <code>10pc = 1sheet = ₱9</code> は原価計算に入れました。
-        ただし発注カタログには<b>似た名前が3つ</b>あり、いずれも金額が空です。
-      </p>
       <div class="scroller">
         <table>
-          <thead><tr><th>カタログ上の品名</th><th>単位</th><th>仕入先</th><th>対象</th></tr></thead>
+          <thead><tr><th>カタログの行</th><th>単位</th><th>金額</th></tr></thead>
           <tbody>
-            <tr><td class="m">ZEN Safety Sealed Sticker 1set = 20sheets</td><td class="m">SET</td><td>SPP</td><td>Taft / Cubao / Parañaque</td></tr>
-            <tr><td class="m">Safety Sealed Sticker</td><td class="m">PC</td><td>SPP</td><td>全店</td></tr>
-            <tr><td class="m">ZEN Round Small Sticker 1set = 20sheets</td><td class="m">SET</td><td>（なし）</td><td>Taft / Cubao / Parañaque</td></tr>
+            <tr><td class="m">ZEN Safety Sealed Sticker</td><td class="m">Sheet</td><td class="n ok">₱9.00</td></tr>
+            <tr><td class="m">ZEN Safety Sealed Sticker 1set = 20sheets</td><td class="m">SET</td><td class="n bad">空</td></tr>
+            <tr><td class="m">Safety Sealed Sticker</td><td class="m">PC</td><td class="n bad">空</td></tr>
           </tbody>
         </table>
       </div>
+      <p class="body-note">
+        1シート ₱9（10枚入り＝1枚 ₱0.90）は Cost Calculation と一致しています。
+      </p>
       <div class="ask">
-        <b>確認:</b> ①この3つは同じ物ですか、別物ですか
-        ②発注で使うのはどれですか ③その荷姿での金額（<code>1set = 20sheets = 何ペソ</code>）
-        <br>「10枚1シート ₱9」と、カタログの「1set = 20sheets」の関係も教えてください。
+        <b>確認:</b> ①20シートのセットは <b>₱180</b>（₱9×20）ですか、まとめ買いで安くなりますか
+        ②<code>Safety Sealed Sticker</code>（PC単位）の行はまだ使いますか。使わないなら消します。
       </div>
-      <div class="where"><b>回答後:</b> 使う行に金額を入れ、残りは無効化します。</div>
+      <div class="where"><b>回答後:</b> カタログの set 行に金額を入れ、不要な行は無効化します。</div>
+    </div>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">3</span>
+        <span class="item-name">ZEN Round Small Sticker</span>
+        <span class="chip wait">setの金額</span>
+      </div>
+      <p class="body-note">
+        こちらも <b>1シート ₱8</b> は入っていて、Cost Calculation の <code>Sticker Round</code>
+        ₱0.89/枚 と合います。<b>20シートのセットの行</b>だけが空です。
+      </p>
+      <div class="ask"><b>確認:</b> 20シートのセットはいくらですか。</div>
+      <div class="where"><b>回答後:</b> カタログの set 行に入力します。</div>
+    </div>
+  </section>
+
+  <!-- ══════════ ③ ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">③</span>
+      <h2>どこから買うか — 2件</h2>
     </div>
 
     <div class="item" data-kind="wait">
       <div class="item-head">
         <span class="item-no">4</span>
-        <span class="item-name">Paper Napkin (Maxi Tissue)</span>
-        <span class="chip wait">3店舗ぶんが空</span>
+        <span class="item-name">Ice Pack（40個入り）</span>
+        <span class="chip wait">使うか</span>
       </div>
       <p class="body-note">
-        Warehouse からの <b>1PKT = ₱95</b> は正しく入っています（350枚＝₱95）。
-        ただし <b>Mega Crystal Packaging</b> 経由の3店舗ぶんと、WH Supplier の行が空です。
+        <b>100個入り ₱195</b>（＝1個 ₱1.95）は Cost Calculation・カタログとも入っています。
+        別に <b>40個入り</b>の行が全店向けにあり、金額が空です。
       </p>
       <div class="ask">
-        <b>確認:</b> 店舗は Warehouse から取りますか、Mega Crystal から直接買いますか。
-        直接買うなら、その金額を教えてください。使わないなら「Warehouseのみ」と書いてください。
+        <b>確認:</b> 40個入りは今も使いますか。使うなら金額を、使わないなら「廃止」と書いてください。
       </div>
-      <div class="where"><b>回答後:</b> 金額を入れるか、使わない行を無効化します。</div>
+      <div class="where"><b>回答後:</b> 金額を入れるか、行を無効化します。</div>
     </div>
 
     <div class="item" data-kind="wait">
       <div class="item-head">
         <span class="item-no">5</span>
-        <span class="item-name">Sushi Box 24pc - Inner Box</span>
-        <span class="chip wait">1店舗だけ空</span>
+        <span class="item-name">Paper Napkin (Maxi Tissue)</span>
+        <span class="chip wait">仕入れ経路</span>
       </div>
       <p class="body-note">
-        24pcs の他のパーツは <code>₱4.32</code> に更新済みですが、
-        <b>Parañaque 向けの Inner Box だけ</b>が ₱0 のままです。仕入先も空欄です。
-        <b>この材料はレシピでも使われている</b>ので、原価にも影響します。
+        Warehouse からの <b>1PKT（350枚）= ₱95</b> は Cost Calculation・カタログとも正しく入っています。
+        ただし <b>Mega Crystal Packaging</b> 経由の3店舗ぶんの行が空のままです。
       </p>
       <div class="ask">
-        <b>確認:</b> Parañaque も他店と同じ <code>₱4.32</code> でよいですか。
-        違うなら金額と仕入先を教えてください。
+        <b>確認:</b> 店舗は Warehouse から取りますか、Mega Crystal から直接買いますか。
+        直接買うなら金額を、買わないなら「Warehouseのみ」と書いてください。
       </div>
-      <div class="where"><b>回答後:</b> <code>Procurement → Catalog</code> の該当行に入力します。</div>
+      <div class="where"><b>回答後:</b> 金額を入れるか、使わない行を無効化します。</div>
     </div>
   </section>
 
-  <!-- ══════════ ③ 名前の確認 ══════════ -->
+  <!-- ══════════ ④ ══════════ -->
   <section>
     <div class="sec-head">
-      <span class="sec-num">③</span>
-      <h2>同じ物かどうかの確認 — 1件</h2>
+      <span class="sec-num">④</span>
+      <h2>名前の統一 — 1件</h2>
     </div>
 
     <div class="item" data-kind="missing">
       <div class="item-head">
         <span class="item-no">6</span>
-        <span class="item-name">Sushi Box 24pc — Condiuments Tray / Sauce Tray</span>
-        <span class="chip missing">同一物か</span>
+        <span class="item-name">Sushi Box 24pc — Taft だけ名前が違う</span>
+        <span class="chip missing">統一してよいか</span>
       </div>
       <p class="body-note">
-        24pcs の箱について、発注カタログに <code>Condiuments Tray</code>（Taft のみ）と
-        <code>Sauce Tray</code> の2つの行があります。原価計算側は <code>Sauce Tray</code> だけです。
+        Cost Calculation では1箱4パーツで登録されています。
+        カタログも他店は同じ名前ですが、<b>Taft だけ2つの名前が違います。</b>金額はどれも ₱4.32 で同じです。
       </p>
-      <div class="ask">
-        <b>確認:</b> この2つは同じ物ですか。別物なら、それぞれ何のトレーか書いてください。
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Cost Calculation（正）</th><th>他店のカタログ</th><th>Taft のカタログ</th></tr></thead>
+          <tbody>
+            <tr><td class="m">Cover</td><td class="m">Outside Box (Cover)</td><td class="m">—</td></tr>
+            <tr><td class="m">Inner Box</td><td class="m">Inner Box</td><td class="m">—</td></tr>
+            <tr><td class="m">Sauce Tray</td><td class="m">Sauce Tray</td><td class="m bad">Condiuments Tray</td></tr>
+            <tr><td class="m">Sushi Tray (Divider)</td><td class="m">Sushi Tray (Divider)</td><td class="m bad">Divider</td></tr>
+          </tbody>
+        </table>
       </div>
-      <div class="where"><b>回答後:</b> 同じ物なら一方を無効化し、原価計算の材料に紐づけます。</div>
+      <div class="ask">
+        <b>確認:</b> Taft の <code>Condiuments Tray</code> と <code>Divider</code> は、
+        他店の <code>Sauce Tray</code> / <code>Sushi Tray (Divider)</code> と同じ物ですか。
+        同じなら名前を統一します。
+      </div>
+      <div class="where"><b>回答後:</b> カタログ側の名前を Cost Calculation に揃えます。</div>
     </div>
   </section>
 
-  <!-- ══════════ ④ レシピ ══════════ -->
+  <!-- ══════════ ⑤ ══════════ -->
   <section>
     <div class="sec-head">
-      <span class="sec-num">④</span>
-      <h2>レシピの中身 — 1件（既にご依頼中）</h2>
+      <span class="sec-num">⑤</span>
+      <h2>レシピ — 1件</h2>
     </div>
 
     <div class="item" data-kind="wait">
@@ -382,16 +424,15 @@
         <span class="item-name">Japanese Mayo (QP Mayo)</span>
         <span class="chip wait">グラム数</span>
       </div>
-      <p class="body-note">1オーダーあたりのグラム数を教えてください。</p>
+      <p class="body-note">
+        Cost Calculation には <code>QP MAYONNAISE 10g</code> で登録されています（原価 ₱5.63・売価 ₱22）。
+      </p>
       <div class="ask">
-        <b>確認:</b> 1オーダーあたり何gか教えてください。
-        <br><b>⚠️ 現在システムには 10g が入っています。</b>グラム数が確認できていないという
-        報告を受けているので、この数字は未確定のはずです。
-        画面上は入力済みに見えるため、<b>10g で正しいのかどうかも合わせて回答をください。</b>
+        <b>確認:</b> 1オーダー 10g で正しいですか。違うなら正しいグラム数を教えてください。
+        <br>グラム数が確認できていないという報告を受けているので、念のため確認させてください。
       </div>
       <div class="where">
-        <b>回答後:</b> <code>Cost Calculation → Products → Japanese Mayo (QP Mayo)</code> の
-        <code>QP MAYONNAISE</code> の行を修正します。
+        <b>回答後:</b> <code>Cost Calculation → Products → Japanese Mayo (QP Mayo)</code> を直します。
       </div>
     </div>
   </section>
@@ -404,11 +445,11 @@
     </div>
     <p>番号だけで構いません。分かるものから1件ずつでも結構です。</p>
     <div class="note" style="font-family:'Roboto Mono',monospace; font-size:0.9rem; line-height:1.9">
-      1. Hot Dog Box … 100個入りはありません。25個入りだけです<br>
-      2. Ice Pack 40pcs … 廃止しました<br>
-      3. Sticker … ZEN Safety Sealed のみ使用。1set = 20sheets = ₱18<br>
-      5. Sushi Box 24pc Inner Box … Parañaque も ₱4.32 です<br>
-      7. QP Mayo … 1オーダー 15g<br>
+      1. Hot Dog Box … 100個入りはありません<br>
+      2. Safety Sticker … 1set = ₱180。PC の行は消してください<br>
+      4. Ice Pack 40pcs … 廃止しました<br>
+      6. Taft … 同じ物です<br>
+      7. QP Mayo … 15g です<br>
       …
     </div>
     <p style="margin-top:1rem">
@@ -422,23 +463,17 @@
       <span class="sec-num">別件</span>
       <h2>担当外かもしれない1件</h2>
     </div>
-    <p class="sec-note">
-      念のため載せます。誰に聞けばいいかだけ教えてください。こちらから聞きます。
-    </p>
 
     <div class="item" data-kind="missing">
       <h3 style="margin-bottom:.3rem">Central Kitchen 供給の食材9品に金額が入っていません</h3>
       <p class="body-note">
         <code>Sugar</code>（<b>87品のレシピで使用</b>）・<code>Quezo Cheese</code>（13品）・
         <code>Pork Lard</code>（12品）・<code>Chicken Thigh</code>（10品）・
-        <code>Chili Powder</code>（10品）ほか。いずれも仕入先が <code>CK</code> で、
+        <code>Chili Powder</code>（10品）ほか。仕入先が <code>CK</code> で、
         発注カタログ上の金額が空です。
       </p>
-      <div class="ask">
-        <b>確認:</b> CK からの供給価格は誰が管理していますか。
-      </div>
+      <div class="ask"><b>確認:</b> CK からの供給価格は誰が管理していますか。</div>
     </div>
-
   </section>
 
   <footer>
