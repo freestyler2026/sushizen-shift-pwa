@@ -1,6 +1,38 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-09（既存の invoice_ingredient_mappings を見ずに作っていた。18件を取り込み）
+Last updated: 2026-09-09（Creamy/Spicy は登録済みだった — ベースのレシピを開かずに3回誤報した）
+
+## ⚠️ 2026-09-09（続き6） — 「Creamy / Spicy の中身が入っていない」は私の誤りだった
+
+3回にわたって「`Creamy Avocado Hosomaki` と `Spicy Pork Miso Onigiri` は
+通常版と構成が完全に同一で、Creamy・Spicy にあたる材料が1行も入っていない」と報告した。
+**誤り。中身はベースのレシピに入っていた。**
+
+| | ベース | 該当する材料 |
+|---|---|---|
+| Creamy | `#3233 Avocado Hosomaki [old]` | **QUEZO CHEESE ×15** |
+| Spicy | `#3374 Pork Miso for Onigiri` | **CHILIBEAN SAUCE (TOBAN JIANG) ×15** |
+
+つまり `Creamy Avocado Hosomaki` と `Avocado Hosomaki` は**同じ物の別名**で、
+どちらも正しく計上されている。`Spicy Pork Miso Onigiri` と `Pork Miso Onigiri` も同じ。
+POSが両方の名前で売っているので、両方に原価が要るのも正しい。
+
+### なぜ間違えたか
+
+**「構成が同一である」ことだけを見て、「だから中身が抜けている」と結論した。**
+中間品を1階層下まで開けば、チーズも豆板醤もそこにあった。
+`_compute_cost_master_item_totals` は再帰的に計算するので、
+**上位1階層の行だけ見ても中身は分からない。**
+
+同じ誤りを3回繰り返した。1回目に指摘を受けた時点で
+「では通常版との違いは何か」を確かめるべきだった。
+
+### 教訓
+
+**構成が同じ ≠ 中身が抜けている。** 中間品を使うレシピは、
+その中間品を開くまで何が入っているか分からない。
+「材料が足りない」と報告する前に、**必ず末端の材料まで展開して確認する**。
+
 
 ## ⚠️ 2026-09-09（続き5） — 既にあるマッピングを見ずに作った
 
