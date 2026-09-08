@@ -27,15 +27,18 @@ const ROWS = [
   { id: "a", city: "manila", item_type: "supplier", item_name: "OYSTER SAUCE",
     unit: "BTL", par_level: 4, current_stock: 1, category: "Dry Goods",
     supplier: "CHGL Store", notes: null, updated_at: "2026-09-07",
-    catalog_unit_price: 185, price_source: "supplier" },
+    catalog_unit_price: 185, catalog_unit: "BTL", qty_convertible: true, qty_factor: 1,
+    price_source: "supplier" },
   { id: "b", city: "manila", item_type: "supplier", item_name: "LIGHT SOY SAUCE",
     unit: "BTL", par_level: 3, current_stock: 1, category: "Dry Goods",
     supplier: "CHGL Store", notes: null, updated_at: "2026-09-07",
-    catalog_unit_price: 92, price_source: "supplier" },
+    catalog_unit_price: 92, catalog_unit: "BTL", qty_convertible: true, qty_factor: 1,
+    price_source: "supplier" },
   { id: "c", city: "manila", item_type: "supplier", item_name: "CHICKEN SKIN",
     unit: "KG", par_level: 6, current_stock: 0, category: "Meat",
     supplier: "JWE Meat Dealer", notes: null, updated_at: "2026-09-07",
-    catalog_unit_price: null, price_source: "not_in_catalog" },
+    catalog_unit_price: null, catalog_unit: null, qty_convertible: false, qty_factor: null,
+    price_source: "not_in_catalog" },
 ];
 
 function jsonOk(body: unknown) {
@@ -160,6 +163,45 @@ describe("CK par levels — direct purchase orders", () => {
     // screen before the order is created rather than after.
     await openModal();
     expect(screen.getByText(/1 of 3 lines have\s+no price on file/)).toBeTruthy();
+  });
+
+  it("orders in the catalogue's unit, and asks for the quantity when it is a different measure", async () => {
+    // The catalogue is what the supplier sells in. Converting 3 KG into "3 PKT"
+    // would send a wrong order that nobody would spot on the invoice.
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/api/admin/ck/par-levels/vendors")) return jsonOk({ vendors: [] });
+      if (u.includes("/api/admin/ck/par-levels")) {
+        return jsonOk({ rows: u.includes("item_type=supplier") ? [{
+          ...ROWS[0], item_name: "CURRY POWDER", unit: "KG",
+          par_level: 5, current_stock: 2,
+          catalog_unit_price: 199, catalog_unit: "PKT",
+          qty_convertible: false, qty_factor: null, price_source: "catalog",
+        }] : [], stock_date: "2026-09-07" });
+      }
+      if (u.includes("/api/admin/procurement/direct-purchase")) {
+        const fd = init!.body as FormData;
+        posted.push({ vendor: String(fd.get("vendor_name")),
+                      items: JSON.parse(String(fd.get("items_json"))) });
+        return jsonOk({ ok: true });
+      }
+      return jsonOk({});
+    });
+    const Page = (await import("@/app/admin/ck/par-levels/page")).default;
+    render(<Page />);
+    fireEvent.click(await screen.findByText(/Supplier Orders/));
+    fireEvent.click(await screen.findByText(/Create Direct Purchase Orders \(1 supplier\)/));
+    await screen.findByText("Your PIN (required to create orders)");
+
+    // Blank, with the requirement stated in the unit the par list counts in.
+    expect(qtyField("CURRY POWDER").value).toBe("");
+    expect(screen.getByText(/need 3 KG — enter PKT/)).toBeTruthy();
+
+    fireEvent.change(qtyField("CURRY POWDER"), { target: { value: "2" } });
+    fireEvent.change(screen.getByPlaceholderText("Enter PIN"), { target: { value: "1234" } });
+    fireEvent.click(createButton());
+    await waitFor(() => expect(posted.length).toBe(1));
+    expect(posted[0].items[0]).toMatchObject({ qty: 2, unit: "PKT", unit_price: 199 });
   });
 
   it("cannot be submitted when nothing is left to order", async () => {

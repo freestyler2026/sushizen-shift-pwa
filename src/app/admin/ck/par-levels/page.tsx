@@ -27,6 +27,12 @@ interface ParLevelRow {
   updated_at: string;
   // 発注カタログの単価。Direct Purchase の手入力が引いているのと同じ表。
   catalog_unit_price?: number | null;
+  // カタログ側の単位。仕入れる単位を決めているのはカタログなので、発注行は
+  // これで作る（実測: カタログの単位は棚卸しと12/19一致、Par Levelとは11/19。
+  // 食い違うときは Par Level 側が浮いている方が多い）。
+  catalog_unit?: string | null;
+  qty_convertible?: boolean;
+  qty_factor?: number | null;
   price_source?: string | null;
   // 発注カタログでの品名。item_name とは別に持つ — item_name は棚卸しの鍵で、
   // 変えると現在庫が引けなくなり、その品が発注対象から消える。
@@ -47,6 +53,13 @@ interface OrderLine {
   removed: boolean;
   unitPrice: number;      // 0 = カタログに単価が無い
   priceSource: string;    // 引けなかった理由。空欄の説明が要るため
+  // 発注はカタログの単位で出す。Par Level の単位から機械的に換算できない
+  // ときは数量を空にして人に入れてもらう — 8kg を 8PKT として送れば、
+  // その発注だけが静かに間違う。
+  orderUnit: string;
+  needQty: number;        // Par Level の単位での必要量（換算できないときの表示用）
+  needUnit: string;
+  askQty: boolean;
 }
 
 interface ImportResult {
@@ -405,7 +418,8 @@ export default function CkParLevelsPage() {
           item_name: line.item_name,
           category: line.category || "General",
           qty: qtyOf(line),
-          unit: line.unit || "pc",
+          // カタログが決めている単位で発注する
+          unit: line.orderUnit || line.unit || "pc",
           // カタログにある単価をそのまま渡す。0のまま送っていたので、
           // 自動生成した明細だけが金額なしで届いていた。
           unit_price: line.unitPrice,
@@ -471,16 +485,30 @@ export default function CkParLevelsPage() {
     Object.entries(orderGroups).flatMap(([sup, group]) =>
       group.items.map((item) => {
         const suggested = Math.max(0, (item.par_level ?? 0) - (item.current_stock ?? 0));
+        const price = Number(item.catalog_unit_price ?? 0) || 0;
+        const orderUnit = (price > 0 && item.catalog_unit) ? item.catalog_unit : (item.unit || "");
+        const factor = item.qty_convertible ? Number(item.qty_factor ?? 1) : null;
+        // Ask for the quantity only when the order unit is genuinely a different
+        // measure. Same unit — including when the catalogue does not name one —
+        // means par − stock still counts, and blanking it would make somebody
+        // retype a number the screen already knew.
+        const sameUnit =
+          (orderUnit || "").trim().toLowerCase() === (item.unit || "").trim().toLowerCase();
+        const askQty = price > 0 && !sameUnit && factor === null;
         return {
           id: item.id,
           supplier: sup,
           item_name: item.item_name,
           category: item.category || "General",
           unit: item.unit || "",
-          qty: String(suggested),
+          orderUnit,
+          needQty: suggested,
+          needUnit: item.unit || "",
+          askQty,
+          qty: askQty ? "" : String(factor !== null ? +(suggested * factor).toFixed(3) : suggested),
           suggested,
           removed: false,
-          unitPrice: Number(item.catalog_unit_price ?? 0) || 0,
+          unitPrice: price,
           priceSource: String(item.price_source || ""),
         };
       })
@@ -500,6 +528,7 @@ export default function CkParLevelsPage() {
     .filter((sup) => draftGroups[sup].some((l) => !l.removed && qtyOf(l) > 0));
   const draftLineCount = draft.filter((l) => !l.removed && qtyOf(l) > 0).length;
   const noPriceCount = draft.filter((l) => !l.removed && qtyOf(l) > 0 && !(l.unitPrice > 0)).length;
+  const askQtyCount = draft.filter((l) => !l.removed && l.askQty && qtyOf(l) <= 0).length;
 
   const setLineQty = (id: string, qty: string) =>
     setDraft((d) => d.map((l) => (l.id === id ? { ...l, qty } : l)));
@@ -1423,13 +1452,19 @@ export default function CkParLevelsPage() {
                                 aria-label={`Quantity for ${line.item_name}`}
                                 className="w-16 rounded-lg border border-white/10 bg-white/5 px-1.5 py-1 text-center text-sm font-semibold text-orange-300 outline-none focus:border-teal-500/50 disabled:opacity-50"
                               />
-                              {qtyOf(line) !== line.suggested && !line.removed && (
-                                <div className="mt-0.5 text-[10px] text-zinc-500">
-                                  par − stock: {fmtNum(line.suggested)}
+                              {line.askQty && !line.removed ? (
+                                <div className="mt-0.5 text-[10px] text-orange-300/90">
+                                  need {fmtNum(line.needQty)} {line.needUnit} — enter {line.orderUnit}
                                 </div>
-                              )}
+                              ) : qtyOf(line) !== line.suggested && !line.removed ? (
+                                <div className="mt-0.5 text-[10px] text-zinc-500">
+                                  par − stock: {fmtNum(line.suggested)} {line.needUnit}
+                                </div>
+                              ) : null}
                             </td>
-                            <td className="px-2 py-2 text-center align-middle text-zinc-400">{line.unit || "—"}</td>
+                            <td className="px-2 py-2 text-center align-middle text-zinc-400">
+                              {line.orderUnit || "—"}
+                            </td>
                             <td className="px-2 py-2 text-right align-middle tabular-nums">
                               {line.unitPrice > 0 ? (
                                 <span className="text-zinc-200">{fmtNum(line.unitPrice, 2)}</span>
@@ -1454,6 +1489,14 @@ export default function CkParLevelsPage() {
                     </tbody>
                   </table>
                 </div>
+                {askQtyCount > 0 && (
+                  <p className="mt-3 text-xs text-orange-300/90">
+                    {askQtyCount} line{askQtyCount !== 1 ? "s" : ""} are priced by a different
+                    unit than the par list counts in — the catalogue sells them by the pack.
+                    The quantity is left blank rather than guessed at; each row says how much
+                    is needed. Lines left blank are not ordered.
+                  </p>
+                )}
                 {noPriceCount > 0 && (
                   <p className="mt-3 text-xs text-orange-300/90">
                     {noPriceCount} of {draftLineCount} line{draftLineCount !== 1 ? "s" : ""} have
