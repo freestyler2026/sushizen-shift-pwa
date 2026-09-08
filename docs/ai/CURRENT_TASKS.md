@@ -1,6 +1,77 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-08（Cost Calculation の誤入力2件を修正・全161品を再走査）
+Last updated: 2026-09-08（音声面接の冒頭に履歴書の添付を追加）
+
+## ✅ 2026-09-08（続き4） — 音声面接の冒頭に履歴書の添付（スキップ可）
+
+Facebook の求人投稿が「レジュメは villafuerte7cz@gmail.com へ送ってください」と
+2段構えになっていた件。OSで受け取れるようにした。
+
+### 置き場所: 同意の**後**、マイクチェックの**前**
+
+同意の前に置かない。履歴書も録音と同じ個人データで、保持期間も削除も同意文が
+説明している範囲だから — 前に置くと、説明していないものを預かることになる。
+`save_answer` が同意なしで受け付けないのと揃えた。
+
+### 任意にすること（必須にしない）
+
+在籍データ135名にレジュメの記録はゼロ。必須にすると面接の入口で全員が止まる。
+- 「I do not have one — continue」を常時押せる状態で置く（ファイル選択中でも）
+- スキップは**1行記録する**（`resume_skipped_at`）。「出さないと決めた人」と
+  「まだこの画面に着いていない人」をHR側で同じ空欄にしないため
+
+### 実装
+
+| 層 | 追加 |
+|---|---|
+| DB | `hr_voice_screenings` に `resume_file_id/filename/mime/bytes/uploaded_at/skipped_at`（`ensure_resume_columns`・フラグ付き） |
+| DB | `save_resume` / `skip_resume` / `resume_state` / `resume_ref` |
+| API | `POST /api/voice/{token}/resume`（multipart・同意必須・5MB・PDF/画像/Word） |
+| API | `POST /api/voice/{token}/resume/skip` |
+| API | `GET /api/voice/{token}` に `resume` を追加（戻ってきた人に同じ画面を出さない） |
+| API | `GET /api/admin/hr/voice-screenings/{id}/resume`（HRが開く1件だけ・教訓29） |
+| 画面 | `VoiceScreening.tsx` に `stage="resume"`（EN/TL） |
+| 画面 | `VoiceScreeningQueue.tsx` に 📄リンク／「No CV — they said they do not have one」 |
+| 保持 | `purge_expired` が履歴書も同じ期限でゴミ箱へ（音声だけ消して書類を残さない） |
+
+- 送信は `prepareIfImage()` を通す（スマホ写真は Vercel の 4.3MB を超える／教訓24）
+- `Content-Type` は付けない（multipart boundary が壊れて422／教訓23）
+- エラーは `readError()`（413 は text/plain で返るため）
+
+### 検証（本番・実ブラウザ）
+
+隔離した applicant（`00000000-...-cafe0001`）で2トークン作成し、実際にボタンを押した。
+
+| 経路 | 結果 |
+|---|---|
+| 同意前のアップロード | 403 |
+| 対応外の形式 | 415 |
+| 5MB超 | 413 |
+| PDF添付 → `POST /resume` | **200**・「✓ Attached」 |
+| Continue | マイクチェックへ |
+| 再読み込み | 質問画面へ直行（**再度聞かない**） |
+| スキップ → `POST /resume/skip` | **200**・マイクチェックへ |
+| HR側ダウンロード | 200 `application/pdf` 15 bytes・`inline; filename="Juan_Cruz_Resume.pdf"` |
+| `screening_detail` に file_id が漏れていないか | 漏れなし |
+
+テストデータは全削除・Driveファイルもゴミ箱へ（applicant 0行 / screening 0行）。
+
+⚠️ **最初のブラウザ確認では CV画面が出なかった** — Vercel のデプロイが未完了だった
+だけ。バンドルに文言が含まれるかを curl で確認してから再試行した。
+**「実装が悪い」と判断する前にデプロイの到達を確認すること。**
+
+### ついでに直した（教訓85の実在例）
+
+`ensure_decision_columns` / `ensure_invite_columns` は**フラグが無く、
+`screening_detail` から呼ばれる＝HRが候補者を開くたびに `ALTER TABLE` を撃って
+いた**。検証中に one-off dyno で2回 statement timeout して発覚。フラグを追加
+（DDLのコミット後に立てる）。
+
+### 残
+
+- Facebook投稿の「2.) resumeをgmailへ」は不要になったので、文面の更新は現場側の作業。
+- Word（.doc/.docx）はブラウザが直接プレビューできないので、HR側はダウンロードになる。
+
 
 ## ✅ 2026-09-08（続き3） — Cost Calculation の誤入力2件を修正
 
