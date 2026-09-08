@@ -19,6 +19,16 @@
  * One decision per row, one tap. No form, no reason field — the ingredient and
  * the catalogue item are the whole record, and the person and the time come
  * from the session.
+ *
+ * ⚠️ **This is a tool, not a queue to be emptied.** The first version of this
+ * screen led with "Still to link: 118" and the owner read it, correctly, as 118
+ * items of homework — for a problem that was nine packaging items. Of those 118,
+ * eight are in no recipe at all, and the rest only matter on the day a price
+ * arrives for them. Linking every ingredient buys nothing on its own; linking
+ * the one whose price just changed saves typing it into two places forever.
+ * So the counts are reported as facts, not as a backlog, and the two things
+ * that pay off on their own — the duplicate check and the price comparison —
+ * lead the page.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -51,6 +61,8 @@ type Review = {
   with_suggestion: number;
   no_candidate: number;
   suggest_floor: number;
+  linked?: number;
+  unused?: number;
   items: Row[];
 };
 type DupGroup = {
@@ -129,11 +141,14 @@ export default function CatalogMapPage() {
       </Link>
       <h1 className={T_PAGE_TITLE}>Ingredient ↔ ordering catalogue</h1>
       <p className={`${T_BODY} mt-2 max-w-2xl`}>
-        The two lists spell the same items differently. Rather than renaming either — recipes
-        are read by the kitchen, the catalogue is searched by whoever orders — they are linked
-        here. Once an ingredient is linked, a price change in the catalogue can be checked
-        against the recipe cost, and two ingredients pointing at the same catalogue item are
-        the same thing registered twice.
+        Cost Calculation and the ordering catalogue spell the same items differently. Rather
+        than renaming either — recipes are read by the kitchen, the catalogue is searched by
+        whoever orders — an ingredient can be pointed at its catalogue item here.
+      </p>
+      <p className={`${T_BODY} mt-2 max-w-2xl`}>
+        <strong className="text-zinc-300">There is nothing here that has to be finished.</strong>{" "}
+        Link an ingredient when there is a reason to: a new price arrived for it, or you suspect
+        the same thing is registered twice. Linking every ingredient buys nothing on its own.
       </p>
 
       {err && (
@@ -150,9 +165,9 @@ export default function CatalogMapPage() {
         <>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {[
-              ["Still to link", open.length, "ingredient(s) with no catalogue item"],
-              ["Have a suggestion", withSugg.length, "one tap each"],
-              ["Need a search", without.length, "nothing close enough to suggest"],
+              ["Linked", (review?.linked ?? 0), "price changes can be checked against these"],
+              ["Not linked", open.length, "no action needed until a price arrives"],
+              ["Of those, unused", (review?.unused ?? 0), "in no recipe — linking does nothing"],
             ].map(([label, n, hint]) => (
               <div key={String(label)} className={`${GLASS_CARD} p-4`}>
                 <div className={T_CAPTION}>{label}</div>
@@ -227,16 +242,16 @@ export default function CatalogMapPage() {
             </div>
           )}
 
-          <Section title={`Suggested — check before you tap (${withSugg.length})`}
-                   hint={`Only matches at ${review ? Math.round(review.suggest_floor * 100) : 80}% or better are offered. Weaker guesses are not shown, because a wrong suggestion that gets tapped is worse than no suggestion.`}>
+          <Section title={`Not linked, with a likely match (${withSugg.length})`}
+                   hint={`Here if you want them, not because they are owed. Only matches at ${review ? Math.round(review.suggest_floor * 100) : 80}% or better are offered — a wrong suggestion that gets tapped is worse than no suggestion.`}>
             {withSugg.map((r) => (
               <RowCard key={r.ingredient_id} row={r} busy={busy === r.ingredient_id}
                        onLink={(n) => void link(r.ingredient_id, n)} />
             ))}
           </Section>
 
-          <Section title={`No close match — search for it (${without.length})`}
-                   hint="Nothing in the catalogue was close enough to suggest. Either the wording is very different, or the item is genuinely not in the ordering list.">
+          <Section title={`Not linked, no close match (${without.length})`}
+                   hint="Nothing in the catalogue was close enough to suggest — the wording is very different, or the item is not something the stores order. Search when you need one of these; there is no need to work through the list.">
             {without.map((r) => (
               <RowCard
                 key={r.ingredient_id}
