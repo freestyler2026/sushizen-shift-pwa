@@ -256,6 +256,11 @@ const SECONDARY_BASE: NavItem[] = [
 ];
 
 // Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
+// The only two accounts that may open BO Activity. Deliberately not a Role
+// Management permission: that is a checkbox somebody can tick, and this page
+// reports on people. The server checks the same list.
+const BACK_OFFICE_ACTIVITY_VIEWERS = ["Yukihiro Nishimura", "Ayako Nishimura"];
+
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, adminOnly: true, match: "exact" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" , cat: "inv" },
@@ -286,6 +291,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" , cat: "shift" },
   { href: "/admin/shift-audit", label: "Shift Audit Log", icon: History, adminOnly: true, match: "prefix" , cat: "shift" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" , cat: "ops" },
+  { href: "/admin/back-office-activity", label: "BO Activity", icon: Activity, adminOnly: true, match: "exact" , cat: "ops" },
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/prep-time", label: "Prep Time Review", icon: Timer, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/help", label: "Ask about the system", icon: HelpCircle, adminOnly: true, match: "prefix" , cat: "ops" },
@@ -501,6 +507,13 @@ export default function NavBar() {
     if (!auth) return false;
     const role = String(auth.role || "").toUpperCase();
     if (href === "/admin/finance") return canAccessFinancePage(auth);
+    // Named accounts, checked BEFORE the HQ/ADMIN blanket two lines down --
+    // that line would otherwise hand this page to every HQ and ADMIN in the
+    // company, which is the opposite of what it is for. The menu is only the
+    // convenience; the server enforces the same two names.
+    if (href === "/admin/back-office-activity") {
+      return BACK_OFFICE_ACTIVITY_VIEWERS.includes(String(auth.staffName || "").trim());
+    }
     if (role === "HQ" || role === "ADMIN") return true;
     if (href === "/admin") return canAccessAdminDashboard(auth);
     // Falls through to channelAccessForRoute below, which is the designed path:
