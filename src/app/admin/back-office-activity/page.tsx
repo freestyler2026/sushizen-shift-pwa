@@ -64,6 +64,7 @@ type Report = {
 type ScreenRow = { screen: string; events: number; writes: number; first_at: string; last_at: string };
 
 const TZ: Record<string, string> = { manila: "Asia/Manila", dubai: "Asia/Dubai" };
+const CITY_LABEL: Record<string, string> = { manila: "マニラ", dubai: "ドバイ" };
 
 function clock(iso: string | null, city: string): string {
   if (!iso) return "—";
@@ -116,6 +117,21 @@ const FLAG_TONE: Record<string, string> = {
   NO_SHIFT_REFERENCE: "border-zinc-500/30 bg-zinc-500/10 text-zinc-400",
 };
 
+// Shown on the chips. The keys stay English because they are what the API and
+// the tests speak; only the reader's side is Japanese.
+const FLAG_LABEL: Record<string, string> = {
+  NEVER_SIGNED_IN: "未ログイン",
+  NO_OS_ACTIVITY: "操作なし",
+  MOSTLY_IDLE: "ほぼ無操作",
+  LONG_IDLE: "長時間の空白",
+  ONE_BURST: "ひと固まりだけ",
+  NO_DECISIONS: "変更ゼロ",
+  NO_SHIFT_REFERENCE: "シフト未登録",
+};
+
+// Role keys are left in English on purpose: they are the same identifiers that
+// appear in Role Management, and translating them here would make the two
+// screens impossible to cross-check.
 const ROLE_LABEL: Record<string, string> = {
   HR_MANAGER: "HR Manager", MANILA_MANAGEMENT: "Manila Management",
   MANILA_MANAGER: "Manila Manager", HR_STAFF: "HR Staff", ADMIN: "Admin",
@@ -144,14 +160,14 @@ export default function BackOfficeActivityPage() {
       const res = await fetch(`/api/admin/back-office/activity?date=${date}`,
         { headers: getAuthHeaders(), cache: "no-store" });
       if (!res.ok) {
-        setErr(res.status === 403 ? "This page is not available to your account."
-          : `Could not load (${res.status}).`);
+        setErr(res.status === 403 ? "このアカウントではこのページを開けません。"
+          : `読み込めませんでした（${res.status}）。`);
         setData(null);
         return;
       }
       setData(await res.json());
     } catch {
-      setErr("Could not load. Check your connection and try again.");
+      setErr("読み込めませんでした。通信を確認してもう一度お試しください。");
     } finally {
       setLoading(false);
     }
@@ -191,8 +207,8 @@ export default function BackOfficeActivityPage() {
     return (
       <div className="mx-auto max-w-md pt-16">
         <div className={`${GLASS_CARD} p-6 text-center`}>
-          <h1 className={T_SECTION}>Not available</h1>
-          <p className={`${T_BODY} mt-2`}>This page is limited to specific accounts.</p>
+          <h1 className={T_SECTION}>このページは表示できません</h1>
+          <p className={`${T_BODY} mt-2`}>特定のアカウントのみが開けます。</p>
         </div>
       </div>
     );
@@ -204,29 +220,29 @@ export default function BackOfficeActivityPage() {
     <div className="space-y-6 pb-16">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className={T_PAGE_TITLE}>Back office — the shape of the day</h1>
+          <h1 className={T_PAGE_TITLE}>バックオフィス — 1日のかたち</h1>
           <p className={`${T_BODY} mt-1 max-w-2xl`}>
-            Each row is how one person used this system on that date: when they were
-            here, how much of that window they were engaged, and what they opened.
+            1行が1人の、その日のOSの使い方です。いつ来て、その間どれだけ手が動いていて、
+            何の画面を開いたか。
           </p>
           {data?.selection && (
             <p className={`${T_CAPTION} mt-2 max-w-2xl`}>
-              Who is on this report: everyone in <strong>{data.selection.city}</strong> whose
-              role is {data.selection.roles.map((r) => ROLE_LABEL[r] || r).join(", ")}
+              対象：<strong>{CITY_LABEL[data.selection.city] || data.selection.city}</strong> の{" "}
+              {data.selection.roles.map((r) => ROLE_LABEL[r] || r).join(" / ")} 保有者
               {data.selection.individuals.length > 0 && (
-                <> — plus <strong>{data.selection.individuals.join(", ")}</strong> by name.</>
+                <>と、<strong>{data.selection.individuals.join("、")}</strong>（人名で追加）。</>
               )}
             </p>
           )}
         </div>
         <div className="flex items-end gap-2">
           <div>
-            <label className={T_LABEL} htmlFor="d">Date</label>
+            <label className={T_LABEL} htmlFor="d">日付</label>
             <input id="d" type="date" value={date} className={`${INPUT_CLASS} mt-1`}
               onChange={(e) => setDate(e.target.value)} />
           </div>
           <button type="button" className={SMALL_BUTTON} onClick={() => void load()} disabled={loading}>
-            {loading ? "Loading…" : "Refresh"}
+            {loading ? "読み込み中…" : "再読み込み"}
           </button>
         </div>
       </div>
@@ -235,35 +251,31 @@ export default function BackOfficeActivityPage() {
           row as proof of idleness before reaching a footnote has already made
           the mistake this panel exists to prevent. */}
       <div className={`${GLASS_CARD} border-amber-500/20 bg-amber-500/5 p-4`}>
-        <p className="text-sm font-semibold text-amber-200">Read this before acting on a row</p>
+        <p className="text-sm font-semibold text-amber-200">行を根拠にする前に読んでください</p>
         <ul className={`${T_BODY} mt-2 list-disc space-y-1 pl-5`}>
-          <li>This measures <strong>use of the OS</strong>. Work done on the phone, in a
-            meeting, in a spreadsheet or on paper leaves nothing here, and a quiet row is
-            not evidence of a quiet day.</li>
+          <li>ここで測っているのは <strong>OSの使用</strong> だけです。電話・会議・Excel・紙の仕事は
+            1件も残りません。<strong>静かな行は、静かな1日の証拠ではありません。</strong></li>
           {cov && cov.without_shift_reference > 0 && (
-            <li><strong>{cov.without_shift_reference} of {cov.people}</strong> have no published
-              shift at all, so for them a quiet day and a day off cannot be told apart. Those
-              rows say so instead of being called absent.</li>
+            <li><strong>{cov.people}名中{cov.without_shift_reference}名</strong>は公開シフトが
+              1件もないため、「静かな日」と「休みの日」を区別できません。その行は
+              欠勤と呼ばずに、その旨を表示します。</li>
           )}
           {cov?.log_from && (
-            <li>Recording began <strong>{new Date(cov.log_from).toLocaleString()}</strong>.
-              Anything before that was never watched. Rows marked <em>partial</em> started
-              their day outside the recorded window and carry no absence flag.</li>
+            <li>記録の開始は <strong>{new Date(cov.log_from).toLocaleString("ja-JP")}</strong> です。
+              それ以前は<strong>そもそも見ていません</strong>。<em>記録開始前から勤務</em> の行は
+              観測範囲の外で1日を始めた人で、不在系のフラグは1つも出しません。</li>
           )}
-          <li><strong>Nothing is flagged until the day is over for that person</strong> —
-            a past date, or today once their shift has ended. Manila midnight is early
-            evening in Dubai, so without this the whole roster would read as absent every
-            morning. The numbers are live all day; only the verdicts wait.</li>
-          <li>Writing nothing is not the same as doing nothing. A reviewer who checks
-            forty cases and finds them all correct writes nothing at all.</li>
-          <li><strong>Inventory &amp; Purchasing people work at store branches.</strong> Most
-            of their day is on the floor, not in here, so a short engaged time is what a
-            normal day looks like for them — read them against each other, not against
-            the office rows.</li>
-          <li>Reads and changes are <strong>observed by the server</strong>. The screen
-            count is <strong>reported by the browser</strong>, so it is the one figure a
-            person could inflate by clicking around. Judge on engaged time and on what
-            was changed.</li>
+          <li><strong>その人の1日が終わるまで、フラグは1つも出しません</strong> —
+            過去の日付か、本日ならシフト終了後です。マニラの0時はドバイの夕方なので、
+            これが無いと毎朝ほぼ全員が「欠勤」に見えます。<strong>数字は常時ライブ、判定だけが待ちます。</strong></li>
+          <li>何も書いていないことと、何もしていないことは違います。40件確認して全部問題なければ、
+            記録は1件も増えません。</li>
+          <li><strong>Inventory &amp; Purchasing は店舗勤務です。</strong>1日の大半は売場で、
+            ここではありません。実働が短いのが彼らの通常です。<strong>事務所の行と比べず、
+            彼ら同士で比べてください。</strong></li>
+          <li>閲覧と変更は<strong>サーバーが観測</strong>しています。画面数だけは
+            <strong>ブラウザからの申告</strong>なので、<strong>本人がクリックして水増しできる唯一の数字</strong>です。
+            判断は実働時間と変更内容で行ってください。</li>
         </ul>
       </div>
 
@@ -272,10 +284,10 @@ export default function BackOfficeActivityPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className={KPI_CARD}><p className={KPI_LABEL}>Back office</p><p className={KPI_VALUE}>{totals.people}</p></div>
-        <div className={KPI_CARD}><p className={KPI_LABEL}>Rows with a flag</p><p className={KPI_VALUE}>{totals.flagged}</p></div>
-        <div className={KPI_CARD}><p className={KPI_LABEL}>Signed in, nothing done</p><p className={KPI_VALUE}>{totals.silent}</p></div>
-        <div className={KPI_CARD}><p className={KPI_LABEL}>Day still in progress</p><p className={KPI_VALUE}>{cov?.day_in_progress ?? 0}</p></div>
+        <div className={KPI_CARD}><p className={KPI_LABEL}>対象人数</p><p className={KPI_VALUE}>{totals.people}</p></div>
+        <div className={KPI_CARD}><p className={KPI_LABEL}>フラグのある行</p><p className={KPI_VALUE}>{totals.flagged}</p></div>
+        <div className={KPI_CARD}><p className={KPI_LABEL}>ログイン済み・操作なし</p><p className={KPI_VALUE}>{totals.silent}</p></div>
+        <div className={KPI_CARD}><p className={KPI_LABEL}>まだ勤務中</p><p className={KPI_VALUE}>{cov?.day_in_progress ?? 0}</p></div>
       </div>
 
       <div className={`${GLASS_CARD} overflow-hidden`}>
@@ -283,8 +295,8 @@ export default function BackOfficeActivityPage() {
           <table className="w-full min-w-[1000px]">
             <thead>
               <tr>
-                {["Person", "In", "Last action", "Here for", "Engaged", "Longest gap",
-                  "Screens", "Reads", "Changes", "The day", ""].map((h) => (
+                {["対象者", "ログイン", "最後の操作", "在席", "実働", "最長の空白",
+                  "画面", "閲覧", "変更", "1日の推移", ""].map((h) => (
                   <th key={h} className={`${TABLE_HEADER} px-4 text-left`}>{h}</th>
                 ))}
               </tr>
@@ -296,13 +308,13 @@ export default function BackOfficeActivityPage() {
                     <td className="px-4 py-3">
                       <div className="text-sm font-medium text-white">{r.staff_name}</div>
                       <div className={T_CAPTION}>
-                        {r.city} · {r.branch_code} · {ROLE_LABEL[r.role] || r.role}
+                        {CITY_LABEL[r.city] || r.city} · {r.branch_code} · {ROLE_LABEL[r.role] || r.role}
                         {r.by_name && (
                           // Otherwise a named individual whose role happens to be
                           // HQ reads as "HQ is included", which is the opposite
                           // of the rule.
                           <span className="ml-1.5 rounded border border-white/15 bg-white/5 px-1 py-0.5 text-[9px] uppercase tracking-wide text-zinc-400">
-                            added by name
+                            人名で追加
                           </span>
                         )}
                       </div>
@@ -312,22 +324,22 @@ export default function BackOfficeActivityPage() {
                             <span key={f}
                               title={data?.rules?.[f]?.says || ""}
                               className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${FLAG_TONE[f] || "border-white/15 bg-white/5 text-zinc-300"}`}>
-                              {f.replace(/_/g, " ").toLowerCase()}
+                              {FLAG_LABEL[f] || f}
                             </span>
                           ))}
                         </div>
                       )}
                       {r.partial && (
                         <div className="mt-1 text-[10px] text-zinc-500">
-                          partial — their day began before recording did
+                          この日は途中からしか見ていません
                         </div>
                       )}
                       {r.rostered === false && (
-                        <div className="mt-1 text-[10px] text-zinc-500">not rostered this day</div>
+                        <div className="mt-1 text-[10px] text-zinc-500">この日はシフトなし</div>
                       )}
                       {!r.day_complete && (
                         <div className="mt-1 text-[10px] text-zinc-500">
-                          day in progress — nothing judged yet
+                          勤務中 — まだ何も判定していません
                         </div>
                       )}
                     </td>
@@ -342,7 +354,7 @@ export default function BackOfficeActivityPage() {
                     <td className="w-52 px-4 py-3"><Strip buckets={r.buckets} shift={r.shift} /></td>
                     <td className="px-4 py-3">
                       <button type="button" className={SMALL_BUTTON} onClick={() => void toggle(r)}>
-                        {open === r.staff_name ? "Hide" : "Screens"}
+                        {open === r.staff_name ? "閉じる" : "画面"}
                       </button>
                     </td>
                   </tr>
@@ -350,7 +362,7 @@ export default function BackOfficeActivityPage() {
                     <tr className="border-t border-white/5 bg-black/20">
                       <td colSpan={11} className="px-4 py-4">
                         {(screens[r.staff_name] || []).length === 0 ? (
-                          <p className={T_BODY}>No screens recorded for this person on this date.</p>
+                          <p className={T_BODY}>この日、この人の画面の記録はありません。</p>
                         ) : (
                           <div className="space-y-1">
                             {(screens[r.staff_name] || []).map((s) => (
@@ -359,8 +371,8 @@ export default function BackOfficeActivityPage() {
                                 <span className="tabular-nums text-zinc-400">
                                   {clock(s.first_at, r.city)}–{clock(s.last_at, r.city)}
                                 </span>
-                                <span className="tabular-nums text-zinc-500">{s.events} events</span>
-                                <span className="tabular-nums text-zinc-500">{s.writes} changes</span>
+                                <span className="tabular-nums text-zinc-500">{s.events} 操作</span>
+                                <span className="tabular-nums text-zinc-500">{s.writes} 変更</span>
                               </div>
                             ))}
                           </div>
@@ -379,15 +391,15 @@ export default function BackOfficeActivityPage() {
           produced it without asking anyone. */}
       {data?.rules && (
         <div className={`${GLASS_CARD} p-5`}>
-          <h2 className={T_SECTION}>What each flag means</h2>
+          <h2 className={T_SECTION}>フラグの意味</h2>
           <p className={`${T_CAPTION} mt-1`}>
-            A gap of {data.idle_gap_minutes} minutes or more counts as away, not as thinking.
+            {data.idle_gap_minutes}分以上あいた時間は「考えていた」ではなく「離席」として数えます。
           </p>
           <dl className="mt-3 space-y-2">
             {Object.entries(data.rules).map(([k, v]) => (
               <div key={k} className="flex flex-wrap gap-x-3 gap-y-1">
                 <dt className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${FLAG_TONE[k] || "border-white/15 bg-white/5 text-zinc-300"}`}>
-                  {k.replace(/_/g, " ").toLowerCase()}
+                  {FLAG_LABEL[k] || k}
                 </dt>
                 <dd className={`${T_BODY} flex-1 min-w-[16rem]`}>{v.says}</dd>
               </div>
