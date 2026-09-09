@@ -842,6 +842,11 @@ function PriceChangeTab({
 // 発注カタログの単価は手で登録する。請求書は実際に払った額。ずれたままだと
 // 発注画面に出る金額が静かに嘘になる（Salt: カタログ ₱400/SACK・請求 ₱30/KG）。
 //
+// ⚠️ 比較は **同じ仕入先** の請求だけ。品名だけで突合していた最初の版では、
+// マニラ30件中27件が別の会社の請求と比べられており、Sunny Lettuce は
+// Richcath's と Three-S の両方に Green Nature の ₱450 を提示していた。
+// 1クリックで書き換えられる画面なので、これは「見づらい」ではなく押すと壊れる。
+//
 // この画面の要点は「気づける」ことではなく **その場で直せる** こと。
 // Order Catalog は `showTo: ["full"]` なので、実際に発注している
 // INVENTORY_PURCHASING の人は開けない。直す口をここに置いてある。
@@ -876,6 +881,7 @@ type DriftResult = {
   threshold_pct: number;
   catalog_total: number;
   compared: number;
+  cross_supplier: number;
   uncomparable: number;
   within_threshold: number;
   total: number;
@@ -1009,7 +1015,7 @@ function CatalogDriftTab({
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-zinc-300">
-            Catalogue unit price vs the <span className="text-white">median of the last 3 invoices</span> for the same item name.
+            Catalogue unit price vs the <span className="text-white">median of the last 3 invoices from the same supplier</span>.
           </div>
           <div className="flex items-center gap-2">
             <div className="text-[11px] uppercase tracking-widest text-zinc-500">Flag over</div>
@@ -1036,21 +1042,37 @@ function CatalogDriftTab({
             <span>
               Comparing <span className="text-white">{result.compared}</span> of {result.catalog_total} catalogue items
             </span>
+            <span>{result.within_threshold} within {result.threshold_pct}%</span>
+            <span className="text-zinc-500">
+              {result.cross_supplier} are invoiced under this name, but never by the supplier the catalogue names —
+              another company&apos;s price is not evidence about this one, so they are not compared
+            </span>
             <span className="text-zinc-500">
               {result.uncomparable} have never appeared on an invoice under this name — this report cannot see them
             </span>
-            <span>{result.within_threshold} within {result.threshold_pct}%</span>
           </div>
         )}
       </section>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+        <div className="flex items-start gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            {error}
+            {!pin.trim() && (
+              <div className="mt-1 text-red-200/80">
+                Enter your PIN in the box at the top of the page, then press Refresh.
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Price differs — the actionable queue */}
+      {/* Price differs — the actionable queue.
+          **読み込めていないときは何も出さない。** 取得に失敗した状態で
+          「0 items — 直すものはありません」と出すのは、この画面が出しうる
+          最悪の嘘（教訓58）。実際に PIN 未入力で出た。 */}
+      {result && (
       <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold text-white">
@@ -1059,7 +1081,7 @@ function CatalogDriftTab({
           <div className="text-xs text-zinc-500">Same unit on both sides, so the two prices are comparable.</div>
         </div>
 
-        {!busy && rows.length === 0 && (
+        {!busy && result && rows.length === 0 && (
           <div className="mt-4 text-sm text-zinc-500">
             No catalogue price is more than {result?.threshold_pct ?? 30}% away from its recent invoices.
           </div>
@@ -1069,7 +1091,12 @@ function CatalogDriftTab({
           {rows.map((r) => {
             const f = fixed[r.catalog_id];
             const draft = drafts[r.catalog_id] ?? String(r.invoice_price);
-            const up = r.diff_pct > 0;
+            // 直した後も古い % を出すと、画面の中で数字どうしが食い違う（教訓73）。
+            // 直した価格で計算し直す。
+            const shownPct = f && f.after > 0
+              ? Math.round(((r.invoice_price - f.after) / f.after) * 1000) / 10
+              : r.diff_pct;
+            const up = shownPct > 0;
             return (
               <div key={r.catalog_id} className="rounded-xl border border-white/8 bg-black/20 p-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1087,12 +1114,15 @@ function CatalogDriftTab({
                         {fmt(f ? f.after : r.catalog_price)} <span className="text-zinc-500">/ {f ? f.afterUnit : r.catalog_unit || "—"}</span>
                       </div>
                     </div>
-                    <div className={up ? "text-rose-300" : "text-emerald-300"}>
+                    <div className={Math.abs(shownPct) < (result?.threshold_pct ?? 30)
+                      ? "text-zinc-400" : up ? "text-rose-300" : "text-emerald-300"}>
                       {up ? <TrendingUp className="inline h-4 w-4" /> : <TrendingDown className="inline h-4 w-4" />}
-                      <span className="ml-1 tabular-nums font-semibold">{up ? "+" : ""}{r.diff_pct}%</span>
+                      <span className="ml-1 tabular-nums font-semibold">{up ? "+" : ""}{shownPct}%</span>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-widest text-zinc-500">Invoices (median of {r.invoice_points})</div>
+                      <div className="text-[10px] uppercase tracking-widest text-zinc-500">
+                        {r.invoice_supplier || "Invoices"} — median of {r.invoice_points}
+                      </div>
                       <div className="tabular-nums text-white">
                         {fmt(r.invoice_price)} <span className="text-zinc-500">/ {r.invoice_unit || "—"}</span>
                       </div>
@@ -1150,6 +1180,7 @@ function CatalogDriftTab({
           })}
         </div>
       </section>
+      )}
 
       {/* Unit differs — a different job, deliberately not mixed in */}
       {unitRows.length > 0 && (

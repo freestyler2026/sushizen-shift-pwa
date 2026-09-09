@@ -24,6 +24,7 @@ import {
   T_LABEL,
   T_SECTION,
 } from "@/lib/ui-tokens";
+import { PortalOverlay } from "@/components/ui/PortalOverlay";
 
 function fieldDate(v: string | null | undefined): string {
   const s = String(v || "").trim();
@@ -140,8 +141,7 @@ export function LowRatingFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal>
-      <button type="button" className="absolute inset-0 cursor-default" aria-label="Close" onClick={onClose} />
+    <PortalOverlay onClose={onClose}>
       <div
         className={GLASS_CARD + " relative z-[81] max-h-[90vh] w-full max-w-lg overflow-y-auto p-5"}
         onClick={(ev) => ev.stopPropagation()}
@@ -339,6 +339,6 @@ export function LowRatingFormModal({
           </div>
         </form>
       </div>
-    </div>
+    </PortalOverlay>
   );
 }

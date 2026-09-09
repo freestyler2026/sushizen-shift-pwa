@@ -29,6 +29,7 @@ import {
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { HighRatingFormModal } from "@/components/analytics/HighRatingFormModal";
+import { PortalOverlay } from "@/components/ui/PortalOverlay";
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
@@ -541,14 +542,13 @@ export function HighRatingsCard({
 
       {/* Review full-text modal */}
       {reviewModalText && (
-        <div
+        <PortalOverlay
+          onClose={() => setReviewModalText(null)}
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setReviewModalText(null)}
         >
-          <div
-            className={GLASS_CARD + " max-w-md w-full p-5"}
-            onClick={(ev) => ev.stopPropagation()}
-          >
+          {/* A long review needs somewhere to go: without a height limit it
+              runs past the bottom of the screen with no way to reach the rest. */}
+          <div className={GLASS_CARD + " relative z-[91] max-h-[85vh] w-full max-w-md overflow-y-auto p-5"}>
             <h3 className={T_SECTION + " mb-3"}>Customer review</h3>
             <p className={T_BODY + " whitespace-pre-wrap"}>{reviewModalText}</p>
             <button
@@ -559,7 +559,7 @@ export function HighRatingsCard({
               Close
             </button>
           </div>
-        </div>
+        </PortalOverlay>
       )}
 
       {/* Form modal */}

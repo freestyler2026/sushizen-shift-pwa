@@ -1,0 +1,484 @@
+<title>植嶋さんへの確認事項</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&display=swap">
+
+<style>
+  :root {
+    --ink:        #1A1D1A;
+    --ink-soft:   #414741;
+    --muted:      #6E756D;
+    --paper:      #F4F4F1;
+    --surface:    #FFFFFF;
+    --surface-2:  #F7F8F5;
+    --line:       #DCDDD7;
+    --line-soft:  #E9EAE5;
+
+    --accent:     #2F5D3A;
+    --accent-ink: #24492D;
+    --accent-soft:#E2ECE4;
+
+    --flag:       #A4432B;   /* 矛盾している */
+    --flag-soft:  #F7E7E1;
+    --wait:       #8A6410;   /* 回答待ち */
+    --wait-soft:  #F8EFD9;
+
+    --measure: 38rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:        #E8EAE6;
+      --ink-soft:   #BDC2BB;
+      --muted:      #8D948B;
+      --paper:      #141613;
+      --surface:    #1D211C;
+      --surface-2:  #232722;
+      --line:       #343A32;
+      --line-soft:  #2A2F28;
+      --accent:     #7FB58C;
+      --accent-ink: #9BCBA6;
+      --accent-soft:#1E2E22;
+      --flag:       #D98A6C;
+      --flag-soft:  #32231D;
+      --wait:       #D2A64F;
+      --wait-soft:  #2F2718;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:        #E8EAE6;
+    --ink-soft:   #BDC2BB;
+    --muted:      #8D948B;
+    --paper:      #141613;
+    --surface:    #1D211C;
+    --surface-2:  #232722;
+    --line:       #343A32;
+    --line-soft:  #2A2F28;
+    --accent:     #7FB58C;
+    --accent-ink: #9BCBA6;
+    --accent-soft:#1E2E22;
+    --flag:       #D98A6C;
+    --flag-soft:  #32231D;
+    --wait:       #D2A64F;
+    --wait-soft:  #2F2718;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    line-height: 1.85;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 50rem;
+    margin: 0 auto;
+    padding: clamp(1.8rem, 4vw, 3.4rem) clamp(1rem, 3.5vw, 2rem) 5rem;
+  }
+
+  h1, h2, h3 {
+    font-family: "Zen Old Mincho", "Yu Mincho", serif;
+    font-weight: 700;
+    margin: 0;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  h1 { font-size: clamp(1.6rem, 4vw, 2.15rem); line-height: 1.4; }
+  h2 { font-size: 1.22rem; line-height: 1.5; }
+  h3 { font-size: 1.02rem; line-height: 1.6; }
+
+  p { margin: 0 0 0.75rem; max-width: var(--measure); }
+  p:last-child { margin-bottom: 0; }
+
+  code, .mono, .n { font-family: "Roboto Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  code {
+    font-size: 0.86em; background: var(--surface-2); border: 1px solid var(--line-soft);
+    border-radius: 4px; padding: 0.1em 0.4em; color: var(--accent-ink); white-space: nowrap;
+  }
+
+  header { border-bottom: 2px solid var(--accent); padding-bottom: 1.6rem; margin-bottom: 2.2rem; }
+  .eyebrow {
+    font-family: "Roboto Mono", monospace; font-size: 0.7rem; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--accent); display: block; margin-bottom: 0.6rem;
+  }
+  .lede { font-size: 1.02rem; color: var(--ink-soft); max-width: 36rem; margin-top: 0.9rem; }
+  .meta { font-family: "Roboto Mono", monospace; font-size: 0.74rem; color: var(--muted); margin-top: 1.2rem; }
+
+  section { margin-top: 2.8rem; }
+  .sec-head { display: flex; align-items: baseline; gap: 0.7rem; margin-bottom: 0.4rem; }
+  .sec-num {
+    font-family: "Roboto Mono", monospace; font-size: 0.78rem; font-weight: 700;
+    color: var(--surface); background: var(--accent); border-radius: 5px;
+    padding: 0.14rem 0.5rem; letter-spacing: 0.04em;
+  }
+  .sec-note { font-size: 0.93rem; color: var(--muted); margin-bottom: 1.1rem; max-width: var(--measure); }
+
+  /* ── 依頼カード ─────────────────────────────────────────── */
+  .item {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--wait); border-radius: 10px;
+    padding: 1.05rem 1.2rem 1.15rem; margin-bottom: 0.9rem;
+  }
+  .item[data-kind="conflict"] { border-left-color: var(--flag); }
+  .item[data-kind="missing"]  { border-left-color: var(--accent); }
+
+  .item-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.7rem; }
+  .item-no {
+    font-family: "Roboto Mono", monospace; font-weight: 700; font-size: 0.95rem;
+    color: var(--accent-ink);
+  }
+  .item-name {
+    font-family: "Roboto Mono", monospace; font-weight: 700; font-size: 0.97rem;
+    color: var(--ink); word-break: break-word;
+  }
+  .chip {
+    font-family: "Roboto Mono", monospace; font-size: 0.66rem; letter-spacing: 0.05em;
+    text-transform: uppercase; padding: 0.16rem 0.48rem; border-radius: 99px; white-space: nowrap;
+  }
+  .chip.wait     { background: var(--wait-soft); color: var(--wait); }
+  .chip.conflict { background: var(--flag-soft); color: var(--flag); }
+  .chip.missing  { background: var(--accent-soft); color: var(--accent-ink); }
+
+  .body-note { font-size: 0.95rem; color: var(--ink-soft); margin-top: 0.6rem; }
+
+  .ask {
+    margin-top: 0.8rem; background: var(--wait-soft); border-radius: 7px;
+    padding: 0.7rem 0.85rem; font-size: 0.95rem; color: var(--ink-soft);
+  }
+  .item[data-kind="conflict"] .ask { background: var(--flag-soft); }
+  .item[data-kind="missing"] .ask  { background: var(--accent-soft); }
+  .ask b { color: var(--ink); }
+
+  .where {
+    margin-top: 0.6rem; font-size: 0.88rem; color: var(--muted);
+    border-top: 1px dashed var(--line); padding-top: 0.55rem;
+  }
+  .where b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ── 表 ─────────────────────────────────────────────────── */
+  .scroller { overflow-x: auto; margin-top: 0.7rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th {
+    font-family: "Roboto Mono", monospace; font-size: 0.66rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted); font-weight: 500;
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  td.m { font-family: "Roboto Mono", monospace; }
+  td.n { font-family: "Roboto Mono", monospace; text-align: right; white-space: nowrap; }
+  td.bad { color: var(--flag); font-weight: 700; }
+  td.ok  { color: var(--accent-ink); }
+
+  .fill {
+    display: inline-block; min-width: 6rem; border-bottom: 1.5px solid var(--line);
+    color: var(--muted); font-family: "Roboto Mono", monospace; font-size: 0.86rem;
+  }
+
+  .note {
+    border-left: 2px solid var(--accent); background: var(--surface); border-radius: 0 8px 8px 0;
+    padding: 0.8rem 1rem; margin-top: 1.1rem; font-size: 0.94rem; color: var(--ink-soft);
+  }
+  .note b { color: var(--ink); }
+
+  footer { margin-top: 3.4rem; padding-top: 1.4rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.86rem; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <span class="eyebrow">Sushi ZEN Manila ／ 包材・レシピ</span>
+    <h1>植嶋さんへ — 確認事項 7件</h1>
+    <p class="lede">
+      送ってもらった包材価格は <b>Cost Calculation に全部入りました。</b>
+      その後、発注カタログ側を Cost Calculation に合わせる作業をした中で、
+      <strong>こちらでは判断できない点が7件</strong>出てきました。番号で回答をください。
+      入力はこちらでやります。システムを開く必要はありません。
+    </p>
+    <p class="meta">2026-09-09 時点 ／ マニラ3店舗＋Warehouse</p>
+  </header>
+
+  <div class="note">
+    <b>先に報告です。</b>
+    送ってもらった包材価格は <b>Cost Calculation（アイテムの登録先）に全部入りました。</b>
+    Sushi Box は1パーツ <code>₱5.03 → ₱3.90 / ₱4.05 / ₱4.32</code>、
+    12pcs の配達セットは <code>₱36.84 → ₱32.61</code> に下がっています。助かりました。
+    <br><br>
+    <b>Creamy Avocado Hosomaki と Spicy Pork Miso Onigiri も確認しました。</b>
+    「Creamy」はベースの <code>Avocado Hosomaki</code> に入っている <code>QUEZO CHEESE 15g</code>、
+    「Spicy」は <code>Pork Miso for Onigiri</code> の
+    <code>CHILIBEAN SAUCE (TOBAN JIANG) 15g</code> で、どちらも正しく計上されています。
+  </div>
+
+  <!-- ══════════ 登録の現状 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">現状</span>
+      <h2>Cost Calculation に入っている内容</h2>
+    </div>
+    <p class="sec-note">
+      <b>ここが正</b>です。発注カタログはこれに合わせます。以下は反映済みの状態です。
+    </p>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>品名</th><th>単位</th><th>単価</th><th>使用レシピ数</th></tr></thead>
+        <tbody>
+          <tr><td class="m">Sushi Box 12pcs（4パーツ各）</td><td class="m">pc</td><td class="n">₱3.90</td><td class="n">各1</td></tr>
+          <tr><td class="m">Sushi Box 16pcs（4パーツ各）</td><td class="m">pc</td><td class="n">₱4.05</td><td class="n">各1</td></tr>
+          <tr><td class="m">Sushi Box 24pcs（4パーツ各）</td><td class="m">pc</td><td class="n">₱4.32</td><td class="n">各1</td></tr>
+          <tr><td class="m">Ice Pack</td><td class="m">pc</td><td class="n">₱1.95</td><td class="n">2</td></tr>
+          <tr><td class="m">ZEN Safety Sticker</td><td class="m">pc</td><td class="n">₱0.90</td><td class="n">39</td></tr>
+          <tr><td class="m">Sticker Round</td><td class="m">pc</td><td class="n">₱0.89</td><td class="n">1</td></tr>
+          <tr><td class="m">Napkin (Zen)</td><td class="m">pc</td><td class="n">₱0.2714</td><td class="n">61</td></tr>
+          <tr><td class="m">Onigiri Film</td><td class="m">pc</td><td class="n">₱3.55</td><td class="n">3</td></tr>
+          <tr><td class="m">Hotdog Tray</td><td class="m">pc</td><td class="n">₱2.44</td><td class="n">5</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body-note">
+      <b>Sushi Box は1箱4パーツ</b>（Cover / Inner Box / Sauce Tray / Sushi Tray (Divider)）で
+      登録されています。以下の質問は、この登録と発注カタログが合っていない箇所だけです。
+    </p>
+  </section>
+
+  <!-- ══════════ ① ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">①</span>
+      <h2>単価が合わない — 1件</h2>
+    </div>
+
+    <div class="item" data-kind="conflict">
+      <div class="item-head">
+        <span class="item-no">1</span>
+        <span class="item-name">Hot Dog Box (Gyoza 4pc)</span>
+        <span class="chip conflict">1個あたりが4倍違う</span>
+      </div>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>出どころ</th><th>荷姿</th><th>金額</th><th>1個あたり</th></tr></thead>
+          <tbody>
+            <tr><td>送ってもらった価格表</td><td class="m">25pc = 1pkt</td><td class="n">₱61</td><td class="n ok">₱2.44</td></tr>
+            <tr><td>Cost Calculation（登録済み）</td><td class="m">1個</td><td class="n">—</td><td class="n ok">₱2.44</td></tr>
+            <tr><td>発注カタログ</td><td class="m bad">100pc = 1pkt</td><td class="n">₱61</td><td class="n bad">₱0.61</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="body-note">
+        カタログにある<b>100個入り ₱61</b> の行だけが、1個 ₱0.61 と<b>4分の1</b>になります。
+      </p>
+      <div class="ask">
+        <b>確認:</b> 100個入りという荷姿は実在しますか。
+        <br>（A）無い → その行を消します
+        <br>（B）有る → 正しい金額を教えてください
+      </div>
+      <div class="where"><b>回答後:</b> カタログ側を直します。Cost Calculation は ₱2.44 のままで正しいです。</div>
+    </div>
+  </section>
+
+  <!-- ══════════ ② ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">②</span>
+      <h2>まとめ買いの荷姿の金額 — 2件</h2>
+    </div>
+    <p class="sec-note">
+      1シートあたりの金額はカタログに入っていて、Cost Calculation とも合っています。
+      <b>「1set = 20sheets」の行だけ</b>が空です。
+    </p>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">2</span>
+        <span class="item-name">ZEN Safety Sealed Sticker</span>
+        <span class="chip wait">setの金額</span>
+      </div>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>カタログの行</th><th>単位</th><th>金額</th></tr></thead>
+          <tbody>
+            <tr><td class="m">ZEN Safety Sealed Sticker</td><td class="m">Sheet</td><td class="n ok">₱9.00</td></tr>
+            <tr><td class="m">ZEN Safety Sealed Sticker 1set = 20sheets</td><td class="m">SET</td><td class="n bad">空</td></tr>
+            <tr><td class="m">Safety Sealed Sticker</td><td class="m">PC</td><td class="n bad">空</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="body-note">
+        1シート ₱9（10枚入り＝1枚 ₱0.90）は Cost Calculation と一致しています。
+      </p>
+      <div class="ask">
+        <b>確認:</b> ①20シートのセットは <b>₱180</b>（₱9×20）ですか、まとめ買いで安くなりますか
+        ②<code>Safety Sealed Sticker</code>（PC単位）の行はまだ使いますか。使わないなら消します。
+      </div>
+      <div class="where"><b>回答後:</b> カタログの set 行に金額を入れ、不要な行は無効化します。</div>
+    </div>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">3</span>
+        <span class="item-name">ZEN Round Small Sticker</span>
+        <span class="chip wait">setの金額</span>
+      </div>
+      <p class="body-note">
+        こちらも <b>1シート ₱8</b> は入っていて、Cost Calculation の <code>Sticker Round</code>
+        ₱0.89/枚 と合います。<b>20シートのセットの行</b>だけが空です。
+      </p>
+      <div class="ask"><b>確認:</b> 20シートのセットはいくらですか。</div>
+      <div class="where"><b>回答後:</b> カタログの set 行に入力します。</div>
+    </div>
+  </section>
+
+  <!-- ══════════ ③ ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">③</span>
+      <h2>どこから買うか — 2件</h2>
+    </div>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">4</span>
+        <span class="item-name">Ice Pack（40個入り）</span>
+        <span class="chip wait">使うか</span>
+      </div>
+      <p class="body-note">
+        <b>100個入り ₱195</b>（＝1個 ₱1.95）は Cost Calculation・カタログとも入っています。
+        別に <b>40個入り</b>の行が全店向けにあり、金額が空です。
+      </p>
+      <div class="ask">
+        <b>確認:</b> 40個入りは今も使いますか。使うなら金額を、使わないなら「廃止」と書いてください。
+      </div>
+      <div class="where"><b>回答後:</b> 金額を入れるか、行を無効化します。</div>
+    </div>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">5</span>
+        <span class="item-name">Paper Napkin (Maxi Tissue)</span>
+        <span class="chip wait">仕入れ経路</span>
+      </div>
+      <p class="body-note">
+        Warehouse からの <b>1PKT（350枚）= ₱95</b> は Cost Calculation・カタログとも正しく入っています。
+        ただし <b>Mega Crystal Packaging</b> 経由の3店舗ぶんの行が空のままです。
+      </p>
+      <div class="ask">
+        <b>確認:</b> 店舗は Warehouse から取りますか、Mega Crystal から直接買いますか。
+        直接買うなら金額を、買わないなら「Warehouseのみ」と書いてください。
+      </div>
+      <div class="where"><b>回答後:</b> 金額を入れるか、使わない行を無効化します。</div>
+    </div>
+  </section>
+
+  <!-- ══════════ ④ ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">④</span>
+      <h2>名前の統一 — 1件</h2>
+    </div>
+
+    <div class="item" data-kind="missing">
+      <div class="item-head">
+        <span class="item-no">6</span>
+        <span class="item-name">Sushi Box 24pc — Taft だけ名前が違う</span>
+        <span class="chip missing">統一してよいか</span>
+      </div>
+      <p class="body-note">
+        Cost Calculation では1箱4パーツで登録されています。
+        カタログも他店は同じ名前ですが、<b>Taft だけ2つの名前が違います。</b>金額はどれも ₱4.32 で同じです。
+      </p>
+      <div class="scroller">
+        <table>
+          <thead><tr><th>Cost Calculation（正）</th><th>他店のカタログ</th><th>Taft のカタログ</th></tr></thead>
+          <tbody>
+            <tr><td class="m">Cover</td><td class="m">Outside Box (Cover)</td><td class="m">—</td></tr>
+            <tr><td class="m">Inner Box</td><td class="m">Inner Box</td><td class="m">—</td></tr>
+            <tr><td class="m">Sauce Tray</td><td class="m">Sauce Tray</td><td class="m bad">Condiuments Tray</td></tr>
+            <tr><td class="m">Sushi Tray (Divider)</td><td class="m">Sushi Tray (Divider)</td><td class="m bad">Divider</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ask">
+        <b>確認:</b> Taft の <code>Condiuments Tray</code> と <code>Divider</code> は、
+        他店の <code>Sauce Tray</code> / <code>Sushi Tray (Divider)</code> と同じ物ですか。
+        同じなら名前を統一します。
+      </div>
+      <div class="where"><b>回答後:</b> カタログ側の名前を Cost Calculation に揃えます。</div>
+    </div>
+  </section>
+
+  <!-- ══════════ ⑤ ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">⑤</span>
+      <h2>レシピ — 1件</h2>
+    </div>
+
+    <div class="item" data-kind="wait">
+      <div class="item-head">
+        <span class="item-no">7</span>
+        <span class="item-name">Japanese Mayo (QP Mayo)</span>
+        <span class="chip wait">グラム数</span>
+      </div>
+      <p class="body-note">
+        Cost Calculation には <code>QP MAYONNAISE 10g</code> で登録されています（原価 ₱5.63・売価 ₱22）。
+      </p>
+      <div class="ask">
+        <b>確認:</b> 1オーダー 10g で正しいですか。違うなら正しいグラム数を教えてください。
+        <br>グラム数が確認できていないという報告を受けているので、念のため確認させてください。
+      </div>
+      <div class="where">
+        <b>回答後:</b> <code>Cost Calculation → Products → Japanese Mayo (QP Mayo)</code> を直します。
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 回答 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">回答</span>
+      <h2>回答のしかた</h2>
+    </div>
+    <p>番号だけで構いません。分かるものから1件ずつでも結構です。</p>
+    <div class="note" style="font-family:'Roboto Mono',monospace; font-size:0.9rem; line-height:1.9">
+      1. Hot Dog Box … 100個入りはありません<br>
+      2. Safety Sticker … 1set = ₱180。PC の行は消してください<br>
+      4. Ice Pack 40pcs … 廃止しました<br>
+      6. Taft … 同じ物です<br>
+      7. QP Mayo … 15g です<br>
+      …
+    </div>
+    <p style="margin-top:1rem">
+      <b>入力はこちらでやります。</b>システムを開く必要はありません。反映したら連絡します。
+    </p>
+  </section>
+
+  <!-- ══════════ 別件 ══════════ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-num">別件</span>
+      <h2>担当外かもしれない1件</h2>
+    </div>
+
+    <div class="item" data-kind="missing">
+      <h3 style="margin-bottom:.3rem">Central Kitchen 供給の食材9品に金額が入っていません</h3>
+      <p class="body-note">
+        <code>Sugar</code>（<b>87品のレシピで使用</b>）・<code>Quezo Cheese</code>（13品）・
+        <code>Pork Lard</code>（12品）・<code>Chicken Thigh</code>（10品）・
+        <code>Chili Powder</code>（10品）ほか。仕入先が <code>CK</code> で、
+        発注カタログ上の金額が空です。
+      </p>
+      <div class="ask"><b>確認:</b> CK からの供給価格は誰が管理していますか。</div>
+    </div>
+  </section>
+
+  <footer>
+    Sushi ZEN Workforce OS ／ 2026-09-09 作成。<br>
+    先日の包材価格（Sushi Box 2万枚発注ぶん）はすべて反映済みです。
+  </footer>
+
+</div>

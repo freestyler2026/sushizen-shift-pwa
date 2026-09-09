@@ -31,6 +31,7 @@ import {
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { LowRatingFormModal } from "@/components/analytics/LowRatingFormModal";
+import { PortalOverlay } from "@/components/ui/PortalOverlay";
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
@@ -574,14 +575,11 @@ export function LowRatingsCard({
       ) : null}
 
       {reviewModalText !== null ? (
-        <div
+        <PortalOverlay
+          onClose={() => setReviewModalText(null)}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
-          onClick={() => setReviewModalText(null)}
         >
-          <div
-            className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="relative z-[51] max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-neutral-200">Customer Review</h3>
               <button
@@ -597,7 +595,7 @@ export function LowRatingsCard({
               {reviewModalText}
             </p>
           </div>
-        </div>
+        </PortalOverlay>
       ) : null}
     </div>
   );

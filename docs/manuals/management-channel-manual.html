@@ -1980,8 +1980,8 @@ ul.body-list strong { color: var(--text); }
         <div class="exc-header"><span class="exc-sev">🟠</span><span class="exc-title"><span class="ja">ラッシュアワーチェック未提出</span><span class="en">Rush Hour Check Missing</span></span></div>
         <div class="exc-owner ja">担当：<strong>BO Staff A</strong></div>
         <div class="exc-owner en">Owner: <strong>BO Staff A</strong></div>
-        <div class="exc-body ja">ピーク時間のチェックが、その時刻を1時間過ぎても提出されていない場合に発火します。判定は<strong>店舗のローカル時刻</strong>で行われます。直近14日にこのフォームを使った支店のみが対象です — 未展開の支店に毎日アラートを出さないためです。</div>
-        <div class="exc-body en">Fires when a peak-time check is still missing an hour past its slot, judged in the <strong>store's local time</strong>. Only branches that have used the form in the last 14 days are held to it, so a branch not yet rolled out does not generate a daily alert.</div>
+        <div class="exc-body ja">ピーク時間のチェックが、その時刻を1時間過ぎても提出されていない場合に発火します。判定は<strong>店舗のローカル時刻</strong>で行われます。直近14日にこのフォームを使った支店のみが対象です — 未展開の支店に毎日アラートを出さないためです。<br><strong>ランチとディナーは別々に追いかけます</strong>（2026-09-09）。1支店1日あたり最大2件で、それぞれ未提出のスロットを列挙します。以前は1日1件だったため、13時にランチで立ったアラートが閉じられると、その後ディナーを何コマ落としてもアラートが出ませんでした。</div>
+        <div class="exc-body en">Fires when a peak-time check is still missing an hour past its slot, judged in the <strong>store's local time</strong>. Only branches that have used the form in the last 14 days are held to it, so a branch not yet rolled out does not generate a daily alert.<br><strong>Lunch and dinner are chased separately</strong> (2026-09-09) — at most two tasks per branch per day, each naming the slots still open in that service. It used to be one task per day, so once the lunch task was raised at 13:00 and closed, missing the whole dinner service raised nothing.</div>
         <div class="exc-trigger">exception_type: rush_check_missing</div>
       </div>
 
@@ -3202,8 +3202,10 @@ ul.body-list strong { color: var(--text); }
 
     <div class="card">
       <div class="card-title"><span class="ja">スロットと未提出の判定</span><span class="en">Slots and how “missing” is decided</span></div>
-      <p class="ja" style="font-size:12px;">1日4スロット（Lunch 12:00 / 12:30、Dinner 18:00 / 18:30）。そのスロットの時刻を<strong>店舗のローカル時刻で</strong>1時間過ぎても未提出なら 🟠 タスクが発生します。同じスロットを再提出すると前回の回答が置き換わります — 押し間違いを消してもらうために誰かに頼む必要はありません。</p>
-      <p class="en" style="font-size:12px;">Four slots a day (Lunch 12:00 / 12:30, Dinner 18:00 / 18:30). A slot still missing an hour past its time — measured in the <strong>store's local time</strong> — raises a 🟠 task. Re-submitting a slot replaces the earlier answers, so correcting a mis-tap does not require asking anyone to delete a row.</p>
+      <p class="ja" style="font-size:12px;">1日11スロット。<strong>ランチ2回</strong>（12:00 / 12:30）と<strong>ディナー9回</strong>（18:00から30分刻みで22:00まで／2026-09-02にディナーを2回から9回へ拡大）。そのスロットの時刻を<strong>店舗のローカル時刻で</strong>1時間過ぎても未提出なら 🟠 タスクが発生します。同じスロットを再提出すると前回の回答が置き換わります — 押し間違いを消してもらうために誰かに頼む必要はありません。</p>
+      <p class="ja" style="font-size:12px;"><strong>アラートはランチとディナーで別々に立ちます</strong>（2026-09-09）。1支店1日あたり最大2件で、そのサービスで未提出のスロットを列挙し、時間の経過とともに列挙が増えます。<strong>ランチのアラートを閉じてもディナーは別に追いかけます。</strong>以前は1日1件だったため、13時にランチで立って17時台に閉じたあと、ディナーを8コマ落としてもアラートが出ませんでした（2026-09-08 CUB で発生）。</p>
+      <p class="en" style="font-size:12px;">Eleven slots a day: <strong>two at lunch</strong> (12:00 / 12:30) and <strong>nine at dinner</strong> (every 30 minutes from 18:00 to 22:00 — dinner went from two slots to nine on 2026-09-02). A slot still missing an hour past its time — measured in the <strong>store's local time</strong> — raises a 🟠 task. Re-submitting a slot replaces the earlier answers, so correcting a mis-tap does not require asking anyone to delete a row.</p>
+      <p class="en" style="font-size:12px;"><strong>Lunch and dinner raise separate alerts</strong> (2026-09-09): at most two tasks per branch per day, each naming the slots still open in that service and growing as more times pass. <strong>Closing the lunch alert does not stop dinner being chased.</strong> It used to be one task per day, so after the lunch task was raised at 13:00 and closed in the late afternoon, eight missed dinner slots raised nothing — which is what happened at CUB on 2026-09-08.</p>
     </div>
   </div>
 

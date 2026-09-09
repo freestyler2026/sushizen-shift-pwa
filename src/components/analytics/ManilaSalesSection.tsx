@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { BarChart2, CheckCircle2, CircleDot, RefreshCw } from "lucide-react";
+import { AlertTriangle, BarChart2, CheckCircle2, CircleDot, RefreshCw } from "lucide-react";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi, tryRefreshAccessToken, type City } from "@/lib/auth";
 import { fmtNum, fmtNumTitle, formatSeconds } from "@/lib/formatters";
@@ -256,6 +256,17 @@ type OverviewResp = {
   hourly_breakdown: HourlyRow[];
   daily_trend: DailyTrendRow[];
   dataset_availability: Record<string, DatasetAvailability>;
+  stream_health?: {
+    checked: number;
+    stale_count: number;
+    unknown_count: number;
+    all_down: boolean;
+    as_of: string;
+    lines: string[];
+    stale: { label: string; last_date: string; age_days: number; typical_gap_days: number }[];
+    unknown: { label: string; observed_days: number; last_date: string }[];
+    error?: string;
+  };
 };
 
 type ListResp<T> = { ok: boolean; items: T[] };
@@ -749,8 +760,44 @@ export function ManilaSalesSection({
     );
   }
 
+  const streamHealth = overview?.stream_health;
+
   return (
     <div id="sales-manila-sales" className={GLASS_CARD + " space-y-4 p-5"}>
+      {/* 取込が止まったら、数字より先にここで言う。Discord にも送っているが、
+          数字を読む人が見ているのはこの画面なので、ここに出ないと気づかれない。
+          何も止まっていないときは何も出さない — 毎回出る帯は読まれなくなる。 */}
+      {streamHealth && streamHealth.lines.length > 0 && (
+        <div className="rounded-xl border border-red-600/50 bg-red-950/30 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-red-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {streamHealth.all_down
+              ? "The Manila POS feed has stopped — these figures are incomplete"
+              : "Part of the Manila POS feed has stopped"}
+          </div>
+          <ul className="mt-2 space-y-1 text-sm text-red-100/90">
+            {streamHealth.stale.map((x) => (
+              <li key={x.label}>
+                <span className="font-semibold">{x.label}</span> — last figures {x.last_date}
+                {" "}({x.age_days} day{x.age_days === 1 ? "" : "s"} ago; normally every{" "}
+                {x.typical_gap_days} day{x.typical_gap_days === 1 ? "" : "s"})
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 text-xs text-red-200/70">
+            StoreHub has been the only source for these figures since 2026-09-08, so whatever is
+            missing here is missing from the daily P&amp;L and the monthly trend too.
+          </div>
+        </div>
+      )}
+      {streamHealth && streamHealth.unknown_count > 0 && streamHealth.lines.length === 0 && (
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs text-zinc-400">
+          Watching {streamHealth.checked} store/channel feeds — all current as of {streamHealth.as_of}.
+          {" "}{streamHealth.unknown_count} more{" "}
+          ({streamHealth.unknown.map((u) => u.label).join(", ")}) have too little history to judge yet,
+          so a stop there would not be reported.
+        </div>
+      )}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2">

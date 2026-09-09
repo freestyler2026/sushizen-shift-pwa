@@ -93,6 +93,9 @@ type Item = {
      *  correlated 0.88 with whether two independent passes agreed on the
      *  words, so it is a usable stand-in for "is this transcript true". */
     transcript_confidence: number | null;
+    /** How many times transcription has been tried and failed. Distinguishes
+     *  "has not run yet" from "will never succeed". */
+    transcript_attempts?: number | null;
   } | null;
 };
 
@@ -115,6 +118,14 @@ function levelBadge(a: { peak_dbfs: number | null; level_note: string | null }) 
 type Detail = Row & {
   items: Item[];
   transcript_check_below?: number;
+  /** How many failed tries before the job stops retrying. Sent rather than
+   *  copied here, so the screen and the job cannot disagree (lesson 62). */
+  transcript_max_attempts?: number;
+  /** The CV, when there is one. The file itself is never in this payload --
+   *  it is fetched by its own endpoint when somebody opens it (lesson 29).
+   *  `skipped` is the applicant saying they have none, which is a different
+   *  thing from never having reached that screen. */
+  resume?: { uploaded: boolean; skipped: boolean; filename: string; bytes: number };
   /** Typed by the applicant on the form. Kept beside the transcript because
    *  these are exactly the words a transcript gets wrong -- a previous
    *  employer came back as "Donuts" when it was McDonald's. */
@@ -174,6 +185,61 @@ function bucketWithoutDecision(row: Row): State {
   return row.answered > 0 ? "to_review" : "waiting";
 }
 
+/** What each decision is called on screen.
+ *
+ *  The stored keys are `shortlist` / `hold` / `pass` and they stay that way --
+ *  renaming them would orphan every decision already recorded. Only the words
+ *  change.
+ *
+ *  ⚠️ "Pass" was the label until 2026-09-09, when the Paranaque manager asked
+ *  whether it meant the applicant had passed or been turned down. In English it
+ *  reads both ways, and he was being asked to reject people with a word he
+ *  could not resolve -- so he asked for a reject button that was already there.
+ *  A label a manager has to ask about is a defect in the screen, not in the
+ *  manager. Do not shorten these back to one word.
+ */
+const DECISION_LABEL: Record<string, string> = {
+  shortlist: "Shortlisted",
+  hold: "On hold",
+  pass: "Rejected",
+};
+
+function decisionLabel(key: string | null | undefined): string {
+  const k = String(key || "").toLowerCase();
+  return DECISION_LABEL[k] || k;
+}
+
+/** An `sms:` link that actually opens with the text in it.
+ *
+ *  There is no one format. iOS wants the body after `&`, Android after `?`,
+ *  and each ignores the other's separator -- send an iPhone the `?body=` form
+ *  and Messages opens empty, which looks exactly like the feature not working.
+ *  Getting this wrong is silent, so it is decided from the UA rather than
+ *  guessed at.
+ */
+function smsHref(e164: string, body: string): string {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    // iPadOS 13+ reports itself as a Mac; the touch points give it away.
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return `sms:${e164}${ios ? "&" : "?"}body=${encodeURIComponent(body)}`;
+}
+
+/** Whether this browser can send a text at all.
+ *
+ *  A computer cannot, so on a desktop the SMS button is not shown -- a button
+ *  that does nothing when pressed teaches people the screen lies. The caption
+ *  telling them to copy the message stays there instead.
+ */
+function canSendSms(): boolean {
+  return /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+/** How the applicant said to reach them, in the words the form used. */
+const CONTACT_APP_LABEL: Record<string, string> = {
+  viber: "Viber", whatsapp: "WhatsApp", sms: "SMS",
+};
+
 function mmss(sec: number | null): string {
   if (!sec || sec < 0) return "—";
   const m = Math.floor(sec / 60);
@@ -190,6 +256,32 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
   const [canDecide, setCanDecide] = useState(true);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+
+  // Prerendered HTML is shared by every viewer and has no navigator, so the
+  // SMS button cannot be decided on the first render (lesson 42). It appears
+  // once we are on the real device.
+  const [onPhone, setOnPhone] = useState(false);
+  useEffect(() => { setOnPhone(canSendSms()); }, []);
+
+  // Whether the server can send a text itself. Asked once: a button that only
+  // fails when pressed is worse than no button (lesson 64), so this decides
+  // whether "Send by SMS" is offered at all -- and when it is not, it carries
+  // the reason so somebody can fix it.
+  const [smsGate, setSmsGate] = useState<{ enabled: boolean; blocked_by: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/admin/hr/sms/status", { cache: "no-store" });
+        if (!r.ok || !alive) return;
+        const j = await r.json();
+        if (alive) setSmsGate({ enabled: !!j.enabled && !!j.configured, blocked_by: String(j.blocked_by || "") });
+      } catch { /* the rest of the screen does not depend on this */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+  const [sendingSms, setSendingSms] = useState(false);
+  const [smsResult, setSmsResult] = useState<string>("");
 
   const [openId, setOpenId] = useState<number | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -263,6 +355,43 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
     }
   }
 
+  /** Issue the link and have the server text it, in one press.
+   *
+   *  One call on purpose: issue_invite replaces the token, so a separate
+   *  "send" step would let somebody text a link that had already been
+   *  invalidated by the next press of New link.
+   */
+  async function sendInviteSms(row: Row, e164: string) {
+    setSendingSms(true);
+    setSmsResult("");
+    try {
+      const res = await fetch(`/api/admin/hr/applicants/${row.applicant_id}/voice-invite/sms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: e164, lang: inviteLang }),
+      });
+      const text = await res.text();
+      let j: Record<string, unknown> = {};
+      try { j = JSON.parse(text); } catch { /* text/plain */ }
+      if (!res.ok) {
+        // Never a quiet failure: the reason the gateway gave is the only thing
+        // that lets anybody fix it.
+        const sms = (j.sms || {}) as Record<string, unknown>;
+        setSmsResult(String(sms.error || j.detail || text || "Could not send").slice(0, 300));
+        return;
+      }
+      setSmsResult(`Sent to ${String(j.sent_to || e164)}`);
+      // The link was reissued by this call, so the panel has to show the new
+      // one -- otherwise the reviewer copies a link that no longer works.
+      setInvite(j as unknown as Invite);
+      void load();
+    } catch {
+      setSmsResult("Could not reach the server. Nothing was sent.");
+    } finally {
+      setSendingSms(false);
+    }
+  }
+
   async function sendInvite(row: Row) {
     if (saving) return;
     setSaving(true);
@@ -323,8 +452,8 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       setJustDecided((p) => ({
         ...p,
         [row.id]: out.moved_to
-          ? `${decision} — moved to ${out.moved_to.replace("_", " ")}`
-          : `${decision} — stage unchanged (${out.previous_status.replace("_", " ")})`,
+          ? `${decisionLabel(decision)} — moved to ${out.moved_to.replace("_", " ")}`
+          : `${decisionLabel(decision)} — stage unchanged (${out.previous_status.replace("_", " ")})`,
       }));
       setRows((p) => p.map((r) => (r.id === row.id
         ? { ...r, decision, decision_reason: reason || null, bucket: "done" }
@@ -509,7 +638,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                 )}
                 {row.decision && (
                   <span className={BADGE_INFO}>
-                    {row.decision}
+                    {decisionLabel(row.decision)}
                     {row.decision_reason ? ` · ${row.decision_reason.replace(/_/g, " ")}` : ""}
                   </span>
                 )}
@@ -540,8 +669,10 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
               {showingInvite && invite && (
                 <div className="border-t border-white/8 bg-violet-500/8 px-4 py-3">
                   <p className="text-sm text-violet-200">
-                    Link ready for {invite.full_name}. Nothing has been sent —
-                    open one of these, then press send yourself.
+                    Link ready for {invite.full_name}.{" "}
+                    {smsGate?.enabled
+                      ? "Send by SMS does it from here. The rest open on your own phone."
+                      : "Nothing has been sent — open one of these, then press send yourself."}
                   </p>
                   {invite.reissued && (
                     <p className={`${T_CAPTION} mt-1`}>
@@ -554,6 +685,15 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                   <p className={`${T_CAPTION} mt-1`}>
                     Works for {invite.expires_in_days} days.
                   </p>
+
+                  {row.contact_apps.length > 0 && (
+                    <p className={`${T_CAPTION} mt-1`}>
+                      They asked to be reached on{" "}
+                      <span className="text-violet-200">
+                        {row.contact_apps.map((a) => CONTACT_APP_LABEL[a] || a).join(" / ")}
+                      </span>.
+                    </p>
+                  )}
 
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {(["en", "tl"] as const).map((l) => (
@@ -583,29 +723,73 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                     </p>
                   )}
 
+                  {/* One way to send, then the free ones underneath.
+                      Measured 2026-09-09 on the 28 applicants who were actually
+                      asked: 85% chose SMS, 39% Viber, 25% WhatsApp -- they can
+                      pick more than one. Only 4 of the 28 chose neither. SMS is
+                      also the only one that works for the 157 older applicants
+                      who were never asked the question at all.
+                      (An earlier comment here said "1 in 3 picks SMS". That was
+                      written from an impression, not from the table.)
+                      The other two stay: they cost nothing, they go out from a
+                      real person's number, and for the applicant who asked for
+                      Viber, texting them instead ignores what they told us. */}
                   {invite.phones.map((ph) => (
-                    <div key={ph.raw} className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className={`${T_CAPTION} min-w-[9rem]`}>{ph.raw}</span>
+                    <div key={ph.raw} className="mt-3">
+                      <span className={`${T_CAPTION} block`}>{ph.raw}</span>
                       {ph.usable ? (
                         <>
-                          <a
-                            className={SMALL_BUTTON}
-                            href={`https://wa.me/${ph.e164.replace("+", "")}?text=${encodeURIComponent(invite.messages[inviteLang])}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            WhatsApp
-                          </a>
-                          {/* Viber takes no message body, so the text is copied
-                              at the same time -- otherwise the chat opens empty
-                              and the link has to be typed from the screen. */}
-                          <a
-                            className={SMALL_BUTTON}
-                            href={`viber://chat?number=${encodeURIComponent(ph.e164)}`}
-                            onClick={() => void copy(invite.messages[inviteLang], "viber")}
-                          >
-                            Viber (copies the text)
-                          </a>
+                          {/* The one press that finishes the job. It spends a
+                              message, so it says so -- a button that costs
+                              money should not look like one that does not. */}
+                          {smsGate?.enabled && (
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                className={`${PRIMARY_BUTTON} flex items-center gap-1.5`}
+                                onClick={() => void sendInviteSms(row, ph.e164)}
+                                disabled={sendingSms}
+                              >
+                                <Send className="h-4 w-4" />
+                                {sendingSms ? "Sending…" : "Send by SMS"}
+                              </button>
+                              <span className={T_CAPTION}>one text, sent from the OS</span>
+                            </div>
+                          )}
+
+                          {/* Free, and from your own number. */}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className={T_CAPTION}>
+                              {smsGate?.enabled ? "Or send it yourself, free:" : "Send it yourself:"}
+                            </span>
+                            <a
+                              className={SMALL_BUTTON}
+                              href={`https://wa.me/${ph.e164.replace("+", "")}?text=${encodeURIComponent(invite.messages[inviteLang])}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              WhatsApp
+                            </a>
+                            {/* Viber takes no message body, so the text is
+                                copied at the same time -- otherwise the chat
+                                opens empty and the link has to be typed from
+                                the screen. */}
+                            <a
+                              className={SMALL_BUTTON}
+                              href={`viber://chat?number=${encodeURIComponent(ph.e164)}`}
+                              onClick={() => void copy(invite.messages[inviteLang], "viber")}
+                            >
+                              Viber (copies the text)
+                            </a>
+                            {onPhone && (
+                              <a
+                                className={SMALL_BUTTON}
+                                href={smsHref(ph.e164, invite.messages[inviteLang])}
+                              >
+                                Messages
+                              </a>
+                            )}
+                          </div>
                         </>
                       ) : (
                         <span className={T_CAPTION}>
@@ -640,12 +824,29 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                       Sent — close
                     </button>
                   </div>
-                  {/* Text messages cannot be sent from a computer, so SMS is a
-                      copy rather than a button that would do nothing. */}
-                  <p className={`${T_CAPTION} mt-2`}>
-                    For SMS, copy the message and send it from your phone — a
-                    computer cannot send one.
-                  </p>
+                  {smsResult && (
+                    <p className={`mt-2 text-sm ${smsResult.startsWith("Sent") ? "text-emerald-300" : "text-amber-200"}`}>
+                      {smsResult}
+                    </p>
+                  )}
+
+                  {/* Say why the send button is not there. "It does not appear"
+                      is not something anybody can act on. */}
+                  {smsGate && !smsGate.enabled && smsGate.blocked_by && (
+                    <p className={`${T_CAPTION} mt-2`}>
+                      The OS cannot send texts itself yet — {smsGate.blocked_by}.
+                    </p>
+                  )}
+
+                  {/* On a phone the SMS button above does this. On a computer
+                      there is nothing to open, so say so rather than show a
+                      button that would do nothing. */}
+                  {!onPhone && (
+                    <p className={`${T_CAPTION} mt-2`}>
+                      For SMS, copy the message and open this page on your phone
+                      — a computer cannot send a text.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -699,6 +900,26 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                           )}
                         </div>
                       )}
+                      {detail.resume?.uploaded ? (
+                        <a
+                          href={`/api/admin/hr/voice-screenings/${row.id}/resume`}
+                          target="_blank" rel="noreferrer"
+                          className="mb-3 flex items-center gap-2 rounded-lg border border-violet-400/25 bg-violet-400/10 px-2.5 py-2 text-[13px] text-violet-200 hover:bg-violet-400/15"
+                        >
+                          <span aria-hidden>📄</span>
+                          <span className="truncate">{detail.resume.filename || "CV"}</span>
+                          {detail.resume.bytes > 0 && (
+                            <span className="ml-auto shrink-0 tabular-nums text-violet-300/60">
+                              {Math.max(1, Math.round(detail.resume.bytes / 1024))} KB
+                            </span>
+                          )}
+                        </a>
+                      ) : detail.resume?.skipped ? (
+                        // Said so, rather than left blank. Otherwise this reads
+                        // the same as somebody who never opened the screen, and
+                        // nobody knows whether to ask them for one.
+                        <p className={`${T_CAPTION} mb-3`}>No CV — they said they do not have one</p>
+                      ) : null}
                       {row.notes && (
                         <p className={`${T_BODY} mb-3`}>&ldquo;{row.notes}&rdquo;</p>
                       )}
@@ -775,6 +996,21 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                 </div>
                               );
                             })()}
+                            {/* Nothing here at all is what made this look
+                                broken on 2026-09-08: the transcripts were
+                                never being produced, and a card with no
+                                transcript panel says the same thing as a card
+                                whose transcript has not run yet. Now the two
+                                are different (lesson 58 -- "not yet" and
+                                "cannot" must not share a display). */}
+                            {it.answer?.has_audio && !it.answer?.transcript && (
+                              <p className={`${T_CAPTION} mt-2`}>
+                                {(it.answer.transcript_attempts ?? 0)
+                                  >= (detail.transcript_max_attempts ?? 5)
+                                  ? "No transcript — it could not be read after several tries. Play the recording."
+                                  : "Transcript not in yet — it is written within the hour. Play the recording."}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -797,7 +1033,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                 disabled={saving}
                               >
                                 <PauseCircle className="h-4 w-4" />
-                                Hold
+                                Hold — decide later
                               </button>
                               <button
                                 className={`${SMALL_BUTTON} flex items-center gap-1.5`}
@@ -805,17 +1041,19 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                 disabled={saving}
                               >
                                 <X className="h-4 w-4" />
-                                Pass
+                                Reject — do not proceed
                               </button>
                               <span className={`${T_CAPTION} basis-full`}>
-                                Shortlisting moves them to Screened, ready to book
-                                an interview. You can undo any of these.
+                                Shortlist moves them to Screened, ready to book an
+                                interview. Hold leaves them where they are.
+                                Reject moves them to Rejected and closes the
+                                application. You can undo any of these.
                               </span>
                             </div>
                           ) : (
                             <div>
                               <p className={`${T_LABEL} mb-2`}>
-                                Why {pending === "hold" ? "hold" : "pass"}?
+                                Why {pending === "hold" ? "hold" : "reject"}?
                               </p>
                               <div className="flex flex-wrap gap-2">
                                 {reasons.map((r) => (
@@ -851,7 +1089,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                       {row.decision && (
                         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-white/8 pt-4">
                           <span className={T_BODY}>
-                            {row.decision}
+                            {decisionLabel(row.decision)}
                             {row.decision_reason ? ` — ${row.decision_reason.replace(/_/g, " ")}` : ""}
                             {row.decided_by ? ` · ${row.decided_by}` : ""}
                           </span>
