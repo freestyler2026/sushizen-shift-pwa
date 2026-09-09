@@ -39,6 +39,13 @@ type MatrixDraft = {
   escalate_if_urgent: boolean;
   require_hq_if_new_vendor: boolean;
   is_active: boolean;
+  // Who this band's numbers came from. A band still marked `system_seed` is
+  // refreshed from the shipped defaults every time a dyno starts; one that
+  // somebody saved is left alone until they save it again. That difference
+  // decides whether a threshold you set will still be here next week, so it
+  // belongs on the row rather than in a docstring.
+  set_by: string;
+  set_at: string;
 };
 
 function toDraft(row: MatrixRow): MatrixDraft {
@@ -52,8 +59,16 @@ function toDraft(row: MatrixRow): MatrixDraft {
     escalate_if_urgent: cond.escalate_if_urgent !== false,
     require_hq_if_new_vendor: cond.require_hq_if_new_vendor !== false,
     is_active: Boolean(row.is_active),
+    set_by: String(row.updated_by || ""),
+    set_at: String(row.updated_at || ""),
   };
 }
+
+// A band nobody has saved yet still tracks the shipped defaults.
+const isDefault = (setBy: string) => {
+  const v = (setBy || "").trim();
+  return v === "" || v === "system_seed";
+};
 
 function newDraft(nextLevel: number): MatrixDraft {
   return {
@@ -65,6 +80,8 @@ function newDraft(nextLevel: number): MatrixDraft {
     escalate_if_urgent: true,
     require_hq_if_new_vendor: true,
     is_active: true,
+    set_by: "",
+    set_at: "",
   };
 }
 
@@ -251,6 +268,18 @@ export default function ProcurementApprovalMatrixPage() {
       <div className="space-y-3">
         {sortedDrafts.map(({ row, index }) => (
           <div key={`${row.id || "new"}:${index}`} className={GLASS_CARD + " p-4"}>
+            <div className="mb-2 flex items-center gap-2 text-[11px]">
+              {isDefault(row.set_by) ? (
+                <span className="rounded bg-white/5 px-2 py-0.5 text-zinc-400">
+                  Default — tracks the shipped value and is refreshed on deploy
+                </span>
+              ) : (
+                <span className="rounded bg-teal-500/15 px-2 py-0.5 font-medium text-teal-300">
+                  Set by {row.set_by}
+                  {row.set_at ? ` · ${new Date(row.set_at).toLocaleDateString()}` : ""} — kept until you change it
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Level</label>
