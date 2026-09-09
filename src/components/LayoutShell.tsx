@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import AutoReload from "@/components/AutoReload";
+import ActivityBeacon from "@/components/ActivityBeacon";
 import SessionGuard from "@/components/SessionGuard";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
 
@@ -30,6 +31,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   return (
     <>
       <AutoReload />
+      <ActivityBeacon />
       <SessionGuard />
       <ImpersonationBanner />
 
