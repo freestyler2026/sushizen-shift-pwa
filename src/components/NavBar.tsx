@@ -291,7 +291,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" , cat: "shift" },
   { href: "/admin/shift-audit", label: "Shift Audit Log", icon: History, adminOnly: true, match: "prefix" , cat: "shift" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" , cat: "ops" },
-  { href: "/admin/back-office-activity", label: "BO Activity", icon: Activity, adminOnly: true, match: "exact" , cat: "ops" },
+  { href: "/admin/back-office-activity", label: "BO 稼働状況", icon: Activity, adminOnly: true, match: "exact" , cat: "ops" },
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/prep-time", label: "Prep Time Review", icon: Timer, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/help", label: "Ask about the system", icon: HelpCircle, adminOnly: true, match: "prefix" , cat: "ops" },

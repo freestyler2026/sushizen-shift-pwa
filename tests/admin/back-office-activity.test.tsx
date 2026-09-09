@@ -36,9 +36,9 @@ function report(rows: unknown[], over: Record<string, unknown> = {}) {
   return {
     date: "2026-09-10", idle_gap_minutes: 10,
     rules: {
-      LONG_IDLE: { minutes: 120, says: "Two hours or more with no action." },
-      MOSTLY_IDLE: { says: "Engaged for under a quarter of it." },
-      NO_DECISIONS: { says: "Opened twenty or more things and changed none." },
+      LONG_IDLE: { minutes: 120, says: "2時間以上まったく操作がない空白があります。" },
+      MOSTLY_IDLE: { says: "実際に手を動かしていたのはその1/4未満です。" },
+      NO_DECISIONS: { says: "20件以上を開いて、1件も変更していません。" },
     },
     selection: {
       roles: ["HR_MANAGER", "ADMIN", "INVENTORY_PURCHASING"],
@@ -73,20 +73,20 @@ describe("who may open the back-office report", () => {
   it("opens for the two named accounts", async () => {
     mockGetAuth.mockReturnValue({ staffName: "Yukihiro Nishimura", role: "HQ" });
     await renderPage();
-    expect(await screen.findByText("Back office — the shape of the day")).toBeTruthy();
+    expect(await screen.findByText("バックオフィス — 1日のかたち")).toBeTruthy();
 
     mockGetAuth.mockReturnValue({ staffName: "Ayako Nishimura", role: "HQ" });
     vi.resetModules();
     await renderPage();
-    expect(await screen.findAllByText("Back office — the shape of the day")).toBeTruthy();
+    expect(await screen.findAllByText("バックオフィス — 1日のかたち")).toBeTruthy();
   });
 
   it("refuses another HQ account", async () => {
     // The point of the page: HQ is not the door. Two names are.
     mockGetAuth.mockReturnValue({ staffName: "Yuri Yamada", role: "HQ" });
     await renderPage();
-    expect(await screen.findByText("Not available")).toBeTruthy();
-    expect(screen.queryByText("Back office — the shape of the day")).toBeNull();
+    expect(await screen.findByText("このページは表示できません")).toBeTruthy();
+    expect(screen.queryByText("バックオフィス — 1日のかたち")).toBeNull();
     // and it does not even ask the server
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -94,7 +94,7 @@ describe("who may open the back-office report", () => {
   it("refuses an ADMIN account", async () => {
     mockGetAuth.mockReturnValue({ staffName: "Ruby Rosa Rongcales", role: "ADMIN" });
     await renderPage();
-    expect(await screen.findByText("Not available")).toBeTruthy();
+    expect(await screen.findByText("このページは表示できません")).toBeTruthy();
   });
 
   it("says so when the server refuses, rather than showing an empty table", async () => {
@@ -102,7 +102,7 @@ describe("who may open the back-office report", () => {
     mockFetch.mockImplementation(() =>
       Promise.resolve({ ok: false, status: 403, json: () => Promise.resolve({}) } as Response));
     await renderPage();
-    expect(await screen.findByText(/not available to your account/i)).toBeTruthy();
+    expect(await screen.findByText(/このアカウントではこのページを開けません/)).toBeTruthy();
   });
 });
 
@@ -111,16 +111,16 @@ describe("what the page refuses to claim", () => {
 
   it("puts the limits above the table, not in a footnote", async () => {
     await renderPage();
-    expect(await screen.findByText(/Read this before acting on a row/)).toBeTruthy();
-    expect(screen.getByText(/a quiet row is/)).toBeTruthy();
+    expect(await screen.findByText(/行を根拠にする前に読んでください/)).toBeTruthy();
+    expect(screen.getByText(/静かな行は、静かな1日の証拠ではありません/)).toBeTruthy();
     // the store-based purchasing caveat, and the one figure a person could inflate
-    expect(screen.getByText(/work at store branches/)).toBeTruthy();
-    expect(screen.getByText(/reported by the browser/)).toBeTruthy();
+    expect(screen.getByText(/は店舗勤務です/)).toBeTruthy();
+    expect(screen.getByText(/ブラウザからの申告/)).toBeTruthy();
   });
 
   it("says how many people it cannot judge for a missing roster", async () => {
     await renderPage();
-    expect(await screen.findByText(/have no published shift at all/)).toBeTruthy();
+    expect(await screen.findByText(/公開シフトが/)).toBeTruthy();
   });
 
   it("names who is on the report and why", async () => {
@@ -134,9 +134,9 @@ describe("what the page refuses to claim", () => {
       row({ staff_name: "Day Off", signed_in: false, rostered: false, events: 0, flags: [] }),
     ])));
     await renderPage();
-    expect(await screen.findByText("not rostered this day")).toBeTruthy();
+    expect(await screen.findByText("この日はシフトなし")).toBeTruthy();
     const cell = screen.getByText("Day Off").closest("td")!;
-    expect(within(cell).queryByText("never signed in")).toBeNull();
+    expect(within(cell).queryByText("未ログイン")).toBeNull();
   });
 
   it("marks a row as partial instead of calling the unwatched hours idle", async () => {
@@ -145,21 +145,21 @@ describe("what the page refuses to claim", () => {
             observed_from: "2026-09-10T06:00:00+00:00" }),
     ])));
     await renderPage();
-    expect(await screen.findByText(/their day began before recording did/)).toBeTruthy();
+    expect(await screen.findByText(/この日は途中からしか見ていません/)).toBeTruthy();
     // No flag is asserted about a window nobody was watching. Scoped to the
     // person's own row: the legend at the foot of the page lists every flag by
     // design, and asserting on the whole document would match that instead.
     const cell = screen.getByText("Early Riser").closest("td")!;
-    expect(within(cell).queryByText("long idle")).toBeNull();
-    expect(within(cell).queryByText("mostly idle")).toBeNull();
-    expect(within(cell).queryByText("no decisions")).toBeNull();
+    expect(within(cell).queryByText("長時間の空白")).toBeNull();
+    expect(within(cell).queryByText("ほぼ無操作")).toBeNull();
+    expect(within(cell).queryByText("変更ゼロ")).toBeNull();
   });
 
   it("prints the rule behind every flag it shows", async () => {
     await renderPage();
-    expect(await screen.findByText("What each flag means")).toBeTruthy();
-    expect(screen.getByText("Two hours or more with no action.")).toBeTruthy();
-    expect(screen.getByText("Opened twenty or more things and changed none.")).toBeTruthy();
+    expect(await screen.findByText("フラグの意味")).toBeTruthy();
+    expect(screen.getByText("2時間以上まったく操作がない空白があります。")).toBeTruthy();
+    expect(screen.getByText("20件以上を開いて、1件も変更していません。")).toBeTruthy();
   });
 
   it("counts the people whose day has not finished", async () => {
@@ -169,8 +169,8 @@ describe("what the page refuses to claim", () => {
                     partial_rows: 0, people: 2, day_in_progress: 2,
                     with_shift_reference: 2, without_shift_reference: 0 } })));
     await renderPage();
-    await screen.findByText("Day still in progress");
-    const card = screen.getByText("Day still in progress").parentElement!;
+    await screen.findByText("まだ勤務中");
+    const card = screen.getByText("まだ勤務中").parentElement!;
     expect(card.textContent).toContain("2");
   });
 
@@ -179,7 +179,7 @@ describe("what the page refuses to claim", () => {
       row({ staff_name: "Mid Shift", day_complete: false, flags: [] }),
     ])));
     await renderPage();
-    expect(await screen.findByText(/day in progress — nothing judged yet/)).toBeTruthy();
+    expect(await screen.findByText(/勤務中 — まだ何も判定していません/)).toBeTruthy();
   });
 
   it("marks a person who is on the list by name, not by their role", async () => {
@@ -190,11 +190,11 @@ describe("what the page refuses to claim", () => {
             branch_code: "HQ", by_name: true, flags: [] }),
     ])));
     await renderPage();
-    expect(await screen.findByText("added by name")).toBeTruthy();
+    expect(await screen.findByText("人名で追加")).toBeTruthy();
   });
 
   it("explains why a morning is not full of absences", async () => {
     await renderPage();
-    expect(await screen.findByText(/Nothing is flagged until the day is over/)).toBeTruthy();
+    expect(await screen.findByText(/その人の1日が終わるまで、フラグは1つも出しません/)).toBeTruthy();
   });
 });
