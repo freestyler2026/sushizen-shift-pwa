@@ -1,6 +1,65 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-09（音声面接の案内を自己レビュー — 3件の不具合を自分の実装から発見）
+Last updated: 2026-09-09（植嶋の回答7件を反映。ただしシールSETは昨日も発注されている）
+
+## 2026-09-09（続き10） — 植嶋の回答7件を発注カタログに反映
+
+`docs/manuals/uejima-packaging-questions.html`（artifact 7d36f1b2）への回答が届き、
+**14行を変更**（12行を無効化・2行を改名）。全て
+`upsert_proc_curated_catalog_items()`（管理画面と同じ関数）経由。
+変更前は `_proc_catalog_bk_20260909` に退避済み。
+
+| # | 回答 | 実施 |
+|---|---|---|
+| 1 | 100pc入りは取り扱いなし | 100pc行 2件を無効化（25pc行は残す） |
+| 2 | シールはSheet単位。SETは削除可 | Safety Sealed Sticker SET 3店舗ぶんを無効化 |
+| 3 | 同上 | Round Small Sticker SET 3店舗ぶんを無効化 |
+| 4 | Ice Pack 40個入りは廃止 | ALL/Warehouse の40pc行を無効化 |
+| 5 | ナプキンはWarehouseのみ | Mega Crystal の3店舗行を無効化 |
+| 6 | Taftの2品は同じ物。統一可 | `Condiuments Tray`→`Sauce Tray`、`Divider`→`Sushi Tray (Divider)` |
+| 7 | Mayo 10gで正しい | **変更なし**（#5143 = QP MAYONNAISE 10g + 1oz Cup 0.868pc で既に正） |
+
+**削除ではなく無効化した。** 発注画面からは消えるので依頼どおりの効果になり、
+かつ戻せる（教訓43）。シード関数は自然キーが残っていれば再作成しないので、
+無効化は掃き戻されない。
+
+### ⚠️ ②③は「使っていない」という前提が実データと合わない
+
+60日の発注実績を測ると:
+
+| 行 | 最終発注 | 実績 |
+|---|---|---|
+| `ZEN Safety Sealed Sticker 1set = 20sheets` | **2026-09-08** | CUB 640・PAR 260・TAFT 260 |
+| `ZEN Round Small Sticker 1set = 20sheets` | 2026-09-03 | CUB 445・TAFT 120 |
+| `ZEN Safety Sealed Sticker`（Sheet単位・残す方） | **2026-08-13** | PAR 1,060・TAFT 130 |
+
+**店舗はSETで発注し続けており、Sheet単位の行は8/13以降使われていない。**
+植嶋の「現在は1Sheetごとにしています」が移行の宣言なら、この無効化が
+その移行を完了させる。合っていないなら店舗が使う行を消したことになる。
+
+**止めていない理由**: Sheet単位の行（₱9 / ₱8・ALL/Warehouse）は生きているので、
+シールの発注経路自体は塞がっていない。1行ずつ `active=true` に戻せる。
+
+①④⑤は現行の発注に影響なし（100pcは8/30が最後、Ice Pack 40pcは60日で1件、
+ナプキンの現行発注はWarehouse行経由で、無効化したのはMega Crystal行）。
+
+### ⑥の改名は既存マッピングを壊さずむしろ直した
+
+`ingredient_catalog_map` は既に `Sushi Box 24pc - Sauce Tray` /
+`Sushi Tray (Divider)` を指していた。Taftの行が旧名だったため
+**マッピングから外れていた**のが、改名で繋がった。
+
+### CK供給9品は「金額を聞く」必要がない
+
+Cost Calculation には**すでに単価が入っている**（マニラの原材料で
+単価0のものは0件）。空なのは発注カタログ側だけ。
+Sugar ₱0.0768/g（54レシピ）・Quezo Cheese ₱0.2095/g（12）・Pork Lard ₱0.3093/g（7）・
+Chili Powder ₱0.4789/g（7）・Chicken Thigh ₱0.2474/g（6）・Bamboo Shoot ₱0.1796/g（6）・
+Sweet Corn ₱0.1529/g（4）・Milk Fish ₱0.1421/g（1）・Wakame→DRIED SEAWEED ₱1.1842/g（1）。
+**聞くのは「この金額でよいか」だけ。**
+なお未価格のCKカタログ行は全部で80品あり、残り71品はレシピと紐付いていない
+（飲料・ソース・CK内製品）。
+
 
 ## ⚠️ 2026-09-09（続き9） — 「始める前に」パネルの自己レビューで3件見つかった
 
