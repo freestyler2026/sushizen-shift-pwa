@@ -263,6 +263,26 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
   const [onPhone, setOnPhone] = useState(false);
   useEffect(() => { setOnPhone(canSendSms()); }, []);
 
+  // Whether the server can send a text itself. Asked once: a button that only
+  // fails when pressed is worse than no button (lesson 64), so this decides
+  // whether "Send by SMS" is offered at all -- and when it is not, it carries
+  // the reason so somebody can fix it.
+  const [smsGate, setSmsGate] = useState<{ enabled: boolean; blocked_by: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/admin/hr/sms/status", { cache: "no-store" });
+        if (!r.ok || !alive) return;
+        const j = await r.json();
+        if (alive) setSmsGate({ enabled: !!j.enabled && !!j.configured, blocked_by: String(j.blocked_by || "") });
+      } catch { /* the rest of the screen does not depend on this */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+  const [sendingSms, setSendingSms] = useState(false);
+  const [smsResult, setSmsResult] = useState<string>("");
+
   const [openId, setOpenId] = useState<number | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -332,6 +352,43 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       setErr("Could not open this screening.");
     } finally {
       setLoadingDetail(false);
+    }
+  }
+
+  /** Issue the link and have the server text it, in one press.
+   *
+   *  One call on purpose: issue_invite replaces the token, so a separate
+   *  "send" step would let somebody text a link that had already been
+   *  invalidated by the next press of New link.
+   */
+  async function sendInviteSms(row: Row, e164: string) {
+    setSendingSms(true);
+    setSmsResult("");
+    try {
+      const res = await fetch(`/api/admin/hr/applicants/${row.applicant_id}/voice-invite/sms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: e164, lang: inviteLang }),
+      });
+      const text = await res.text();
+      let j: Record<string, unknown> = {};
+      try { j = JSON.parse(text); } catch { /* text/plain */ }
+      if (!res.ok) {
+        // Never a quiet failure: the reason the gateway gave is the only thing
+        // that lets anybody fix it.
+        const sms = (j.sms || {}) as Record<string, unknown>;
+        setSmsResult(String(sms.error || j.detail || text || "Could not send").slice(0, 300));
+        return;
+      }
+      setSmsResult(`Sent to ${String(j.sent_to || e164)}`);
+      // The link was reissued by this call, so the panel has to show the new
+      // one -- otherwise the reviewer copies a link that no longer works.
+      setInvite(j as unknown as Invite);
+      void load();
+    } catch {
+      setSmsResult("Could not reach the server. Nothing was sent.");
+    } finally {
+      setSendingSms(false);
     }
   }
 
@@ -692,12 +749,28 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                               who then got two buttons for apps they had just
                               said they do not use, and a line telling them to
                               copy and paste. */}
+                          {/* Two different things, deliberately kept apart.
+                              "Send by SMS" goes out from the OS through the
+                              gateway and costs money; "SMS" opens the phone's
+                              own Messages with the text in it and costs
+                              nothing. Only offer the first when the server can
+                              actually do it. */}
+                          {smsGate?.enabled && (
+                            <button
+                              type="button"
+                              className={PRIMARY_BUTTON}
+                              onClick={() => void sendInviteSms(row, ph.e164)}
+                              disabled={sendingSms}
+                            >
+                              {sendingSms ? "Sending…" : "Send by SMS"}
+                            </button>
+                          )}
                           {onPhone && (
                             <a
                               className={SMALL_BUTTON}
                               href={smsHref(ph.e164, invite.messages[inviteLang])}
                             >
-                              SMS
+                              {smsGate?.enabled ? "SMS from this phone" : "SMS"}
                             </a>
                           )}
                         </>
@@ -734,6 +807,20 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                       Sent — close
                     </button>
                   </div>
+                  {smsResult && (
+                    <p className={`mt-2 text-sm ${smsResult.startsWith("Sent") ? "text-emerald-300" : "text-amber-200"}`}>
+                      {smsResult}
+                    </p>
+                  )}
+
+                  {/* Say why the send button is not there. "It does not appear"
+                      is not something anybody can act on. */}
+                  {smsGate && !smsGate.enabled && smsGate.blocked_by && (
+                    <p className={`${T_CAPTION} mt-2`}>
+                      The OS cannot send texts itself yet — {smsGate.blocked_by}.
+                    </p>
+                  )}
+
                   {/* On a phone the SMS button above does this. On a computer
                       there is nothing to open, so say so rather than show a
                       button that would do nothing. */}

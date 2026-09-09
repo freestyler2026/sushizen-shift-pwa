@@ -110,6 +110,10 @@ describe("the voice screening decision buttons say what they do", () => {
 
 describe("sending the invite link", () => {
   const UA = navigator.userAgent;
+  beforeEach(() => {
+    smsGate = { provider: "semaphore", configured: false, enabled: false,
+                blocked_by: "no API key — set SEMAPHORE_API_KEY" };
+  });
   function setUA(ua: string, touch = 0, platform = "") {
     Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
     Object.defineProperty(navigator, "maxTouchPoints", { value: touch, configurable: true });
@@ -126,12 +130,20 @@ describe("sending the invite link", () => {
     messages: { en: "Hi Test, link: https://example.test/voice/tok", tl: "Kumusta" },
   };
 
+  // What /api/admin/hr/sms/status says. Off by default: the gateway is not
+  // configured in production yet, and the button must not appear until it is.
+  let smsGate: Record<string, unknown> = {
+    provider: "semaphore", configured: false, enabled: false,
+    blocked_by: "no API key — set SEMAPHORE_API_KEY",
+  };
+
   function serveInvite(rows: Record<string, unknown>[]) {
     return (u: unknown, init?: RequestInit) => {
       const url = String(u);
       if (String(init?.method || "GET").toUpperCase() === "POST" && url.includes("voice-invite")) {
         return ok(INVITE);
       }
+      if (url.includes("/sms/status")) return ok(smsGate);
       if (url.includes("/reasons")) return ok({ reasons: REASONS });
       if (/\/voice-screenings\/\d+$/.test(url)) return ok({ items: [] });
       if (url.includes("/voice-screenings")) {
@@ -186,5 +198,41 @@ describe("sending the invite link", () => {
     render(<Queue city="manila" />);
     await openInvite();
     expect(screen.getByText(/They asked to be reached on/)).toBeTruthy();
+  });
+
+  it("does not offer server-side sending until the gateway is configured", async () => {
+    // A button that only fails when pressed is worse than no button, and the
+    // reason has to be on screen or nobody can fix it.
+    setUA("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", 0, "MacIntel");
+    mockFetch.mockImplementation(serveInvite([row({ bucket: "waiting", answered: 0, contact_apps: ["sms"] })]));
+    const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
+    render(<Queue city="manila" />);
+    await openInvite();
+    expect(screen.queryByRole("button", { name: /Send by SMS/ })).toBeNull();
+    expect(await screen.findByText(/cannot send texts itself yet/)).toBeTruthy();
+  });
+
+  it("offers it once the gateway is on, and reports a refusal instead of swallowing it", async () => {
+    setUA("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", 0, "MacIntel");
+    smsGate = { provider: "semaphore", configured: true, enabled: true, blocked_by: "" };
+    const rows = [row({ bucket: "waiting", answered: 0, contact_apps: ["sms"] })];
+    mockFetch.mockImplementation((u: unknown, init?: RequestInit) => {
+      const url = String(u);
+      if (url.includes("voice-invite/sms")) {
+        // The gateway refused. The screen must say so, not say "sent".
+        return Promise.resolve({
+          ok: false, status: 502,
+          text: () => Promise.resolve(JSON.stringify({ sms: { ok: false, error: "the gateway refused it (402): insufficient credits" } })),
+          json: () => Promise.resolve({}),
+        } as Response);
+      }
+      return serveInvite(rows)(u, init);
+    });
+    const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
+    render(<Queue city="manila" />);
+    await openInvite();
+    fireEvent.click(await screen.findByRole("button", { name: /Send by SMS/ }));
+    expect(await screen.findByText(/insufficient credits/)).toBeTruthy();
+    expect(screen.queryByText(/^Sent to/)).toBeNull();
   });
 });
