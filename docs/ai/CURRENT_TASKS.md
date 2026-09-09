@@ -1,6 +1,61 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-09（応募者の履歴テーブルを新設。不採用は理由必須になった）
+Last updated: 2026-09-09（職種を求人投稿と一致する6分類にした。手入力側も同じ選択肢に）
+
+## 2026-09-09（続き13） — 職種が数えられなかった件
+
+### ⚠️ 先に私の誤りの訂正
+
+「Facebook投稿に応募フォームのリンクを置きましょう」と提案したが、
+**リンクは既に入っていて、しかも機能していた**（9/8にフォーム経由10件）。
+「投稿のステップ2が個人Gmailに履歴書を送らせている」とも指摘したが、
+**それも前夜に対処済み**で、私が見ていたのは古い版だった。
+
+**現物を確認せずに現状を断定した。** 投稿を見せてもらって初めて分かった。
+
+### 実際の穴 — 職種が集計できない
+
+| 列 | 状態 |
+|---|---|
+| `position_group`（フォームの5択） | 186名中**30名だけ**。156名は空 |
+| `position_applied`（自由記述） | **88通り**。`store manager` / `Store manager` / `store maanger` / `Manager` / `L0-3` / `L0-L3` / `L0 kitchen asst.` |
+
+投稿は6職種を募集しているのに、フォームは5択で
+**Head Chef と Store Manager が選べなかった** — 選んだ人は `kitchen` か `pic` に潰れる。
+
+### 直したこと
+
+**投稿の6行と1対1**（順番も投稿と同じ）:
+
+```
+pic          Store Manager / Person in charge
+head_chef    Head Chef / Chef de Partie      ← 新規
+kitchen      Cook / Assistant Cook
+cashier      Cashier
+driver       Driver
+back_office  Office staff
+```
+
+- 公開フォーム（EN/TL）、`POSITION_GROUPS`（サーバー検証）、
+  管理画面の Add Applicant の**3か所を同じ並びに**した
+- `create_applicant` が `position_group` を受けるようにし、
+  **手入力の応募者も同じ6分類に入る**
+- 求人票と紐づく自由記述（`position_applied`）はそのまま残す。
+  あちらは1件の求人の正確な文言、こちらは集計の単位
+
+**サーバーは空欄を通し、未知の値だけ弾く。** Bulk Add にこの欄が無いので、
+必須にすると動いている経路が止まる（教訓17）。
+
+⚠️ **既存キーは改名せず、過去も塗り替えない。** `kitchen` の20件と `pic` の2件は
+Head Chef が選択肢に無かった時期の応募で、**中にヘッドシェフ志望が混ざっている
+可能性がある**。分割後の応募だけが正確（教訓40）。
+
+### 残り: 156名が未分類
+
+自由記述から機械的に寄せられるもの（`store manager` 等）はあるが、
+`L0-3` `l5 commis chef` は推測になる。**やるなら先に何件が確実に寄せられるか
+measure してから。**
+
 
 ## 2026-09-09（続き12） — Recruitment の「記録が残らない穴」①②を塞いだ
 
