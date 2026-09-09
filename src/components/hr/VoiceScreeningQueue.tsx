@@ -185,6 +185,30 @@ function bucketWithoutDecision(row: Row): State {
   return row.answered > 0 ? "to_review" : "waiting";
 }
 
+/** What each decision is called on screen.
+ *
+ *  The stored keys are `shortlist` / `hold` / `pass` and they stay that way --
+ *  renaming them would orphan every decision already recorded. Only the words
+ *  change.
+ *
+ *  ⚠️ "Pass" was the label until 2026-09-09, when the Paranaque manager asked
+ *  whether it meant the applicant had passed or been turned down. In English it
+ *  reads both ways, and he was being asked to reject people with a word he
+ *  could not resolve -- so he asked for a reject button that was already there.
+ *  A label a manager has to ask about is a defect in the screen, not in the
+ *  manager. Do not shorten these back to one word.
+ */
+const DECISION_LABEL: Record<string, string> = {
+  shortlist: "Shortlisted",
+  hold: "On hold",
+  pass: "Rejected",
+};
+
+function decisionLabel(key: string | null | undefined): string {
+  const k = String(key || "").toLowerCase();
+  return DECISION_LABEL[k] || k;
+}
+
 function mmss(sec: number | null): string {
   if (!sec || sec < 0) return "—";
   const m = Math.floor(sec / 60);
@@ -334,8 +358,8 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       setJustDecided((p) => ({
         ...p,
         [row.id]: out.moved_to
-          ? `${decision} — moved to ${out.moved_to.replace("_", " ")}`
-          : `${decision} — stage unchanged (${out.previous_status.replace("_", " ")})`,
+          ? `${decisionLabel(decision)} — moved to ${out.moved_to.replace("_", " ")}`
+          : `${decisionLabel(decision)} — stage unchanged (${out.previous_status.replace("_", " ")})`,
       }));
       setRows((p) => p.map((r) => (r.id === row.id
         ? { ...r, decision, decision_reason: reason || null, bucket: "done" }
@@ -520,7 +544,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                 )}
                 {row.decision && (
                   <span className={BADGE_INFO}>
-                    {row.decision}
+                    {decisionLabel(row.decision)}
                     {row.decision_reason ? ` · ${row.decision_reason.replace(/_/g, " ")}` : ""}
                   </span>
                 )}
@@ -843,7 +867,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                 disabled={saving}
                               >
                                 <PauseCircle className="h-4 w-4" />
-                                Hold
+                                Hold — decide later
                               </button>
                               <button
                                 className={`${SMALL_BUTTON} flex items-center gap-1.5`}
@@ -851,17 +875,19 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                 disabled={saving}
                               >
                                 <X className="h-4 w-4" />
-                                Pass
+                                Reject — do not proceed
                               </button>
                               <span className={`${T_CAPTION} basis-full`}>
-                                Shortlisting moves them to Screened, ready to book
-                                an interview. You can undo any of these.
+                                Shortlist moves them to Screened, ready to book an
+                                interview. Hold leaves them where they are.
+                                Reject moves them to Rejected and closes the
+                                application. You can undo any of these.
                               </span>
                             </div>
                           ) : (
                             <div>
                               <p className={`${T_LABEL} mb-2`}>
-                                Why {pending === "hold" ? "hold" : "pass"}?
+                                Why {pending === "hold" ? "hold" : "reject"}?
                               </p>
                               <div className="flex flex-wrap gap-2">
                                 {reasons.map((r) => (
@@ -897,7 +923,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                       {row.decision && (
                         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-white/8 pt-4">
                           <span className={T_BODY}>
-                            {row.decision}
+                            {decisionLabel(row.decision)}
                             {row.decision_reason ? ` — ${row.decision_reason.replace(/_/g, " ")}` : ""}
                             {row.decided_by ? ` · ${row.decided_by}` : ""}
                           </span>
