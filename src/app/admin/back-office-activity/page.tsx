@@ -41,6 +41,7 @@ type Row = {
   distinct_screens: number; buckets: number[]; busiest_slot_share: number;
   partial: boolean; observed_from: string | null;
   shift: { start_hour: number; end_hour: number } | null;
+  rostered: boolean | null;
   clock_in: string | null; clock_out: string | null;
   flags: string[];
 };
@@ -49,11 +50,11 @@ type Report = {
   date: string;
   idle_gap_minutes: number;
   rules: Record<string, { says: string } & Record<string, unknown>>;
+  selection: { roles: string[]; city: string; individuals: string[] };
   coverage: {
     log_from: string | null; log_to: string | null; log_rows: number;
-    partial_rows: number;
-    shift_reference: Record<string, boolean>;
-    clock_reference: Record<string, boolean>;
+    partial_rows: number; people: number;
+    with_shift_reference: number; without_shift_reference: number;
   };
   rows: Row[];
 };
@@ -110,6 +111,13 @@ const FLAG_TONE: Record<string, string> = {
   LONG_IDLE: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   ONE_BURST: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   NO_DECISIONS: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+  NO_SHIFT_REFERENCE: "border-zinc-500/30 bg-zinc-500/10 text-zinc-400",
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  HR_MANAGER: "HR Manager", MANILA_MANAGEMENT: "Manila Management",
+  MANILA_MANAGER: "Manila Manager", HR_STAFF: "HR Staff", ADMIN: "Admin",
+  INVENTORY_PURCHASING: "Inventory & Purchasing", HQ: "HQ",
 };
 
 export default function BackOfficeActivityPage() {
@@ -196,10 +204,18 @@ export default function BackOfficeActivityPage() {
         <div>
           <h1 className={T_PAGE_TITLE}>Back office — the shape of the day</h1>
           <p className={`${T_BODY} mt-1 max-w-2xl`}>
-            HQ (Dubai) and BO (Manila). Each row is how one person used this system on
-            that date: when they were here, how much of it they were engaged, and what
-            they opened.
+            Each row is how one person used this system on that date: when they were
+            here, how much of that window they were engaged, and what they opened.
           </p>
+          {data?.selection && (
+            <p className={`${T_CAPTION} mt-2 max-w-2xl`}>
+              Who is on this report: everyone in <strong>{data.selection.city}</strong> whose
+              role is {data.selection.roles.map((r) => ROLE_LABEL[r] || r).join(", ")}
+              {data.selection.individuals.length > 0 && (
+                <> — plus <strong>{data.selection.individuals.join(", ")}</strong> by name.</>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex items-end gap-2">
           <div>
@@ -222,9 +238,11 @@ export default function BackOfficeActivityPage() {
           <li>This measures <strong>use of the OS</strong>. Work done on the phone, in a
             meeting, in a spreadsheet or on paper leaves nothing here, and a quiet row is
             not evidence of a quiet day.</li>
-          <li>Manila back office has published shifts and clock-ins. <strong>Dubai HQ has
-            neither</strong>, so there is no rostered window to compare against and those
-            rows show OS use alone.</li>
+          {cov && cov.without_shift_reference > 0 && (
+            <li><strong>{cov.without_shift_reference} of {cov.people}</strong> have no published
+              shift at all, so for them a quiet day and a day off cannot be told apart. Those
+              rows say so instead of being called absent.</li>
+          )}
           {cov?.log_from && (
             <li>Recording began <strong>{new Date(cov.log_from).toLocaleString()}</strong>.
               Anything before that was never watched. Rows marked <em>partial</em> started
@@ -232,6 +250,14 @@ export default function BackOfficeActivityPage() {
           )}
           <li>Writing nothing is not the same as doing nothing. A reviewer who checks
             forty cases and finds them all correct writes nothing at all.</li>
+          <li><strong>Inventory &amp; Purchasing people work at store branches.</strong> Most
+            of their day is on the floor, not in here, so a short engaged time is what a
+            normal day looks like for them — read them against each other, not against
+            the office rows.</li>
+          <li>Reads and changes are <strong>observed by the server</strong>. The screen
+            count is <strong>reported by the browser</strong>, so it is the one figure a
+            person could inflate by clicking around. Judge on engaged time and on what
+            was changed.</li>
         </ul>
       </div>
 
@@ -279,6 +305,9 @@ export default function BackOfficeActivityPage() {
                         <div className="mt-1 text-[10px] text-zinc-500">
                           partial — their day began before recording did
                         </div>
+                      )}
+                      {r.rostered === false && (
+                        <div className="mt-1 text-[10px] text-zinc-500">not rostered this day</div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{clock(r.login_at, r.city)}</td>
