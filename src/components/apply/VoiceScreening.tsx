@@ -130,6 +130,9 @@ const T = {
     sendAgain: "Send it again",
     holding: "That did not send. Your answer is still on this phone — trying again…",
     holdingStuck: "Still could not send it. Your answer is still on this phone — check your signal, then send it again.",
+    consentFailed: "We could not save that just now. Nothing is lost — wait a moment and press it again.",
+    slowTitle: "Still loading…",
+    slowBody: "This is taking longer than usual. Stay on this page — it will open by itself.",
     left: "left",
     againLeft: "You can re-record this answer once.",
 
@@ -234,6 +237,9 @@ const T = {
     sendAgain: "Ipadala ulit",
     holding: "Hindi naipadala. Nasa telepono mo pa po ang sagot — sinusubukan ulit…",
     holdingStuck: "Hindi pa rin naipadala. Nasa telepono mo pa po ang sagot — pakicheck ang signal, tapos ipadala ulit.",
+    consentFailed: "Hindi po ito na-save ngayon. Walang nawala — sandali lang, tapos pindutin ulit.",
+    slowTitle: "Naglo-load pa po…",
+    slowBody: "Mas matagal ito kaysa karaniwan. Manatili lang po sa page na ito — bubukas ito nang kusa.",
     left: "natitira",
     againLeft: "Pwede mong i-record ulit ang sagot na ito nang isang beses.",
 
@@ -294,6 +300,18 @@ type Held = { blob: Blob; type: string; peak: number | null; seq: number; second
  *  applicant is told to send it themselves rather than left watching a
  *  spinner. */
 const SEND_RETRY_MS = [4000, 12000, 25000];
+
+/** Waits before re-reading the screening. Same reason as SEND_RETRY_MS, at the
+ *  other end of the interview: while the API restarts it answers 503, and 503
+ *  is also how the API says "voice screening is switched off". Retrying first
+ *  is what tells the two apart -- a restart heals inside this window and an
+ *  interview that is genuinely off does not -- so no guess about the response
+ *  body is needed. */
+const LOAD_RETRY_MS = [3000, 8000, 20000];
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /** Whether re-sending the same recording could plausibly succeed.
  *  `null` means the request never reached the server -- offline, or the dyno
@@ -470,6 +488,9 @@ export default function VoiceScreening({
   // state: nothing has been lost while this is set, and the applicant must
   // not be shown the record button, or they will say it all over again.
   const [held, setHeld] = useState<null | "retrying" | "stuck">(null);
+  // The first read of the screening did not come back. Says so rather than
+  // leaving a blank card while the retries run.
+  const [slowLoad, setSlowLoad] = useState(false);
   // The CV step. `cvFile` is what they picked but have not sent yet, so the
   // button can say what it will do rather than firing on the file input.
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -509,17 +530,41 @@ export default function VoiceScreening({
   }, []);
 
   const load = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/voice/${token}`);
-      if (!res.ok) {
-        // Inside /apply there is nothing useful to say, so this stays hidden.
-        // On a page reached from an invite link, a blank screen is a dead end
-        // with no way out, so the reason is handed up.
-        onUnavailable?.(res.status === 503 ? "off"
-          : res.status === 404 ? "expired" : "error");
+    // Retried before anything is concluded. A deploy restarts the API, and for
+    // those seconds every request comes back 503 -- which used to be read as
+    // "the interview is not open", on a screen with no button on it. Somebody
+    // opening their invite link at the wrong moment was told their interview
+    // was closed and given nothing to press.
+    for (let attempt = 0; ; attempt++) {
+      let status: number | null = null;
+      let d: Loaded | null = null;
+      try {
+        const res = await fetch(`/api/voice/${token}`);
+        status = res.status;
+        if (res.ok) d = (await res.json()) as Loaded;
+      } catch {
+        // Never reached the server.
+        status = null;
+      }
+      if (!aliveRef.current) return;
+      if (!d) {
+        // A link that is really dead does not heal, so this one is answered at
+        // once rather than making them wait through the retries.
+        if (status === 404) { onUnavailable?.("expired"); return; }
+        if (attempt < LOAD_RETRY_MS.length) {
+          setSlowLoad(true);
+          await wait(LOAD_RETRY_MS[attempt]);
+          if (!aliveRef.current) return;
+          continue;
+        }
+        setSlowLoad(false);
+        // Still refusing after half a minute: longer than a restart. A 503 now
+        // is the API's own answer -- screening is switched off. Anything else
+        // goes to the screen that offers Try again.
+        onUnavailable?.(status === 503 ? "off" : "error");
         return;
       }
-      const d: Loaded = await res.json();
+      setSlowLoad(false);
       setData(d);
       // Resume where the connection dropped rather than starting over.
       const first = d.questions.findIndex((q) => !d.answered.includes(q.seq));
@@ -534,8 +579,7 @@ export default function VoiceScreening({
       // that way would never be shown the company video at all -- and that is
       // most people, because the link is what gets sent over Messenger.
       else if (!d.consent_given && hasIntro && startAt === "consent") setStage("intro");
-    } catch {
-      onUnavailable?.("error");
+      return;
     }
   }, [token, onUnavailable, startAt]);
 
@@ -558,7 +602,18 @@ export default function VoiceScreening({
   };
   useEffect(() => stopTimer, []);
 
-  if (!data || !data.questions.length) return null;
+  if (!data || !data.questions.length) {
+    // Blank until the first read comes back -- that is normally instant. Once a
+    // read has failed, silence for half a minute reads as a broken link, so the
+    // wait is named and they are told to stay put.
+    if (!slowLoad) return null;
+    return (
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5">
+        <h2 className="text-base font-semibold text-white">{t.slowTitle}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-300">{t.slowBody}</p>
+      </div>
+    );
+  }
 
   const q = data.questions[idx];
   const total = data.questions.length;
@@ -574,9 +629,28 @@ export default function VoiceScreening({
   const primary = lang === "tl" && q?.text_tl ? q.text_tl : q?.text_en;
   const secondary = lang === "tl" ? q?.text_en : q?.text_tl;
 
+  /** Records the consent, and only moves on once the server has it.
+   *
+   *  This used to fire and forget. During a deploy the API answers 503, the
+   *  screen advanced anyway, and the server had no consent -- so every answer
+   *  they then recorded came back 403 "Consent is required before recording",
+   *  which is a 4xx and therefore not retried. The applicant was told to record
+   *  it again, and recording it again failed identically. The whole interview
+   *  was lost to a request nobody looked at. Pressing again is safe: the server
+   *  keeps the first consent_at it wrote. */
   async function agree() {
     setErr("");
-    await fetch(`/api/voice/${token}/consent`, { method: "POST" });
+    setBusy(true);
+    let ok = false;
+    try {
+      const res = await fetch(`/api/voice/${token}/consent`, { method: "POST" });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
+    if (!aliveRef.current) return;
+    setBusy(false);
+    if (!ok) { setErr(t.consentFailed); return; }
     // The CV comes after consent, not before it: a CV is personal data kept
     // under the same retention the consent screen just described, so taking it
     // first would mean holding something nobody was told about.
@@ -1152,7 +1226,7 @@ export default function VoiceScreening({
             </li>
           ))}
         </ul>
-        <button type="button" onClick={() => void agree()}
+        <button type="button" onClick={() => void agree()} disabled={busy}
           className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
           {t.agree}
         </button>
@@ -1160,6 +1234,11 @@ export default function VoiceScreening({
           className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
           {t.decline}
         </button>
+        {err && (
+          <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-sm text-amber-100">
+            {err}
+          </p>
+        )}
       </div>
     );
   }
