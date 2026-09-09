@@ -669,8 +669,10 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
               {showingInvite && invite && (
                 <div className="border-t border-white/8 bg-violet-500/8 px-4 py-3">
                   <p className="text-sm text-violet-200">
-                    Link ready for {invite.full_name}. Nothing has been sent —
-                    open one of these, then press send yourself.
+                    Link ready for {invite.full_name}.{" "}
+                    {smsGate?.enabled
+                      ? "Send by SMS does it from here. The rest open on your own phone."
+                      : "Nothing has been sent — open one of these, then press send yourself."}
                   </p>
                   {invite.reissued && (
                     <p className={`${T_CAPTION} mt-1`}>
@@ -721,58 +723,73 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                     </p>
                   )}
 
+                  {/* One way to send, then the free ones underneath.
+                      Measured 2026-09-09 on the 28 applicants who were actually
+                      asked: 85% chose SMS, 39% Viber, 25% WhatsApp -- they can
+                      pick more than one. Only 4 of the 28 chose neither. SMS is
+                      also the only one that works for the 157 older applicants
+                      who were never asked the question at all.
+                      (An earlier comment here said "1 in 3 picks SMS". That was
+                      written from an impression, not from the table.)
+                      The other two stay: they cost nothing, they go out from a
+                      real person's number, and for the applicant who asked for
+                      Viber, texting them instead ignores what they told us. */}
                   {invite.phones.map((ph) => (
-                    <div key={ph.raw} className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className={`${T_CAPTION} min-w-[9rem]`}>{ph.raw}</span>
+                    <div key={ph.raw} className="mt-3">
+                      <span className={`${T_CAPTION} block`}>{ph.raw}</span>
                       {ph.usable ? (
                         <>
-                          <a
-                            className={SMALL_BUTTON}
-                            href={`https://wa.me/${ph.e164.replace("+", "")}?text=${encodeURIComponent(invite.messages[inviteLang])}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            WhatsApp
-                          </a>
-                          {/* Viber takes no message body, so the text is copied
-                              at the same time -- otherwise the chat opens empty
-                              and the link has to be typed from the screen. */}
-                          <a
-                            className={SMALL_BUTTON}
-                            href={`viber://chat?number=${encodeURIComponent(ph.e164)}`}
-                            onClick={() => void copy(invite.messages[inviteLang], "viber")}
-                          >
-                            Viber (copies the text)
-                          </a>
-                          {/* The form asks every applicant to pick Viber,
-                              WhatsApp or SMS, and 1 in 3 of them picks SMS --
-                              who then got two buttons for apps they had just
-                              said they do not use, and a line telling them to
-                              copy and paste. */}
-                          {/* Two different things, deliberately kept apart.
-                              "Send by SMS" goes out from the OS through the
-                              gateway and costs money; "SMS" opens the phone's
-                              own Messages with the text in it and costs
-                              nothing. Only offer the first when the server can
-                              actually do it. */}
+                          {/* The one press that finishes the job. It spends a
+                              message, so it says so -- a button that costs
+                              money should not look like one that does not. */}
                           {smsGate?.enabled && (
-                            <button
-                              type="button"
-                              className={PRIMARY_BUTTON}
-                              onClick={() => void sendInviteSms(row, ph.e164)}
-                              disabled={sendingSms}
-                            >
-                              {sendingSms ? "Sending…" : "Send by SMS"}
-                            </button>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                className={`${PRIMARY_BUTTON} flex items-center gap-1.5`}
+                                onClick={() => void sendInviteSms(row, ph.e164)}
+                                disabled={sendingSms}
+                              >
+                                <Send className="h-4 w-4" />
+                                {sendingSms ? "Sending…" : "Send by SMS"}
+                              </button>
+                              <span className={T_CAPTION}>one text, sent from the OS</span>
+                            </div>
                           )}
-                          {onPhone && (
+
+                          {/* Free, and from your own number. */}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className={T_CAPTION}>
+                              {smsGate?.enabled ? "Or send it yourself, free:" : "Send it yourself:"}
+                            </span>
                             <a
                               className={SMALL_BUTTON}
-                              href={smsHref(ph.e164, invite.messages[inviteLang])}
+                              href={`https://wa.me/${ph.e164.replace("+", "")}?text=${encodeURIComponent(invite.messages[inviteLang])}`}
+                              target="_blank"
+                              rel="noreferrer"
                             >
-                              {smsGate?.enabled ? "SMS from this phone" : "SMS"}
+                              WhatsApp
                             </a>
-                          )}
+                            {/* Viber takes no message body, so the text is
+                                copied at the same time -- otherwise the chat
+                                opens empty and the link has to be typed from
+                                the screen. */}
+                            <a
+                              className={SMALL_BUTTON}
+                              href={`viber://chat?number=${encodeURIComponent(ph.e164)}`}
+                              onClick={() => void copy(invite.messages[inviteLang], "viber")}
+                            >
+                              Viber (copies the text)
+                            </a>
+                            {onPhone && (
+                              <a
+                                className={SMALL_BUTTON}
+                                href={smsHref(ph.e164, invite.messages[inviteLang])}
+                              >
+                                Messages
+                              </a>
+                            )}
+                          </div>
                         </>
                       ) : (
                         <span className={T_CAPTION}>

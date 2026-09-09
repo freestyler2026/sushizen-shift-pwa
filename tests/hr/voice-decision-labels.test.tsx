@@ -156,7 +156,7 @@ describe("sending the invite link", () => {
   async function openInvite() {
     await screen.findByText(/Test Applicant/);
     fireEvent.click(screen.getByRole("button", { name: /Get invite link|New link/ }));
-    await screen.findByText(/Nothing has been sent/);
+    await screen.findByText(/Link ready for/);
   }
 
   it("offers SMS on a phone, with the body separator that platform understands", async () => {
@@ -167,7 +167,7 @@ describe("sending the invite link", () => {
     const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
     render(<Queue city="manila" />);
     await openInvite();
-    const sms = await screen.findByRole("link", { name: "SMS" });
+    const sms = await screen.findByRole("link", { name: "Messages" });
     expect(sms.getAttribute("href")).toMatch(/^sms:\+639178987620\?body=/);
   });
 
@@ -177,7 +177,7 @@ describe("sending the invite link", () => {
     const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
     render(<Queue city="manila" />);
     await openInvite();
-    const sms = await screen.findByRole("link", { name: "SMS" });
+    const sms = await screen.findByRole("link", { name: "Messages" });
     expect(sms.getAttribute("href")).toMatch(/^sms:\+639178987620&body=/);
   });
 
@@ -187,7 +187,7 @@ describe("sending the invite link", () => {
     const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
     render(<Queue city="manila" />);
     await openInvite();
-    expect(screen.queryByRole("link", { name: "SMS" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Messages" })).toBeNull();
     expect(screen.getByText(/a computer cannot send a text/)).toBeTruthy();
   });
 
