@@ -245,7 +245,7 @@ describe("the panel shown before the first answer", () => {
 
   it("counts the questions and the seconds from the set, not from the copy", async () => {
     await onQuestion();
-    expect(await screen.findByText("Before you start")).toBeTruthy();
+    expect(await screen.findByText(/Before you start/)).toBeTruthy();
     // Two 90s questions in this fixture -- a single figure, not a range.
     expect(screen.getByText(/2 questions, 90 seconds each/)).toBeTruthy();
   });
@@ -274,7 +274,7 @@ describe("the panel shown before the first answer", () => {
     await onQuestion({ answered: [1] });
     // Resumes on question 2 of 2.
     expect(await screen.findByText(/QUESTION 2 OF 2|Question 2 of 2/i)).toBeTruthy();
-    expect(screen.queryByText("Before you start")).toBeNull();
+    expect(screen.queryByText(/Before you start/)).toBeNull();
   });
 
   it("stays hidden for somebody back on question 1 who has already answered another", async () => {
@@ -283,34 +283,31 @@ describe("the panel shown before the first answer", () => {
     // the answered-count check exists for -- the index check does not cover it.
     await onQuestion({ answered: [2] });
     expect(await screen.findByText(/QUESTION 1 OF 2|Question 1 of 2/i)).toBeTruthy();
-    expect(screen.queryByText("Before you start")).toBeNull();
+    expect(screen.queryByText(/Before you start/)).toBeNull();
   });
 
-  it("stays inside a copy budget, because it sits above the record button", async () => {
+  it("keeps the line above the record button short, whatever the advice below says", async () => {
     // jsdom computes no layout, so this cannot assert pixels. What it can
-    // assert is the thing that made the pixels wrong: at 375x667 (an iPhone SE
-    // / 8, common in Manila) the first draft -- 431 characters of English, 500
-    // of Tagalog -- pushed "Start recording" to 761px and 809px respectively,
-    // below the fold of a 667px viewport. Trimmed to 309 / 338 it sits at 604 /
-    // 641. Tagalog runs longer and sets the worst case.
+    // assert is the thing that made the pixels wrong. Measured on the deployed
+    // page at 375x667 (an iPhone SE / 8, common in Manila): with the whole
+    // panel above the button it sat at 761px in English and 809px in Tagalog,
+    // and trimming the copy only got Tagalog to 680 -- still under a 667px
+    // fold. The bullets now sit below the button, so only this one line can
+    // push it down, and the question text above it varies by set.
     //
-    // If a future edit needs more room than this, move the panel or measure the
-    // button again on a 667px viewport -- do not just raise the number.
-    const mod = await import("@/components/apply/VoiceScreening");
-    const src = mod.__prepCopyForTest;
+    // Tagalog runs longer than English and sets the worst case.
+    const { __prepCopyForTest } = await import("@/components/apply/VoiceScreening");
     for (const lang of ["en", "tl"] as const) {
-      const { lead, steps } = src(lang);
-      const total = lead.length + steps.reduce((n: number, x: string) => n + x.length, 0);
-      expect(total, `${lang} prep copy is ${total} characters`).toBeLessThanOrEqual(380);
-      expect(steps.length).toBeLessThanOrEqual(4);
+      const { lead } = __prepCopyForTest(lang);
+      expect(lead.length, `${lang} lead is ${lead.length} characters`).toBeLessThanOrEqual(110);
     }
   });
 
   it("speaks Tagalog when the applicant does", async () => {
     await onQuestion();
-    await screen.findByText("Before you start");
+    await screen.findByText(/Before you start/);
     fireEvent.click(screen.getByRole("button", { name: "Tagalog" }));
-    expect(await screen.findByText("Bago ka magsimula")).toBeTruthy();
+    expect(await screen.findByText(/Bago ka magsimula/)).toBeTruthy();
     expect(screen.getByText(/30 segundo pataas/)).toBeTruthy();
   });
 });

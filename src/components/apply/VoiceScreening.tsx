@@ -1250,27 +1250,23 @@ export default function VoiceScreening({
       )}
       {(!secondary || secondary === primary) && <div className="mb-5" />}
 
-      {/* Shown once, on the first question, with the question already visible
-          and the record button directly under it -- that is the moment the
-          advice is about. Not a screen of its own: five screens already stand
-          between the offer and the first answer, and not on the microphone
-          check either, because two of the three routes into recording skip it
-          (no AudioContext, and anyone returning to a consented screening). */}
+      {/* Shown once, on the first question -- the moment the advice is about.
+          Not a screen of its own: five screens already stand between the offer
+          and the first answer, and not on the microphone check either, because
+          two of the three routes into recording skip it (no AudioContext, and
+          anyone returning to a consented screening).
+          ⚠️ Split around the button ON PURPOSE. Trimming the copy to keep the
+          whole panel above it did not hold: Tagalog still landed the button at
+          680px in a 667px viewport, and the question text varies by set, so the
+          height was never ours to predict. Above the button goes ONE bounded
+          line -- the timer, which is the fact that changes what they do. The
+          rest sits under it, on the same screen, where its length costs
+          nothing. */}
       {showPrep && (
-        <div className="mb-3 rounded-xl border border-violet-500/25 bg-violet-950/20 p-3">
-          <p className="mb-1 text-sm font-semibold text-violet-200">{t.prepTitle}</p>
-          <p className="text-sm leading-relaxed text-zinc-300">
-            {t.prepLead.replace("{n}", String(total)).replace("{time}", answerTime)}
-          </p>
-          <ul className="mt-1.5 space-y-1">
-            {t.prepSteps.map((line) => (
-              <li key={line} className="flex gap-2 text-sm leading-relaxed text-zinc-400">
-                <span className="text-violet-400">•</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <p className="mb-3 text-sm leading-relaxed text-zinc-300">
+          <span className="font-semibold text-violet-200">{t.prepTitle}: </span>
+          {t.prepLead.replace("{n}", String(total)).replace("{time}", answerTime)}
+        </p>
       )}
 
       {!recording && !saved && !silent && (
@@ -1288,6 +1284,17 @@ export default function VoiceScreening({
           </button>
           {meterBar}
         </>
+      )}
+
+      {showPrep && (
+        <ul className="mt-4 space-y-1.5">
+          {t.prepSteps.map((line) => (
+            <li key={line} className="flex gap-2 text-sm leading-relaxed text-zinc-400">
+              <span className="text-violet-400">•</span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* The microphone message offers to do this later, so the way out has to
