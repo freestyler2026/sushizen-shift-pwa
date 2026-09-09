@@ -26,7 +26,7 @@ function row(over: Record<string, unknown> = {}) {
     span_minutes: 480, active_minutes: 30, idle_minutes: 450,
     longest_idle_minutes: 200, events: 40, screens: 10, reads: 30, writes: 0,
     distinct_screens: 4, buckets: new Array(48).fill(0), busiest_slot_share: 0.2,
-    partial: false, observed_from: null, shift: null, rostered: true, day_complete: true,
+    partial: false, observed_from: null, shift: null, rostered: true, day_complete: true, by_name: false,
     clock_in: null, clock_out: null,
     flags: ["LONG_IDLE", "MOSTLY_IDLE", "NO_DECISIONS"], ...over,
   };
@@ -180,6 +180,17 @@ describe("what the page refuses to claim", () => {
     ])));
     await renderPage();
     expect(await screen.findByText(/day in progress — nothing judged yet/)).toBeTruthy();
+  });
+
+  it("marks a person who is on the list by name, not by their role", async () => {
+    // Yuri Yamada's role is HQ and HQ is not a selector. Without this the row
+    // reads as though it were.
+    mockFetch.mockImplementation(() => ok(report([
+      row({ staff_name: "Yuri Yamada", role: "HQ", city: "dubai",
+            branch_code: "HQ", by_name: true, flags: [] }),
+    ])));
+    await renderPage();
+    expect(await screen.findByText("added by name")).toBeTruthy();
   });
 
   it("explains why a morning is not full of absences", async () => {
