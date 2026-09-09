@@ -58,8 +58,12 @@ const T = {
     errNetwork: "Could not send. Check your connection and try again.",
     errBusy: "Too many applications from this connection. Please try later, or message us on Facebook.",
     positions: {
-      kitchen: "Kitchen", cashier: "Cashier", pic: "Person in charge",
-      driver: "Driver", back_office: "Office",
+      pic: "Store Manager / Person in charge",
+      head_chef: "Head Chef / Chef de Partie",
+      kitchen: "Cook / Assistant Cook",
+      cashier: "Cashier",
+      driver: "Driver",
+      back_office: "Office staff",
     } as Record<string, string>,
     experiences: {
       none: "None", under_1y: "Less than 1 year",
@@ -104,8 +108,12 @@ const T = {
     errNetwork: "Hindi naipadala. Pakicheck ang koneksyon at subukan ulit.",
     errBusy: "Masyadong maraming aplikasyon mula sa koneksyong ito. Subukan mamaya, o mag-message sa Facebook.",
     positions: {
-      kitchen: "Kusina", cashier: "Cashier", pic: "Person in charge",
-      driver: "Driver", back_office: "Opisina",
+      pic: "Store Manager / Person in charge",
+      head_chef: "Head Chef / Chef de Partie",
+      kitchen: "Cook / Assistant Cook",
+      cashier: "Cashier",
+      driver: "Driver",
+      back_office: "Opisina",
     } as Record<string, string>,
     experiences: {
       none: "Wala", under_1y: "Wala pang 1 taon",
@@ -118,7 +126,11 @@ const T = {
 // Kept in step with app/db_public_apply.py. Hardcoded rather than fetched: one
 // request fewer on a prepaid connection, and the form still opens if the API is
 // briefly down -- the applicant only finds out when they press Send.
-const POSITIONS = ["kitchen", "cashier", "pic", "driver", "back_office"];
+// The six lines the job post advertises, in the post's own order. Keep the two
+// in step: an applicant who read "Head Chef / Chef de Partie" on Facebook and
+// then cannot find it here picks Kitchen, and the application becomes
+// indistinguishable from an assistant cook's.
+const POSITIONS = ["pic", "head_chef", "kitchen", "cashier", "driver", "back_office"];
 // Every option says where it is. "Central Kitchen" and "Office" name no city,
 // and an applicant who picks one and then finds out it is an hour away has been
 // wasted -- which is what the store asked us to fix.

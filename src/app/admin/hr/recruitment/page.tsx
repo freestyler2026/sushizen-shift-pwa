@@ -1747,6 +1747,7 @@ function InterviewOutcomeModal({
 type AddApplicantForm = {
   full_name: string;
   position_applied: string;
+  position_group: string;
   phone: string;
   email: string;
   source: string;
@@ -1758,6 +1759,28 @@ type AddApplicantForm = {
 };
 
 const OTHER_POSITION = "__other";
+
+/** The six the job post advertises and the public form offers.
+ *
+ *  ⚠️ Must stay in step with POSITION_GROUPS in db_public_apply.py and
+ *  POSITIONS in /apply. A key here that the server does not know is rejected;
+ *  one missing here means hand-entered applicants cannot be counted alongside
+ *  the ones who filled the form in themselves.
+ *
+ *  Why a list at all: `position_applied` is free text and 186 applicants had
+ *  reached the database under 88 distinct spellings -- "store manager",
+ *  "Store manager", "store maanger", "Manager", "L0-3", "L0-L3". None of them
+ *  can be counted together, so "how many applied to be a store manager" had no
+ *  answer. The free text stays for the exact wording of a requisition; this
+ *  puts every applicant into one of six countable buckets as well. */
+const POSITION_GROUPS: { key: string; label: string }[] = [
+  { key: "pic", label: "Store Manager / Person in charge" },
+  { key: "head_chef", label: "Head Chef / Chef de Partie" },
+  { key: "kitchen", label: "Cook / Assistant Cook" },
+  { key: "cashier", label: "Cashier" },
+  { key: "driver", label: "Driver" },
+  { key: "back_office", label: "Office staff" },
+];
 
 /** One field for "what are they applying for", instead of two.
  *
@@ -1869,6 +1892,7 @@ function AddApplicantModal({
   const [form, setForm] = useState<AddApplicantForm>({
     full_name: "",
     position_applied: "",
+    position_group: "",
     phone: "",
     email: "",
     source: "referral",
@@ -1883,7 +1907,18 @@ function AddApplicantModal({
     setForm((p) => ({ ...p, [k]: v }));
   const handleSubmit = async () => {
     setSubmitError("");
-    const err = await onSave(form);
+    if (!form.position_group) {
+      setSubmitError("Pick which kind of role this is — it is what makes this "
+        + "applicant countable alongside the ones who used the form.");
+      return;
+    }
+    // With no requisition and nothing typed in, the card would read
+    // "Position N/A". The group label is the honest thing to show there.
+    const label = POSITION_GROUPS.find((g) => g.key === form.position_group)?.label ?? "";
+    const err = await onSave({
+      ...form,
+      position_applied: form.position_applied || label,
+    });
     if (err) setSubmitError(err);
   };
 
@@ -1920,6 +1955,28 @@ function AddApplicantModal({
               positionApplied={form.position_applied}
               onChange={(patch) => setForm((p) => ({ ...p, ...patch }))}
             />
+          </div>
+          {/* Asked separately from the requisition, and always. The requisition
+              carries the exact wording of one opening; this is the bucket the
+              applicant can be counted in alongside everybody who filled the
+              form in themselves. Without it a hand-entered candidate is
+              uncountable -- which is how 186 applicants ended up under 88
+              spellings. */}
+          <div className="col-span-2">
+            <label className={T_LABEL}>Which kind of role? *</label>
+            <SelectDark
+              className={`${SELECT_CLASS} mt-1`}
+              value={form.position_group}
+              onChange={(v) => set("position_group", v)}
+              options={[
+                { value: "", label: "— Select —" },
+                ...POSITION_GROUPS.map((g) => ({ value: g.key, label: g.label })),
+              ]}
+            />
+            <p className={`${T_CAPTION} mt-1`}>
+              The same six the job post lists and the applicant sees on the form.
+              This is what makes &ldquo;how many applied for kitchen&rdquo; answerable.
+            </p>
           </div>
           <div>
             <label className={T_LABEL}>Phone</label>
