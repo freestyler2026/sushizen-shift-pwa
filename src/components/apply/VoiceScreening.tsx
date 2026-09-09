@@ -86,6 +86,19 @@ const T = {
     record: "Start recording",
     stop: "Stop and send",
     again: "Record again",
+    // Asked for by Manila HR on 2026-09-09: applicants were meeting the timer
+    // for the first time with the recording already running. The count and the
+    // times are read from the live question set, never written here -- an
+    // instruction saying "six questions, one minute each" while the set holds
+    // five at 60-90s teaches the applicant that this screen cannot be trusted.
+    prepTitle: "Before you start",
+    prepLead: "{n} questions. You get {time} for each one, and the time only starts when you tap record.",
+    prepSteps: [
+      "Read the question and decide what you want to say. Nothing is counting until you tap record.",
+      "Say the most important thing first. Short and clear is better than long.",
+      "If it helps, write a few words on paper before you start.",
+      "If an answer does not come out right, you can record that question again once.",
+    ],
     uploading: "Sending…",
     saved: "Saved",
     next: "Next question",
@@ -179,6 +192,14 @@ const T = {
     record: "Simulan ang pag-record",
     stop: "Itigil at ipadala",
     again: "Mag-record ulit",
+    prepTitle: "Bago ka magsimula",
+    prepLead: "{n} tanong. May {time} ka sa bawat isa, at magsisimula lang ang oras kapag pinindot mo ang record.",
+    prepSteps: [
+      "Basahin ang tanong at isipin muna kung ano ang sasabihin mo. Walang tumatakbong oras hangga't hindi ka pumipindot ng record.",
+      "Unahin ang pinakamahalagang sasabihin mo. Mas maganda ang maikli at malinaw kaysa mahaba.",
+      "Kung makakatulong, isulat muna sa papel ang ilang salita bago magsimula.",
+      "Kung hindi maganda ang lumabas, pwede mong i-record ulit ang tanong na iyon nang isang beses.",
+    ],
     uploading: "Ipinapadala…",
     saved: "Na-save",
     next: "Susunod na tanong",
@@ -239,6 +260,24 @@ const T = {
  *  seven silent answers peaked between -72 and -60 dBFS, the fourteen with
  *  speech between -8.7 and -0.4. Fifty decibels of empty space in between, so
  *  the exact line does not matter -- only that there is one. */
+/** "1 minute" / "90 seconds" / "60-90 seconds", in the applicant's language.
+ *
+ *  Read from the question set rather than written into the copy. The active set
+ *  has held 4, 5 and 7 questions at 60s and 90s at different times, and a
+ *  sentence that names a count is wrong the day somebody edits the set. */
+function perQuestionTime(seconds: number[], lang: Lang): string {
+  const lo = Math.min(...seconds), hi = Math.max(...seconds);
+  const one = (s: number) => {
+    if (s % 60 === 0) {
+      const m = s / 60;
+      return lang === "tl" ? `${m} minuto` : `${m} minute${m > 1 ? "s" : ""}`;
+    }
+    return lang === "tl" ? `${s} segundo` : `${s} seconds`;
+  };
+  if (lo === hi) return one(lo);
+  return lang === "tl" ? `${lo}–${hi} segundo` : `${lo}–${hi} seconds`;
+}
+
 const SILENT_PEAK_DBFS = -45;
 
 function dbfs(amplitude: number) {
@@ -472,6 +511,11 @@ export default function VoiceScreening({
   // reads Tagalog could be looking at an English question with no way to check
   // what it asked -- and answering the wrong question wastes their ninety
   // seconds, not ours. The chosen language leads; the other sits under it.
+  const answerTime = perQuestionTime(data.questions.map((x) => x.limit_seconds), lang);
+  // Only before the very first answer of the screening: after that the applicant
+  // has met the timer and repeating this is noise above the question.
+  const showPrep = idx === 0 && retries === 0 && data.answered.length === 0
+    && !recording && !saved && !silent;
   const primary = lang === "tl" && q?.text_tl ? q.text_tl : q?.text_en;
   const secondary = lang === "tl" ? q?.text_en : q?.text_tl;
 
@@ -1183,6 +1227,29 @@ export default function VoiceScreening({
         <p className="mb-5 text-sm leading-relaxed text-zinc-400">{secondary}</p>
       )}
       {(!secondary || secondary === primary) && <div className="mb-5" />}
+
+      {/* Shown once, on the first question, with the question already visible
+          and the record button directly under it -- that is the moment the
+          advice is about. Not a screen of its own: five screens already stand
+          between the offer and the first answer, and not on the microphone
+          check either, because two of the three routes into recording skip it
+          (no AudioContext, and anyone returning to a consented screening). */}
+      {showPrep && (
+        <div className="mb-4 rounded-xl border border-violet-500/25 bg-violet-950/20 p-3.5">
+          <p className="mb-1 text-sm font-semibold text-violet-200">{t.prepTitle}</p>
+          <p className="text-sm leading-relaxed text-zinc-300">
+            {t.prepLead.replace("{n}", String(total)).replace("{time}", answerTime)}
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {t.prepSteps.map((line) => (
+              <li key={line} className="flex gap-2 text-sm leading-relaxed text-zinc-400">
+                <span className="text-violet-400">•</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {!recording && !saved && !silent && (
         <button type="button" onClick={() => void start()} disabled={busy}
