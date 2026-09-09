@@ -43,6 +43,7 @@ type Row = {
   shift: { start_hour: number; end_hour: number } | null;
   rostered: boolean | null;
   day_complete: boolean;
+  by_name: boolean;
   clock_in: string | null; clock_out: string | null;
   flags: string[];
 };
@@ -294,7 +295,17 @@ export default function BackOfficeActivityPage() {
                   <tr className={TABLE_ROW}>
                     <td className="px-4 py-3">
                       <div className="text-sm font-medium text-white">{r.staff_name}</div>
-                      <div className={T_CAPTION}>{r.city} · {r.branch_code} · {r.role}</div>
+                      <div className={T_CAPTION}>
+                        {r.city} · {r.branch_code} · {ROLE_LABEL[r.role] || r.role}
+                        {r.by_name && (
+                          // Otherwise a named individual whose role happens to be
+                          // HQ reads as "HQ is included", which is the opposite
+                          // of the rule.
+                          <span className="ml-1.5 rounded border border-white/15 bg-white/5 px-1 py-0.5 text-[9px] uppercase tracking-wide text-zinc-400">
+                            added by name
+                          </span>
+                        )}
+                      </div>
                       {r.flags.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {r.flags.map((f) => (
