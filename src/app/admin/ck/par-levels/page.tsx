@@ -215,6 +215,11 @@ export default function CkParLevelsPage() {
   // loaded" guard kept Manila's 307 rows and their peso prices in memory after
   // a switch to Dubai, and the picker would have priced a Dubai order off them.
   const catalogCity = useRef<City | null>(null);
+  // Opening the modal and opening the search box both ask for the catalogue,
+  // and they fire 350ms apart — too fast for `catalogState` to have become
+  // "loading" in the second handler, so both fetched. A ref is read at the
+  // moment of the click, so the second one sees the first.
+  const catalogLoading = useRef(false);
 
   // ── fetch rows ────────────────────────────────────────────────────────────
   const loadRows = useCallback(async () => {
@@ -513,6 +518,8 @@ export default function CkParLevelsPage() {
 
   // ── the ordering catalogue, and adding a line from it ─────────────────────
   const loadCatalog = useCallback(async () => {
+    if (catalogLoading.current) return;
+    catalogLoading.current = true;
     setCatalogState("loading");
     setCatalogErr("");
     setCatalog([]);
@@ -533,6 +540,8 @@ export default function CkParLevelsPage() {
       // already built is still sendable without this.
       setCatalogErr(e.message || "Failed to load the catalogue");
       setCatalogState("error");
+    } finally {
+      catalogLoading.current = false;
     }
   }, [city]);
 
@@ -1001,7 +1010,7 @@ export default function CkParLevelsPage() {
                 setCreatePin("");
                 setPickerOpen(false);
                 setPickerQ("");
-                if (catalogState !== "loading" && catalogCity.current !== city) void loadCatalog();
+                if (catalogCity.current !== city) void loadCatalog();
               }}
               disabled={Object.keys(orderGroups).length === 0}
               className="rounded-xl border border-teal-500/30 bg-teal-500/15 px-4 py-2 text-sm font-medium text-teal-400 hover:bg-teal-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
@@ -1662,7 +1671,7 @@ export default function CkParLevelsPage() {
                 <div className="mt-3">
                   {!pickerOpen ? (
                     <button
-                      onClick={() => { setPickerOpen(true); if (catalogState !== "loading" && catalogCity.current !== city) void loadCatalog(); }}
+                      onClick={() => { setPickerOpen(true); if (catalogCity.current !== city) void loadCatalog(); }}
                       disabled={!!createResult?.ok}
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
                     >
