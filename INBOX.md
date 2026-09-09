@@ -208,3 +208,37 @@ Session 2 で対応済み: 宙に浮いた90件をクリア（`_management_tasks
 毎月再発する**。発注フォームで仕入先を選択式にする（または空欄を警告する）改修が必要。
 スキーマ・UI変更を伴うため hotfix セッションでは着手しない。
 残り ₱41,482 の内訳と対象行は docs/ai/2026-09-05-manila-unassigned-vendors.csv
+
+## [2026-09-09] Cyrine Fernandez / ドバイ版 Final Settlement（EOSG・年休精算）と Offboarding 連結
+理由: `hr_clearance_cases` への列追加（スキーマ変更）＋ 計算エンジン新規。Session 2 の範囲外。
+
+**依頼は妥当。** 画面は完全にマニラ形式で、都市差は `fp_currency` と色バッジだけだった:
+- 項目 `fp_prorated_13th` / `fp_separation_pay` / `fp_deduction_statutory`（表示は
+  "Statutory (SSS/PhilHealth/etc.)"）が AED の案件にもそのまま出る
+- EOSG・未消化年休・航空券・予告手当を入れる列が `hr_clearance_cases` に無い
+
+**ただし自動計算は今のデータでは作れない。実測（2026-09-09）:**
+
+| 必要な入力 | 実データ | EOSGに効くか |
+|---|---|---|
+| 勤続開始日 | `dubai_staff_profiles.hire_date` **0 / 64**<br>`staff_master.hired_at` **1 / 73**（Sanjeev Tamang のみ） | **不可** — 勤続年数が出せない |
+| 最終基本給 | `dubai_staff_profiles.monthly_rate` 59 / 64 | 可（5名は要入力） |
+| 未消化年休 | `staff_leave_balances` **0行**、`leave_salary_requests` 0行 | **不可** — 付与・繰越の記録が無い |
+| 取得済み年休 | 公開シフトの VL 514行 / 22名（180日） | 取得日数は出るが**残数ではない** |
+
+**「自動計算します」と作ると、入力欄が空のまま 0 を計算して出す。** 教訓91（元が
+既に正しくないのに「元を直してください」と案内した）と同型なので、
+**先に入社日を入れる運用を立ち上げ、それが揃ってから自動計算を出すこと。**
+
+**Offboarding 連結**は妥当で、現状 `hr_separation` は**全社で1行**しかない。
+画面の "NO OFFBOARDING RECORD (1) Ramuel M. Gatin" はその不整合。
+ドバイの clearance 案件は現在この1件のみ（LWD 2026-07-31 / stage 0 / AED）。
+
+**設計メモ**
+- 21日/年（5年まで）・30日/年（超過分）は日額 = 基本給 ÷ 30 が UAE の通例。
+  **2年分の賃金が上限**という規定があるので、実装前に会計事務所に確認すること。
+  無給休職は勤続から除く扱いも要確認。
+- 計算根拠（勤続日数・適用レート・端数按分）は**画面に出す**（教訓9）。
+  数字だけ出すと監査で使えない。
+- マニラ項目とドバイ項目は**同じ列を使い回さない**。`fp_separation_pay` に EOSG を
+  入れると、両都市の集計が別物を足すことになる。
