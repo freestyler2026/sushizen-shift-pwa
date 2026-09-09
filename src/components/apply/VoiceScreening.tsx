@@ -91,11 +91,19 @@ const T = {
     // times are read from the live question set, never written here -- an
     // instruction saying "six questions, one minute each" while the set holds
     // five at 60-90s teaches the applicant that this screen cannot be trusted.
+    //
+    // ⚠️ The 30 seconds is a FLOOR, not a limit, and it is the point of this
+    // panel. All 35 answers recorded so far run 1-82s, median 19, against a
+    // 60-90s allowance: THREE used even half of it and NOT ONE has ever hit the
+    // limit. Running out of time is not the problem here -- answers too thin to
+    // judge anybody on is. The first draft of this panel said "short and clear
+    // is better than long", which pushed the one behaviour already hurting
+    // these applicants. Do not reinstate it without measuring again.
     prepTitle: "Before you start",
     prepLead: "{n} questions. You get {time} for each one, and the time only starts when you tap record.",
     prepSteps: [
       "Read the question and decide what you want to say. Nothing is counting until you tap record.",
-      "Say the most important thing first. Short and clear is better than long.",
+      "Aim for at least 30 seconds. A single sentence gives the hiring manager very little to go on, and you will not run out of time.",
       "If it helps, write a few words on paper before you start.",
       "If an answer does not come out right, you can record that question again once.",
     ],
@@ -196,7 +204,7 @@ const T = {
     prepLead: "{n} tanong. May {time} ka sa bawat isa, at magsisimula lang ang oras kapag pinindot mo ang record.",
     prepSteps: [
       "Basahin ang tanong at isipin muna kung ano ang sasabihin mo. Walang tumatakbong oras hangga't hindi ka pumipindot ng record.",
-      "Unahin ang pinakamahalagang sasabihin mo. Mas maganda ang maikli at malinaw kaysa mahaba.",
+      "Puntiryahin ang hindi bababa sa 30 segundo. Ang isang pangungusap lang ay napakaliit na basehan para sa hiring manager, at hindi ka naman mauubusan ng oras.",
       "Kung makakatulong, isulat muna sa papel ang ilang salita bago magsimula.",
       "Kung hindi maganda ang lumabas, pwede mong i-record ulit ang tanong na iyon nang isang beses.",
     ],
@@ -260,6 +268,8 @@ const T = {
  *  seven silent answers peaked between -72 and -60 dBFS, the fourteen with
  *  speech between -8.7 and -0.4. Fifty decibels of empty space in between, so
  *  the exact line does not matter -- only that there is one. */
+const SILENT_PEAK_DBFS = -45;
+
 /** "1 minute" / "90 seconds" / "60-90 seconds", in the applicant's language.
  *
  *  Read from the question set rather than written into the copy. The active set
@@ -277,8 +287,6 @@ function perQuestionTime(seconds: number[], lang: Lang): string {
   if (lo === hi) return one(lo);
   return lang === "tl" ? `${lo}–${hi} segundo` : `${lo}–${hi} seconds`;
 }
-
-const SILENT_PEAK_DBFS = -45;
 
 function dbfs(amplitude: number) {
   return amplitude <= 0 ? -120 : Math.max(-120, 20 * Math.log10(amplitude));

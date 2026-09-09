@@ -228,3 +228,69 @@ describe("voice screening on a phone", () => {
     expect(screen.queryByText(/First, a minute about/)).toBeNull();
   });
 });
+
+describe("the panel shown before the first answer", () => {
+  // It exists because applicants met the timer for the first time with the
+  // recording already running. Its numbers come from the question set, so the
+  // thing worth locking is that they follow the set rather than the copy.
+  // A consented screening with the CV step settled opens straight on the
+  // question, so it never shows the headings renderVoice waits for.
+  async function onQuestion(extra: Record<string, unknown> = {}) {
+    const data = loaded({ consent_given: true, resume: { skipped: true }, ...extra });
+    mockFetch.mockImplementation(() => fetchOk(data));
+    const Voice = (await import("@/components/apply/VoiceScreening")).default;
+    render(<Voice token="tok" lang="en" />);
+    await screen.findByRole("button", { name: /Start recording|Simulan ang pag-record/ });
+  }
+
+  it("counts the questions and the seconds from the set, not from the copy", async () => {
+    await onQuestion();
+    expect(await screen.findByText("Before you start")).toBeTruthy();
+    // Two 90s questions in this fixture -- a single figure, not a range.
+    expect(screen.getByText(/2 questions\. You get 90 seconds for each one/)).toBeTruthy();
+  });
+
+  it("gives the range when the set mixes limits", async () => {
+    await onQuestion({
+      questions: [
+        { seq: 1, text_en: "A", text_tl: "A", limit_seconds: 60 },
+        { seq: 2, text_en: "B", text_tl: "B", limit_seconds: 90 },
+        { seq: 3, text_en: "C", text_tl: "C", limit_seconds: 90 },
+      ],
+    });
+    expect(await screen.findByText(/3 questions\. You get 60–90 seconds for each one/)).toBeTruthy();
+  });
+
+  it("asks for a floor of 30 seconds, never for a short answer", async () => {
+    // Every answer recorded so far ran 1-82s against a 60-90s allowance, median
+    // 19, and not one has hit the limit. Thin answers are the problem here, so
+    // copy that rewards brevity must not come back.
+    await onQuestion();
+    expect(await screen.findByText(/Aim for at least 30 seconds/)).toBeTruthy();
+    expect(screen.queryByText(/Short and clear is better than long/)).toBeNull();
+  });
+
+  it("is gone once an answer is on file, so it does not sit above every question", async () => {
+    await onQuestion({ answered: [1] });
+    // Resumes on question 2 of 2.
+    expect(await screen.findByText(/QUESTION 2 OF 2|Question 2 of 2/i)).toBeTruthy();
+    expect(screen.queryByText("Before you start")).toBeNull();
+  });
+
+  it("stays hidden for somebody back on question 1 who has already answered another", async () => {
+    // The position alone does not settle it: an applicant who answered Q2 and
+    // came back resumes at Q1, and has already met the timer. This is the case
+    // the answered-count check exists for -- the index check does not cover it.
+    await onQuestion({ answered: [2] });
+    expect(await screen.findByText(/QUESTION 1 OF 2|Question 1 of 2/i)).toBeTruthy();
+    expect(screen.queryByText("Before you start")).toBeNull();
+  });
+
+  it("speaks Tagalog when the applicant does", async () => {
+    await onQuestion();
+    await screen.findByText("Before you start");
+    fireEvent.click(screen.getByRole("button", { name: "Tagalog" }));
+    expect(await screen.findByText("Bago ka magsimula")).toBeTruthy();
+    expect(screen.getByText(/hindi bababa sa 30 segundo/)).toBeTruthy();
+  });
+});
