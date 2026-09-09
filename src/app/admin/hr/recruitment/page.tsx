@@ -575,16 +575,45 @@ function EvaluationForm({
 
 // ─── Detail Panel ─────────────────────────────────────────────────────────────
 
+/** Statuses that will not move without a reason.
+ *
+ *  Mirrors _STATUS_NEEDS_REASON on the server, which is where it is enforced --
+ *  this only decides whether to ask before sending, so the person sees chips
+ *  instead of a 400. Rejected is the one on the list because 59 of the 76
+ *  rejections on file have no reason at all, all of them filed through this
+ *  dropdown while the caption underneath said it recorded none. */
+const STATUS_NEEDS_REASON: KanbanStatus[] = ["rejected"];
+
+const EVENT_KIND_LABEL: Record<string, string> = {
+  created: "Added to the list",
+  status: "Moved",
+  interview_set: "Interview booked",
+  outcome: "Interview result recorded",
+  voice_decision: "Voice screening decision",
+  invite: "Invite link issued",
+};
+
+function statusLabel(s: string): string {
+  return KANBAN_COLUMNS.find((c) => c.id === s)?.label || s;
+}
+
+type ApplicantEvent = {
+  id: number; kind: string; from_status: string; to_status: string;
+  reason: string; note: string; actor: string; origin: string; created_at: string;
+};
+
 function DetailPanel({
   applicant,
   onClose,
   onStatusChange,
   onRecordOutcome,
+  reasons,
 }: {
   applicant: Applicant;
   onClose: () => void;
   onStatusChange: (id: string, status: KanbanStatus) => void;
   onRecordOutcome: (a: Applicant) => void;
+  reasons: OutcomeReason[];
 }) {
   const [tab, setTab] = useState<"info" | "interview" | "evaluation">("info");
   const [interviews, setInterviews] = useState<InterviewSchedule[]>([]);
@@ -596,6 +625,10 @@ function DetailPanel({
   const [saving, setSaving] = useState(false);
   const [localStatus, setLocalStatus] = useState<KanbanStatus>(applicant.status);
   const [statusChanging, setStatusChanging] = useState(false);
+  // A move that needs explaining waits here until a chip is picked. Sending it
+  // and letting the server refuse would show a 400 where a question belongs.
+  const [pendingStatus, setPendingStatus] = useState<KanbanStatus | null>(null);
+  const [events, setEvents] = useState<ApplicantEvent[]>([]);
   const [error, setError] = useState("");
   const [assignedBranch, setAssignedBranch] = useState(applicant.assigned_branch || "");
   const [savingBranch, setSavingBranch] = useState(false);
@@ -656,23 +689,51 @@ function DetailPanel({
     if (tab === "evaluation") void loadEvaluations();
   }, [tab, loadInterviews, loadEvaluations]);
 
-  const handleStatusChange = async (newStatus: KanbanStatus) => {
+  const loadEvents = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicant.id}/events`,
+        { headers: getAuthHeaders(), cache: "no-store" });
+      if (!res.ok) return;
+      setEvents(((await res.json())?.events ?? []) as ApplicantEvent[]);
+    } catch { /* the history is context, not the job */ }
+  }, [applicant.id]);
+  useEffect(() => { void loadEvents(); }, [loadEvents]);
+
+  const commitStatus = async (newStatus: KanbanStatus, reason = "") => {
     setStatusChanging(true);
     setError("");
     try {
       const res = await fetch(`${API_BASE}/api/admin/hr/applicants/${applicant.id}`, {
         method: "PATCH",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify(reason ? { status: newStatus, reason } : { status: newStatus }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // The server says what is missing. Show that, not "HTTP 400".
+        const text = await res.text();
+        let detail = text;
+        try { detail = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
+        throw new Error(String(detail).slice(0, 300));
+      }
       setLocalStatus(newStatus);
+      setPendingStatus(null);
       onStatusChange(applicant.id, newStatus);
+      void loadEvents();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setStatusChanging(false);
     }
+  };
+
+  const handleStatusChange = async (newStatus: KanbanStatus) => {
+    if (STATUS_NEEDS_REASON.includes(newStatus) && newStatus !== localStatus) {
+      setError("");
+      setPendingStatus(newStatus);
+      return;
+    }
+    await commitStatus(newStatus);
   };
 
   const handleSaveInterview = async (data: Omit<InterviewSchedule, "id" | "applicant_id">) => {
@@ -797,14 +858,78 @@ function DetailPanel({
                   onChange={v => void handleStatusChange(v as KanbanStatus)}
                   options={ALL_STATUSES.map(s => ({ value: s, label: KANBAN_COLUMNS.find(c => c.id === s)?.label || s }))}
                 />
-                {needsOutcome(localStatus) && (
+                {pendingStatus && (
+                  <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3">
+                    <p className={`${T_LABEL} mb-2`}>Why are we turning them down?</p>
+                    <div className="flex flex-wrap gap-2">
+                      {reasons.map((r) => (
+                        <button
+                          key={r.key}
+                          className={SMALL_BUTTON}
+                          disabled={statusChanging}
+                          onClick={() => void commitStatus(pendingStatus, r.key)}
+                        >
+                          {r.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      className={`${SMALL_BUTTON} mt-3`}
+                      disabled={statusChanging}
+                      onClick={() => { setPendingStatus(null); setLocalStatus(applicant.status); }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {needsOutcome(localStatus) && !pendingStatus && (
                   <p className={`${T_CAPTION} mt-1`}>
-                    Moving them with this dropdown records no reason. Use the button
-                    above so the decision can be explained later.
+                    This dropdown only moves them. Use the button above to say what
+                    happened at the interview.
                   </p>
                 )}
                 {statusChanging && (
                   <p className={`${T_CAPTION} mt-1`}>Updating...</p>
+                )}
+                {error && (
+                  <p className="mt-2 rounded-lg border border-red-500/30 bg-red-950/20 p-2 text-xs text-red-200">
+                    {error}
+                  </p>
+                )}
+              </div>
+
+              {/* History. Recording it and leaving it unreadable is how the
+                  question "who moved this person, and when?" ends up being
+                  answered by opening the database (lesson 6). It starts on
+                  2026-09-09 -- nothing before that was ever written down, and
+                  inventing it from updated_at would be a made-up number. */}
+              <div className="border-t border-white/10 pt-3">
+                <p className={T_LABEL}>History</p>
+                {events.length === 0 ? (
+                  <p className={`${T_CAPTION} mt-2`}>
+                    Nothing recorded yet. Anything done from here on is listed here
+                    with who did it.
+                  </p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {events.map((ev) => (
+                      <li key={ev.id} className="flex gap-2 text-xs leading-relaxed">
+                        <span className="mt-1 h-1.5 w-1.5 flex-none rounded-full bg-violet-400" />
+                        <span className="text-zinc-300">
+                          {ev.from_status && ev.to_status
+                            ? `${statusLabel(ev.from_status)} → ${statusLabel(ev.to_status)}`
+                            : ev.to_status
+                              ? statusLabel(ev.to_status)
+                              : EVENT_KIND_LABEL[ev.kind] || ev.kind}
+                          {ev.reason ? ` · ${ev.reason.replace(/_/g, " ")}` : ""}
+                          <span className="block text-zinc-500">
+                            {new Date(ev.created_at).toLocaleString()}
+                            {ev.actor ? ` · ${ev.actor}` : " · (no name recorded)"}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
 
@@ -3170,6 +3295,7 @@ export default function HRRecruitmentPage() {
                   onClose={() => setSelectedApplicant(null)}
                   onStatusChange={handleStatusChange}
                   onRecordOutcome={setOutcomeFor}
+                  reasons={outcomeReasons}
                 />
               </div>
             )}
@@ -3188,6 +3314,7 @@ export default function HRRecruitmentPage() {
                   onClose={() => setSelectedApplicant(null)}
                   onStatusChange={handleStatusChange}
                   onRecordOutcome={setOutcomeFor}
+                  reasons={outcomeReasons}
                 />
               </div>
             </div>
