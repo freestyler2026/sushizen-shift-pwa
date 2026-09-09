@@ -26,7 +26,7 @@ function row(over: Record<string, unknown> = {}) {
     span_minutes: 480, active_minutes: 30, idle_minutes: 450,
     longest_idle_minutes: 200, events: 40, screens: 10, reads: 30, writes: 0,
     distinct_screens: 4, buckets: new Array(48).fill(0), busiest_slot_share: 0.2,
-    partial: false, observed_from: null, shift: null, rostered: true, day_complete: true, by_name: false,
+    partial: false, unrecorded: false, observed_from: null, shift: null, rostered: true, day_complete: true, by_name: false,
     clock_in: null, clock_out: null,
     flags: ["LONG_IDLE", "MOSTLY_IDLE", "NO_DECISIONS"], ...over,
   };
@@ -46,7 +46,7 @@ function report(rows: unknown[], over: Record<string, unknown> = {}) {
     },
     coverage: {
       log_from: "2026-09-09T14:31:00+00:00", log_to: "2026-09-10T09:00:00+00:00",
-      log_rows: 5000, partial_rows: 0, people: 27, day_in_progress: 0,
+      log_rows: 5000, partial_rows: 0, people: 27, day_in_progress: 0, date_recorded: "full" as const,
       with_shift_reference: 24, without_shift_reference: 3,
     },
     rows, ...over,
@@ -166,7 +166,7 @@ describe("what the page refuses to claim", () => {
     mockFetch.mockImplementation(() => ok(report(
       [row({ staff_name: "A" }), row({ staff_name: "B" })],
       { coverage: { log_from: "2026-09-09T14:31:00+00:00", log_to: null, log_rows: 1,
-                    partial_rows: 0, people: 2, day_in_progress: 2,
+                    partial_rows: 0, people: 2, day_in_progress: 2, date_recorded: "full" as const,
                     with_shift_reference: 2, without_shift_reference: 0 } })));
     await renderPage();
     await screen.findByText("まだ勤務中");
@@ -191,6 +191,41 @@ describe("what the page refuses to claim", () => {
     ])));
     await renderPage();
     expect(await screen.findByText("人名で追加")).toBeTruthy();
+  });
+
+  it("shows a dash, not a zero, for a date nothing was recording", async () => {
+    // 2026-09-08 opened like this: real sign-in times beside 0m engaged, 0
+    // screens, 0 changes. Sessions go back further than the activity log, so
+    // it read as a floor of people who did nothing.
+    mockFetch.mockImplementation(() => ok(report(
+      [row({ staff_name: "Before The Log", unrecorded: true, partial: true,
+             span_minutes: 0, active_minutes: 0, longest_idle_minutes: 0,
+             screens: 0, reads: 0, writes: 0, events: 0, flags: [] })],
+      { coverage: { log_from: "2026-09-09T14:31:00+00:00", log_to: null, log_rows: 1,
+                    partial_rows: 1, people: 1, day_in_progress: 0,
+                    date_recorded: "none" as const,
+                    with_shift_reference: 1, without_shift_reference: 0 } })));
+    await renderPage();
+    // Scoped to the row: the banner above the table carries the same sentence,
+    // and asserting on the document would pass with the row note still wrong.
+    const tr = (await screen.findByText("Before The Log")).closest("tr")!;
+    expect(within(tr).getByText("この日はまだ記録していません")).toBeTruthy();
+    expect(within(tr).queryByText("この日は途中からしか見ていません")).toBeNull();
+    expect(within(tr).queryByText("0m")).toBeNull();
+    expect(within(tr).queryByText("0")).toBeNull();
+    expect(within(tr).getAllByText("—").length).toBeGreaterThan(3);
+  });
+
+  it("says plainly that only the sign-in is knowable for such a date", async () => {
+    mockFetch.mockImplementation(() => ok(report(
+      [row({ staff_name: "X", unrecorded: true, flags: [] })],
+      { coverage: { log_from: "2026-09-09T14:31:00+00:00", log_to: null, log_rows: 1,
+                    partial_rows: 1, people: 1, day_in_progress: 0,
+                    date_recorded: "none" as const,
+                    with_shift_reference: 1, without_shift_reference: 0 } })));
+    await renderPage();
+    expect(await screen.findByText(/ログインの有無だけ/)).toBeTruthy();
+    expect(screen.getByText(/0ではありません/)).toBeTruthy();
   });
 
   it("explains why a morning is not full of absences", async () => {

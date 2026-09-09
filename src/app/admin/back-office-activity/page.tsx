@@ -39,7 +39,7 @@ type Row = {
   longest_idle_minutes: number;
   events: number; screens: number; reads: number; writes: number;
   distinct_screens: number; buckets: number[]; busiest_slot_share: number;
-  partial: boolean; observed_from: string | null;
+  partial: boolean; unrecorded: boolean; observed_from: string | null;
   shift: { start_hour: number; end_hour: number } | null;
   rostered: boolean | null;
   day_complete: boolean;
@@ -56,6 +56,7 @@ type Report = {
   coverage: {
     log_from: string | null; log_to: string | null; log_rows: number;
     partial_rows: number; people: number; day_in_progress: number;
+    date_recorded: "none" | "partial" | "full";
     with_shift_reference: number; without_shift_reference: number;
   };
   rows: Row[];
@@ -75,7 +76,14 @@ function clock(iso: string | null, city: string): string {
   } catch { return "—"; }
 }
 
-function hm(min: number): string {
+/** A dash, not a zero, when nothing was measuring. Zero is a claim about the
+ *  person; a dash is a statement about the record. */
+function num(v: number | string, measured: boolean): string {
+  return measured ? String(v) : "—";
+}
+
+function hm(min: number, measured = true): string {
+  if (!measured) return "—";
   if (!min) return "0m";
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
@@ -197,7 +205,10 @@ export default function BackOfficeActivityPage() {
       people: rows.length,
       flagged: rows.filter((r) => r.flags.length).length,
       partial: rows.filter((r) => r.partial).length,
-      silent: rows.filter((r) => r.signed_in && r.events === 0 && !r.partial).length,
+      // Excludes rows nothing was recording: on an unwatched date every single
+      // person would otherwise be counted as "signed in and did nothing".
+      silent: rows.filter(
+        (r) => r.signed_in && r.events === 0 && !r.partial && !r.unrecorded).length,
     };
   }, [data]);
 
@@ -279,6 +290,23 @@ export default function BackOfficeActivityPage() {
         </ul>
       </div>
 
+      {cov?.date_recorded === "none" && (
+        <div className={`${GLASS_CARD} border-red-500/30 bg-red-500/5 p-4`}>
+          <p className="text-sm font-semibold text-red-200">この日はまだ記録していません</p>
+          <p className={`${T_BODY} mt-2`}>
+            操作の記録を取り始めたのは{" "}
+            <strong>{cov.log_from ? new Date(cov.log_from).toLocaleString("ja-JP") : "—"}</strong>{" "}
+            です。それより前の日について、<strong>この画面は何も測っていません。</strong>
+            表の 在席・実働・画面・閲覧・変更 が「—」なのはそのためで、
+            <strong>0ではありません。</strong>
+          </p>
+          <p className={`${T_BODY} mt-2`}>
+            この日について言えるのは<strong>ログインの有無だけ</strong>です。
+            それは以前から記録されているので信用できます。
+          </p>
+        </div>
+      )}
+
       {err && (
         <div className={`${GLASS_CARD} border-red-500/30 bg-red-500/5 p-4 text-sm text-red-200`}>{err}</div>
       )}
@@ -329,11 +357,15 @@ export default function BackOfficeActivityPage() {
                           ))}
                         </div>
                       )}
-                      {r.partial && (
+                      {r.unrecorded ? (
+                        <div className="mt-1 text-[10px] text-zinc-500">
+                          この日はまだ記録していません
+                        </div>
+                      ) : r.partial ? (
                         <div className="mt-1 text-[10px] text-zinc-500">
                           この日は途中からしか見ていません
                         </div>
-                      )}
+                      ) : null}
                       {r.rostered === false && (
                         <div className="mt-1 text-[10px] text-zinc-500">この日はシフトなし</div>
                       )}
@@ -345,12 +377,12 @@ export default function BackOfficeActivityPage() {
                     </td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{clock(r.login_at, r.city)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{clock(r.last_action_at, r.city)}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{hm(r.span_minutes)}</td>
-                    <td className="px-4 py-3 text-sm font-semibold tabular-nums text-white">{hm(r.active_minutes)}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-400">{hm(r.longest_idle_minutes)}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{r.screens}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{r.reads}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{r.writes}</td>
+                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{hm(r.span_minutes, !r.unrecorded)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold tabular-nums text-white">{hm(r.active_minutes, !r.unrecorded)}</td>
+                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-400">{hm(r.longest_idle_minutes, !r.unrecorded)}</td>
+                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{num(r.screens, !r.unrecorded)}</td>
+                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{num(r.reads, !r.unrecorded)}</td>
+                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{num(r.writes, !r.unrecorded)}</td>
                     <td className="w-52 px-4 py-3"><Strip buckets={r.buckets} shift={r.shift} /></td>
                     <td className="px-4 py-3">
                       <button type="button" className={SMALL_BUTTON} onClick={() => void toggle(r)}>
