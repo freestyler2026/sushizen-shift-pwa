@@ -24,6 +24,14 @@ function resolveAuthHeaders(req: NextRequest): Record<string, string> {
   if (auth) headers.Authorization = auth;
   const sid = session || req.headers.get("x-session-id") || "";
   if (sid) headers["X-Session-Id"] = sid;
+  // Which screen the call came from. The browser sends the page URL as Referer
+  // on a same-origin fetch, so the activity log gets the screen without any of
+  // the 146 pages having to pass it. Path only -- a query string can carry a
+  // name or an id, and this is written to a table somebody will read later.
+  const ref = req.headers.get("referer") || "";
+  if (ref) {
+    try { headers["X-Screen"] = new URL(ref).pathname.slice(0, 200); } catch { /* not a URL */ }
+  }
   return headers;
 }
 

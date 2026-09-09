@@ -127,6 +127,12 @@ const T = {
     micOther: "The microphone could not be started.",
     laterHere: "Do this later instead",
     failed: "Could not send that answer. Try recording it again.",
+    sendAgain: "Send it again",
+    holding: "That did not send. Your answer is still on this phone — trying again…",
+    holdingStuck: "Still could not send it. Your answer is still on this phone — check your signal, then send it again.",
+    consentFailed: "We could not save that just now. Nothing is lost — wait a moment and press it again.",
+    slowTitle: "Still loading…",
+    slowBody: "This is taking longer than usual. Stay on this page — it will open by itself.",
     left: "left",
     againLeft: "You can re-record this answer once.",
 
@@ -228,6 +234,12 @@ const T = {
     micOther: "Hindi masimulan ang mikropono.",
     laterHere: "Mamaya na lang gawin ito",
     failed: "Hindi naipadala ang sagot na iyon. Subukang i-record ulit.",
+    sendAgain: "Ipadala ulit",
+    holding: "Hindi naipadala. Nasa telepono mo pa po ang sagot — sinusubukan ulit…",
+    holdingStuck: "Hindi pa rin naipadala. Nasa telepono mo pa po ang sagot — pakicheck ang signal, tapos ipadala ulit.",
+    consentFailed: "Hindi po ito na-save ngayon. Walang nawala — sandali lang, tapos pindutin ulit.",
+    slowTitle: "Naglo-load pa po…",
+    slowBody: "Mas matagal ito kaysa karaniwan. Manatili lang po sa page na ito — bubukas ito nang kusa.",
     left: "natitira",
     againLeft: "Pwede mong i-record ulit ang sagot na ito nang isang beses.",
 
@@ -276,6 +288,38 @@ const T = {
  *  speech between -8.7 and -0.4. Fifty decibels of empty space in between, so
  *  the exact line does not matter -- only that there is one. */
 const SILENT_PEAK_DBFS = -45;
+
+/** An answer that was recorded but that the server has not accepted yet.
+ *  Held so a failed send costs a re-send and not a re-recording. */
+type Held = { blob: Blob; type: string; peak: number | null; seq: number; seconds: number };
+
+/** Waits before the automatic re-sends. Sized for a backend deploy: Heroku
+ *  restarts the dyno and its router answers 503 until the new one is up, so a
+ *  single quick retry would land inside the same gap. 4 + 12 + 25 seconds
+ *  spans it. Anything still failing after that is not a deploy, and the
+ *  applicant is told to send it themselves rather than left watching a
+ *  spinner. */
+const SEND_RETRY_MS = [4000, 12000, 25000];
+
+/** Waits before re-reading the screening. Same reason as SEND_RETRY_MS, at the
+ *  other end of the interview: while the API restarts it answers 503, and 503
+ *  is also how the API says "voice screening is switched off". Retrying first
+ *  is what tells the two apart -- a restart heals inside this window and an
+ *  interview that is genuinely off does not -- so no guess about the response
+ *  body is needed. */
+const LOAD_RETRY_MS = [3000, 8000, 20000];
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Whether re-sending the same recording could plausibly succeed.
+ *  `null` means the request never reached the server -- offline, or the dyno
+ *  restarting. 4xx are the server's verdict on this file (bad type, too big,
+ *  no sound, dead link) and re-sending it would only fail identically. */
+function sendWorthRetrying(status: number | null): boolean {
+  return status === null || status === 429 || status >= 500;
+}
 
 /** "1 minute" / "90 seconds" / "60-90 seconds", in the applicant's language.
  *
@@ -440,6 +484,13 @@ export default function VoiceScreening({
   const [inApp, setInApp] = useState(false);
   const [copied, setCopied] = useState(false);
   const [silent, setSilent] = useState(false);
+  // An answer is recorded and waiting to reach the server. Not an error
+  // state: nothing has been lost while this is set, and the applicant must
+  // not be shown the record button, or they will say it all over again.
+  const [held, setHeld] = useState<null | "retrying" | "stuck">(null);
+  // The first read of the screening did not come back. Says so rather than
+  // leaving a blank card while the retries run.
+  const [slowLoad, setSlowLoad] = useState(false);
   // The CV step. `cvFile` is what they picked but have not sent yet, so the
   // button can say what it will do rather than firing on the file input.
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -453,6 +504,8 @@ export default function VoiceScreening({
   const meterRef = useRef<Meter | null>(null);
   const barTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const aliveRef = useRef(true);
+  const heldRef = useRef<Held | null>(null);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setFixTab(guessPlatform()); setInApp(inAppBrowser()); }, []);
   // Reported on load, not at consent: most of the drop-off is before consent,
@@ -473,20 +526,45 @@ export default function VoiceScreening({
     aliveRef.current = false;
     meterRef.current?.stop();
     if (barTimer.current) clearInterval(barTimer.current);
+    if (retryTimer.current) clearTimeout(retryTimer.current);
   }, []);
 
   const load = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/voice/${token}`);
-      if (!res.ok) {
-        // Inside /apply there is nothing useful to say, so this stays hidden.
-        // On a page reached from an invite link, a blank screen is a dead end
-        // with no way out, so the reason is handed up.
-        onUnavailable?.(res.status === 503 ? "off"
-          : res.status === 404 ? "expired" : "error");
+    // Retried before anything is concluded. A deploy restarts the API, and for
+    // those seconds every request comes back 503 -- which used to be read as
+    // "the interview is not open", on a screen with no button on it. Somebody
+    // opening their invite link at the wrong moment was told their interview
+    // was closed and given nothing to press.
+    for (let attempt = 0; ; attempt++) {
+      let status: number | null = null;
+      let d: Loaded | null = null;
+      try {
+        const res = await fetch(`/api/voice/${token}`);
+        status = res.status;
+        if (res.ok) d = (await res.json()) as Loaded;
+      } catch {
+        // Never reached the server.
+        status = null;
+      }
+      if (!aliveRef.current) return;
+      if (!d) {
+        // A link that is really dead does not heal, so this one is answered at
+        // once rather than making them wait through the retries.
+        if (status === 404) { onUnavailable?.("expired"); return; }
+        if (attempt < LOAD_RETRY_MS.length) {
+          setSlowLoad(true);
+          await wait(LOAD_RETRY_MS[attempt]);
+          if (!aliveRef.current) return;
+          continue;
+        }
+        setSlowLoad(false);
+        // Still refusing after half a minute: longer than a restart. A 503 now
+        // is the API's own answer -- screening is switched off. Anything else
+        // goes to the screen that offers Try again.
+        onUnavailable?.(status === 503 ? "off" : "error");
         return;
       }
-      const d: Loaded = await res.json();
+      setSlowLoad(false);
       setData(d);
       // Resume where the connection dropped rather than starting over.
       const first = d.questions.findIndex((q) => !d.answered.includes(q.seq));
@@ -501,8 +579,7 @@ export default function VoiceScreening({
       // that way would never be shown the company video at all -- and that is
       // most people, because the link is what gets sent over Messenger.
       else if (!d.consent_given && hasIntro && startAt === "consent") setStage("intro");
-    } catch {
-      onUnavailable?.("error");
+      return;
     }
   }, [token, onUnavailable, startAt]);
 
@@ -525,7 +602,18 @@ export default function VoiceScreening({
   };
   useEffect(() => stopTimer, []);
 
-  if (!data || !data.questions.length) return null;
+  if (!data || !data.questions.length) {
+    // Blank until the first read comes back -- that is normally instant. Once a
+    // read has failed, silence for half a minute reads as a broken link, so the
+    // wait is named and they are told to stay put.
+    if (!slowLoad) return null;
+    return (
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5">
+        <h2 className="text-base font-semibold text-white">{t.slowTitle}</h2>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-300">{t.slowBody}</p>
+      </div>
+    );
+  }
 
   const q = data.questions[idx];
   const total = data.questions.length;
@@ -537,13 +625,32 @@ export default function VoiceScreening({
   // Only before the very first answer of the screening: after that the applicant
   // has met the timer and repeating this is noise above the question.
   const showPrep = idx === 0 && retries === 0 && data.answered.length === 0
-    && !recording && !saved && !silent;
+    && !recording && !saved && !silent && !held;
   const primary = lang === "tl" && q?.text_tl ? q.text_tl : q?.text_en;
   const secondary = lang === "tl" ? q?.text_en : q?.text_tl;
 
+  /** Records the consent, and only moves on once the server has it.
+   *
+   *  This used to fire and forget. During a deploy the API answers 503, the
+   *  screen advanced anyway, and the server had no consent -- so every answer
+   *  they then recorded came back 403 "Consent is required before recording",
+   *  which is a 4xx and therefore not retried. The applicant was told to record
+   *  it again, and recording it again failed identically. The whole interview
+   *  was lost to a request nobody looked at. Pressing again is safe: the server
+   *  keeps the first consent_at it wrote. */
   async function agree() {
     setErr("");
-    await fetch(`/api/voice/${token}/consent`, { method: "POST" });
+    setBusy(true);
+    let ok = false;
+    try {
+      const res = await fetch(`/api/voice/${token}/consent`, { method: "POST" });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
+    if (!aliveRef.current) return;
+    setBusy(false);
+    if (!ok) { setErr(t.consentFailed); return; }
     // The CV comes after consent, not before it: a CV is personal data kept
     // under the same retention the consent screen just described, so taking it
     // first would mean holding something nobody was told about.
@@ -615,6 +722,9 @@ export default function VoiceScreening({
 
   async function start() {
     setErr(""); setSaved(false); setSilent(false); setShowFix(false);
+    // Recording again replaces whatever was held, so a pending retry must not
+    // land afterwards and overwrite the new answer with the old one.
+    clearHold();
 
     // Old browsers, and any page that is somehow not on https, have no
     // mediaDevices at all -- reading .getUserMedia off undefined would throw
@@ -682,7 +792,11 @@ export default function VoiceScreening({
         setShowFix(true);
         return;
       }
-      void upload(new Blob(chunks.current, { type }), type, peak);
+      void send({
+        blob: new Blob(chunks.current, { type }),
+        type, peak, seq: q.seq,
+        seconds: Math.round((Date.now() - startedAt.current) / 1000),
+      });
     };
     rec.onerror = () => {
       stopTimer();
@@ -717,31 +831,71 @@ export default function VoiceScreening({
     try { recRef.current?.stop(); } catch { /* already stopped */ }
   }
 
-  async function upload(blob: Blob, type = "audio/webm", peak: number | null = null) {
+  function clearHold() {
+    if (retryTimer.current) { clearTimeout(retryTimer.current); retryTimer.current = null; }
+    heldRef.current = null;
+    setHeld(null);
+  }
+
+  /** Sends one recorded answer, keeping the recording until the server has it.
+   *
+   *  It used to be sent once and dropped, and a failure said "record it again".
+   *  The window that failure fits in is a backend deploy -- the dyno restarts
+   *  and everything sent in those seconds comes back 503 -- so the one thing
+   *  reliably able to make an applicant re-record a good answer was us
+   *  deploying while they were mid-interview. The audio is already in memory;
+   *  the only thing missing was asking twice. */
+  async function send(h: Held, attempt = 0) {
+    if (retryTimer.current) { clearTimeout(retryTimer.current); retryTimer.current = null; }
+    heldRef.current = h;
     setBusy(true); setErr(""); setSilent(false);
+    let status: number | null = null;
     try {
       const fd = new FormData();
       // Named for what it is: Safari produces mp4, not webm, and a file whose
       // extension contradicts its contents is a thing somebody has to untangle
       // later on Drive.
-      const ext = type === "audio/mp4" ? "m4a" : type === "audio/ogg" ? "ogg" : "webm";
-      fd.append("audio", blob, `q${q.seq}.${ext}`);
-      fd.append("duration_seconds",
-        String(Math.round((Date.now() - startedAt.current) / 1000)));
+      const ext = h.type === "audio/mp4" ? "m4a" : h.type === "audio/ogg" ? "ogg" : "webm";
+      fd.append("audio", h.blob, `q${h.seq}.${ext}`);
+      // Measured when they stopped talking, not when the send happened: on a
+      // retry the second one is minutes longer and would go on the record as
+      // the length of their answer.
+      fd.append("duration_seconds", String(h.seconds));
       // Sent so the level is on the record, not only in the moment. A silent
       // answer has to be visible to HR from the list, without opening it.
-      if (peak !== null) fd.append("peak_dbfs", peak.toFixed(1));
+      if (h.peak !== null) fd.append("peak_dbfs", h.peak.toFixed(1));
       // No Content-Type header: setting it would overwrite the multipart
       // boundary the browser generates and the server would see no file.
-      const res = await fetch(`/api/voice/${token}/answer/${q.seq}`, {
+      const res = await fetch(`/api/voice/${token}/answer/${h.seq}`, {
         method: "POST", body: fd,
       });
-      if (!res.ok) { setErr(t.failed); return; }
-      setSaved(true);
+      status = res.status;
     } catch {
+      // Never reached the server. Distinct from any status it could return.
+      status = null;
+    }
+    if (!aliveRef.current) return;
+    setBusy(false);
+
+    if (status !== null && status >= 200 && status < 300) {
+      clearHold();
+      setSaved(true);
+      return;
+    }
+    if (!sendWorthRetrying(status)) {
+      // The server has looked at this file and will say the same thing again.
+      clearHold();
       setErr(t.failed);
-    } finally {
-      setBusy(false);
+      return;
+    }
+    if (attempt < SEND_RETRY_MS.length) {
+      setHeld("retrying");
+      retryTimer.current = setTimeout(() => {
+        if (!aliveRef.current) return;
+        void send(h, attempt + 1);
+      }, SEND_RETRY_MS[attempt]);
+    } else {
+      setHeld("stuck");
     }
   }
 
@@ -1072,7 +1226,7 @@ export default function VoiceScreening({
             </li>
           ))}
         </ul>
-        <button type="button" onClick={() => void agree()}
+        <button type="button" onClick={() => void agree()} disabled={busy}
           className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
           {t.agree}
         </button>
@@ -1080,6 +1234,11 @@ export default function VoiceScreening({
           className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
           {t.decline}
         </button>
+        {err && (
+          <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-sm text-amber-100">
+            {err}
+          </p>
+        )}
       </div>
     );
   }
@@ -1269,7 +1428,7 @@ export default function VoiceScreening({
         </p>
       )}
 
-      {!recording && !saved && !silent && (
+      {!recording && !saved && !silent && !held && (
         <button type="button" onClick={() => void start()} disabled={busy}
           className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
           {busy ? t.uploading : t.record}
@@ -1319,6 +1478,24 @@ export default function VoiceScreening({
           <button type="button" onClick={() => void start()} disabled={busy}
             className={`${BTN} mt-4 bg-violet-500/90 text-white hover:bg-violet-500`}>
             {t.silentRetry}
+          </button>
+        </div>
+      )}
+
+      {/* Recorded, not yet accepted. Amber and not red on purpose: nothing has
+          been lost, and the one thing this screen must not do is imply the
+          answer is gone -- that is what sends somebody back to the microphone
+          to repeat an answer we are already holding. */}
+      {held && (
+        <div className="mt-4">
+          <p className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-sm text-amber-100">
+            {held === "retrying" ? t.holding : t.holdingStuck}
+          </p>
+          <button type="button"
+            onClick={() => { const h = heldRef.current; if (h) void send(h); }}
+            disabled={busy}
+            className={`${BTN} mt-4 bg-violet-500/90 text-white hover:bg-violet-500`}>
+            {busy ? t.uploading : t.sendAgain}
           </button>
         </div>
       )}

@@ -85,7 +85,10 @@ export default function VoiceInvitePage() {
           </div>
         </div>
         <p className="text-sm leading-relaxed text-zinc-300">{body}</p>
-        {dead === "error" && (
+        {/* Not on "expired": a dead link stays dead and a button that cannot
+            work is worse than none. Everything else may be a deploy that ran
+            long, so the way back on is left in front of them. */}
+        {dead !== "expired" && (
           <button
             type="button"
             onClick={() => { setDead(null); setAttempt((a) => a + 1); }}
