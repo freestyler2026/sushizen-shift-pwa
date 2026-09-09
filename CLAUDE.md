@@ -56,6 +56,7 @@
 | **Morning Review**（`/store/management/review` / レーン分割 / D評価 / 前日レビューの生成） | **The Morning Review**（日英切替・マネージャー向け） | `docs/manuals/morning-review-manual.html` |
 | 緊急通報系（**Report Something** / Waiting for Someone / My Phone Number / Emergency Contacts） | **Emergency Reporting**（スタッフ向け・英語） | `docs/manuals/emergency-reporting.html` |
 | Recruitment系（Applicants / Requisitions / Hiring Plans / 面接結果記録） | **Recruitment Guide**（HRスタッフ向け・英語） | `docs/manuals/recruitment-guide.html` |
+| **音声一次面接**（`/apply` / `/voice/[token]` / Voice screening タブ / 招待送信 / SMS / 判断3ボタン） | **Voice Interview Runbook**（日英切替・HR向け） | `docs/manuals/voice-interview-guide.html` |
 
 **Republish 手順:**
 ```
@@ -109,6 +110,15 @@
    - file_path: docs/manuals/recruitment-guide.html
    - url: https://claude.ai/code/artifact/88b8c09e-8bff-4dab-8525-f3782bcf6dc9   ← Recruitment Guide（日英切替・HRスタッフ向け）
    - favicon: 🧭
+
+   - file_path: docs/manuals/voice-interview-guide.html
+   - url: https://claude.ai/code/artifact/4b20c864-bab2-43dd-88fb-7127d1d851c8   ← Voice Interview Runbook（日英切替・既定は英語）
+   - favicon: 🎙️
+   ※ 読者はマニラのHRスタッフ。**Recruitment Guide とは役割が別**で、あちらは
+     採用パイプライン全体、こちらは音声面接の運用手順（招待送信・SMS・文字起こし・
+     判断3ボタン）に限る。統合しないこと。
+     ⚠️ 数字は実測値を載せている（回答の中央値19秒・SMS選択85%・保管180日・
+     リンク14日・1通約₱0.50）。**設定や実測が変わったら数字も直すこと。**
 
    - file_path: docs/manuals/receipt-log-manual.html
    - url: https://claude.ai/code/artifact/2ca823ce-1649-4a06-b8cd-eb832c88bf33   ← Receipt Log（日英切替）

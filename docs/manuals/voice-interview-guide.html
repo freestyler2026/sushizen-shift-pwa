@@ -1,0 +1,512 @@
+<title>Voice Interview Runbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F6F7F9; --card:#FFFFFF; --ink:#141920; --muted:#5C6675; --faint:#8A93A1;
+  --rule:#DFE4EA; --rule-soft:#EDF0F4;
+  --accent:#1D6E88; --accent-soft:#E7F1F5;
+  --go:#0F6B4A; --go-soft:#E5F2EC;
+  --hold:#A96A08; --hold-soft:#FBF1E0;
+  --stop:#B33A2B; --stop-soft:#FBEBE8;
+  --meter:#1D6E88;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0F1319; --card:#161C24; --ink:#E6EAF0; --muted:#9AA5B4; --faint:#6E7887;
+    --rule:#28313C; --rule-soft:#1E2630;
+    --accent:#63B6D0; --accent-soft:#132a33;
+    --go:#57C79B; --go-soft:#12291F;
+    --hold:#E0A64A; --hold-soft:#2A2113;
+    --stop:#E8796A; --stop-soft:#2B1714;
+    --meter:#63B6D0;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0F1319; --card:#161C24; --ink:#E6EAF0; --muted:#9AA5B4; --faint:#6E7887;
+  --rule:#28313C; --rule-soft:#1E2630;
+  --accent:#63B6D0; --accent-soft:#132a33;
+  --go:#57C79B; --go-soft:#12291F;
+  --hold:#E0A64A; --hold-soft:#2A2113;
+  --stop:#E8796A; --stop-soft:#2B1714;
+  --meter:#63B6D0;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+  font-size:16.5px;line-height:1.62;-webkit-text-size-adjust:100%}
+h1,h2,h3,.ui{font-family:Archivo,"Helvetica Neue",Arial,sans-serif}
+
+/* ── language ── */
+.wrap [lang="en"],.wrap [lang="ja"]{display:none}
+body[data-lang="en"] .wrap [lang="en"]{display:revert}
+body[data-lang="ja"] .wrap [lang="ja"]{display:revert}
+
+/* ── bar ── */
+.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--rule);}
+.bar-in{max-width:52rem;margin:0 auto;padding:.6rem 1.25rem;display:flex;align-items:center;gap:1rem}
+.mark{display:flex;align-items:flex-end;gap:2px;height:15px}
+.mark i{width:3px;background:var(--meter);border-radius:1px;display:block}
+.mark i:nth-child(1){height:5px}.mark i:nth-child(2){height:11px}.mark i:nth-child(3){height:15px}
+.mark i:nth-child(4){height:8px}.mark i:nth-child(5){height:4px}
+.bar-t{font:600 12.5px/1 Archivo,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.lang{margin-left:auto;display:flex;border:1px solid var(--rule);border-radius:999px;overflow:hidden}
+.lang button{font:600 12px/1 Archivo,sans-serif;padding:6px 13px;border:0;background:transparent;
+  color:var(--muted);cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.lang button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+.wrap{max-width:52rem;margin:0 auto;padding:2.6rem 1.25rem 6rem}
+
+h1{font-size:clamp(1.9rem,5vw,2.7rem);font-weight:700;line-height:1.1;margin:0 0 .5rem;
+  letter-spacing:-.02em;text-wrap:balance}
+.lede{font-size:1.08rem;color:var(--muted);margin:0 0 .4rem;max-width:40rem}
+.stamp{font:500 11.5px/1.5 "IBM Plex Mono",monospace;color:var(--faint);letter-spacing:.04em;
+  margin-top:1.1rem;padding-top:1.1rem;border-top:1px solid var(--rule)}
+
+/* ── stages ── */
+.stage{margin-top:3.2rem;scroll-margin-top:4rem}
+.stage-h{display:flex;align-items:baseline;gap:.75rem;border-top:2px solid var(--ink);padding-top:.7rem}
+.stage-n{font:700 12px/1 "IBM Plex Mono",monospace;color:var(--accent);letter-spacing:.1em;flex:none}
+.stage-h h2{font-size:1.32rem;font-weight:600;margin:0;letter-spacing:-.01em}
+.stage-sub{font:500 12px/1 Archivo,sans-serif;color:var(--faint);margin-left:auto;flex:none;
+  text-transform:uppercase;letter-spacing:.07em}
+h3{font-size:1rem;font-weight:600;margin:1.9rem 0 .5rem;letter-spacing:-.005em}
+p{margin:.75rem 0;max-width:40rem}
+ul,ol{max-width:40rem;padding-left:1.15rem;margin:.75rem 0}
+li{margin:.35rem 0}
+strong{font-weight:600}
+a{color:var(--accent)}
+code,.mono{font-family:"IBM Plex Mono",monospace;font-size:.87em}
+code{background:var(--rule-soft);padding:.1em .38em;border-radius:4px}
+
+/* ── blocks ── */
+.card{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:1.1rem 1.25rem;margin:1.1rem 0}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;
+  padding:.85rem 1.1rem;margin:1.1rem 0;font-size:.95rem}
+.warn{border-left:3px solid var(--stop);background:var(--stop-soft);border-radius:0 8px 8px 0;
+  padding:.85rem 1.1rem;margin:1.1rem 0;font-size:.95rem}
+.note p:first-child,.warn p:first-child,.card p:first-child{margin-top:0}
+.note p:last-child,.warn p:last-child,.card p:last-child{margin-bottom:0}
+
+.msg{font-family:"IBM Plex Mono",monospace;font-size:.83rem;line-height:1.6;white-space:pre-wrap;
+  word-break:break-word;background:var(--rule-soft);border:1px solid var(--rule);
+  border-radius:8px;padding:.85rem 1rem;margin:.7rem 0;overflow-x:auto}
+
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+.scroll{overflow-x:auto}
+th{text-align:left;font:600 11px/1.4 Archivo,sans-serif;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--faint);padding:.45rem .7rem;border-bottom:1px solid var(--rule)}
+td{padding:.55rem .7rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.pill{display:inline-block;font:600 11px/1 Archivo,sans-serif;padding:4px 9px;border-radius:999px;
+  letter-spacing:.03em;white-space:nowrap}
+.p-go{background:var(--go-soft);color:var(--go)}
+.p-hold{background:var(--hold-soft);color:var(--hold)}
+.p-stop{background:var(--stop-soft);color:var(--stop)}
+.p-acc{background:var(--accent-soft);color:var(--accent)}
+
+/* ── flow ── */
+.flow{display:grid;gap:.4rem;margin:1.4rem 0}
+.flow-row{display:grid;grid-template-columns:5.5rem 1fr;gap:.85rem;align-items:start;
+  background:var(--card);border:1px solid var(--rule);border-radius:9px;padding:.7rem .9rem}
+.flow-who{font:600 11px/1.5 Archivo,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.flow-what{font-size:.94rem}
+.flow-what small{display:block;color:var(--muted);font-size:.85rem;margin-top:.15rem}
+.flow-arrow{text-align:center;color:var(--faint);font-size:.8rem;line-height:1}
+
+/* ── bars ── */
+.bars{margin:1rem 0;max-width:34rem}
+.bars-row{display:grid;grid-template-columns:5.5rem 1fr 3rem;gap:.7rem;align-items:center;margin:.4rem 0}
+.bars-l{font:500 12.5px/1 Archivo,sans-serif;color:var(--muted)}
+.bars-t{height:12px;border-radius:3px;background:var(--rule-soft);overflow:hidden}
+.bars-f{height:100%;background:var(--meter);border-radius:3px}
+.bars-v{font-family:"IBM Plex Mono",monospace;font-size:.8rem;color:var(--muted);text-align:right;
+  font-variant-numeric:tabular-nums}
+
+hr{border:0;border-top:1px solid var(--rule);margin:3rem 0}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<div class="bar">
+  <div class="bar-in">
+    <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span class="bar-t">Sushi ZEN · Voice Interview</span>
+    <span class="lang">
+      <button id="b-en" onclick="setLang('en')" aria-pressed="true">EN</button>
+      <button id="b-ja" onclick="setLang('ja')" aria-pressed="false">日本語</button>
+    </span>
+  </div>
+</div>
+
+<div class="wrap">
+
+<header>
+  <h1><span lang="en">The voice interview, end to end</span><span lang="ja">音声面接 — 最初から最後まで</span></h1>
+  <p class="lede" lang="en">Every applicant answers five short questions out loud on their own phone,
+    before anybody books a room. This is how HR runs it: sending the link, reading what comes back,
+    and recording the decision.</p>
+  <p class="lede" lang="ja">応募者は全員、部屋を押さえる前に、自分の携帯で5つの短い質問に声で答えます。
+    リンクの送り方、返ってきたものの読み方、判断の残し方を、この1枚にまとめてあります。</p>
+  <p class="stamp">Sushi ZEN Manila · TAFT / PARANAQUE / CUBAO · 2026-09-09</p>
+</header>
+
+<!-- ══ WHY ══ -->
+<section class="stage" id="why">
+  <div class="stage-h"><span class="stage-n">00</span><h2><span lang="en">Why this exists</span><span lang="ja">なぜこれがあるのか</span></h2></div>
+
+  <p lang="en">A written application tells you where someone worked. It does not tell you how they
+    explain a problem, or whether they will turn up. Meeting everybody to find that out costs a day
+    per hire. The voice interview puts that first look <strong>before</strong> the appointment: the
+    applicant records five answers whenever they like, and the hiring manager listens when they
+    like.</p>
+  <p lang="ja">応募用紙で分かるのは、どこで働いていたかまでです。困ったことをどう説明するか、
+    そもそも来るかどうかは分かりません。それを確かめるために全員と会うと、1人採用するのに丸1日かかります。
+    音声面接は、その最初の一目を<strong>会う前</strong>に置きます。応募者は好きな時間に5問答え、
+    採用担当は好きな時間に聴きます。</p>
+
+  <div class="note">
+    <p><strong><span lang="en">It never rejects anybody by itself.</span><span lang="ja">システムが勝手に落とすことはありません。</span></strong>
+      <span lang="en">Nothing is scored automatically. Every decision on this screen is made by a person,
+      and every one of them can be undone.</span>
+      <span lang="ja">自動採点は一切していません。この画面の判断はすべて人が押したもので、すべて取り消せます。</span></p>
+  </div>
+</section>
+
+<!-- ══ FLOW ══ -->
+<section class="stage" id="flow">
+  <div class="stage-h"><span class="stage-n">01</span><h2><span lang="en">The whole loop</span><span lang="ja">全体の流れ</span></h2></div>
+
+  <div class="flow">
+    <div class="flow-row"><span class="flow-who"><span lang="en">Applicant</span><span lang="ja">応募者</span></span>
+      <span class="flow-what"><span lang="en">Fills in the application form</span><span lang="ja">応募フォームに入力する</span>
+        <small><span lang="en">Name, mobile number, last job, and which of Viber / WhatsApp / SMS they use on that number.</span><span lang="ja">氏名・携帯番号・前職、そしてその番号で Viber / WhatsApp / SMS のどれを使うか。</span></small></span></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><span class="flow-who">HR</span>
+      <span class="flow-what"><span lang="en">Presses <strong>New link</strong>, then <strong>Send by SMS</strong></span><span lang="ja"><strong>New link</strong> → <strong>Send by SMS</strong> を押す</span>
+        <small><span lang="en">One press. The link and the message are written for you.</span><span lang="ja">1回押すだけ。リンクも文面も用意されています。</span></small></span></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><span class="flow-who"><span lang="en">Applicant</span><span lang="ja">応募者</span></span>
+      <span class="flow-what"><span lang="en">Records five answers on their phone</span><span lang="ja">携帯で5問に答える</span>
+        <small><span lang="en">Any time, about five minutes. They may attach a CV first, or skip it.</span><span lang="ja">いつでも可・約5分。先に履歴書を付けることも、飛ばすこともできます。</span></small></span></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><span class="flow-who">OS</span>
+      <span class="flow-what"><span lang="en">Writes the transcript</span><span lang="ja">文字起こしをする</span>
+        <small><span lang="en">Within the hour, automatically. English and Tagalog both.</span><span lang="ja">1時間以内に自動で。英語もタガログ語も。</span></small></span></div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row"><span class="flow-who">HR</span>
+      <span class="flow-what"><span lang="en">Listens or reads, then decides</span><span lang="ja">聴くか読むかして、判断する</span>
+        <small><span lang="en">Shortlist · Hold · Reject. Three taps at most.</span><span lang="ja">Shortlist・Hold・Reject の3つ。最大3タップ。</span></small></span></div>
+  </div>
+
+  <p lang="en"><strong>Where it lives:</strong> <code>Recruitment → Voice screening</code>. Four tabs
+    across the top — <em>To invite</em>, <em>Waiting on them</em>, <em>To review</em>, <em>Done</em> — and the
+    number on each is how many people are sitting in it.</p>
+  <p lang="ja"><strong>場所:</strong> <code>Recruitment → Voice screening</code>。上部に4つのタブ
+    （<em>To invite</em> / <em>Waiting on them</em> / <em>To review</em> / <em>Done</em>）があり、
+    数字はそこに何人溜まっているかです。</p>
+</section>
+
+<!-- ══ SENDING ══ -->
+<section class="stage" id="send">
+  <div class="stage-h"><span class="stage-n">02</span><h2><span lang="en">Sending the link</span><span lang="ja">リンクを送る</span></h2><span class="stage-sub">SMS</span></div>
+
+  <p lang="en">Open the applicant and press <strong>New link</strong>. A panel opens with the message
+    already written, in English and Tagalog. Then choose one of these.</p>
+  <p lang="ja">応募者を開いて <strong>New link</strong> を押します。英語とタガログ語の文面が入った
+    パネルが開きます。あとは下のどれかを選びます。</p>
+
+  <div class="scroll"><table>
+    <tr><th><span lang="en">Button</span><span lang="ja">ボタン</span></th>
+        <th><span lang="en">What happens</span><span lang="ja">何が起きるか</span></th>
+        <th><span lang="en">Cost</span><span lang="ja">費用</span></th></tr>
+    <tr><td><span class="pill p-acc">Send by SMS</span></td>
+        <td><span lang="en"><strong>The OS sends it.</strong> Nothing else to do — the text goes out from the gateway and the screen says <em>Sent to +63…</em></span>
+            <span lang="ja"><strong>OSが送ります。</strong>他に作業はありません。ゲートウェイから送信され、画面に <em>Sent to +63…</em> と出ます。</span></td>
+        <td class="num"><span lang="en">1 text<br>≈ ₱0.50</span><span lang="ja">1通<br>約 ₱0.50</span></td></tr>
+    <tr><td><span class="pill">WhatsApp</span></td>
+        <td><span lang="en">Opens WhatsApp with the message filled in. <strong>You press send.</strong> It goes out from your own number.</span>
+            <span lang="ja">WhatsApp が文面入りで開きます。<strong>送信はあなたが押します。</strong>あなたの番号から出ます。</span></td>
+        <td class="num"><span lang="en">free</span><span lang="ja">無料</span></td></tr>
+    <tr><td><span class="pill">Viber</span></td>
+        <td><span lang="en">Opens the chat and <strong>copies the text for you</strong> — Viber cannot receive a message body from a link, so paste it. You press send.</span>
+            <span lang="ja">チャットが開き、<strong>文面はコピーされます</strong>。Viberはリンクから本文を受け取れないので貼り付けてください。送信はあなたが押します。</span></td>
+        <td class="num"><span lang="en">free</span><span lang="ja">無料</span></td></tr>
+    <tr><td><span class="pill">Messages</span></td>
+        <td><span lang="en">Opens your phone's own texting app with the message in it. Only appears when you are <strong>on a phone</strong> — a computer cannot send a text.</span>
+            <span lang="ja">携帯のメッセージアプリが文面入りで開きます。<strong>携帯で開いたときだけ</strong>表示されます。PCからSMSは送れません。</span></td>
+        <td class="num"><span lang="en">your plan</span><span lang="ja">自分の契約</span></td></tr>
+  </table></div>
+
+  <h3><span lang="en">Which one should you press?</span><span lang="ja">どれを押すべきか</span></h3>
+
+  <p lang="en"><strong>Send by SMS, unless the applicant asked for something else.</strong> The panel
+    tells you what they picked — <em>“They asked to be reached on Viber”</em>. Of the applicants who
+    have been asked so far:</p>
+  <p lang="ja"><strong>応募者が別のものを指定していない限り Send by SMS。</strong>
+    パネルに <em>“They asked to be reached on Viber”</em> のように出ます。これまでに聞けた応募者の内訳:</p>
+
+  <div class="bars">
+    <div class="bars-row"><span class="bars-l">SMS</span><span class="bars-t"><span class="bars-f" style="width:85%"></span></span><span class="bars-v">85%</span></div>
+    <div class="bars-row"><span class="bars-l">Viber</span><span class="bars-t"><span class="bars-f" style="width:39%"></span></span><span class="bars-v">39%</span></div>
+    <div class="bars-row"><span class="bars-l">WhatsApp</span><span class="bars-t"><span class="bars-f" style="width:25%"></span></span><span class="bars-v">25%</span></div>
+  </div>
+  <p class="stamp" style="border:0;padding:0;margin:.2rem 0 0"><span lang="en">28 applicants asked · they can pick more than one · 2026-09-09</span><span lang="ja">対象28名・複数選択可・2026-09-09時点</span></p>
+
+  <p lang="en">Most of the people on the list applied <em>before</em> the form asked this question, so it
+    is blank for them. SMS works for all of them, which is why it is the default.</p>
+  <p lang="ja">一覧にいる大半は、フォームがこの質問をする前に応募した人なので空欄です。
+    SMSはその全員に届くので、既定にしてあります。</p>
+
+  <h3><span lang="en">What the applicant receives</span><span lang="ja">応募者に届くもの</span></h3>
+  <div class="msg">Sushi ZEN: Hi Ayako, 5 short voice questions, anytime, about 5 min.
+https://sushizen-shift-pwa.vercel.app/voice/a1b2c3d4e5f6 Optional, 14 days.</div>
+  <p lang="en">Tagalog is the same message, one press away — switch the language <em>before</em> you send.
+    The link in it is unique to that person.</p>
+  <p lang="ja">タガログ語版も同じ内容で、切替は1タップです。<strong>送る前に</strong>切り替えてください。
+    リンクはその人専用です。</p>
+
+  <div class="warn">
+    <p><strong><span lang="en">Pressing New link kills the previous link.</span><span lang="ja">New link を押すと、前のリンクは使えなくなります。</span></strong>
+      <span lang="en">If you send twice, only the second one works. Answers they already recorded are
+      kept and they carry on where they stopped — but do not send a link you copied earlier.</span>
+      <span lang="ja">2回送った場合、生きているのは2通目だけです。すでに録音した回答は残り、続きから再開できますが、
+      <strong>前にコピーしたリンクを送らないでください。</strong></span></p>
+  </div>
+
+  <div class="note">
+    <p><strong><span lang="en">The link lasts 14 days.</span><span lang="ja">リンクの有効期間は14日です。</span></strong>
+      <span lang="en">After that it shows “this link has expired” and tells them to reply to your message.
+      Press New link again to give them a fresh one.</span>
+      <span lang="ja">切れると「expired」と表示され、返信するよう案内されます。New link を押せば新しいものが出せます。</span></p>
+  </div>
+</section>
+
+<!-- ══ SMS DETAIL ══ -->
+<section class="stage" id="sms">
+  <div class="stage-h"><span class="stage-n">03</span><h2><span lang="en">About the SMS</span><span lang="ja">SMSについて</span></h2><span class="stage-sub">Semaphore</span></div>
+
+  <p lang="en">Texts go out through a gateway called <strong>Semaphore</strong>, on prepaid credits.
+    Each invite is <strong>one message</strong>.</p>
+  <p lang="ja">SMSは <strong>Semaphore</strong> というゲートウェイ経由で、前払いクレジットから出ます。
+    招待1件につき <strong>1通</strong> です。</p>
+
+  <div class="scroll"><table>
+    <tr><th><span lang="en">Point</span><span lang="ja">項目</span></th><th><span lang="en">Detail</span><span lang="ja">内容</span></th></tr>
+    <tr><td><span lang="en">Sender</span><span lang="ja">差出人</span></td>
+      <td><span lang="en">A shared gateway name until <code>SUSHIZEN</code> is approved. Once it is, the message shows as from SUSHIZEN.</span>
+          <span lang="ja"><code>SUSHIZEN</code> が承認されるまでは共有の送信者名です。承認後は SUSHIZEN と表示されます。</span></td></tr>
+    <tr><td><span lang="en">Length</span><span lang="ja">長さ</span></td>
+      <td><span lang="en">Kept under 160 plain characters so it stays one message. <strong>Adding a dash like “—” to the wording makes it three messages</strong> and triples the bill, so the wording is not edited on the screen.</span>
+          <span lang="ja">1通に収まるよう160字未満・記号なしにしてあります。<strong>「—」のような記号を1つ足すと3通ぶんの課金</strong>になるため、文面は画面で編集できません。</span></td></tr>
+    <tr><td><span lang="en">Record</span><span lang="ja">記録</span></td>
+      <td><span lang="en">Every send is logged — who pressed it, when, to which number, and whether the gateway accepted it. Failures are logged too.</span>
+          <span lang="ja">送信は毎回記録されます（誰が・いつ・どの番号に・受け付けられたか）。失敗も記録されます。</span></td></tr>
+    <tr><td><span lang="en">Delivery</span><span lang="ja">到達</span></td>
+      <td><span lang="en"><em>Sent</em> means the gateway accepted it. No gateway promises the phone rang. If somebody says nothing arrived, try Viber or WhatsApp before sending a second text.</span>
+          <span lang="ja"><em>Sent</em> は「ゲートウェイが受け付けた」という意味です。着信までは保証されません。届かないと言われたら、2通目を送る前に Viber か WhatsApp を試してください。</span></td></tr>
+  </table></div>
+
+  <div class="warn">
+    <p><strong><span lang="en">If the button is missing, read the line under it.</span><span lang="ja">ボタンが無いときは、その下の行を読んでください。</span></strong>
+      <span lang="en">“The OS cannot send texts itself yet — no API key” means the gateway is not set up, not that
+      you did something wrong. If it says the gateway refused, the reason is printed in full: out of credits,
+      bad number, sender name not approved. Send it from WhatsApp or your own phone and tell the office.</span>
+      <span lang="ja">「no API key」は設定が入っていないという意味で、操作の誤りではありません。
+      ゲートウェイに断られた場合は理由がそのまま出ます（クレジット切れ・番号不正・送信者名未承認など）。
+      その場合は WhatsApp か自分の携帯から送り、事務所に伝えてください。</span></p>
+  </div>
+</section>
+
+<!-- ══ RECORDING ══ -->
+<section class="stage" id="record">
+  <div class="stage-h"><span class="stage-n">04</span><h2><span lang="en">What the applicant sees</span><span lang="ja">応募者の画面</span></h2></div>
+
+  <p lang="en">Worth knowing, because they will ask you.</p>
+  <p lang="ja">聞かれるので、把握しておいてください。</p>
+
+  <ol>
+    <li><span lang="en"><strong>An offer screen</strong> — “This is your first interview”. Five questions, about five minutes, no appointment.</span>
+        <span lang="ja"><strong>案内画面</strong>「This is your first interview」。5問・約5分・予約不要。</span></li>
+    <li><span lang="en"><strong>Consent</strong> — what is recorded, who listens, how long it is kept. They can decline; declining does not reject them.</span>
+        <span lang="ja"><strong>同意</strong> — 何を録音し、誰が聴き、いつまで保管するか。断ることもでき、断っても不採用にはなりません。</span></li>
+    <li><span lang="en"><strong>CV (optional)</strong> — a PDF, a Word file, or a photo of it. Most people here have none; skipping changes nothing.</span>
+        <span lang="ja"><strong>履歴書（任意）</strong> — PDF・Word・写真のいずれか。持っていない人が大半で、飛ばしても影響はありません。</span></li>
+    <li><span lang="en"><strong>Microphone check</strong> — they say their name and watch the bar move.</span>
+        <span lang="ja"><strong>マイク確認</strong> — 名前を言ってバーが動くのを見ます。</span></li>
+    <li><span lang="en"><strong>Five questions</strong>, one at a time, <strong>60 or 90 seconds each</strong> depending on the question. The clock starts when they tap record, not before.</span>
+        <span lang="ja"><strong>5問</strong>を1問ずつ。質問により <strong>60秒または90秒</strong>。時間はrecordを押した時点から始まります。</span></li>
+  </ol>
+
+  <div class="note">
+    <p><strong><span lang="en">They can re-record any answer once.</span><span lang="ja">各問1回だけ録り直せます。</span></strong>
+      <span lang="en">Once, not unlimited — beyond that it becomes reading a script, and the answers stop
+      being comparable with each other.</span>
+      <span lang="ja">無制限にすると原稿の読み上げになり、回答同士を比べられなくなるためです。</span></p>
+  </div>
+
+  <p lang="en">Before the first question they are told to think first, and asked for
+    <strong>at least 30 seconds</strong> per answer. That instruction exists because of a measurement:
+    across every answer recorded so far, the median is <strong>19 seconds</strong> against a 60–90 second
+    allowance, and <strong>nobody has ever run out of time</strong>. Answers are too short, not too long.</p>
+  <p lang="ja">最初の質問の前に「先に考えること」と「<strong>30秒以上</strong>」を案内しています。
+    実測が根拠で、これまでの全回答の中央値は <strong>19秒</strong>（制限は60〜90秒）、
+    <strong>制限に達した人は1人もいません</strong>。長すぎるのではなく短すぎるのが問題です。</p>
+
+  <div class="warn">
+    <p><strong><span lang="en">If they open the link inside Facebook or Messenger, the microphone will not work.</span>
+       <span lang="ja">FacebookやMessengerの中でリンクを開くと、マイクが動きません。</span></strong>
+      <span lang="en">The page says so and offers “Open in browser”. This is the single most common reason
+      somebody gets stuck — tell them to open it in Chrome or Safari.</span>
+      <span lang="ja">画面にその案内と「Open in browser」が出ます。<strong>詰まる原因のほぼ全部がこれです。</strong>
+      Chrome か Safari で開くよう伝えてください。</span></p>
+  </div>
+</section>
+
+<!-- ══ REVIEW ══ -->
+<section class="stage" id="review">
+  <div class="stage-h"><span class="stage-n">05</span><h2><span lang="en">Reading what comes back</span><span lang="ja">返ってきたものを読む</span></h2></div>
+
+  <p lang="en">Open the row and press <strong>Listen</strong>. Each answer shows the question, the
+    recording, and the transcript.</p>
+  <p lang="ja">行を開いて <strong>Listen</strong> を押します。設問・録音・文字起こしが問ごとに並びます。</p>
+
+  <div class="scroll"><table>
+    <tr><th><span lang="en">What you see</span><span lang="ja">表示</span></th><th><span lang="en">What it means</span><span lang="ja">意味</span></th></tr>
+    <tr><td><span lang="en">Transcript text</span><span lang="ja">文字起こし</span></td>
+      <td><span lang="en">Written automatically within the hour of the answer arriving. Tagalog and English are both handled; mixed answers are normal here.</span>
+          <span lang="ja">回答到着から1時間以内に自動で作成。タガログ語・英語の両方に対応し、混在も通常どおり扱えます。</span></td></tr>
+    <tr><td><span lang="en">“Check this one by ear”</span><span lang="ja">「耳で確認してください」</span></td>
+      <td><span lang="en">The transcript is low-confidence. <strong>Play the recording before judging the person</strong> — the words may be wrong, not the answer.</span>
+          <span lang="ja">文字起こしの信頼度が低い状態です。<strong>判断する前に録音を再生してください。</strong>本人ではなく文字のほうが誤っている可能性があります。</span></td></tr>
+    <tr><td><span lang="en">“That answer had no sound in it”</span><span lang="ja">「音が入っていません」</span></td>
+      <td><span lang="en">The recording is silent — a covered microphone or Bluetooth earphones. It is not a bad answer. They can record it again without using up their retake.</span>
+          <span lang="ja">無音でした（マイクを塞いだ・Bluetoothイヤホン等）。悪い回答ではありません。録り直しの1回を消費せずに再録できます。</span></td></tr>
+    <tr><td><span lang="en">“Transcript not in yet”</span><span lang="ja">「まだ作成中」</span></td>
+      <td><span lang="en">Written within the hour. Play the recording rather than waiting.</span>
+          <span lang="ja">1時間以内に作成されます。待たずに録音を再生してください。</span></td></tr>
+  </table></div>
+
+  <div class="warn">
+    <p><strong><span lang="en">Judge what they said, not how they sound.</span><span lang="ja">話し方ではなく、話した内容で判断してください。</span></strong>
+      <span lang="en">Accent, fluency and confidence are not on the list of reasons, deliberately. The
+      reasons you can pick are all things you can point at in the answer itself.</span>
+      <span lang="ja">訛り・流暢さ・印象は、理由の選択肢に意図的に入れていません。選べる理由は、
+      すべて回答の中身から指し示せる事実だけです。</span></p>
+  </div>
+</section>
+
+<!-- ══ DECIDE ══ -->
+<section class="stage" id="decide">
+  <div class="stage-h"><span class="stage-n">06</span><h2><span lang="en">The decision</span><span lang="ja">判断</span></h2><span class="stage-sub">3 buttons</span></div>
+
+  <div class="scroll"><table>
+    <tr><th><span lang="en">Button</span><span lang="ja">ボタン</span></th>
+        <th><span lang="en">Moves them to</span><span lang="ja">移動先</span></th>
+        <th><span lang="en">Reason needed?</span><span lang="ja">理由</span></th></tr>
+    <tr><td><span class="pill p-go">Shortlist — invite to interview</span></td>
+      <td><span class="mono">Screened</span><br><small><span lang="en">ready to book a real interview</span><span lang="ja">面接日程を組める状態</span></small></td>
+      <td><span lang="en">No</span><span lang="ja">不要</span></td></tr>
+    <tr><td><span class="pill p-hold">Hold — decide later</span></td>
+      <td><span lang="en">nothing changes</span><span lang="ja">変わりません</span></td>
+      <td><span lang="en">Yes, one tap</span><span lang="ja">必要（1タップ）</span></td></tr>
+    <tr><td><span class="pill p-stop">Reject — do not proceed</span></td>
+      <td><span class="mono">Rejected</span><br><small><span lang="en">the application is closed</span><span lang="ja">応募は終了します</span></small></td>
+      <td><span lang="en">Yes, one tap</span><span lang="ja">必要（1タップ）</span></td></tr>
+  </table></div>
+
+  <p lang="en"><strong>Shortlist asks for nothing</strong>, because moving somebody forward is never
+    questioned afterwards. <strong>Hold and Reject ask for one reason chip</strong>, because a hold is what
+    becomes a two-month silence and a rejection is what gets asked about later. It is one tap, not a form.</p>
+  <p lang="ja"><strong>Shortlist は何も聞きません。</strong>前に進める判断は後から問われないからです。
+    <strong>Hold と Reject は理由チップを1つ</strong>選びます。保留は数ヶ月の沈黙になり、
+    見送りは必ず後で理由を聞かれるからです。フォームではなく1タップです。</p>
+
+  <div class="note">
+    <p><strong><span lang="en">“Reject” used to say “Pass”.</span><span lang="ja">「Reject」は以前「Pass」でした。</span></strong>
+      <span lang="en">It was renamed on 2026-09-09 after a manager asked whether it meant the applicant had
+      passed or been turned down. It always meant turned down. If you pressed it before the change believing
+      the opposite, open <em>Done</em> and press <strong>Undo</strong> — the person goes back exactly where
+      they were.</span>
+      <span lang="ja">2026-09-09に改名しました。「合格」か「見送り」か分からないという指摘があったためです。
+      意味は一貫して「見送り」です。改名前に逆の意味で押していた場合は、<em>Done</em> を開いて
+      <strong>Undo</strong> を押せば、元の段階にそのまま戻ります。</span></p>
+  </div>
+
+  <p lang="en">You never type your own name or the date. It is whoever is signed in, and now.</p>
+  <p lang="ja">担当者名も日付も入力しません。ログイン中の本人と、その時刻で記録されます。</p>
+</section>
+
+<!-- ══ LIMITS ══ -->
+<section class="stage" id="limits">
+  <div class="stage-h"><span class="stage-n">07</span><h2><span lang="en">What it does not do</span><span lang="ja">やらないこと</span></h2></div>
+
+  <ul>
+    <li lang="en"><strong>It does not score anybody.</strong> There is no rating, no ranking, no automatic pass mark.</li>
+    <li lang="ja"><strong>採点しません。</strong>点数も順位も自動合否もありません。</li>
+    <li lang="en"><strong>It does not replace the in-person interview.</strong> Shortlist means “book them”, not “hired”.</li>
+    <li lang="ja"><strong>対面面接の代わりにはなりません。</strong>Shortlist は「日程を組む」であって「採用」ではありません。</li>
+    <li lang="en"><strong>It does not chase anybody.</strong> No reminder is sent automatically. The <em>Waiting on them</em> tab is the reminder — it is for you to read.</li>
+    <li lang="ja"><strong>催促はしません。</strong>自動のリマインドはありません。<em>Waiting on them</em> タブがその代わりで、読むのは人です。</li>
+    <li lang="en"><strong>It does not send in bulk.</strong> One applicant, one press, on purpose.</li>
+    <li lang="ja"><strong>一斉送信はしません。</strong>1人ずつ・1回ずつ押す設計です。</li>
+  </ul>
+
+  <h3><span lang="en">How long recordings are kept</span><span lang="ja">録音の保管期間</span></h3>
+  <p lang="en">Recordings live in Sushi ZEN's private Google Drive. Only HR and the hiring manager listen
+    to them. For an applicant who is not hired, deletion begins after <strong>180 days</strong> and is
+    complete within 30 days after that. This is what the applicant is told on the consent screen, so it
+    has to stay true.</p>
+  <p lang="ja">録音は Sushi ZEN の非公開 Google Drive に保管し、聴くのは HR と採用担当だけです。
+    不採用の場合、<strong>180日</strong>後に削除を開始し、そこから30日以内に完全に消えます。
+    これは同意画面で応募者に伝えている内容なので、変えられません。</p>
+</section>
+
+<!-- ══ TROUBLE ══ -->
+<section class="stage" id="trouble">
+  <div class="stage-h"><span class="stage-n">08</span><h2><span lang="en">When it goes wrong</span><span lang="ja">うまくいかないとき</span></h2></div>
+
+  <div class="scroll"><table>
+    <tr><th><span lang="en">They say</span><span lang="ja">言われたこと</span></th><th><span lang="en">Do this</span><span lang="ja">対応</span></th></tr>
+    <tr><td><span lang="en">“The microphone does not work”</span><span lang="ja">「マイクが動かない」</span></td>
+      <td><span lang="en">Almost always Messenger, or Bluetooth earphones. Open in Chrome or Safari; take the earbuds out. The page has step-by-step help in Tagalog.</span>
+          <span lang="ja">ほぼMessenger内で開いたか、Bluetoothイヤホンです。Chrome/Safariで開く・イヤホンを外す。画面にタガログ語の手順があります。</span></td></tr>
+    <tr><td><span lang="en">“I did not get the message”</span><span lang="ja">「メッセージが届かない」</span></td>
+      <td><span lang="en">Try WhatsApp or Viber before sending a second text — a second SMS costs again and may not arrive either.</span>
+          <span lang="ja">2通目を送る前に WhatsApp か Viber を試してください。2通目も課金され、届く保証はありません。</span></td></tr>
+    <tr><td><span lang="en">“The link expired”</span><span lang="ja">「リンクが切れた」</span></td>
+      <td><span lang="en">Press New link. Anything they already answered is kept.</span><span lang="ja">New link を押してください。回答済みのぶんは残ります。</span></td></tr>
+    <tr><td><span lang="en">“I pressed the wrong button”</span><span lang="ja">「押し間違えた」</span></td>
+      <td><span lang="en"><strong>Undo</strong>, on the row, in the Done tab. Do not ask anybody for help first.</span>
+          <span lang="ja">Done タブの該当行にある <strong>Undo</strong>。まず誰かに聞く必要はありません。</span></td></tr>
+    <tr><td><span lang="en">“Send by SMS is not there”</span><span lang="ja">「Send by SMS が無い」</span></td>
+      <td><span lang="en">Read the line under the buttons — it says which setting is missing. Send it another way meanwhile.</span>
+          <span lang="ja">ボタンの下の行に、何が足りないか出ています。その間は別の手段で送ってください。</span></td></tr>
+    <tr><td><span lang="en">Anything on the screen you had to ask about</span><span lang="ja">画面について誰かに聞かないと分からなかったこと</span></td>
+      <td><span lang="en"><strong>Tell us.</strong> If you had to ask, the screen was wrong — that is how “Pass” became “Reject”.</span>
+          <span lang="ja"><strong>教えてください。</strong>聞かないと分からない画面は画面の不具合です。「Pass」→「Reject」はそうして直りました。</span></td></tr>
+  </table></div>
+</section>
+
+<hr>
+<p class="stamp">Sushi ZEN Workforce OS · <span lang="en">Voice interview runbook for HR</span><span lang="ja">HR向け 音声面接 運用手順</span> · 2026-09-09</p>
+
+</div>
+
+<script>
+function setLang(l){
+  document.body.setAttribute("data-lang", l);
+  document.getElementById("b-en").setAttribute("aria-pressed", String(l === "en"));
+  document.getElementById("b-ja").setAttribute("aria-pressed", String(l === "ja"));
+  try { localStorage.setItem("zen:voice-guide-lang", l); } catch (e) {}
+}
+// Default English: the readers are Manila HR and the screens they use are English.
+var saved = "en";
+try { saved = localStorage.getItem("zen:voice-guide-lang") || "en"; } catch (e) {}
+setLang(saved === "ja" ? "ja" : "en");
+</script>
