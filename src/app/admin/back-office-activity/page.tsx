@@ -42,6 +42,7 @@ type Row = {
   partial: boolean; observed_from: string | null;
   shift: { start_hour: number; end_hour: number } | null;
   rostered: boolean | null;
+  day_complete: boolean;
   clock_in: string | null; clock_out: string | null;
   flags: string[];
 };
@@ -53,7 +54,7 @@ type Report = {
   selection: { roles: string[]; city: string; individuals: string[] };
   coverage: {
     log_from: string | null; log_to: string | null; log_rows: number;
-    partial_rows: number; people: number;
+    partial_rows: number; people: number; day_in_progress: number;
     with_shift_reference: number; without_shift_reference: number;
   };
   rows: Row[];
@@ -248,6 +249,10 @@ export default function BackOfficeActivityPage() {
               Anything before that was never watched. Rows marked <em>partial</em> started
               their day outside the recorded window and carry no absence flag.</li>
           )}
+          <li><strong>Nothing is flagged until the day is over for that person</strong> —
+            a past date, or today once their shift has ended. Manila midnight is early
+            evening in Dubai, so without this the whole roster would read as absent every
+            morning. The numbers are live all day; only the verdicts wait.</li>
           <li>Writing nothing is not the same as doing nothing. A reviewer who checks
             forty cases and finds them all correct writes nothing at all.</li>
           <li><strong>Inventory &amp; Purchasing people work at store branches.</strong> Most
@@ -269,7 +274,7 @@ export default function BackOfficeActivityPage() {
         <div className={KPI_CARD}><p className={KPI_LABEL}>Back office</p><p className={KPI_VALUE}>{totals.people}</p></div>
         <div className={KPI_CARD}><p className={KPI_LABEL}>Rows with a flag</p><p className={KPI_VALUE}>{totals.flagged}</p></div>
         <div className={KPI_CARD}><p className={KPI_LABEL}>Signed in, nothing done</p><p className={KPI_VALUE}>{totals.silent}</p></div>
-        <div className={KPI_CARD}><p className={KPI_LABEL}>Only partly watched</p><p className={KPI_VALUE}>{totals.partial}</p></div>
+        <div className={KPI_CARD}><p className={KPI_LABEL}>Day still in progress</p><p className={KPI_VALUE}>{cov?.day_in_progress ?? 0}</p></div>
       </div>
 
       <div className={`${GLASS_CARD} overflow-hidden`}>
@@ -308,6 +313,11 @@ export default function BackOfficeActivityPage() {
                       )}
                       {r.rostered === false && (
                         <div className="mt-1 text-[10px] text-zinc-500">not rostered this day</div>
+                      )}
+                      {!r.day_complete && (
+                        <div className="mt-1 text-[10px] text-zinc-500">
+                          day in progress — nothing judged yet
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{clock(r.login_at, r.city)}</td>
