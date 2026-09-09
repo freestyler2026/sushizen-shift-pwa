@@ -102,6 +102,7 @@ const PRICE_WHY: Record<string, string> = {
   not_in_catalog: "This name is not in the Procurement catalogue. It may be there under a different name.",
   unit_differs: "The catalogue has a price, but for a different unit — a per-pack rate is not a per-box rate.",
   price_differs_by_supplier: "Suppliers quote different prices for this name, so none was assumed.",
+  no_price_in_catalog: "This item is in the catalogue but has no price for this supplier. Fill it in on the order.",
 };
 
 // The quantity a line will actually be ordered at. A half-typed or blank field
@@ -210,6 +211,10 @@ export default function CkParLevelsPage() {
   // a catalogue pick has none. A counter, so adding the same item twice gives
   // two lines instead of one that overwrites the other.
   const addSeq = useRef(0);
+  // Which city the loaded catalogue belongs to. Without this the "already
+  // loaded" guard kept Manila's 307 rows and their peso prices in memory after
+  // a switch to Dubai, and the picker would have priced a Dubai order off them.
+  const catalogCity = useRef<City | null>(null);
 
   // ── fetch rows ────────────────────────────────────────────────────────────
   const loadRows = useCallback(async () => {
@@ -510,6 +515,7 @@ export default function CkParLevelsPage() {
   const loadCatalog = useCallback(async () => {
     setCatalogState("loading");
     setCatalogErr("");
+    setCatalog([]);
     try {
       const auth = getAuth();
       const res = await fetch(
@@ -520,6 +526,7 @@ export default function CkParLevelsPage() {
       if (!res.ok) throw new Error(data.detail || "Failed to load the catalogue");
       setCatalog(Array.isArray(data.items) ? data.items : []);
       setCatalogExcluded(Number(data.excluded_by_type) || 0);
+      catalogCity.current = city;
       setCatalogState("ready");
     } catch (e: any) {
       // Say it, and keep the rest of the modal working. The order that was
@@ -554,7 +561,10 @@ export default function CkParLevelsPage() {
         suggested: 0,
         removed: false,
         unitPrice: Number(c.unit_price) || 0,
-        priceSource: Number(c.unit_price) > 0 ? "catalog" : "not_in_catalog",
+        // Not `not_in_catalog`: it was just chosen from the catalogue. 64 of the
+        // 290 rows on offer carry no price, and saying they are absent sends
+        // someone to add an item that is already there.
+        priceSource: Number(c.unit_price) > 0 ? "catalog" : "no_price_in_catalog",
         added: true,
       },
     ]);
@@ -575,6 +585,25 @@ export default function CkParLevelsPage() {
     scored.sort((a, b) => a.rank - b.rank || a.c.item_name.localeCompare(b.c.item_name));
     return scored.slice(0, 40).map((x) => x.c);
   })();
+
+  // What the order already contains, so the picker can say so. The par line and
+  // the catalogue row for the same thing carry different names — the par list
+  // says `Beef Short Plate (Imported)`, the catalogue says `Beef short plate
+  // (imported) minimum 1BOX` — so the two lines would sit under one supplier
+  // heading looking like two different items, and the kitchen would be sent
+  // twice as much beef.
+  const inDraft = (c: CatalogPick) => {
+    const sup = (c.supplier_name || "").trim().toLowerCase();
+    const nm = c.item_name.trim().toLowerCase();
+    return draft.some((l) => {
+      if (l.removed || l.supplier.trim().toLowerCase() !== sup) return false;
+      const ln = l.item_name.trim().toLowerCase();
+      if (ln === nm) return true;
+      // The par name is a prefix of the catalogue name often enough to be worth
+      // catching, and a false warning costs nothing — it is a note, not a block.
+      return ln.length > 6 && (nm.startsWith(ln) || ln.startsWith(nm));
+    });
+  };
 
   // Suppliers with no name cannot be grouped into an order, so the picker does
   // not offer them. Said out loud rather than silently dropped.
@@ -972,7 +1001,7 @@ export default function CkParLevelsPage() {
                 setCreatePin("");
                 setPickerOpen(false);
                 setPickerQ("");
-                if (catalogState === "idle" || catalogState === "error") void loadCatalog();
+                if (catalogState !== "loading" && catalogCity.current !== city) void loadCatalog();
               }}
               disabled={Object.keys(orderGroups).length === 0}
               className="rounded-xl border border-teal-500/30 bg-teal-500/15 px-4 py-2 text-sm font-medium text-teal-400 hover:bg-teal-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
@@ -1633,7 +1662,7 @@ export default function CkParLevelsPage() {
                 <div className="mt-3">
                   {!pickerOpen ? (
                     <button
-                      onClick={() => { setPickerOpen(true); if (catalogState === "idle" || catalogState === "error") void loadCatalog(); }}
+                      onClick={() => { setPickerOpen(true); if (catalogState !== "loading" && catalogCity.current !== city) void loadCatalog(); }}
                       disabled={!!createResult?.ok}
                       className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
                     >
@@ -1683,9 +1712,13 @@ export default function CkParLevelsPage() {
                               >
                                 <span className="flex-1 truncate text-zinc-100">
                                   {c.item_name}
-                                  {c.on_par && (
+                                  {inDraft(c) ? (
+                                    <span className="ml-2 rounded bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-medium text-orange-300">
+                                      already on this order
+                                    </span>
+                                  ) : c.on_par ? (
                                     <span className="ml-2 text-[10px] text-zinc-500">already on the par list</span>
-                                  )}
+                                  ) : null}
                                 </span>
                                 <span className="w-40 truncate text-right text-teal-300/90">{c.supplier_name}</span>
                                 <span className="w-24 text-right tabular-nums text-zinc-400">
