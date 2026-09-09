@@ -92,6 +92,13 @@ const T = {
     // instruction saying "six questions, one minute each" while the set holds
     // five at 60-90s teaches the applicant that this screen cannot be trusted.
     //
+    // ⚠️ Keep these SHORT. At 375x667 -- an iPhone SE / 8, common in Manila --
+    // the first draft pushed "Start recording" to 761px (English) and 809px
+    // (Tagalog) in a 667px viewport: the button that starts the interview sat
+    // below the fold, behind a wall of advice, on a funnel that already loses
+    // people. Tagalog runs longer than English and sets the worst case, so
+    // measure THAT one after any edit.
+    //
     // ⚠️ The 30 seconds is a FLOOR, not a limit, and it is the point of this
     // panel. All 35 answers recorded so far run 1-82s, median 19, against a
     // 60-90s allowance: THREE used even half of it and NOT ONE has ever hit the
@@ -100,12 +107,12 @@ const T = {
     // is better than long", which pushed the one behaviour already hurting
     // these applicants. Do not reinstate it without measuring again.
     prepTitle: "Before you start",
-    prepLead: "{n} questions. You get {time} for each one, and the time only starts when you tap record.",
+    prepLead: "{n} questions, {time} each. The time starts only when you tap record.",
     prepSteps: [
-      "Read the question and decide what you want to say. Nothing is counting until you tap record.",
-      "Aim for at least 30 seconds. A single sentence gives the hiring manager very little to go on, and you will not run out of time.",
-      "If it helps, write a few words on paper before you start.",
-      "If an answer does not come out right, you can record that question again once.",
+      "Read the question and decide what to say before you tap record.",
+      "Aim for 30 seconds or more. One sentence is too little to go on, and you will not run out of time.",
+      "Write a few words on paper first if it helps.",
+      "You can re-record any answer once.",
     ],
     uploading: "Sending…",
     saved: "Saved",
@@ -201,12 +208,12 @@ const T = {
     stop: "Itigil at ipadala",
     again: "Mag-record ulit",
     prepTitle: "Bago ka magsimula",
-    prepLead: "{n} tanong. May {time} ka sa bawat isa, at magsisimula lang ang oras kapag pinindot mo ang record.",
+    prepLead: "{n} tanong, {time} bawat isa. Magsisimula lang ang oras kapag pinindot mo ang record.",
     prepSteps: [
-      "Basahin ang tanong at isipin muna kung ano ang sasabihin mo. Walang tumatakbong oras hangga't hindi ka pumipindot ng record.",
-      "Puntiryahin ang hindi bababa sa 30 segundo. Ang isang pangungusap lang ay napakaliit na basehan para sa hiring manager, at hindi ka naman mauubusan ng oras.",
-      "Kung makakatulong, isulat muna sa papel ang ilang salita bago magsimula.",
-      "Kung hindi maganda ang lumabas, pwede mong i-record ulit ang tanong na iyon nang isang beses.",
+      "Basahin ang tanong at isipin ang sagot bago pumindot ng record.",
+      "Puntiryahin ang 30 segundo pataas. Kulang ang isang pangungusap, at hindi ka mauubusan ng oras.",
+      "Kung makakatulong, isulat muna sa papel.",
+      "Pwedeng i-record ulit ang isang sagot nang isang beses.",
     ],
     uploading: "Ipinapadala…",
     saved: "Na-save",
@@ -385,6 +392,13 @@ function clientKind(): string {
 }
 
 const BTN = "w-full rounded-xl px-4 py-4 text-base font-semibold transition disabled:opacity-60";
+
+/** The prep panel's copy, for the budget test. It sits directly above the
+ *  record button, so its length is a layout constraint, not a style question --
+ *  and jsdom cannot measure the layout that would otherwise catch it. */
+export function __prepCopyForTest(lang: Lang) {
+  return { lead: T[lang].prepLead, steps: T[lang].prepSteps as readonly string[] };
+}
 
 export default function VoiceScreening({
   token,
@@ -1243,12 +1257,12 @@ export default function VoiceScreening({
           check either, because two of the three routes into recording skip it
           (no AudioContext, and anyone returning to a consented screening). */}
       {showPrep && (
-        <div className="mb-4 rounded-xl border border-violet-500/25 bg-violet-950/20 p-3.5">
+        <div className="mb-3 rounded-xl border border-violet-500/25 bg-violet-950/20 p-3">
           <p className="mb-1 text-sm font-semibold text-violet-200">{t.prepTitle}</p>
           <p className="text-sm leading-relaxed text-zinc-300">
             {t.prepLead.replace("{n}", String(total)).replace("{time}", answerTime)}
           </p>
-          <ul className="mt-2 space-y-1.5">
+          <ul className="mt-1.5 space-y-1">
             {t.prepSteps.map((line) => (
               <li key={line} className="flex gap-2 text-sm leading-relaxed text-zinc-400">
                 <span className="text-violet-400">•</span>

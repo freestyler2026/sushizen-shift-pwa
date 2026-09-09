@@ -247,7 +247,7 @@ describe("the panel shown before the first answer", () => {
     await onQuestion();
     expect(await screen.findByText("Before you start")).toBeTruthy();
     // Two 90s questions in this fixture -- a single figure, not a range.
-    expect(screen.getByText(/2 questions\. You get 90 seconds for each one/)).toBeTruthy();
+    expect(screen.getByText(/2 questions, 90 seconds each/)).toBeTruthy();
   });
 
   it("gives the range when the set mixes limits", async () => {
@@ -258,7 +258,7 @@ describe("the panel shown before the first answer", () => {
         { seq: 3, text_en: "C", text_tl: "C", limit_seconds: 90 },
       ],
     });
-    expect(await screen.findByText(/3 questions\. You get 60–90 seconds for each one/)).toBeTruthy();
+    expect(await screen.findByText(/3 questions, 60–90 seconds each/)).toBeTruthy();
   });
 
   it("asks for a floor of 30 seconds, never for a short answer", async () => {
@@ -266,8 +266,8 @@ describe("the panel shown before the first answer", () => {
     // 19, and not one has hit the limit. Thin answers are the problem here, so
     // copy that rewards brevity must not come back.
     await onQuestion();
-    expect(await screen.findByText(/Aim for at least 30 seconds/)).toBeTruthy();
-    expect(screen.queryByText(/Short and clear is better than long/)).toBeNull();
+    expect(await screen.findByText(/Aim for 30 seconds or more/)).toBeTruthy();
+    expect(screen.queryByText(/Short and clear is better than long|too little to go on.*Short/)).toBeNull();
   });
 
   it("is gone once an answer is on file, so it does not sit above every question", async () => {
@@ -286,11 +286,31 @@ describe("the panel shown before the first answer", () => {
     expect(screen.queryByText("Before you start")).toBeNull();
   });
 
+  it("stays inside a copy budget, because it sits above the record button", async () => {
+    // jsdom computes no layout, so this cannot assert pixels. What it can
+    // assert is the thing that made the pixels wrong: at 375x667 (an iPhone SE
+    // / 8, common in Manila) the first draft -- 431 characters of English, 500
+    // of Tagalog -- pushed "Start recording" to 761px and 809px respectively,
+    // below the fold of a 667px viewport. Trimmed to 309 / 338 it sits at 604 /
+    // 641. Tagalog runs longer and sets the worst case.
+    //
+    // If a future edit needs more room than this, move the panel or measure the
+    // button again on a 667px viewport -- do not just raise the number.
+    const mod = await import("@/components/apply/VoiceScreening");
+    const src = mod.__prepCopyForTest;
+    for (const lang of ["en", "tl"] as const) {
+      const { lead, steps } = src(lang);
+      const total = lead.length + steps.reduce((n: number, x: string) => n + x.length, 0);
+      expect(total, `${lang} prep copy is ${total} characters`).toBeLessThanOrEqual(380);
+      expect(steps.length).toBeLessThanOrEqual(4);
+    }
+  });
+
   it("speaks Tagalog when the applicant does", async () => {
     await onQuestion();
     await screen.findByText("Before you start");
     fireEvent.click(screen.getByRole("button", { name: "Tagalog" }));
     expect(await screen.findByText("Bago ka magsimula")).toBeTruthy();
-    expect(screen.getByText(/hindi bababa sa 30 segundo/)).toBeTruthy();
+    expect(screen.getByText(/30 segundo pataas/)).toBeTruthy();
   });
 });
