@@ -355,6 +355,12 @@ export default function ManagementAssignmentsPage() {
   const [dmEdit, setDmEdit] = useState<Record<string, string>>({});
   const [dmMsg, setDmMsg] = useState("");
   const [staff, setStaff] = useState<string[]>([]);
+  // HQ is filed under Dubai, so a Manila page never offered Ayako, Yuri or
+  // Yusuke -- the people who actually own several of these types. Yuri was
+  // already assigned to four of them and could only be read back as "not on
+  // the Manila roster": selectable once, by a script, and never again from
+  // this screen.
+  const [hqStaff, setHqStaff] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -385,6 +391,13 @@ export default function ManagementAssignmentsPage() {
         { cache: "no-store", headers: getAuthHeaders(auth) },
       );
       if (st.ok) setStaff(((await st.json())?.names ?? []) as string[]);
+
+      // HQ sits on the Dubai roster with branch HQ whichever city is selected.
+      const hq = await fetch(
+        "/api/admin/staff_master/names?city=dubai&home_branch=HQ&status=ACTIVE&limit=200",
+        { cache: "no-store", headers: getAuthHeaders(auth) },
+      );
+      if (hq.ok) setHqStaff(((await hq.json())?.names ?? []) as string[]);
 
       const bp = await fetch(`/api/admin/management/bo-pages?city=${city}`, {
         cache: "no-store", headers: getAuthHeaders(auth),
@@ -463,19 +476,25 @@ export default function ManagementAssignmentsPage() {
     const assigned = new Set<string>();
     rows.forEach((r) => { if (r.owner) assigned.add(r.owner); });
     boPages.forEach((p) => { if (p.owner) assigned.add(p.owner); });
-    return [...assigned].filter((n) => !onRoster.has(n)).sort();
-  }, [rows, boPages, staff]);
+    const hq = new Set(hqStaff);
+    return [...assigned].filter((n) => !onRoster.has(n) && !hq.has(n)).sort();
+  }, [rows, boPages, staff, hqStaff]);
 
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
 
   const ownerOptions = (current: string) => {
     const onRoster = new Set(staff);
+    const hqOptions = hqStaff.filter((n) => !onRoster.has(n));
+    const known = new Set([...onRoster, ...hqOptions]);
     const extras = [...new Set(
-      current && !onRoster.has(current) ? [...offRoster, current] : offRoster
+      current && !known.has(current) ? [...offRoster, current] : offRoster
     )];
     return [
       { value: "", label: "— no owner —" },
       ...staff.map((n) => ({ value: n, label: n })),
+      // Not a warning: HQ owning a Manila exception type is the arrangement,
+      // not a mistake. The label says which roster they are on, no more.
+      ...hqOptions.map((n) => ({ value: n, label: `${n} — HQ` })),
       ...extras.map((n) => ({ value: n, label: `${n} — not on the ${cityLabel} roster` })),
     ];
   };
