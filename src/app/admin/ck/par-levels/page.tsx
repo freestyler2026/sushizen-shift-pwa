@@ -60,6 +60,21 @@ interface OrderLine {
   needQty: number;        // Par Level の単位での必要量（換算できないときの表示用）
   needUnit: string;
   askQty: boolean;
+  // Picked from the catalogue rather than derived from a par level. Marked so
+  // the row can say where it came from — it has no par − stock to show.
+  added?: boolean;
+}
+
+// One row of the ordering catalogue, for the picker in the create-orders modal.
+// The par list is a subset of this: 120 of Manila's 269 external-vendor names
+// are on it, and the other 149 had no way onto an order at all.
+interface CatalogPick {
+  item_name: string;
+  unit: string;
+  unit_price: number;
+  supplier_name: string;
+  category: string;
+  on_par: boolean;
 }
 
 interface ImportResult {
@@ -177,6 +192,24 @@ export default function CkParLevelsPage() {
   // par level, and come back. Now the modal holds its own copy and this is what
   // gets sent — nothing recomputes it at submit time.
   const [draft, setDraft] = useState<OrderLine[]>([]);
+
+  // The ordering catalogue, for adding a line the par list does not carry.
+  // Loaded when the modal opens rather than with the page: nobody who is only
+  // reading par levels needs 300 catalogue rows.
+  const [catalog, setCatalog] = useState<CatalogPick[]>([]);
+  const [catalogState, setCatalogState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [catalogErr, setCatalogErr] = useState("");
+  // Catalogue rows the order-type filter dropped. In Dubai that is 561 of 573,
+  // because those rows carry no order type at all — so "not in the catalogue"
+  // would be a lie there, and telling someone to go and register an item they
+  // already registered is worse than saying nothing.
+  const [catalogExcluded, setCatalogExcluded] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQ, setPickerQ] = useState("");
+  // Added lines need ids of their own — the par rows' ids are database keys and
+  // a catalogue pick has none. A counter, so adding the same item twice gives
+  // two lines instead of one that overwrites the other.
+  const addSeq = useRef(0);
 
   // ── fetch rows ────────────────────────────────────────────────────────────
   const loadRows = useCallback(async () => {
@@ -449,7 +482,17 @@ export default function CkParLevelsPage() {
       }
 
       if (errors.length === 0) {
-        setCreateResult({ ok: true, msg: `${successCount} purchase order${successCount !== 1 ? "s" : ""} created successfully. Unit prices are set to 0 — please update before approving.` });
+        // This used to say "Unit prices are set to 0" every time, which stopped
+        // being true when the catalogue price started being sent. A message
+        // that is wrong on the good path teaches people to skip reading it.
+        setCreateResult({
+          ok: true,
+          msg:
+            `${successCount} purchase order${successCount !== 1 ? "s" : ""} created.` +
+            (noPriceCount > 0
+              ? ` ${noPriceCount} line${noPriceCount !== 1 ? "s" : ""} had no catalogue price and went in at 0 — fill those in before approving.`
+              : " Unit prices came from the Procurement catalogue."),
+        });
       } else if (successCount > 0) {
         setCreateResult({ ok: false, msg: `${successCount} created, ${errors.length} failed: ${errors.join("; ")}` });
       } else {
@@ -462,6 +505,80 @@ export default function CkParLevelsPage() {
       setCreatingOrders(false);
     }
   };
+
+  // ── the ordering catalogue, and adding a line from it ─────────────────────
+  const loadCatalog = useCallback(async () => {
+    setCatalogState("loading");
+    setCatalogErr("");
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/ck/par-levels/catalog-items?city=${cityParam(city)}`,
+        { headers: getAuthHeaders(auth), cache: "no-store" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to load the catalogue");
+      setCatalog(Array.isArray(data.items) ? data.items : []);
+      setCatalogExcluded(Number(data.excluded_by_type) || 0);
+      setCatalogState("ready");
+    } catch (e: any) {
+      // Say it, and keep the rest of the modal working. The order that was
+      // already built is still sendable without this.
+      setCatalogErr(e.message || "Failed to load the catalogue");
+      setCatalogState("error");
+    }
+  }, [city]);
+
+  // A catalogue pick becomes a line with no suggested quantity, because there
+  // is no par level behind it to subtract stock from. It is left blank rather
+  // than defaulted to 1 — a quantity nobody typed is the one that gets sent by
+  // mistake, and a blank line is simply not ordered.
+  const addFromCatalog = (c: CatalogPick) => {
+    const supplier = (c.supplier_name || "").trim();
+    if (!supplier) return;
+    addSeq.current += 1;
+    const unit = (c.unit || "").trim();
+    setDraft((d) => [
+      ...d,
+      {
+        id: `add-${addSeq.current}`,
+        supplier,
+        item_name: c.item_name,
+        category: c.category || "General",
+        unit,
+        orderUnit: unit,
+        needQty: 0,
+        needUnit: unit,
+        askQty: false,
+        qty: "",
+        suggested: 0,
+        removed: false,
+        unitPrice: Number(c.unit_price) || 0,
+        priceSource: Number(c.unit_price) > 0 ? "catalog" : "not_in_catalog",
+        added: true,
+      },
+    ]);
+    setPickerQ("");
+  };
+
+  // Ranked so an exact prefix wins: typing "cream" should not put
+  // `Sour Cream 500ml` above `Cream Cheese` because it sorts earlier.
+  const pickerResults = (() => {
+    const q = pickerQ.trim().toLowerCase();
+    const scored = catalog
+      .filter((c) => (c.supplier_name || "").trim() !== "")
+      .filter((c) => !q || c.item_name.toLowerCase().includes(q) || c.supplier_name.toLowerCase().includes(q))
+      .map((c) => {
+        const nm = c.item_name.toLowerCase();
+        return { c, rank: !q ? 2 : nm.startsWith(q) ? 0 : nm.includes(q) ? 1 : 2 };
+      });
+    scored.sort((a, b) => a.rank - b.rank || a.c.item_name.localeCompare(b.c.item_name));
+    return scored.slice(0, 40).map((x) => x.c);
+  })();
+
+  // Suppliers with no name cannot be grouped into an order, so the picker does
+  // not offer them. Said out loud rather than silently dropped.
+  const unassignedCatalogCount = catalog.filter((c) => (c.supplier_name || "").trim() === "").length;
 
   // ── create order summary ──────────────────────────────────────────────────
   const orderGroups = (() => {
@@ -848,7 +965,15 @@ export default function CkParLevelsPage() {
           {/* Create Direct Purchase Orders (Supplier tab only) */}
           {tab === "supplier" && (
             <button
-              onClick={() => { setDraft(buildDraft()); setShowCreateModal(true); setCreateResult(null); setCreatePin(""); }}
+              onClick={() => {
+                setDraft(buildDraft());
+                setShowCreateModal(true);
+                setCreateResult(null);
+                setCreatePin("");
+                setPickerOpen(false);
+                setPickerQ("");
+                if (catalogState === "idle" || catalogState === "error") void loadCatalog();
+              }}
               disabled={Object.keys(orderGroups).length === 0}
               className="rounded-xl border border-teal-500/30 bg-teal-500/15 px-4 py-2 text-sm font-medium text-teal-400 hover:bg-teal-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               title={Object.keys(orderGroups).length === 0 ? "No items with supplier + quantity to order" : ""}
@@ -1434,6 +1559,11 @@ export default function CkParLevelsPage() {
                           >
                             <td className={`px-2 py-2 align-middle text-white ${line.removed ? "line-through" : ""}`}>
                               {line.item_name}
+                              {line.added && (
+                                <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">
+                                  added
+                                </span>
+                              )}
                             </td>
                             <td className="px-2 py-2 text-center align-middle">
                               <input
@@ -1452,11 +1582,17 @@ export default function CkParLevelsPage() {
                                 aria-label={`Quantity for ${line.item_name}`}
                                 className="w-16 rounded-lg border border-white/10 bg-white/5 px-1.5 py-1 text-center text-sm font-semibold text-orange-300 outline-none focus:border-teal-500/50 disabled:opacity-50"
                               />
-                              {line.askQty && !line.removed ? (
+                              {line.removed ? null : line.added ? (
+                                qtyOf(line) > 0 ? null : (
+                                  <div className="mt-0.5 text-[10px] text-orange-300/90">
+                                    enter a quantity
+                                  </div>
+                                )
+                              ) : line.askQty ? (
                                 <div className="mt-0.5 text-[10px] text-orange-300/90">
                                   need {fmtNum(line.needQty)} {line.needUnit} — enter {line.orderUnit}
                                 </div>
-                              ) : qtyOf(line) !== line.suggested && !line.removed ? (
+                              ) : qtyOf(line) !== line.suggested ? (
                                 <div className="mt-0.5 text-[10px] text-zinc-500">
                                   par − stock: {fmtNum(line.suggested)} {line.needUnit}
                                 </div>
@@ -1489,6 +1625,123 @@ export default function CkParLevelsPage() {
                     </tbody>
                   </table>
                 </div>
+                {/* Add a line the par list does not carry. Restricted to the
+                    catalogue on purpose: 16% of Direct Purchase lines already
+                    arrive under a name the catalogue has never heard of, and
+                    half of those are an existing item spelt differently. A free
+                    text box here would make that worse; picking cannot. */}
+                <div className="mt-3">
+                  {!pickerOpen ? (
+                    <button
+                      onClick={() => { setPickerOpen(true); if (catalogState === "idle" || catalogState === "error") void loadCatalog(); }}
+                      disabled={!!createResult?.ok}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
+                    >
+                      + Add item
+                    </button>
+                  ) : (
+                    <div className="rounded-lg border border-sky-500/25 bg-sky-500/[0.06] p-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          autoFocus
+                          value={pickerQ}
+                          onChange={(e) => setPickerQ(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Escape") { setPickerOpen(false); setPickerQ(""); } }}
+                          placeholder="Search the Procurement catalogue…"
+                          aria-label="Search the Procurement catalogue"
+                          className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder-zinc-500 outline-none focus:border-sky-500/50"
+                        />
+                        <button
+                          onClick={() => { setPickerOpen(false); setPickerQ(""); }}
+                          className="rounded px-2 py-1 text-xs text-zinc-400 hover:bg-white/10 hover:text-white"
+                        >
+                          Done
+                        </button>
+                      </div>
+
+                      {catalogState === "loading" && (
+                        <p className="mt-2 text-xs text-zinc-500">Loading the catalogue…</p>
+                      )}
+                      {catalogState === "error" && (
+                        <p className="mt-2 text-xs text-orange-300/90">
+                          {catalogErr} —{" "}
+                          <button onClick={() => void loadCatalog()} className="underline hover:text-orange-200">
+                            try again
+                          </button>
+                          . The order above can still be sent without this.
+                        </p>
+                      )}
+
+                      {catalogState === "ready" && (
+                        <>
+                          <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-white/10 divide-y divide-white/5">
+                            {pickerResults.map((c) => (
+                              <button
+                                key={`${c.item_name}__${c.supplier_name}`}
+                                onClick={() => addFromCatalog(c)}
+                                className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs hover:bg-white/10"
+                              >
+                                <span className="flex-1 truncate text-zinc-100">
+                                  {c.item_name}
+                                  {c.on_par && (
+                                    <span className="ml-2 text-[10px] text-zinc-500">already on the par list</span>
+                                  )}
+                                </span>
+                                <span className="w-40 truncate text-right text-teal-300/90">{c.supplier_name}</span>
+                                <span className="w-24 text-right tabular-nums text-zinc-400">
+                                  {c.unit_price > 0 ? fmtNum(c.unit_price, 2) : "no price"}
+                                </span>
+                                <span className="w-14 text-right text-zinc-500">{c.unit || "—"}</span>
+                              </button>
+                            ))}
+                            {pickerResults.length === 0 && (
+                              <div className="px-3 py-4 text-xs text-zinc-400">
+                                <p className="text-zinc-300">
+                                  Nothing in the catalogue matches “{pickerQ.trim()}”.
+                                </p>
+                                <p className="mt-1.5">
+                                  If this is something we buy, it belongs in the item master first —
+                                  adding it here would create a second copy of an item that never meets
+                                  its own price or its own recipe.
+                                </p>
+                                <a
+                                  href="/admin/cost-calculation"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-2 inline-block rounded-lg border border-sky-500/30 bg-sky-500/15 px-2.5 py-1 font-medium text-sky-300 hover:bg-sky-500/25"
+                                >
+                                  Register it in Cost Calculation →
+                                </a>
+                                <p className="mt-1.5 text-[11px] text-zinc-500">
+                                  Opens in a new tab. Come back and search again — this order is kept.
+                                </p>
+                                {catalogExcluded > 0 && (
+                                  <p className="mt-2 border-t border-white/10 pt-2 text-[11px] text-orange-300/90">
+                                    Before you do: {catalogExcluded} catalogue row
+                                    {catalogExcluded !== 1 ? "s are" : " is"} not searchable here,
+                                    because {catalogExcluded !== 1 ? "they carry" : "it carries"} no
+                                    order type and this list only offers the two the Direct Purchase
+                                    form uses. Your item may be one of them and already registered —
+                                    check the Procurement catalogue before registering it again.
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <p className="mt-2 text-[11px] text-zinc-500">
+                            {catalog.length} catalogue rows{pickerQ.trim() && ` · showing ${pickerResults.length}`}
+                            {!pickerQ.trim() && pickerResults.length >= 40 && " · type to narrow"}
+                            . Price, unit and supplier come from the catalogue, so nothing new is
+                            created by picking.
+                            {unassignedCatalogCount > 0 &&
+                              ` ${unassignedCatalogCount} row${unassignedCatalogCount !== 1 ? "s are" : " is"} not offered — no supplier on file, so there is no order to put it on.`}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {askQtyCount > 0 && (
                   <p className="mt-3 text-xs text-orange-300/90">
                     {askQtyCount} line{askQtyCount !== 1 ? "s" : ""} are priced by a different
