@@ -11,7 +11,7 @@
 // say reject, and the recorded decision has to read back the same way.
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("lucide-react", async () => (await import("#tests/lucide-mock")).lucideMock({}));
 
@@ -105,5 +105,86 @@ describe("the voice screening decision buttons say what they do", () => {
     expect(await screen.findByText(/Rejected/)).toBeTruthy();
     // The stored key must not surface anywhere the reviewer reads.
     expect(screen.queryByText(/^pass\b/)).toBeNull();
+  });
+});
+
+describe("sending the invite link", () => {
+  const UA = navigator.userAgent;
+  function setUA(ua: string, touch = 0, platform = "") {
+    Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
+    Object.defineProperty(navigator, "maxTouchPoints", { value: touch, configurable: true });
+    if (platform) Object.defineProperty(navigator, "platform", { value: platform, configurable: true });
+  }
+  afterEach(() => setUA(UA, 0, "MacIntel"));
+
+  const INVITE = {
+    ok: true, screening_id: 9, token: "tok", reissued: false, invite_count: 1,
+    answers_kept: 0, expires_in_days: 14, full_name: "Test Applicant",
+    position: "Crew", language: "en",
+    phones: [{ raw: "09178987620", e164: "+639178987620", usable: true }],
+    url: "https://example.test/voice/tok",
+    messages: { en: "Hi Test, link: https://example.test/voice/tok", tl: "Kumusta" },
+  };
+
+  function serveInvite(rows: Record<string, unknown>[]) {
+    return (u: unknown, init?: RequestInit) => {
+      const url = String(u);
+      if (String(init?.method || "GET").toUpperCase() === "POST" && url.includes("voice-invite")) {
+        return ok(INVITE);
+      }
+      if (url.includes("/reasons")) return ok({ reasons: REASONS });
+      if (/\/voice-screenings\/\d+$/.test(url)) return ok({ items: [] });
+      if (url.includes("/voice-screenings")) {
+        return ok({ rows, counts: { to_review: rows.length }, can_decide: true, storage_ok: true });
+      }
+      return ok({});
+    };
+  }
+
+  async function openInvite() {
+    await screen.findByText(/Test Applicant/);
+    fireEvent.click(screen.getByRole("button", { name: /Get invite link|New link/ }));
+    await screen.findByText(/Nothing has been sent/);
+  }
+
+  it("offers SMS on a phone, with the body separator that platform understands", async () => {
+    // Android takes ?body=. Sending an iPhone that form opens Messages empty,
+    // which is indistinguishable from the feature being broken.
+    setUA("Mozilla/5.0 (Linux; Android 13; SM-A536E) AppleWebKit/537.36", 5, "Linux armv8l");
+    mockFetch.mockImplementation(serveInvite([row({ bucket: "waiting", answered: 0, contact_apps: ["sms"] })]));
+    const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
+    render(<Queue city="manila" />);
+    await openInvite();
+    const sms = await screen.findByRole("link", { name: "SMS" });
+    expect(sms.getAttribute("href")).toMatch(/^sms:\+639178987620\?body=/);
+  });
+
+  it("uses & on an iPhone", async () => {
+    setUA("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", 5, "iPhone");
+    mockFetch.mockImplementation(serveInvite([row({ bucket: "waiting", answered: 0, contact_apps: ["sms"] })]));
+    const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
+    render(<Queue city="manila" />);
+    await openInvite();
+    const sms = await screen.findByRole("link", { name: "SMS" });
+    expect(sms.getAttribute("href")).toMatch(/^sms:\+639178987620&body=/);
+  });
+
+  it("shows no SMS button on a computer, and says why", async () => {
+    setUA("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", 0, "MacIntel");
+    mockFetch.mockImplementation(serveInvite([row({ bucket: "waiting", answered: 0, contact_apps: ["sms"] })]));
+    const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
+    render(<Queue city="manila" />);
+    await openInvite();
+    expect(screen.queryByRole("link", { name: "SMS" })).toBeNull();
+    expect(screen.getByText(/a computer cannot send a text/)).toBeTruthy();
+  });
+
+  it("says which channel the applicant asked for", async () => {
+    setUA("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", 0, "MacIntel");
+    mockFetch.mockImplementation(serveInvite([row({ bucket: "waiting", answered: 0, contact_apps: ["sms"] })]));
+    const Queue = (await import("@/components/hr/VoiceScreeningQueue")).default;
+    render(<Queue city="manila" />);
+    await openInvite();
+    expect(screen.getByText(/They asked to be reached on/)).toBeTruthy();
   });
 });

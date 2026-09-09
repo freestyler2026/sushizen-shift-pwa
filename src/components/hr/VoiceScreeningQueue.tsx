@@ -209,6 +209,37 @@ function decisionLabel(key: string | null | undefined): string {
   return DECISION_LABEL[k] || k;
 }
 
+/** An `sms:` link that actually opens with the text in it.
+ *
+ *  There is no one format. iOS wants the body after `&`, Android after `?`,
+ *  and each ignores the other's separator -- send an iPhone the `?body=` form
+ *  and Messages opens empty, which looks exactly like the feature not working.
+ *  Getting this wrong is silent, so it is decided from the UA rather than
+ *  guessed at.
+ */
+function smsHref(e164: string, body: string): string {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    // iPadOS 13+ reports itself as a Mac; the touch points give it away.
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return `sms:${e164}${ios ? "&" : "?"}body=${encodeURIComponent(body)}`;
+}
+
+/** Whether this browser can send a text at all.
+ *
+ *  A computer cannot, so on a desktop the SMS button is not shown -- a button
+ *  that does nothing when pressed teaches people the screen lies. The caption
+ *  telling them to copy the message stays there instead.
+ */
+function canSendSms(): boolean {
+  return /Android|iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+/** How the applicant said to reach them, in the words the form used. */
+const CONTACT_APP_LABEL: Record<string, string> = {
+  viber: "Viber", whatsapp: "WhatsApp", sms: "SMS",
+};
+
 function mmss(sec: number | null): string {
   if (!sec || sec < 0) return "—";
   const m = Math.floor(sec / 60);
@@ -225,6 +256,12 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
   const [canDecide, setCanDecide] = useState(true);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+
+  // Prerendered HTML is shared by every viewer and has no navigator, so the
+  // SMS button cannot be decided on the first render (lesson 42). It appears
+  // once we are on the real device.
+  const [onPhone, setOnPhone] = useState(false);
+  useEffect(() => { setOnPhone(canSendSms()); }, []);
 
   const [openId, setOpenId] = useState<number | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -590,6 +627,15 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                     Works for {invite.expires_in_days} days.
                   </p>
 
+                  {row.contact_apps.length > 0 && (
+                    <p className={`${T_CAPTION} mt-1`}>
+                      They asked to be reached on{" "}
+                      <span className="text-violet-200">
+                        {row.contact_apps.map((a) => CONTACT_APP_LABEL[a] || a).join(" / ")}
+                      </span>.
+                    </p>
+                  )}
+
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {(["en", "tl"] as const).map((l) => (
                       <button
@@ -641,6 +687,19 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                           >
                             Viber (copies the text)
                           </a>
+                          {/* The form asks every applicant to pick Viber,
+                              WhatsApp or SMS, and 1 in 3 of them picks SMS --
+                              who then got two buttons for apps they had just
+                              said they do not use, and a line telling them to
+                              copy and paste. */}
+                          {onPhone && (
+                            <a
+                              className={SMALL_BUTTON}
+                              href={smsHref(ph.e164, invite.messages[inviteLang])}
+                            >
+                              SMS
+                            </a>
+                          )}
                         </>
                       ) : (
                         <span className={T_CAPTION}>
@@ -675,12 +734,15 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                       Sent — close
                     </button>
                   </div>
-                  {/* Text messages cannot be sent from a computer, so SMS is a
-                      copy rather than a button that would do nothing. */}
-                  <p className={`${T_CAPTION} mt-2`}>
-                    For SMS, copy the message and send it from your phone — a
-                    computer cannot send one.
-                  </p>
+                  {/* On a phone the SMS button above does this. On a computer
+                      there is nothing to open, so say so rather than show a
+                      button that would do nothing. */}
+                  {!onPhone && (
+                    <p className={`${T_CAPTION} mt-2`}>
+                      For SMS, copy the message and open this page on your phone
+                      — a computer cannot send a text.
+                    </p>
+                  )}
                 </div>
               )}
 
