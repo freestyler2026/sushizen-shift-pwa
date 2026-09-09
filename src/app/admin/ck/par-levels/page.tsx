@@ -1718,11 +1718,12 @@ export default function CkParLevelsPage() {
                                 {catalogExcluded > 0 && (
                                   <p className="mt-2 border-t border-white/10 pt-2 text-[11px] text-orange-300/90">
                                     Before you do: {catalogExcluded} catalogue row
-                                    {catalogExcluded !== 1 ? "s are" : " is"} not searchable here,
-                                    because {catalogExcluded !== 1 ? "they carry" : "it carries"} no
-                                    order type and this list only offers the two the Direct Purchase
-                                    form uses. Your item may be one of them and already registered —
-                                    check the Procurement catalogue before registering it again.
+                                    {catalogExcluded !== 1 ? "s are" : " is"} not searchable here.
+                                    This list offers the two order types the Direct Purchase form
+                                    uses, so internal CK and Warehouse transfers are left out — and
+                                    so is anything with no order type set at all. Your item may be
+                                    one of those and already registered; check the Procurement
+                                    catalogue before registering it again.
                                   </p>
                                 )}
                               </div>
