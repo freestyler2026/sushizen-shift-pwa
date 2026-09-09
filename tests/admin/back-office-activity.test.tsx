@@ -26,7 +26,8 @@ function row(over: Record<string, unknown> = {}) {
     span_minutes: 480, active_minutes: 30, idle_minutes: 450,
     longest_idle_minutes: 200, events: 40, screens: 10, reads: 30, writes: 0,
     distinct_screens: 4, buckets: new Array(48).fill(0), busiest_slot_share: 0.2,
-    partial: false, observed_from: null, shift: null, clock_in: null, clock_out: null,
+    partial: false, observed_from: null, shift: null, rostered: true, day_complete: true,
+    clock_in: null, clock_out: null,
     flags: ["LONG_IDLE", "MOSTLY_IDLE", "NO_DECISIONS"], ...over,
   };
 }
@@ -39,11 +40,14 @@ function report(rows: unknown[], over: Record<string, unknown> = {}) {
       MOSTLY_IDLE: { says: "Engaged for under a quarter of it." },
       NO_DECISIONS: { says: "Opened twenty or more things and changed none." },
     },
+    selection: {
+      roles: ["HR_MANAGER", "ADMIN", "INVENTORY_PURCHASING"],
+      city: "manila", individuals: ["Yuri Yamada"],
+    },
     coverage: {
       log_from: "2026-09-09T14:31:00+00:00", log_to: "2026-09-10T09:00:00+00:00",
-      log_rows: 5000, partial_rows: 0,
-      shift_reference: { manila: true, dubai: false },
-      clock_reference: { manila: true, dubai: false },
+      log_rows: 5000, partial_rows: 0, people: 27, day_in_progress: 0,
+      with_shift_reference: 24, without_shift_reference: 3,
     },
     rows, ...over,
   };
@@ -109,7 +113,30 @@ describe("what the page refuses to claim", () => {
     await renderPage();
     expect(await screen.findByText(/Read this before acting on a row/)).toBeTruthy();
     expect(screen.getByText(/a quiet row is/)).toBeTruthy();
-    expect(screen.getByText(/Dubai HQ has/)).toBeTruthy();
+    // the store-based purchasing caveat, and the one figure a person could inflate
+    expect(screen.getByText(/work at store branches/)).toBeTruthy();
+    expect(screen.getByText(/reported by the browser/)).toBeTruthy();
+  });
+
+  it("says how many people it cannot judge for a missing roster", async () => {
+    await renderPage();
+    expect(await screen.findByText(/have no published shift at all/)).toBeTruthy();
+  });
+
+  it("names who is on the report and why", async () => {
+    await renderPage();
+    expect(await screen.findByText(/Inventory & Purchasing/)).toBeTruthy();
+    expect(screen.getByText("Yuri Yamada")).toBeTruthy();
+  });
+
+  it("marks a rest day rather than counting it against anyone", async () => {
+    mockFetch.mockImplementation(() => ok(report([
+      row({ staff_name: "Day Off", signed_in: false, rostered: false, events: 0, flags: [] }),
+    ])));
+    await renderPage();
+    expect(await screen.findByText("not rostered this day")).toBeTruthy();
+    const cell = screen.getByText("Day Off").closest("td")!;
+    expect(within(cell).queryByText("never signed in")).toBeNull();
   });
 
   it("marks a row as partial instead of calling the unwatched hours idle", async () => {
@@ -135,15 +162,28 @@ describe("what the page refuses to claim", () => {
     expect(screen.getByText("Opened twenty or more things and changed none.")).toBeTruthy();
   });
 
-  it("counts the people it could only partly watch", async () => {
+  it("counts the people whose day has not finished", async () => {
+    mockFetch.mockImplementation(() => ok(report(
+      [row({ staff_name: "A" }), row({ staff_name: "B" })],
+      { coverage: { log_from: "2026-09-09T14:31:00+00:00", log_to: null, log_rows: 1,
+                    partial_rows: 0, people: 2, day_in_progress: 2,
+                    with_shift_reference: 2, without_shift_reference: 0 } })));
+    await renderPage();
+    await screen.findByText("Day still in progress");
+    const card = screen.getByText("Day still in progress").parentElement!;
+    expect(card.textContent).toContain("2");
+  });
+
+  it("says a day is unfinished on the row rather than showing an empty verdict", async () => {
     mockFetch.mockImplementation(() => ok(report([
-      row({ staff_name: "A", partial: true, flags: [] }),
-      row({ staff_name: "B", partial: true, flags: [] }),
-      row({ staff_name: "C" }),
+      row({ staff_name: "Mid Shift", day_complete: false, flags: [] }),
     ])));
     await renderPage();
-    await screen.findByText("Only partly watched");
-    const card = screen.getByText("Only partly watched").parentElement!;
-    expect(card.textContent).toContain("2");
+    expect(await screen.findByText(/day in progress — nothing judged yet/)).toBeTruthy();
+  });
+
+  it("explains why a morning is not full of absences", async () => {
+    await renderPage();
+    expect(await screen.findByText(/Nothing is flagged until the day is over/)).toBeTruthy();
   });
 });
