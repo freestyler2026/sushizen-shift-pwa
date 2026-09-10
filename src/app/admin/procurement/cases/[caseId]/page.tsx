@@ -175,6 +175,13 @@ export default function ProcurementCaseDetailPage() {
     }
   }, [caseId, pin, requestedBy]);
 
+  // Every action on this page re-authenticates with name + PIN, and the server
+  // answers 400 "PIN is required" when either is blank. The buttons used to be
+  // pressable anyway: measured 2026-09-10, 8 of one approver's 23 writes were a
+  // 400 followed by a successful retry five to nine seconds later -- the round
+  // trip existed only to tell her the field above was empty.
+  const canAct = requestedBy.trim().length > 0 && pin.trim().length > 0;
+
   const act = async (path: string, body: Record<string, unknown>) => {
     // Guard: don't let an approver finalize while item edits are unsaved — the
     // approval does NOT persist edited quantities/prices, so approving here would
@@ -1014,11 +1021,19 @@ export default function ProcurementCaseDetailPage() {
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
+              {/* A greyed-out button with no reason beside it is its own dead
+                  end. Say which field is empty. */}
+              {!canAct && (
+                <p className="w-full text-sm text-amber-300">
+                  Enter your name and PIN in <strong>Session</strong> above to approve,
+                  return or reject this case.
+                </p>
+              )}
               {/* Approve */}
               <button
                 type="button"
                 onClick={() => void act("approve", { case_id: caseId, approver_name: requestedBy, pin, comment: message })}
-                disabled={!!busy}
+                disabled={!!busy || !canAct}
                 className={`${PRIMARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm`}
               >
                 <CheckCircle className="h-4 w-4" />
@@ -1029,7 +1044,7 @@ export default function ProcurementCaseDetailPage() {
               <button
                 type="button"
                 onClick={() => void act("return", { case_id: caseId, approver_name: requestedBy, pin, comment: message })}
-                disabled={!!busy}
+                disabled={!!busy || !canAct}
                 className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-60"
               >
                 <CornerUpLeft className="h-4 w-4" />
@@ -1040,7 +1055,7 @@ export default function ProcurementCaseDetailPage() {
               <button
                 type="button"
                 onClick={() => void act("reject", { case_id: caseId, approver_name: requestedBy, pin, comment: message })}
-                disabled={!!busy}
+                disabled={!!busy || !canAct}
                 className={`${DANGER_BUTTON} flex items-center gap-2 px-4 py-2 text-sm`}
               >
                 <XCircle className="h-4 w-4" />
@@ -1051,7 +1066,7 @@ export default function ProcurementCaseDetailPage() {
               <button
                 type="button"
                 onClick={() => void act("message", { case_id: caseId, approver_name: requestedBy, pin, body: message || "Internal note", message_type: "NOTE" })}
-                disabled={!!busy}
+                disabled={!!busy || !canAct}
                 className={`${SMALL_BUTTON} flex items-center gap-2`}
               >
                 {busy === "message" ? "Posting…" : "Post Note"}
@@ -1061,7 +1076,7 @@ export default function ProcurementCaseDetailPage() {
               <button
                 type="button"
                 onClick={() => void act("notifications/resend", { case_id: caseId, approver_name: requestedBy, pin })}
-                disabled={!!busy}
+                disabled={!!busy || !canAct}
                 className={`${SMALL_BUTTON} flex items-center gap-2`}
               >
                 <Bell className="h-3.5 w-3.5" />
@@ -1084,7 +1099,7 @@ export default function ProcurementCaseDetailPage() {
                 <button
                   type="button"
                   onClick={() => void act("escalate", { case_id: caseId, approver_name: requestedBy, pin, target_role: escalateRole, comment: message })}
-                  disabled={!!busy}
+                  disabled={!!busy || !canAct}
                   className={`${SMALL_BUTTON} flex items-center gap-1.5`}
                 >
                   <AlertTriangle className="h-3.5 w-3.5" />
