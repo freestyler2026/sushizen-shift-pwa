@@ -27,7 +27,14 @@ import {
  * not on the list.
  */
 
-type Phone = { raw: string; e164: string; usable: boolean };
+type Phone = {
+  raw: string; e164: string; usable: boolean;
+  /** "dito" | "globe_smart" | "" — worked out from the prefix, so it is a guess:
+   *  a ported number keeps the old prefix. Used only to warn, never to conclude. */
+  network?: string;
+  /** Whether our sender name is whitelisted on that network yet. */
+  sms_ready?: boolean;
+};
 
 type Row = {
   /** null for an applicant who has no screening yet. */
@@ -742,7 +749,26 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                           {/* The one press that finishes the job. It spends a
                               message, so it says so -- a button that costs
                               money should not look like one that does not. */}
-                          {smsGate?.enabled && (
+                          {smsGate?.enabled && (ph.sms_ready === false ? (
+                            /* Said before the press, not after it. Our sender
+                               name clears Globe and Smart on its own; DITO
+                               needs a signed authorisation and is still
+                               pending. Nineteen of 198 applicants are on it.
+                               A button that fails is worse than no button --
+                               so this says what to use instead, and the
+                               WhatsApp and Viber links are right below. */
+                            <div className="mt-1 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2">
+                              <p className="text-sm text-amber-100">
+                                This looks like a <strong>DITO</strong> number. Our sender name is
+                                not cleared on DITO yet, so a text from the OS will not arrive.
+                              </p>
+                              <p className="mt-1 text-xs text-amber-200/80">
+                                Send it on Viber or WhatsApp below — same link, and it is free.
+                                The prefix is only a guess, so if you know they moved networks,
+                                tell us and we will send it.
+                              </p>
+                            </div>
+                          ) : (
                             <div className="mt-1 flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
@@ -755,7 +781,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                               </button>
                               <span className={T_CAPTION}>one text, sent from the OS</span>
                             </div>
-                          )}
+                          ))}
 
                           {/* Free, and from your own number. */}
                           <div className="mt-2 flex flex-wrap items-center gap-2">
