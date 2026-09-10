@@ -77,6 +77,7 @@ type Report = {
   people: Person[]; areas: AreaRow[]; flags: Flag[];
 };
 type Backlog = {
+  stale_cases: { cases: number; oldest_days: number };
   held: { staff_name: string; items: number; median_days: number; oldest_days: number; by_kind: Record<string, number> }[];
   unowned: { role: string; items: number; median_days: number; oldest_days: number }[];
   unowned_total: number; held_total: number;
@@ -84,6 +85,7 @@ type Backlog = {
 };
 type Speed = {
   days: number; decisions: number;
+  clock_unusable?: number;
   people: { staff_name: string; role: string; decisions: number; approved: number; rejected: number; returned: number; median_hours: number; p90_hours: number; last_at: string | null; in_scope?: boolean }[];
 };
 type Redistribution = {
@@ -97,7 +99,6 @@ const FLAG_LABEL: Record<string, string> = {
   NO_OUTPUT: "打刻はあるが、何も変えていない",
   NO_OUTPUT_VS_ROLE: "打刻はあるが何も変えていない（同じロールと比較）",
   VIEWS_ONLY: "その画面を開くだけで、決めていない",
-  EDGE_ONLY: "出勤直後と退勤直前しかOSに居ない",
   OUTSIDE_SHIFT: "勤務時間の外で記録している",
 };
 
@@ -138,7 +139,9 @@ export default function WorkEvidencePage() {
       const [r1, r2, r3, r4] = await Promise.all([
         fetch(`/api/admin/work-evidence?${q}`, { headers: getAuthHeaders(), cache: "no-store" }),
         fetch(`/api/admin/work-evidence/redistribution?${q}`, { headers: getAuthHeaders(), cache: "no-store" }),
-        fetch(`/api/admin/work-evidence/backlog?city=manila`, { headers: getAuthHeaders(), cache: "no-store" }),
+        // No city filter: the approval queue is one queue for both cities and
+        // the Dubai half is 97 cases. Scoping the people does not scope the work.
+        fetch(`/api/admin/work-evidence/backlog`, { headers: getAuthHeaders(), cache: "no-store" }),
         fetch(`/api/admin/work-evidence/speed?days=180`, { headers: getAuthHeaders(), cache: "no-store" }),
       ]);
       if (!r1.ok) throw new Error(r1.status === 403 ? "この画面は公開されていません。" : `読み込みに失敗しました (${r1.status})`);
@@ -176,6 +179,9 @@ export default function WorkEvidencePage() {
           <p className={`${T_CAPTION} mt-1`}>
             成果＝記録を変えた書き込み。打刻・QR確認・Excel出力は成果に数えません
             （前者2つは「居た」という主張そのもの、最後は何も変えないため）。
+            1件の納品は明細が何行でも1件です。ただし<b>発注は「作成」と「提出」で2件</b>に
+            数えます（IDが本文にあり、パスから同じ発注だと分かりません）。同じ画面の人は
+            全員そうなるので画面内の比較には影響しませんが、その人の合計はその分だけ多く出ます。
           </p>
         </div>
         <div className="flex items-end gap-2">
@@ -241,6 +247,12 @@ export default function WorkEvidencePage() {
               ロールにだけ割り当てられていて、名前がありません。
               <b>誰も遅れていません。誰も頼まれていないからです。</b>
             </p>
+            <p className={`${T_CAPTION} mt-1`}>
+              待っているかどうかは<b>発注側の状態</b>で決めています。承認ケースの行の状態ではありません
+              — 決着済みの発注のケースが開いたままのものが多数あり、それを数えると
+              「止まっている」件数が3倍以上に見えます。差戻し中のものは
+              <b>申請者の手元</b>として下の表に名前付きで出ます。
+            </p>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className={TABLE_HEADER}>
@@ -265,6 +277,17 @@ export default function WorkEvidencePage() {
             </div>
           </div>
 
+          {bl.stale_cases && bl.stale_cases.cases > 0 && (
+            <div className={`${GLASS_CARD} p-4`}>
+              <h3 className={T_SECTION}>待ちではないが開いたままの承認ケース — {bl.stale_cases.cases}件</h3>
+              <p className={`${T_CAPTION} mt-1`}>
+                発注そのものは決着済み（承認・却下・取消）なのに、承認ケースの行が閉じられていません。
+                <b>誰も待っていないので上の集計には入れていません。</b>
+                ただし<b>ケースの状態を読んでいる画面はこれを「仕事」として出しています</b>ので、
+                件数だけ出します。最も古いもので {bl.stale_cases.oldest_days} 日。
+              </p>
+            </div>
+          )}
           <div className={`${GLASS_CARD} p-4`}>
             <h3 className={T_SECTION}>名前のついた手元 — {bl.held_total}件</h3>
             {bl.held.length === 0 && <p className={`${T_CAPTION} mt-1`}>該当なし</p>}
@@ -297,6 +320,12 @@ export default function WorkEvidencePage() {
                   指定ロール以外の人も<b>消さずに「対象外」と付けて出します</b>。1,000件を捌いている人を
                   表から消すと、キューが無人に見えるためです。
                 </p>
+                {!!sp.clock_unusable && (
+                  <p className={`${T_CAPTION} mt-1`}>
+                    うち {sp.clock_unusable} 件は、ケースが作られる前の時刻で記録されていました。
+                    決定自体は起きているので0時間として数え、除外はしていません。
+                  </p>
+                )}
               </div>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-sm">
