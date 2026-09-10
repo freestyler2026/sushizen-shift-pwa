@@ -127,4 +127,12 @@ describe("a Globe or Smart number, on the same screen", () => {
     expect(await screen.findByRole("button", { name: /Send by SMS/ })).toBeTruthy();
     expect(screen.getByText(/not cleared on DITO yet/)).toBeTruthy();
   });
+  it("does not put the word DITO on a number we did not classify as DITO", async () => {
+    // Which networks are held back is a setting. If it ever widens, the screen
+    // must not tell HR a Globe number is on DITO.
+    PHONES = [{ ...GLOBE, sms_ready: false }];
+    await openInvite();
+    expect(await screen.findByText(/network is not cleared there|not cleared there/)).toBeTruthy();
+    expect(screen.queryByText(/DITO/)).toBeNull();
+  });
 });

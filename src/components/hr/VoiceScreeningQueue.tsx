@@ -759,8 +759,17 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                                WhatsApp and Viber links are right below. */
                             <div className="mt-1 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2">
                               <p className="text-sm text-amber-100">
-                                This looks like a <strong>DITO</strong> number. Our sender name is
-                                not cleared on DITO yet, so a text from the OS will not arrive.
+                                {/* Named only when we know it. Which networks are held
+                                    is a setting, so hardcoding DITO here would put that
+                                    word on a Globe number the day the setting widens. */}
+                                {ph.network === "dito" ? (
+                                  <>This looks like a <strong>DITO</strong> number. Our sender
+                                  name is not cleared on DITO yet, so a text from the OS will
+                                  not arrive.</>
+                                ) : (
+                                  <>A text from the OS will not arrive on this number&apos;s
+                                  network yet — our sender name is not cleared there.</>
+                                )}
                               </p>
                               <p className="mt-1 text-xs text-amber-200/80">
                                 Send it on Viber or WhatsApp below — same link, and it is free.
