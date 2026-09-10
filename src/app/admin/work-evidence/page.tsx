@@ -64,6 +64,16 @@ type Report = {
   totals: { people: number; outputs: number; views: number; areas: number };
   people: Person[]; areas: AreaRow[]; flags: Flag[];
 };
+type Backlog = {
+  held: { staff_name: string; items: number; median_days: number; oldest_days: number; by_kind: Record<string, number> }[];
+  unowned: { role: string; items: number; median_days: number; oldest_days: number }[];
+  unowned_total: number; held_total: number;
+  unowned_oldest: { kind: string; role: string; status: string; age_days: number; city: string; amount: number; ref: string }[];
+};
+type Speed = {
+  days: number; decisions: number;
+  people: { staff_name: string; role: string; decisions: number; approved: number; rejected: number; returned: number; median_hours: number; p90_hours: number; last_at: string | null }[];
+};
 type Redistribution = {
   sole_owner: { screen: string; outputs: number; staff_name: string; punch_minutes: number }[];
   concentrated: { screen: string; outputs: number; people: number; top_share: number; staff_name: string }[];
@@ -91,7 +101,9 @@ export default function WorkEvidencePage() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [rep, setRep] = useState<Report | null>(null);
   const [red, setRed] = useState<Redistribution | null>(null);
-  const [tab, setTab] = useState<"people" | "areas" | "flags">("flags");
+  const [bl, setBl] = useState<Backlog | null>(null);
+  const [sp, setSp] = useState<Speed | null>(null);
+  const [tab, setTab] = useState<"people" | "areas" | "flags" | "hands">("hands");
   const [open, setOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -110,13 +122,17 @@ export default function WorkEvidencePage() {
     setLoading(true); setErr("");
     try {
       const q = `start=${start}&end=${end}&city=manila`;
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3, r4] = await Promise.all([
         fetch(`/api/admin/work-evidence?${q}`, { headers: getAuthHeaders(), cache: "no-store" }),
         fetch(`/api/admin/work-evidence/redistribution?${q}`, { headers: getAuthHeaders(), cache: "no-store" }),
+        fetch(`/api/admin/work-evidence/backlog?city=manila`, { headers: getAuthHeaders(), cache: "no-store" }),
+        fetch(`/api/admin/work-evidence/speed?days=180`, { headers: getAuthHeaders(), cache: "no-store" }),
       ]);
       if (!r1.ok) throw new Error(r1.status === 403 ? "この画面は公開されていません。" : `読み込みに失敗しました (${r1.status})`);
       setRep(await r1.json());
       if (r2.ok) setRed(await r2.json());
+      if (r3.ok) setBl(await r3.json());
+      if (r4.ok) setSp(await r4.json());
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -193,13 +209,120 @@ export default function WorkEvidencePage() {
       )}
 
       <div className="flex gap-2">
-        {([["flags", `確認が要る人${rep ? ` (${rep.flags.length})` : ""}`], ["people", "人ごと"], ["areas", "業務の分担"]] as const).map(([k, label]) => (
+        {([["hands", `手元で止まっているもの${bl ? ` (${bl.unowned_total + bl.held_total})` : ""}`], ["flags", `確認が要る人${rep ? ` (${rep.flags.length})` : ""}`], ["people", "人ごと"], ["areas", "業務の分担"]] as const).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k as typeof tab)}
             className={`${SMALL_BUTTON} ${tab === k ? "ring-2 ring-cyan-400/60" : "opacity-70"}`}>
             {label}
           </button>
         ))}
       </div>
+
+      {/* ── 手元で止まっているもの ─────────────────────────────────── */}
+      {tab === "hands" && bl && (
+        <div className="space-y-5">
+          {/* Returned first and on its own: ranking the named people would
+              have shown a tidy queue and hidden nine tenths of the work. */}
+          <div className={`${GLASS_CARD} border-red-500/25 bg-red-500/5 p-4`}>
+            <h3 className={T_SECTION}>誰の手元にもないまま止まっているもの — {bl.unowned_total}件</h3>
+            <p className={`${T_CAPTION} mt-1`}>
+              ロールにだけ割り当てられていて、名前がありません。
+              <b>誰も遅れていません。誰も頼まれていないからです。</b>
+            </p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className={TABLE_HEADER}>
+                  <tr>
+                    <th className="px-3 py-2 text-left">宛先のロール</th>
+                    <th className="px-3 py-2 text-right">件数</th>
+                    <th className="px-3 py-2 text-right">中央値</th>
+                    <th className="px-3 py-2 text-right">最も古いもの</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bl.unowned.map((u) => (
+                    <tr key={u.role} className={TABLE_ROW}>
+                      <td className="px-3 py-2">{u.role}</td>
+                      <td className="px-3 py-2 text-right font-medium">{u.items}</td>
+                      <td className="px-3 py-2 text-right">{u.median_days}日</td>
+                      <td className="px-3 py-2 text-right text-red-300">{u.oldest_days}日</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className={`${GLASS_CARD} p-4`}>
+            <h3 className={T_SECTION}>名前のついた手元 — {bl.held_total}件</h3>
+            {bl.held.length === 0 && <p className={`${T_CAPTION} mt-1`}>該当なし</p>}
+            <div className="mt-3 space-y-1">
+              {bl.held.map((h) => (
+                <div key={h.staff_name} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                  <span className="opacity-85">{h.staff_name}</span>
+                  <span className="opacity-70">
+                    {h.items}件 · 中央値 {h.median_days}日 · 最古 <b className={h.oldest_days > 30 ? "text-red-300" : ""}>{h.oldest_days}日</b>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {sp && (
+            <div className={`${GLASS_CARD} overflow-hidden`}>
+              <div className="p-4 pb-0">
+                <h3 className={T_SECTION}>受け取ってから決めるまで — 過去180日・{sp.decisions}件</h3>
+                <p className={`${T_CAPTION} mt-1`}>
+                  件数の多い少ないではなく、<b>渡されてから返すまで</b>。案件が自分に届いた時刻から、
+                  自分が決めた時刻まで。活動ログが2日しか無いのに対し、これは6か月あります。
+                </p>
+                <p className={`${T_CAPTION} mt-1`}>
+                  ⚠️ 速さは正しさではありません。中央値0時間は「キューを見ている人」か
+                  「読まずに承認している人」のどちらかで、この表はその区別をしません。
+                  p90を並べているのは、<b>中央値だけだと触っていない山が隠れる</b>ためです。
+                </p>
+              </div>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className={TABLE_HEADER}>
+                    <tr>
+                      <th className="px-3 py-2 text-left">名前</th>
+                      <th className="px-3 py-2 text-right">決定</th>
+                      <th className="px-3 py-2 text-right">承認</th>
+                      <th className="px-3 py-2 text-right">却下</th>
+                      <th className="px-3 py-2 text-right">差戻</th>
+                      <th className="px-3 py-2 text-right">中央値</th>
+                      <th className="px-3 py-2 text-right">p90（遅い方の1割）</th>
+                      <th className="px-3 py-2 text-left">最後の決定</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sp.people.map((r) => (
+                      <tr key={r.staff_name} className={TABLE_ROW}>
+                        <td className="px-3 py-2">{r.staff_name}</td>
+                        <td className="px-3 py-2 text-right font-medium">{r.decisions}</td>
+                        <td className="px-3 py-2 text-right opacity-70">{r.approved}</td>
+                        <td className="px-3 py-2 text-right opacity-70">{r.rejected}</td>
+                        <td className="px-3 py-2 text-right opacity-70">{r.returned}</td>
+                        <td className="px-3 py-2 text-right">{r.median_hours}h</td>
+                        <td className={`px-3 py-2 text-right ${r.p90_hours >= 168 ? "text-amber-300" : ""}`}>
+                          {r.p90_hours >= 48 ? `${Math.round(r.p90_hours / 24)}日` : `${r.p90_hours}h`}
+                        </td>
+                        <td className="px-3 py-2 text-xs opacity-60">{(r.last_at || "").slice(0, 10)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <p className={T_CAPTION}>
+            ここに出るのは調達の承認と Management タスクだけです。ほかの待ち行列は
+            「Waiting for Someone」が持っていて、遅れているものと持ち主のないものを既に出しています。
+            同じ定義を2か所に書くと必ず食い違うので、こちらでは作り直していません。
+          </p>
+        </div>
+      )}
 
       {/* ── 確認が要る人 ───────────────────────────────────────────── */}
       {tab === "flags" && rep && (

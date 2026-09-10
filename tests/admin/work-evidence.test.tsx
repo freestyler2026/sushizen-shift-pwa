@@ -71,6 +71,24 @@ function report(over: Record<string, unknown> = {}) {
   };
 }
 
+const backlog = {
+  city: "manila", held_total: 3, unowned_total: 617,
+  unowned: [
+    { role: "MANAGER", items: 548, median_days: 66.3, oldest_days: 116.5 },
+    { role: "HR_MANAGER", items: 53, median_days: 56.2, oldest_days: 97.5 },
+  ],
+  held: [{ staff_name: "Yuri Yamada", items: 3, median_days: 3.5, oldest_days: 86.2, by_kind: { approval: 1, management: 2 } }],
+  unowned_oldest: [],
+};
+
+const speed = {
+  days: 180, decisions: 2973,
+  people: [
+    { staff_name: "Cyrine Fernandez", role: "ADMIN", decisions: 1159, approved: 1100, rejected: 19, returned: 40, median_hours: 0.8, p90_hours: 1.5, last_at: "2026-09-09T10:00:00+00:00" },
+    { staff_name: "Yuri Yamada", role: "HQ", decisions: 393, approved: 359, rejected: 28, returned: 6, median_hours: 3.5, p90_hours: 440.1, last_at: "2026-09-10T10:00:00+00:00" },
+  ],
+};
+
 const redistribution = {
   start: "2026-09-09", end: "2026-09-11", city: "manila", thresholds: {},
   sole_owner: [{ screen: "/admin/hr/recruitment", outputs: 147, staff_name: "Peter Villafuerte", punch_minutes: 1200 }],
@@ -79,13 +97,20 @@ const redistribution = {
   load: [], totals: { people: 2, outputs: 147, views: 300, areas: 5 },
 };
 
-function serve(rep: unknown = report(), red: unknown = redistribution) {
-  mockFetch.mockImplementation((url: string) =>
-    Promise.resolve({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve(String(url).includes("redistribution") ? red : rep),
-    }));
+function serve(rep: unknown = report(), over: Record<string, unknown> = {}) {
+  mockFetch.mockImplementation((url: string) => {
+    const u = String(url);
+    const body = u.includes("redistribution") ? (over.red ?? redistribution)
+      : u.includes("/backlog") ? (over.bl ?? backlog)
+      : u.includes("/speed") ? (over.sp ?? speed)
+      : rep;
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+  });
+}
+
+/** The page opens on the backlog; every other tab needs a click. */
+async function openTab(label: string) {
+  fireEvent.click(await screen.findByText(new RegExp(label)));
 }
 
 beforeEach(() => {
@@ -123,32 +148,38 @@ describe("who can open it", () => {
 describe("what it refuses to claim", () => {
   it("says when the watching started", async () => {
     render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
     expect(await screen.findByText(/2026-09-09 14:31/)).toBeTruthy();
   });
 
   it("says how many shifts it will not judge", async () => {
     render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
     expect(await screen.findByText(/84件/)).toBeTruthy();
   });
 
   it("warns that work outside the OS is invisible before showing any number", async () => {
     render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
     expect(await screen.findByText(/OSの外の仕事はこの画面から見えません/)).toBeTruthy();
   });
 
   it("prints every finding with the group it was measured against", async () => {
     render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
     expect(await screen.findByText(/4 other people on \/admin\/os-attendance/)).toBeTruthy();
   });
 
   it("prints the thresholds that produced the findings", async () => {
     render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
     expect(await screen.findByText(/heroku config:set/)).toBeTruthy();
   });
 
   it("an empty finding list says 'none matched', not 'nobody was checked'", async () => {
     serve(report({ flags: [] }));
     render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
     expect(await screen.findByText(/説明のつかない人はいませんでした/)).toBeTruthy();
     expect(screen.getByText(/「該当なし」であって「調べていない」ではありません/)).toBeTruthy();
   });
@@ -157,21 +188,21 @@ describe("what it refuses to claim", () => {
 describe("output is not presence", () => {
   it("a person with only a QR confirmation shows no output", async () => {
     render(<WorkEvidencePage />);
-    fireEvent.click(await screen.findByText("人ごと"));
+    await openTab("人ごと");
     const row = (await screen.findAllByText("Test Person"))[0].closest("tr")!;
     expect(within(row).getAllByText("—").length).toBeGreaterThan(0);
   });
 
   it("says out loud that the clock-in was not counted", async () => {
     render(<WorkEvidencePage />);
-    fireEvent.click(await screen.findByText("人ごと"));
+    await openTab("人ごと");
     fireEvent.click((await screen.findAllByText("Test Person"))[0]);
     expect(await screen.findByText(/これは「居た」という記録なので成果には入れていません/)).toBeTruthy();
   });
 
   it("marks a day that began before the log as out of scope, not as idle", async () => {
     render(<WorkEvidencePage />);
-    fireEvent.click(await screen.findByText("人ごと"));
+    await openTab("人ごと");
     fireEvent.click((await screen.findAllByText("Test Person"))[0]);
     expect(await screen.findByText("記録開始前に出勤 — 判定対象外")).toBeTruthy();
   });
@@ -180,27 +211,77 @@ describe("output is not presence", () => {
 describe("redistribution", () => {
   it("names the work only one person does", async () => {
     render(<WorkEvidencePage />);
-    fireEvent.click(await screen.findByText("業務の分担"));
+    await openTab("業務の分担");
     const card = (await screen.findByText("その人しかやっていない業務")).closest("div")!;
     expect(within(card).getByText(/Peter Villafuerte/)).toBeTruthy();
   });
 
   it("frames it as handover, not as a verdict on the person", async () => {
     render(<WorkEvidencePage />);
-    fireEvent.click(await screen.findByText("業務の分担"));
+    await openTab("業務の分担");
     expect(await screen.findByText(/評価ではなく、引き継ぎ先を決めるための一覧/)).toBeTruthy();
   });
 
   it("shows the work nobody owns", async () => {
     render(<WorkEvidencePage />);
-    fireEvent.click(await screen.findByText("業務の分担"));
+    await openTab("業務の分担");
     expect(await screen.findByText("誰も主担当でない業務")).toBeTruthy();
   });
 
   it("counts changes, not page opens, and says so", async () => {
     render(<WorkEvidencePage />);
-    fireEvent.click(await screen.findByText("業務の分担"));
+    await openTab("業務の分担");
     expect(await screen.findByText(/件数は成果の数で、開いた回数ではありません/)).toBeTruthy();
+  });
+});
+
+describe("what is in whose hands", () => {
+  it("opens on the backlog, not on the findings", async () => {
+    render(<WorkEvidencePage />);
+    expect(await screen.findByText(/誰の手元にもないまま止まっているもの/)).toBeTruthy();
+  });
+
+  it("puts the unowned pile first and says nobody was asked", async () => {
+    render(<WorkEvidencePage />);
+    expect(await screen.findByText(/617件/)).toBeTruthy();
+    expect(screen.getByText(/誰も遅れていません。誰も頼まれていないからです。/)).toBeTruthy();
+  });
+
+  it("shows the age of the unowned work, not just its size", async () => {
+    render(<WorkEvidencePage />);
+    const row = (await screen.findByText("MANAGER")).closest("tr")!;
+    expect(within(row).getByText("548")).toBeTruthy();
+    expect(within(row).getByText("116.5日")).toBeTruthy();
+  });
+
+  it("reports how long each person keeps a decision", async () => {
+    render(<WorkEvidencePage />);
+    const row = (await screen.findAllByText("Cyrine Fernandez"))[0].closest("tr")!;
+    expect(within(row).getByText("1159")).toBeTruthy();
+    expect(within(row).getByText("0.8h")).toBeTruthy();
+  });
+
+  it("shows a long p90 in days, so a hidden pile is readable", async () => {
+    render(<WorkEvidencePage />);
+    const row = (await screen.findAllByText("Yuri Yamada"))[1].closest("tr")!;
+    expect(within(row).getByText("18日")).toBeTruthy();
+  });
+
+  it("refuses to call speed quality", async () => {
+    render(<WorkEvidencePage />);
+    expect(await screen.findByText(/速さは正しさではありません/)).toBeTruthy();
+  });
+
+  it("says which queues it does not cover rather than implying it has them all", async () => {
+    render(<WorkEvidencePage />);
+    expect(await screen.findByText(/Waiting for Someone/)).toBeTruthy();
+  });
+
+  it("an empty backlog does not crash the tab", async () => {
+    serve(report(), { bl: { ...backlog, unowned: [], held: [], unowned_total: 0, held_total: 0 } });
+    render(<WorkEvidencePage />);
+    expect(await screen.findByText(/名前のついた手元/)).toBeTruthy();
+    expect(screen.getByText("該当なし")).toBeTruthy();
   });
 });
 
