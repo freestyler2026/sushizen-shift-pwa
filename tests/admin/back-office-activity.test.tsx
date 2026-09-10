@@ -232,4 +232,17 @@ describe("what the page refuses to claim", () => {
     await renderPage();
     expect(await screen.findByText(/その人の1日が終わるまで、フラグは1つも出しません/)).toBeTruthy();
   });
+  it("warns that the three HQ rows run on a different clock", async () => {
+    // They joined the roster on 2026-09-10. Their day is measured on the Dubai
+    // clock, so a verdict arrives four hours after everyone else's, and a gap
+    // of hours is their ordinary shape rather than a finding. A reader who
+    // takes "long idle" on their row to mean what it means on an office row
+    // has been misled by the page.
+    await renderPage();
+    const panel = await screen.findByText(/行を根拠にする前に読んでください/);
+    const box = panel.parentElement!;
+    expect(box.textContent).toMatch(/ドバイ時間で働いています/);
+    expect(box.textContent).toMatch(/判定が出るのも4時間遅れます/);
+    expect(box.textContent).toMatch(/数時間の空白は彼らの通常です/);
+  });
 });

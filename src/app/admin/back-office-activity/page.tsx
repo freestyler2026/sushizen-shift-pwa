@@ -284,6 +284,17 @@ export default function BackOfficeActivityPage() {
           <li><strong>Inventory &amp; Purchasing は店舗勤務です。</strong>1日の大半は売場で、
             ここではありません。実働が短いのが彼らの通常です。<strong>事務所の行と比べず、
             彼ら同士で比べてください。</strong></li>
+          {/* Added when the three HQ names joined the roster. Their day is
+              measured on the Dubai clock and their work is spread across two
+              timezones, so a gap of several hours is their normal shape --
+              LONG_IDLE would fire on them almost every day and stop meaning
+              anything, the way an alert on every row does. Said here rather
+              than in a comment, because the reader is here. */}
+          <li><strong>HQ の3名（Yuri Yamada・Yusuke Uejima・Ayako Nishimura）は
+            ドバイ時間で働いています。</strong>マニラより4時間遅く1日が終わるので、
+            <strong>判定が出るのも4時間遅れます</strong>（数字は先に出ます）。
+            また2つの時間帯にまたがって働くため、<strong>数時間の空白は彼らの通常です。</strong>
+            「長時間の空白」を彼らの行で読むときは、事務所の行と同じ意味に取らないでください。</li>
           <li>閲覧と変更は<strong>サーバーが観測</strong>しています。画面数だけは
             <strong>ブラウザからの申告</strong>なので、<strong>本人がクリックして水増しできる唯一の数字</strong>です。
             判断は実働時間と変更内容で行ってください。</li>
