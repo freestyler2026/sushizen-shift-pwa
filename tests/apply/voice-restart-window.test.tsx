@@ -172,7 +172,8 @@ describe("agreeing while the API is restarting", () => {
 
     fireEvent.click(screen.getByText("I understand and agree"));
 
-    expect(await screen.findByText("Attach your CV")).toBeTruthy();
+    // Consent leads to the microphone. The CV comes after the answers.
+    expect(await screen.findByText("Start the check")).toBeTruthy();
     expect(consents).toBe(2);
   });
 

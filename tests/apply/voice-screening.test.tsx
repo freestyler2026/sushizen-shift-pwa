@@ -143,33 +143,14 @@ describe("voice screening on a phone", () => {
       (c) => String(c[0]).endsWith("/later"))).toBe(true);
   });
 
-  it("asks for the CV after consent when none is in, and offers no way past it", async () => {
+  it("sends somebody with no CV to the microphone, not to a file picker", async () => {
+    // Where the CV sits is pinned in voice-cv-order.test.tsx; this is the one
+    // line of it that must never regress -- nothing stands between consent
+    // and recording.
     await renderVoice(loaded(), { startAt: "consent", cvIn: false });
     fireEvent.click(screen.getByText("I understand and agree"));
-    // Required since 2026-09-10. HR cannot shortlist without it, and while
-    // this step said "optional" it sat behind consent, where half the
-    // applicants never reached it.
-    expect(await screen.findByText("Attach your CV")).toBeTruthy();
-    expect(screen.queryByText(/optional/i)).toBeNull();
-    // The old skip is gone. Nothing here reaches the microphone.
-    expect(screen.queryByText("Start the check")).toBeNull();
-    expect(screen.getByText("Choose a file")).toBeTruthy();
-  });
-
-  it("does not trap somebody whose CV is on another phone", async () => {
-    // Not a way past the CV: the same recorded "send me the link" path as the
-    // other screens, so they come back to this step rather than skipping it.
-    await renderVoice(loaded(), { startAt: "consent", cvIn: false });
-    fireEvent.click(screen.getByText("I understand and agree"));
-    await screen.findByText("Attach your CV");
-
-    mockFetch.mockClear();
-    fireEvent.click(screen.getByText("No CV on this phone? Send it later"));
-    expect(await screen.findByText(/We will message the link/)).toBeTruthy();
-    expect(mockFetch.mock.calls.some(
-      (c) => String(c[0]).endsWith("/later"))).toBe(true);
-    expect(mockFetch.mock.calls.some(
-      (c) => String(c[0]).endsWith("/resume/skip"))).toBe(false);
+    expect(await screen.findByText("Start the check")).toBeTruthy();
+    expect(screen.queryByText("Choose a file")).toBeNull();
   });
 
   it("does not ask again when the form already sent the CV", async () => {

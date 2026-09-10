@@ -59,18 +59,18 @@ const T = {
     // something we can act on, instead of being a silent exit.
     later: "Not now — send me the link",
     laterNote: "Noted. We will message the link to the number you gave, so you can do this whenever you like.",
-    cvTitle: "Attach your CV",
-    cvBody: "A PDF, a Word file, or a clear photo of a printed one. A photo taken with this phone is fine. We need it to review your application.",
+    cvTitle: "One last thing — your CV",
+    cvBody: "Your answers are saved. A PDF, a Word file, or a clear photo of a printed CV — a photo taken with this phone is fine. We need it to review your application.",
     cvPick: "Choose a file",
     cvChange: "Choose a different file",
-    cvSend: "Attach and continue",
+    cvSend: "Attach and finish",
     cvSending: "Sending…",
     cvDone: "Attached",
-    cvContinue: "Continue",
+    cvContinue: "Done",
     cvTooBig: "That file is {size}. The limit is {max} — send a photo of it instead, or a smaller PDF.",
     cvBadType: "Send a PDF, a Word file, or a photo.",
     cvFailed: "It did not send. Check your connection and try again.",
-    cvNone: "No CV on this phone? Send it later",
+    cvNone: "I do not have it on this phone — finish",
     consentTitle: "Before you record",
     consentBody: [
       "We record your voice answering the questions below.",
@@ -186,18 +186,18 @@ const T = {
     introNext: "Magpatuloy",
     later: "Mamaya na lang — ipadala ang link",
     laterNote: "Naitala na. Ipapadala namin ang link sa numerong ibinigay mo, para magawa mo ito kahit anong oras.",
-    cvTitle: "Ilakip ang CV mo",
-    cvBody: "Pwedeng PDF, Word, o malinaw na litrato ng naka-print na CV. Okay ang litratong kuha sa telepono mo. Kailangan namin ito para masuri ang aplikasyon mo.",
+    cvTitle: "Huling bagay — ang CV mo",
+    cvBody: "Nai-save na ang mga sagot mo. Pwedeng PDF, Word, o malinaw na litrato ng naka-print na CV — okay ang litratong kuha sa telepono mo. Kailangan namin ito para masuri ang aplikasyon mo.",
     cvPick: "Pumili ng file",
     cvChange: "Pumili ng ibang file",
-    cvSend: "Ilakip at magpatuloy",
+    cvSend: "Ilakip at tapusin",
     cvSending: "Ipinapadala…",
     cvDone: "Nailakip na",
-    cvContinue: "Magpatuloy",
+    cvContinue: "Tapos na",
     cvTooBig: "Ang file na iyan ay {size}. Ang limit ay {max} — magpadala na lang ng litrato nito, o mas maliit na PDF.",
     cvBadType: "Magpadala ng PDF, Word, o litrato.",
     cvFailed: "Hindi naipadala. Pakicheck ang koneksyon at subukan ulit.",
-    cvNone: "Wala ang CV sa telepono mo? Ipadala mamaya",
+    cvNone: "Wala sa telepono ko — tapusin na",
     consentTitle: "Bago ka mag-record",
     consentBody: [
       "Ire-record namin ang boses mo habang sinasagot ang mga tanong sa ibaba.",
@@ -661,12 +661,15 @@ export default function VoiceScreening({
     if (!aliveRef.current) return;
     setBusy(false);
     if (!ok) { setErr(t.consentFailed); return; }
-    // The CV comes after consent for anybody who has not already given one:
-    // a CV is personal data kept under the same retention the consent screen
-    // just described. Applicants coming from the form have sent it there, and
-    // are told on that screen where it is kept and who reads it; putting the
-    // step in front of them again would only be an extra press.
-    setStage(cvDone || cvSkipped ? "miccheck" : "resume");
+    // Straight to the microphone. The CV is asked for **after** the answers
+    // (see next()), never in front of them.
+    //
+    // It sat here for half an hour on 2026-09-10 and that was a defect: the
+    // people who arrive on an invite link are the backlog HR is chasing for a
+    // recording, and they are exactly the ones with no CV on the phone. A
+    // required CV in front of the interview meant the chase dead-ended and we
+    // lost the recording too -- the one thing that visit was for.
+    setStage("miccheck");
   }
 
   /** Prove the microphone works before asking anybody to answer seven questions
@@ -974,9 +977,24 @@ export default function VoiceScreening({
     setStage("later");
   }
 
+  /** "I do not have it on this phone", after the answers are in. Recorded
+   *  rather than passed over in silence: HR needs to tell an applicant who was
+   *  asked and did not send one from an applicant who was never asked. */
+  async function skipCv() {
+    try { await fetch(`/api/voice/${token}/resume/skip`, { method: "POST" }); }
+    catch { /* the note matters less than not trapping them here */ }
+    setErr("");
+    setStage("done");
+  }
+
   function next() {
     setSaved(false); setRetries(0); setErr("");
-    if (idx + 1 >= total) { setStage("done"); return; }
+    if (idx + 1 >= total) {
+      // The answers are saved by now, so asking here can cost nothing. Anybody
+      // who came from the form already sent a CV and goes straight to done.
+      setStage(cvDone || cvSkipped ? "done" : "resume");
+      return;
+    }
     setIdx(idx + 1);
   }
 
@@ -1265,7 +1283,7 @@ export default function VoiceScreening({
             <div className="mb-4 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-3 text-sm text-emerald-200">
               ✓ {t.cvDone}
             </div>
-            <button type="button" onClick={() => setStage("miccheck")}
+            <button type="button" onClick={() => setStage("done")}
               className={`${BTN} bg-violet-500/90 text-white hover:bg-violet-500`}>
               {t.cvContinue}
             </button>
@@ -1299,11 +1317,11 @@ export default function VoiceScreening({
                 {t.cvChange}
               </button>
             )}
-            {/* Not a way past the CV -- it is the same "send me the link"
-                path as the other screens, recorded, so somebody whose CV is
-                on a different phone is not left with nothing to press
-                (lesson 10). They come back to this screen from the link. */}
-            <button type="button" disabled={busy} onClick={() => void askLater()}
+            {/* The answers are already in, so this ends the visit rather
+                than abandoning it. Recorded, so HR can tell somebody who was
+                asked and did not send one from somebody who was never asked
+                -- without that they either chase everybody or nobody. */}
+            <button type="button" disabled={busy} onClick={() => void skipCv()}
               className="mt-3 w-full py-2 text-sm text-zinc-400 underline">
               {t.cvNone}
             </button>
