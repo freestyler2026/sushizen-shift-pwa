@@ -86,6 +86,19 @@ function num(v: number | string, measured: boolean): string {
   return measured ? String(v) : "—";
 }
 
+/** Minutes between the two punches, or null when either is missing. The row
+ *  carries both and the page used to show neither -- while calling the span
+ *  between somebody's first and last OS action "在席", which is not the same
+ *  thing and was out by up to seven hours in both directions on 2026-09-10:
+ *  Karen Jane Borja was clocked in for 9h55m and the column said 2h46m;
+ *  Ruby Rosa Rongcales was clocked in for 10h10m and it said 23h04m. */
+function punchMinutes(r: { clock_in: string | null; clock_out: string | null }): number | null {
+  if (!r.clock_in || !r.clock_out) return null;
+  const a = Date.parse(r.clock_in), b = Date.parse(r.clock_out);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
+  return (b - a) / 60000;
+}
+
 function hm(min: number, measured = true): string {
   if (!measured) return "—";
   if (!min) return "0m";
@@ -312,7 +325,7 @@ export default function BackOfficeActivityPage() {
             操作の記録を取り始めたのは{" "}
             <strong>{cov.log_from ? new Date(cov.log_from).toLocaleString("ja-JP") : "—"}</strong>{" "}
             です。それより前の日について、<strong>この画面は何も測っていません。</strong>
-            表の 在席・実働・画面・閲覧・変更 が「—」なのはそのためで、
+            表の 打刻の下のOS・実働・画面・閲覧・変更 が「—」なのはそのためで、
             <strong>0ではありません。</strong>
           </p>
           <p className={`${T_BODY} mt-2`}>
@@ -338,7 +351,7 @@ export default function BackOfficeActivityPage() {
           <table className="w-full min-w-[1000px]">
             <thead>
               <tr>
-                {["対象者", "ログイン", "最後の操作", "在席", "実働", "最長の空白",
+                {["対象者", "ログイン", "最後の操作", "打刻", "実働", "最長の空白",
                   "画面", "閲覧", "変更", "1日の推移", ""].map((h) => (
                   <th key={h} className={`${TABLE_HEADER} px-4 text-left`}>{h}</th>
                 ))}
@@ -403,7 +416,24 @@ export default function BackOfficeActivityPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{clock(r.last_action_at, r.city)}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{hm(r.span_minutes, !r.unrecorded)}</td>
+                    {/* Two different things, said as two. The punch is what
+                        the question is about -- how much of the time they were
+                        at work were they in the OS -- and the OS span is what
+                        this page can see. Putting one under the other is the
+                        comparison; putting one of them under the other's name
+                        was the bug. */}
+                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">
+                      {(() => {
+                        const p = punchMinutes(r);
+                        return p === null
+                          ? <span className="text-zinc-500" title="この日の打刻がありません">—</span>
+                          : <span className="text-zinc-200">{hm(p)}</span>;
+                      })()}
+                      <span className="mt-0.5 block text-[10px] text-zinc-500"
+                            title="OS上の最初の操作から最後の操作まで。打刻とは別のものです。">
+                        OS {hm(r.span_minutes, !r.unrecorded)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-sm font-semibold tabular-nums text-white">{hm(r.active_minutes, !r.unrecorded)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-400">{hm(r.longest_idle_minutes, !r.unrecorded)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{num(r.screens, !r.unrecorded)}</td>

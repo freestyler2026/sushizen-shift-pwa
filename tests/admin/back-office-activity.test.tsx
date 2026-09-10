@@ -260,4 +260,45 @@ describe("what the page refuses to claim", () => {
     expect(await screen.findByText("Night Shift")).toBeTruthy();
     expect(screen.getByText("継続")).toBeTruthy();
   });
+  it("shows the punch span and the OS span as two different things", async () => {
+    // The column used to be headed 在席 and carried the span between the first
+    // and last OS action. On 2026-09-10 that was out by hours in both
+    // directions against the actual punches -- Karen Jane Borja clocked in for
+    // 9h55m with the column saying 2h46m, Ruby Rosa Rongcales clocked in for
+    // 10h10m with it saying 23h04m. The question the page exists to answer is
+    // how much of the time somebody was at work they were in the OS, so both
+    // numbers have to be on the row, each under its own name.
+    mockGetAuth.mockReturnValue({ staffName: "Yukihiro Nishimura", role: "HQ" });
+    mockFetch.mockImplementation(() => ok(report([
+      row({ staff_name: "Clocked In", span_minutes: 165.6, flags: [],
+            clock_in: "2026-09-10T07:26:00+00:00", clock_out: "2026-09-10T17:20:00+00:00" }),
+    ])));
+    await renderPage();
+    expect(await screen.findByText("Clocked In")).toBeTruthy();
+    expect(screen.getByText("9h 54m")).toBeTruthy();      // the punches
+    expect(screen.getByText("OS 2h 46m")).toBeTruthy();   // what this page can see
+  });
+
+  it("says so plainly when there is no punch, instead of showing the OS span as one", async () => {
+    mockGetAuth.mockReturnValue({ staffName: "Yukihiro Nishimura", role: "HQ" });
+    mockFetch.mockImplementation(() => ok(report([
+      row({ staff_name: "No Punch", span_minutes: 910.9, flags: [],
+            clock_in: null, clock_out: null }),
+    ])));
+    await renderPage();
+    expect(await screen.findByText("No Punch")).toBeTruthy();
+    expect(screen.getByText("OS 15h 11m")).toBeTruthy();
+    expect(screen.getByTitle("この日の打刻がありません")).toBeTruthy();
+  });
+
+  it("does not treat a clock-out that is missing or backwards as a span", async () => {
+    mockGetAuth.mockReturnValue({ staffName: "Yukihiro Nishimura", role: "HQ" });
+    mockFetch.mockImplementation(() => ok(report([
+      row({ staff_name: "Half Punch", span_minutes: 164, flags: [],
+            clock_in: "2026-09-10T01:48:00+00:00", clock_out: null }),
+    ])));
+    await renderPage();
+    expect(await screen.findByText("Half Punch")).toBeTruthy();
+    expect(screen.getByTitle("この日の打刻がありません")).toBeTruthy();
+  });
 });
