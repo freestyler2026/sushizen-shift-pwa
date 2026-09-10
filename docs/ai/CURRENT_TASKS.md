@@ -1,6 +1,66 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-10（現物確認で3品を確定。前方一致は4件で別商品の値段を付けていた）
+Last updated: 2026-09-10（SMSをGlobe/Smartだけ先に開ける形にした。DITOは送信前に警告）
+
+## 2026-09-10（続き27） — SMS を「Globe/Smart だけ先に開ける」形にした
+
+Semaphore が送信者名 SUSHIZEN を承認。**Globe と Smart は LOA 不要で自動、
+DITO だけ署名入り LOA が要り、受領後3〜5営業日。**そこで9割を先に開ける。
+
+### 実測（`phone_targets` で数えた＝実際にSMSの宛先を決める関数）
+
+| | 人数 | 届く人に対する割合 |
+|---|---:|---:|
+| DITO（LOA待ち） | **19** | **9.6%** |
+| Globe / Smart など | 179 | 90.4% |
+| SMSが届かない（記入不備・固定電話） | 5 | — |
+
+⚠️ 最初の集計で **DITO 0%** と出た。プレフィックス抽出を `d[2:6]`（5文字）と
+書いていて、4文字の集合と一致しなかった。**0件という結果をそのまま出す寸前だった。**
+以後この種のスクリプトには自己検算の assert を入れる。
+
+### 直したこと
+
+- `phone_targets()` に `network` と `sms_ready` を追加。**宛先を決めている
+  唯一の場所**なので、ここが知っているべき情報
+- `network_of()` は DITO だけを区別する。Globe と Smart を分けても使い道が無い
+  — **使わない分類は、いつか間違ったまま誰にも気づかれない**
+- 送信APIは未対応網を **409 で送信前に断る**。プロバイダに投げて失敗を持ち帰ると、
+  HRは押してから理由を知る（教訓46）
+- 画面はボタンの場所に警告を出す。**リンクを止めるのではなく経路を変える** —
+  Viber / WhatsApp のリンクはすぐ下にある
+- **プレフィックスは推定**（番号ポータビリティで旧プレフィックスが残る）。
+  画面にもそう書き、これを根拠に何も結論づけない
+
+### 解除は config 1行（デプロイ不要）
+
+```bash
+heroku config:set SMS_BLOCKED_NETWORKS= -a sushizen-shift-app   # DITO 通過後
+```
+
+既定は `dito`。**通っているのに送れない状態が、誰かがデプロイするまで続く**のを避ける。
+
+### 有効化（Globe/Smart 通過の連絡が来てから）
+
+```bash
+heroku config:set SEMAPHORE_SENDER_NAME=SUSHIZEN SMS_ENABLED=1 -a sushizen-shift-app
+```
+
+API鍵は設定済み。`sender_name` が空なのでこれも要る。**通過前に実行すると全件失敗する。**
+
+### 検証
+
+本番で `phone_targets` を往復。DITO=False / Globe=True / 2番号の行は番号ごとに判定。
+`SMS_BLOCKED_NETWORKS=''` で DITO が True に戻ることも確認。
+テスト バックエンド16件・フロント6件。
+
+### LOA で気づいた点（署名前）
+
+- **Purpose が「Authentication / OTP」**。送るのは OTP ではなく応募者への通知。
+  申告と実トラフィックが食い違うと後で止められうる。Semaphore に区分を確認中
+- PDFの署名者名が Yukihiro Nishimura。授権署名者として聞いていたのは
+  Janine Therese Diaz Omachi（Owner）。**印字名と署名者は一致させる**
+- サンプル文面は実際の送信文と**1字まで一致**していた（差し替え不要）
 
 ## 2026-09-10（続き26） — 植嶋の現物確認で3品を確定、前方一致の実害が想定より広かった
 
