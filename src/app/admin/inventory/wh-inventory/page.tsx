@@ -12,6 +12,15 @@ import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClie
 // Types
 // ---------------------------------------------------------------------------
 
+type HiddenItem = {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  unit: string;
+  auto_created: boolean;
+};
+
 type MasterItem = {
   id: string;
   name: string;
@@ -353,10 +362,18 @@ export default function WhInventoryPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
-  // Delete confirmation
+  // Hide confirmation. This used to be Delete, and Delete did not work: the
+  // cost sync recreated the row under a new SKU within days, and each round
+  // left a second record holding part of the item's consumption history.
   const [deleteConfirmId, setDeleteConfirmId] = useState("");
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deleteDeleting, setDeleteDeleting] = useState(false);
+
+  // The items this list is not showing. Somewhere to check what came off it,
+  // and to put one back, without asking anybody.
+  const [hiddenRows, setHiddenRows] = useState<HiddenItem[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
+  const [hiddenBusy, setHiddenBusy] = useState("");
 
   // Tab: Order From Branch
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
@@ -513,12 +530,24 @@ export default function WhInventoryPage() {
     }
   }, []);
 
+  const loadHidden = useCallback(async (cty: City) => {
+    try {
+      const res = await inventoryGet<{ rows: HiddenItem[] }>(
+        `/api/admin/inventory/wh-stock/hidden?city=${encodeURIComponent(cty)}`,
+      );
+      setHiddenRows(res.rows || []);
+    } catch {
+      // The list still works without it.
+    }
+  }, []);
+
   // Load on ready
   useEffect(() => {
     if (!ready || !allowed) return;
     void loadStock(city);
     void loadSuppliers(city);
-  }, [ready, allowed, city, loadStock, loadSuppliers]);
+    void loadHidden(city);
+  }, [ready, allowed, city, loadStock, loadSuppliers, loadHidden]);
 
   // Load per tab switch
   useEffect(() => {
@@ -761,11 +790,28 @@ export default function WhInventoryPage() {
   // Delete Item
   // ---------------------------------------------------------------------------
 
+  async function setVisible(itemId: string, visible: boolean) {
+    setHiddenBusy(itemId);
+    try {
+      await inventoryPost("/api/admin/inventory/wh-stock/visibility", {
+        city, item_id: itemId, visible,
+      });
+      await Promise.all([loadStock(city), loadMaster(city), loadHidden(city)]);
+    } finally {
+      setHiddenBusy("");
+    }
+  }
+
   async function handleDeleteItem() {
     if (!deleteConfirmId) return;
     setDeleteDeleting(true);
     try {
-      await inventoryPost(`/api/admin/inventory/items/${deleteConfirmId}/delete`, { city });
+      // Hide, not delete. The row stays for the cost ledger, which is what
+      // deleting could never take away from it.
+      await inventoryPost("/api/admin/inventory/wh-stock/visibility", {
+        city, item_id: deleteConfirmId, visible: false,
+      });
+      await loadHidden(city);
       setDeleteConfirmId("");
       setDeleteConfirmName("");
       await loadStock(city);
@@ -1040,9 +1086,9 @@ export default function WhInventoryPage() {
                           <button
                             type="button"
                             onClick={() => { setDeleteConfirmId(row.id); setDeleteConfirmName(row.name); }}
-                            className="rounded-lg border border-rose-800/60 bg-rose-900/20 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-900/40 transition"
+                            className="rounded-lg border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-700 hover:text-white transition"
                           >
-                            Delete
+                            Hide
                           </button>
                         </div>
                       </td>
@@ -1321,6 +1367,52 @@ export default function WhInventoryPage() {
             </div>
           )}
         </section>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Hidden items — the rule this list follows, where it can be read and
+          changed. A row that vanishes with no way back is how Delete became a
+          trap in the first place.                                            */}
+      {/* ------------------------------------------------------------------ */}
+      {(tab === "stock" || tab === "count") && hiddenRows.length > 0 && (
+        <div className="mb-3 rounded-xl border border-neutral-800 bg-neutral-900/60">
+          <button
+            type="button"
+            onClick={() => setShowHidden((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-2.5 text-left"
+          >
+            <span className="text-sm text-neutral-300">
+              Hidden items ({hiddenRows.length})
+              <span className="ml-2 text-xs text-neutral-500">
+                not counted in the warehouse — kept for cost history
+              </span>
+            </span>
+            <span className="text-xs text-neutral-500">{showHidden ? "Close" : "Show"}</span>
+          </button>
+          {showHidden && (
+            <div className="border-t border-neutral-800 px-4 py-3">
+              <div className="max-h-64 space-y-1 overflow-y-auto">
+                {hiddenRows.map((h) => (
+                  <div key={h.id} className="flex items-center gap-3 text-sm">
+                    <span className="flex-1 truncate text-neutral-300">{h.name}</span>
+                    <span className="w-24 truncate text-xs text-neutral-600">{h.sku}</span>
+                    <span className="w-32 truncate text-xs text-neutral-600">
+                      {h.auto_created ? "added by cost sync" : h.category || "—"}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={hiddenBusy === h.id}
+                      onClick={() => void setVisible(h.id, true)}
+                      className="rounded-lg border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300 hover:text-white disabled:opacity-50"
+                    >
+                      {hiddenBusy === h.id ? "…" : "Show in list"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ------------------------------------------------------------------ */}
@@ -1726,14 +1818,16 @@ export default function WhInventoryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
           <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl">
             <div className="border-b border-neutral-800 px-6 py-4">
-              <div className="text-base font-semibold text-neutral-100">Delete Item?</div>
+              <div className="text-base font-semibold text-neutral-100">Hide from the warehouse list?</div>
             </div>
             <div className="px-6 py-5">
               <p className="text-sm text-neutral-300">
-                Are you sure you want to delete <span className="font-semibold text-white">{deleteConfirmName}</span>?
+                <span className="font-semibold text-white">{deleteConfirmName}</span> will stop appearing in
+                WH Stock and New Count.
               </p>
               <p className="mt-1.5 text-xs text-neutral-500">
-                The item will be marked as deleted and removed from the stock view. This can be reversed by support if needed.
+                The item itself is kept — cost and consumption history need it. Put it back
+                any time from <span className="text-neutral-300">Hidden items</span> above the list.
               </p>
             </div>
             <div className="flex justify-end gap-2 border-t border-neutral-800 px-6 py-4">
@@ -1748,9 +1842,9 @@ export default function WhInventoryPage() {
                 type="button"
                 disabled={deleteDeleting}
                 onClick={() => void handleDeleteItem()}
-                className="rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-600 disabled:opacity-50 transition"
+                className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50 transition"
               >
-                {deleteDeleting ? "Deleting..." : "Delete"}
+                {deleteDeleting ? "Hiding..." : "Hide"}
               </button>
             </div>
           </div>
