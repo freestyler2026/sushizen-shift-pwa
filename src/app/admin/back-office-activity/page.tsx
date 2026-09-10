@@ -35,6 +35,10 @@ type Row = {
   staff_name: string; city: string; branch_code: string; role: string;
   signed_in: boolean; sessions: number;
   login_at: string | null; first_action_at: string | null; last_action_at: string | null;
+  /** No session was opened on this date — they were still signed in from the
+   *  day before, so the time in the login column is the first thing they did,
+   *  not a sign-in. Ordinary for anybody whose shift ends after midnight. */
+  login_carried_over?: boolean;
   span_minutes: number; active_minutes: number; idle_minutes: number;
   longest_idle_minutes: number;
   events: number; screens: number; reads: number; writes: number;
@@ -386,7 +390,18 @@ export default function BackOfficeActivityPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{clock(r.login_at, r.city)}</td>
+                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">
+                      {clock(r.login_at, r.city)}
+                      {r.login_carried_over && (
+                        // Saying "logged in at 00:03" about somebody whose
+                        // session came from yesterday is a small lie in a
+                        // column somebody reads as arrival time.
+                        <span className="ml-1 text-[10px] text-zinc-500"
+                              title="この日のログインはありません。前日のセッションが続いており、これは最初の操作の時刻です。">
+                          継続
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{clock(r.last_action_at, r.city)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{hm(r.span_minutes, !r.unrecorded)}</td>
                     <td className="px-4 py-3 text-sm font-semibold tabular-nums text-white">{hm(r.active_minutes, !r.unrecorded)}</td>

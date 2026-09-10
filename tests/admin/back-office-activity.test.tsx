@@ -245,4 +245,19 @@ describe("what the page refuses to claim", () => {
     expect(box.textContent).toMatch(/判定が出るのも4時間遅れます/);
     expect(box.textContent).toMatch(/数時間の空白は彼らの通常です/);
   });
+  it("marks a login time that is really the first action of a carried-over session", async () => {
+    // Sessions outlive the date they start on, so anybody whose shift ends
+    // after midnight has no sign-in on the next date. The row still shows a
+    // time in the login column -- the first thing they did -- and saying
+    // "logged in then" about it would be a small lie in the column a reader
+    // treats as arrival.
+    mockGetAuth.mockReturnValue({ staffName: "Yukihiro Nishimura", role: "HQ" });
+    mockFetch.mockImplementation(() => ok(report([
+      row({ staff_name: "Night Shift", login_at: "2026-09-10T16:03:00+00:00",
+            login_carried_over: true, events: 136, signed_in: true, flags: [] }),
+    ])));
+    await renderPage();
+    expect(await screen.findByText("Night Shift")).toBeTruthy();
+    expect(screen.getByText("継続")).toBeTruthy();
+  });
 });
