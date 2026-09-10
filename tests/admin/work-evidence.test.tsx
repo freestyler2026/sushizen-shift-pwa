@@ -53,6 +53,7 @@ function report(over: Record<string, unknown> = {}) {
       outside_shift_min_outputs: 3,
     },
     scope: "evaluated",
+    role_cohorts: [{ role: "INVENTORY_PURCHASING", people: 14, producers: 8, median_per_day: 1.0 }],
     roster_size: 3,
     coverage_labels: {
       measured: "変えた記録がある",
@@ -87,6 +88,11 @@ function report(over: Record<string, unknown> = {}) {
       contributors: [{ staff_name: "Peter Villafuerte", outputs: 147, share: 1 }],
     }],
     flags: [{
+      flag: "NO_OUTPUT_VS_ROLE", staff_name: "Renzy Siena", role: "INVENTORY_PURCHASING",
+      says: "Punched 8.8 h, changed nothing, and opened only /attendance -- no screen anybody works on.",
+      compared_with: "14 people in INVENTORY_PURCHASING, 8 of them produced, median 1.0 a day",
+      evidence: {},
+    }, {
       flag: "NO_OUTPUT", staff_name: "Test Person", role: "ADMIN",
       says: "Punched 16.0 h over 1 fully watched day(s), opened /admin/os-attendance 3 times, and changed nothing anywhere.",
       compared_with: "4 other people on /admin/os-attendance, median 2.5 changes a day",
@@ -350,6 +356,26 @@ describe("who this page is about", () => {
     render(<WorkEvidencePage />);
     const row = (await screen.findAllByText("Cyrine Fernandez"))[0].closest("tr")!;
     expect(within(row).getByText("対象外")).toBeTruthy();
+  });
+});
+
+describe("when there is no screen to compare on", () => {
+  it("falls back to the role and names it", async () => {
+    render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
+    expect(await screen.findByText(/14 people in INVENTORY_PURCHASING, 8 of them produced/)).toBeTruthy();
+  });
+
+  it("labels that finding as a role comparison, not a screen one", async () => {
+    render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
+    expect(await screen.findByText("打刻はあるが何も変えていない（同じロールと比較）")).toBeTruthy();
+  });
+
+  it("prints the order the comparisons are tried in", async () => {
+    render(<WorkEvidencePage />);
+    await openTab("確認が要る人");
+    expect(await screen.findByText(/そのロールの半数以上が成果を出している期間に限る/)).toBeTruthy();
   });
 });
 

@@ -63,8 +63,10 @@ type RosterRow = {
   outputs: number; views: number; punch_minutes: number;
   days_punched: number; days_punched_unobserved: number;
 };
+type RoleCohort = { role: string; people: number; producers: number; median_per_day: number };
 type Report = {
   scope: string;
+  role_cohorts: RoleCohort[];
   roster: RosterRow[]; roster_size: number;
   coverage_labels: Record<string, string>;
   out_of_scope: { staff_name: string; role: string; city: string; views: number; http_writes: number }[];
@@ -93,6 +95,7 @@ type Redistribution = {
 
 const FLAG_LABEL: Record<string, string> = {
   NO_OUTPUT: "打刻はあるが、何も変えていない",
+  NO_OUTPUT_VS_ROLE: "打刻はあるが何も変えていない（同じロールと比較）",
   VIEWS_ONLY: "その画面を開くだけで、決めていない",
   EDGE_ONLY: "出勤直後と退勤直前しかOSに居ない",
   OUTSIDE_SHIFT: "勤務時間の外で記録している",
@@ -374,6 +377,9 @@ export default function WorkEvidencePage() {
           ))}
           {rep.flags.length > 0 && (
             <p className={T_CAPTION}>
+              比較の順番: まず<b>同じ画面を使う人</b>、それがいなければ<b>同じロールの人</b>
+              （そのロールの半数以上が成果を出している期間に限る）。どちらも無ければ指摘しません。
+              <br />
               判定の線: 打刻 {th.punched_hours_for_no_output}h 以上 ／ 同じ画面に
               {th.peer_group_min_people}人以上 ／ その人たちの中央値が1日
               {th.peer_output_per_day}件以上 ／ その画面を{th.views_to_call_it_their_screen}回以上開いている。
