@@ -43,17 +43,19 @@ async function renderVoice(data: Record<string, unknown> = loaded(),
                            props: Record<string, unknown> = {}) {
   mockFetch.mockImplementation(() => fetchOk(data));
   const Voice = (await import("@/components/apply/VoiceScreening")).default;
-  render(<Voice token="tok" lang="en" {...props} />);
+  // The CV now arrives with the application form, so the ordinary token
+  // reaching this component already has one. Tests about the CV step itself
+  // pass `cvIn: false` and get the step.
+  render(<Voice token="tok" lang="en" cvIn {...props} />);
   // Whichever screen this token opens on -- offer, consent, or the video.
   await screen.findByText(/This is your first interview|Before you record|First, a minute about/);
 }
 
-/** Consent now leads to the CV step, not straight to the microphone. Skipping
- *  it is the path most applicants take -- of 135 on file, none attached one to
- *  the paper form -- so it is also the path these tests walk. */
+/** Consent leads straight to the microphone check for anybody whose CV is
+ *  already in, which since 2026-09-10 is everybody arriving from the form. */
 async function agreeAndSkipCv() {
   fireEvent.click(screen.getByText("I understand and agree"));
-  fireEvent.click(await screen.findByText("I do not have one — continue"));
+  await screen.findByText("Start the check");
 }
 
 beforeEach(() => { mockFetch.mockReset(); });
@@ -141,20 +143,43 @@ describe("voice screening on a phone", () => {
       (c) => String(c[0]).endsWith("/later"))).toBe(true);
   });
 
-  it("offers the CV step after consent, and lets it be skipped", async () => {
-    await renderVoice(loaded(), { startAt: "consent" });
+  it("asks for the CV after consent when none is in, and offers no way past it", async () => {
+    await renderVoice(loaded(), { startAt: "consent", cvIn: false });
     fireEvent.click(screen.getByText("I understand and agree"));
-    // Optional, and it says so -- most applicants here do not have a CV, and a
-    // step that looks required is a step that ends the application.
-    expect(await screen.findByText(/Have a CV\? Attach it \(optional\)/)).toBeTruthy();
+    // Required since 2026-09-10. HR cannot shortlist without it, and of 42
+    // applications only 6 carried one while the step said "optional".
+    expect(await screen.findByText("Attach your CV")).toBeTruthy();
+    expect(screen.queryByText(/optional/i)).toBeNull();
+    // The old skip is gone. Nothing here reaches the microphone.
+    expect(screen.queryByText("Start the check")).toBeNull();
+    expect(screen.getByText("Choose a file")).toBeTruthy();
+  });
+
+  it("does not trap somebody whose CV is on another phone", async () => {
+    // Not a way past the CV: the same recorded "send me the link" path as the
+    // other screens, so they come back to this step rather than skipping it.
+    await renderVoice(loaded(), { startAt: "consent", cvIn: false });
+    fireEvent.click(screen.getByText("I understand and agree"));
+    await screen.findByText("Attach your CV");
 
     mockFetch.mockClear();
-    fireEvent.click(screen.getByText("I do not have one — continue"));
-    expect(await screen.findByText("Start the check")).toBeTruthy();
-    // Recorded rather than passed over in silence, so HR can tell somebody who
-    // said they have none from somebody who never reached this screen.
+    fireEvent.click(screen.getByText("No CV on this phone? Send it later"));
+    expect(await screen.findByText(/We will message the link/)).toBeTruthy();
     expect(mockFetch.mock.calls.some(
-      (c) => String(c[0]).endsWith("/resume/skip"))).toBe(true);
+      (c) => String(c[0]).endsWith("/later"))).toBe(true);
+    expect(mockFetch.mock.calls.some(
+      (c) => String(c[0]).endsWith("/resume/skip"))).toBe(false);
+  });
+
+  it("does not ask again when the form already sent the CV", async () => {
+    // The prop, not the server: the load is a round trip the applicant would
+    // spend looking at a step they have just finished.
+    mockFetch.mockImplementation(() => fetchOk(loaded({ consent_given: false })));
+    const Voice = (await import("@/components/apply/VoiceScreening")).default;
+    render(<Voice token="tok" lang="en" startAt="consent" cvIn />);
+    fireEvent.click(await screen.findByText("I understand and agree"));
+    expect(await screen.findByText("Start the check")).toBeTruthy();
+    expect(screen.queryByText("Attach your CV")).toBeNull();
   });
 
   it.each([
@@ -165,10 +190,10 @@ describe("voice screening on a phone", () => {
     // file they just sent reads as the upload having failed.
     mockFetch.mockImplementation(() => fetchOk(loaded({ consent_given: true, resume })));
     const Voice = (await import("@/components/apply/VoiceScreening")).default;
-    render(<Voice token="tok" lang="en" startAt="consent" />);
+    render(<Voice token="tok" lang="en" startAt="consent" cvIn={false} />);
     // Straight to the questions, which is where a consented token belongs.
     expect(await screen.findByText(/What did you do in your last job/)).toBeTruthy();
-    expect(screen.queryByText(/Have a CV/)).toBeNull();
+    expect(screen.queryByText("Attach your CV")).toBeNull();
   });
 
   it("shows the video step only when one is configured, and loads nothing until asked", async () => {

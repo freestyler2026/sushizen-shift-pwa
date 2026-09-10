@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import VoiceScreening from "@/components/apply/VoiceScreening";
+import { formatBytes, prepareIfImage, UPLOAD_LIMIT_BYTES } from "@/lib/image-compress";
 
 /**
  * Public application form.
@@ -48,6 +49,14 @@ const T = {
     referrer: "Who referred you? (optional)",
     referrerPh: "Name of the person",
     notes: "Anything else? (optional)",
+    cv: "Your CV",
+    cvHint: "A PDF, a Word file, or a clear photo of a printed one. A photo is fine — most people send one.",
+    cvWhere: "It is kept with your application in Sushi ZEN's private Drive. Only HR and the hiring manager see it, and if you are not hired it is deleted along with your application.",
+    cvPick: "Choose a file",
+    cvChange: "Choose a different file",
+    cvMissing: "Please attach your CV. We cannot review an application without it.",
+    cvTooBig: "That file is {size}. The limit is {max} — send a photo of it instead, or a smaller PDF.",
+    cvLate: "Your application is in, but the CV did not upload. We will message you on your number to ask for it.",
     submit: "Send application",
     sending: "Sending…",
     choose: "— Choose —",
@@ -98,6 +107,14 @@ const T = {
     referrer: "Sino ang nag-refer sa iyo? (opsyonal)",
     referrerPh: "Pangalan ng tao",
     notes: "May iba ka pang sasabihin? (opsyonal)",
+    cv: "Ang CV mo",
+    cvHint: "Pwedeng PDF, Word, o malinaw na litrato ng naka-print na CV. Okay ang litrato — iyon ang ipinapadala ng karamihan.",
+    cvWhere: "Itatago ito kasama ng aplikasyon mo sa pribadong Drive ng Sushi ZEN. HR at ang hiring manager lang ang nakakakita nito, at kung hindi ka matatanggap ay buburahin ito kasama ng aplikasyon mo.",
+    cvPick: "Pumili ng file",
+    cvChange: "Pumili ng ibang file",
+    cvMissing: "Pakilakip ang CV mo. Hindi namin masusuri ang aplikasyon kung wala ito.",
+    cvTooBig: "Ang file na iyan ay {size}. Ang limit ay {max} — magpadala na lang ng litrato nito, o mas maliit na PDF.",
+    cvLate: "Nakapasok na ang aplikasyon mo, pero hindi naipadala ang CV. Ime-message ka namin sa numero mo para hingin ito.",
     submit: "Ipadala ang aplikasyon",
     sending: "Ipinapadala…",
     choose: "— Pumili —",
@@ -199,6 +216,54 @@ export default function ApplyPage() {
   // storage folder is not configured -- then nothing is offered, rather than
   // asking someone to record into nowhere.
   const [voiceToken, setVoiceToken] = useState("");
+  // The CV. Required since 2026-09-10: over 42 applications only 6 carried one,
+  // and HR cannot shortlist without it. It is asked for **here** rather than on
+  // the screen after submitting, because the old ask sat behind the voice
+  // interview's consent step and half the applicants never reached it -- and
+  // not one of them ever pressed the "I do not have one" button that was
+  // blamed for the gap. This is the one screen everybody who applies sees.
+  const [cv, setCv] = useState<File | null>(null);
+  const cvInput = useRef<HTMLInputElement | null>(null);
+  // Set when the application saved but the file did not. The application is
+  // never held back for it -- losing the applicant's number to a failed upload
+  // would cost more than the CV.
+  const [cvLate, setCvLate] = useState(false);
+
+  function pickCv(file: File | null) {
+    // Backing out of the picker must not clear a file that is already chosen.
+    if (!file) return;
+    if (file.size > UPLOAD_LIMIT_BYTES && file.type !== "application/pdf"
+        && !file.type.startsWith("image/")) {
+      // A Word file cannot be shrunk in the browser, so an oversized one is
+      // reported now rather than after a Vercel 413 that arrives as plain
+      // text and loses its reason (lesson 24).
+      setErr(t.cvTooBig.replace("{size}", formatBytes(file.size))
+                       .replace("{max}", formatBytes(UPLOAD_LIMIT_BYTES)));
+      return;
+    }
+    setErr("");
+    setCv(file);
+    setBad((p) => p.filter((x) => x !== "cv"));
+  }
+
+  /** Sends the CV once the application has a token to hang it on. Returns
+   *  whether it landed; the caller shows the thank-you screen either way. */
+  async function sendCv(token: string, file: File): Promise<boolean> {
+    try {
+      // A phone camera shot is routinely over the 4.3 MB Vercel body limit and
+      // would never reach Heroku, so images are shrunk here first.
+      const small = await prepareIfImage(file);
+      if (small.size > UPLOAD_LIMIT_BYTES) return false;
+      const fd = new FormData();
+      fd.append("resume", small, small.name);
+      // No Content-Type header: setting it overwrites the multipart boundary
+      // and the server sees no file at all (lesson 23).
+      const res = await fetch(`/api/voice/${token}/resume`, { method: "POST", body: fd });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
 
   const set = (k: string, v: string) => {
     setForm((p) => ({ ...p, [k]: v }));
@@ -223,7 +288,15 @@ export default function ApplyPage() {
       if (!form.last_employer.trim()) missing.push("last_employer");
       if (!form.last_position.trim()) missing.push("last_position");
     }
-    if (missing.length) { setBad(missing); setErr(t.errRequired); return; }
+    if (!cv) missing.push("cv");
+    if (missing.length) {
+      setBad(missing);
+      // Named on its own line: "complete the highlighted fields" points at a
+      // dropdown, and an applicant who has filled every box in cannot tell
+      // that the thing still missing is a file.
+      setErr(missing.length === 1 && missing[0] === "cv" ? t.cvMissing : t.errRequired);
+      return;
+    }
 
     setBusy(true);
     try {
@@ -244,8 +317,14 @@ export default function ApplyPage() {
         else setErr(t.errNetwork);
         return;
       }
-      try { setVoiceToken(JSON.parse(await res.text())?.voice?.token || ""); }
-      catch { setVoiceToken(""); }
+      let token = "";
+      try { token = JSON.parse(await res.text())?.voice?.token || ""; }
+      catch { token = ""; }
+      setVoiceToken(token);
+      // The application is saved by this point. The CV goes up on the same
+      // press so nobody has to be asked twice, but a failure here only sets a
+      // note -- it must never turn a saved application into an error screen.
+      if (cv) setCvLate(!(token && await sendCv(token, cv)));
       setDone(true);
     } catch {
       setErr(t.errNetwork);
@@ -259,7 +338,12 @@ export default function ApplyPage() {
       <div className="py-10 text-center">
         <h1 className="text-2xl font-semibold text-white">{t.doneTitle}</h1>
         <p className="mt-3 text-sm leading-relaxed text-zinc-300">{t.doneBody}</p>
-        {voiceToken && <VoiceScreening token={voiceToken} lang={lang} />}
+        {cvLate && (
+          <p className="mx-auto mt-4 max-w-md rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">
+            {t.cvLate}
+          </p>
+        )}
+        {voiceToken && <VoiceScreening token={voiceToken} lang={lang} cvIn={!cvLate && !!cv} />}
 
         <button
           type="button"
@@ -274,6 +358,8 @@ export default function ApplyPage() {
               home_area: "", website: "",
             });
             setApps([]);
+            setCv(null);
+            setCvLate(false);
           }}
           className="mt-8 text-sm text-violet-300 underline"
         >
@@ -488,6 +574,37 @@ export default function ApplyPage() {
             value={form.notes} onChange={(e) => set("notes", e.target.value)}
             rows={3} maxLength={1000} className={FIELD}
           />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-sm text-zinc-300">
+            {t.cv}<span className="text-rose-400"> *</span>
+          </label>
+          <p className="mb-2 text-xs text-zinc-500">{t.cvHint}</p>
+          <input
+            ref={cvInput}
+            type="file"
+            className="hidden"
+            accept="application/pdf,image/*,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={(e) => pickCv(e.target.files?.[0] ?? null)}
+          />
+          {cv && (
+            <div className="mb-2 truncate rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-zinc-200">
+              ✓ {cv.name}
+              <span className="ml-2 text-zinc-500">{formatBytes(cv.size)}</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => cvInput.current?.click()}
+            className={`w-full rounded-xl border px-4 py-3 text-base text-white transition ${
+              cv ? "border-white/15 bg-white/5 hover:bg-white/10"
+                 : bad.includes("cv") ? `${BAD} bg-white/5`
+                 : "border-white/15 bg-white/5 hover:bg-white/10"}`}
+          >
+            {cv ? t.cvChange : t.cvPick}
+          </button>
+          <p className="mt-1.5 text-xs text-zinc-500">{t.cvWhere}</p>
         </div>
 
         {/* Honeypot. Off-screen rather than display:none, which some form-fillers

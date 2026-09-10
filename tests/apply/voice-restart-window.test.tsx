@@ -146,7 +146,7 @@ describe("agreeing while the API is restarting", () => {
     // Still on the consent screen — not on the CV step, and nowhere near
     // recording an answer the server would refuse.
     expect(screen.getByText("I understand and agree")).toBeTruthy();
-    expect(screen.queryByText("I do not have one — continue")).toBeNull();
+    expect(screen.queryByText("Attach your CV")).toBeNull();
   });
 
   it("does not move on when the request never left the phone", async () => {
@@ -161,7 +161,7 @@ describe("agreeing while the API is restarting", () => {
     fireEvent.click(await screen.findByText("I understand and agree"));
 
     expect(await screen.findByText(/Nothing is lost/)).toBeTruthy();
-    expect(screen.queryByText("I do not have one — continue")).toBeNull();
+    expect(screen.queryByText("Attach your CV")).toBeNull();
   });
 
   it("goes through when they press it again after the API is back", async () => {
@@ -172,7 +172,7 @@ describe("agreeing while the API is restarting", () => {
 
     fireEvent.click(screen.getByText("I understand and agree"));
 
-    expect(await screen.findByText("I do not have one — continue")).toBeTruthy();
+    expect(await screen.findByText("Attach your CV")).toBeTruthy();
     expect(consents).toBe(2);
   });
 
