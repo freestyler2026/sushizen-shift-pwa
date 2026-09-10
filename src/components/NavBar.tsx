@@ -292,6 +292,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/shift-audit", label: "Shift Audit Log", icon: History, adminOnly: true, match: "prefix" , cat: "shift" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" , cat: "ops" },
   { href: "/admin/back-office-activity", label: "BO 稼働状況", icon: Activity, adminOnly: true, match: "exact" , cat: "ops" },
+  { href: "/admin/work-evidence", label: "仕事の証拠", icon: Activity, adminOnly: true, match: "exact" , cat: "ops" },
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/prep-time", label: "Prep Time Review", icon: Timer, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/help", label: "Ask about the system", icon: HelpCircle, adminOnly: true, match: "prefix" , cat: "ops" },
@@ -511,7 +512,7 @@ export default function NavBar() {
     // that line would otherwise hand this page to every HQ and ADMIN in the
     // company, which is the opposite of what it is for. The menu is only the
     // convenience; the server enforces the same two names.
-    if (href === "/admin/back-office-activity") {
+    if (href === "/admin/back-office-activity" || href === "/admin/work-evidence") {
       return BACK_OFFICE_ACTIVITY_VIEWERS.includes(String(auth.staffName || "").trim());
     }
     if (role === "HQ" || role === "ADMIN") return true;
