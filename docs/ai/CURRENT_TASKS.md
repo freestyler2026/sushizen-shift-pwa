@@ -1,6 +1,50 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-10（履歴書は最後。録音の前に置いていた壁を撤去）
+Last updated: 2026-09-10（Emergency Request のバッジが取消済みを数えていた件を修正）
+
+## 2026-09-10（続き22） — Emergency Request のバッジが取消済みを数えていた
+
+植嶋からの報告：「Canceled / Void で確定しているリクエストがアラートの数に含まれている」。
+
+### 原因
+
+`count_emergency_requests_incomplete`（`app/db.py`）の除外が
+`('completed','rejected')` の2つだけ。status は8種類ある
+（`approved / rejected / completed / arranging / dispatched / received / cancelled / voided`）ので、
+**`cancelled` と `voided` が「まだ手を動かす必要がある」側に入っていた。**
+
+### 実測（修正前）
+
+| city | status | 件数 |
+|---|---|---:|
+| manila | cancelled | 3 |
+| manila | voided | 1 |
+| manila | approved | 2 |
+| manila | dispatched | 1 |
+
+**バッジ 7 → 修正後 3。**残る3件は #136 dispatched / #137・#138 approved で、いずれも本日分の実際に開いている依頼。
+
+### 画面側は最初から正しかった
+
+`/admin/emergency-requests` は Cancelled/Void を**独立したタブ**に分けており、
+`isOverdue()` も除外している。つまり壊れていたのは**サイドバーの数字だけ**で、
+**その数字と、押した先の一覧が食い違っていた**（教訓73）。
+
+### 直したこと
+
+終了状態を `_EPR_CLOSED` タプル1か所に置き、両方のクエリがそれを参照する。
+文字列を各クエリに書き写す形だと、status が増えたときにどれかが取り残される（教訓48）。
+
+### 確認
+
+- 本番で `count_emergency_requests_incomplete()` = 3 / manila 3 / dubai 0
+- 同じ形が他に無いか `status NOT IN (` を全走査 → 他は全て CANCELLED を除外済み。**この1か所だけ**
+- このバッジが見えるのは13名（HQ 4・ADMIN 7・MANILA_MANAGEMENT 1・MANILA_MANAGER 1）。植嶋は HQ なので見えている
+
+### 残っていること
+
+`/admin/emergency-requests` は CLAUDE.md のマニュアル自動更新テーブルに**載っていない**。
+今回は数字だけの修正なので更新不要だが、UIを変えるときは発動しない。
 
 ## ⚠️ 2026-09-10（続き21） — 必須化した履歴書が、録音の前に壁を作っていた
 
