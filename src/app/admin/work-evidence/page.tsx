@@ -57,7 +57,17 @@ type AreaRow = {
   sole_owner: string | null; top_share: number;
   contributors: { staff_name: string; outputs: number; share: number }[];
 };
+type RosterRow = {
+  staff_name: string; role: string; city: string;
+  coverage: string; coverage_label: string; why: string;
+  outputs: number; views: number; punch_minutes: number;
+  days_punched: number; days_punched_unobserved: number;
+};
 type Report = {
+  scope: string;
+  roster: RosterRow[]; roster_size: number;
+  coverage_labels: Record<string, string>;
+  out_of_scope: { staff_name: string; role: string; city: string; views: number; http_writes: number }[];
   start: string; end: string; city: string; timezone: string;
   log_started_at: string | null; unobserved_shifts: number;
   thresholds: Record<string, number>;
@@ -72,7 +82,7 @@ type Backlog = {
 };
 type Speed = {
   days: number; decisions: number;
-  people: { staff_name: string; role: string; decisions: number; approved: number; rejected: number; returned: number; median_hours: number; p90_hours: number; last_at: string | null }[];
+  people: { staff_name: string; role: string; decisions: number; approved: number; rejected: number; returned: number; median_hours: number; p90_hours: number; last_at: string | null; in_scope?: boolean }[];
 };
 type Redistribution = {
   sole_owner: { screen: string; outputs: number; staff_name: string; punch_minutes: number }[];
@@ -103,7 +113,7 @@ export default function WorkEvidencePage() {
   const [red, setRed] = useState<Redistribution | null>(null);
   const [bl, setBl] = useState<Backlog | null>(null);
   const [sp, setSp] = useState<Speed | null>(null);
-  const [tab, setTab] = useState<"people" | "areas" | "flags" | "hands">("hands");
+  const [tab, setTab] = useState<"people" | "areas" | "flags" | "hands" | "roster">("hands");
   const [open, setOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -209,7 +219,7 @@ export default function WorkEvidencePage() {
       )}
 
       <div className="flex gap-2">
-        {([["hands", `手元で止まっているもの${bl ? ` (${bl.unowned_total + bl.held_total})` : ""}`], ["flags", `確認が要る人${rep ? ` (${rep.flags.length})` : ""}`], ["people", "人ごと"], ["areas", "業務の分担"]] as const).map(([k, label]) => (
+        {([["hands", `手元で止まっているもの${bl ? ` (${bl.unowned_total + bl.held_total})` : ""}`], ["flags", `確認が要る人${rep ? ` (${rep.flags.length})` : ""}`], ["people", "人ごと"], ["roster", `名簿${rep ? ` (${rep.roster_size})` : ""}`], ["areas", "業務の分担"]] as const).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k as typeof tab)}
             className={`${SMALL_BUTTON} ${tab === k ? "ring-2 ring-cyan-400/60" : "opacity-70"}`}>
             {label}
@@ -280,6 +290,10 @@ export default function WorkEvidencePage() {
                   「読まずに承認している人」のどちらかで、この表はその区別をしません。
                   p90を並べているのは、<b>中央値だけだと触っていない山が隠れる</b>ためです。
                 </p>
+                <p className={`${T_CAPTION} mt-1`}>
+                  指定ロール以外の人も<b>消さずに「対象外」と付けて出します</b>。1,000件を捌いている人を
+                  表から消すと、キューが無人に見えるためです。
+                </p>
               </div>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-sm">
@@ -298,7 +312,10 @@ export default function WorkEvidencePage() {
                   <tbody>
                     {sp.people.map((r) => (
                       <tr key={r.staff_name} className={TABLE_ROW}>
-                        <td className="px-3 py-2">{r.staff_name}</td>
+                        <td className="px-3 py-2">
+                          {r.staff_name}
+                          {r.in_scope === false && <span className={`${T_CAPTION} ml-2`}>対象外</span>}
+                        </td>
                         <td className="px-3 py-2 text-right font-medium">{r.decisions}</td>
                         <td className="px-3 py-2 text-right opacity-70">{r.approved}</td>
                         <td className="px-3 py-2 text-right opacity-70">{r.rejected}</td>
@@ -362,6 +379,98 @@ export default function WorkEvidencePage() {
               {th.peer_output_per_day}件以上 ／ その画面を{th.views_to_call_it_their_screen}回以上開いている。
               いずれも `heroku config:set` で変更でき、デプロイは要りません。
             </p>
+          )}
+        </div>
+      )}
+
+      {/* ── 名簿 — 誰について語れて、誰について語れないか ─────────────── */}
+      {tab === "roster" && rep && (
+        <div className="space-y-5">
+          <div className={`${GLASS_CARD} p-4`}>
+            <h3 className={T_SECTION}>この画面が対象にしている {rep.roster_size} 名</h3>
+            <p className={`${T_CAPTION} mt-1`}>
+              HR Manager / Manila Manager / Admin / Inventory &amp; Purchasing / HR Staff の各ロールと、
+              名前で追加された3名。<b>OSでの作業が多い職種だけ</b>を対象にしています。
+              調理・配達・接客はOSに仕事がないので、ここには出しません。
+              名簿は「BO 稼働状況」と同じものを読んでいます — 2つの画面が別の名簿を持つと、
+              誰を見ているのかが静かに食い違うためです。
+            </p>
+            <p className={`${T_CAPTION} mt-2`}>
+              <b>成果ゼロの人も全員この表に出します。</b>「何も無かった」と「見ていない」は
+              違う答えで、黙って外すと後から区別できなくなります。
+            </p>
+          </div>
+
+          <div className={`${GLASS_CARD} overflow-hidden`}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className={TABLE_HEADER}>
+                  <tr>
+                    <th className="px-3 py-2 text-left">名前</th>
+                    <th className="px-3 py-2 text-left">ロール</th>
+                    <th className="px-3 py-2 text-right">成果</th>
+                    <th className="px-3 py-2 text-right">開いた</th>
+                    <th className="px-3 py-2 text-right">打刻</th>
+                    <th className="px-3 py-2 text-left">OSが言えたこと</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rep.roster.map((r) => (
+                    <tr key={r.staff_name} className={TABLE_ROW}>
+                      <td className="px-3 py-2 align-top">{r.staff_name}</td>
+                      <td className="px-3 py-2 align-top text-xs opacity-70">{r.role}</td>
+                      <td className="px-3 py-2 align-top text-right font-medium">{r.outputs || "—"}</td>
+                      <td className="px-3 py-2 align-top text-right opacity-70">{r.views || "—"}</td>
+                      <td className="px-3 py-2 align-top text-right">{hm(r.punch_minutes)}</td>
+                      <td className="px-3 py-2 align-top">
+                        <span className={
+                          r.coverage === "measured" ? "opacity-70"
+                            : r.coverage === "no_output_comparable" ? "text-amber-200"
+                            : "text-cyan-200"}>
+                          {r.coverage_label}
+                        </span>
+                        {r.why && <div className={`${T_CAPTION} mt-0.5`}>{r.why}</div>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {rep.out_of_scope.length > 0 && (
+            <div className={`${GLASS_CARD} p-4`}>
+              <h3 className={T_SECTION}>対象外だが、この期間OSを使った {rep.out_of_scope.length} 名</h3>
+              <p className={`${T_CAPTION} mt-1`}>
+                指定されたロール以外の人です。判定はしませんが、<b>何をしたかは出します</b> —
+                対象外にしたことと、記録が無いことは別だからです。
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className={TABLE_HEADER}>
+                    <tr>
+                      <th className="px-3 py-2 text-left">名前</th>
+                      <th className="px-3 py-2 text-left">ロール</th>
+                      <th className="px-3 py-2 text-right">書き込み</th>
+                      <th className="px-3 py-2 text-right">開いた</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rep.out_of_scope.slice(0, 30).map((o) => (
+                      <tr key={o.staff_name} className={TABLE_ROW}>
+                        <td className="px-3 py-2">{o.staff_name}</td>
+                        <td className="px-3 py-2 text-xs opacity-70">{o.role}</td>
+                        <td className="px-3 py-2 text-right">{o.http_writes || "—"}</td>
+                        <td className="px-3 py-2 text-right opacity-70">{o.views || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {rep.out_of_scope.length > 30 && (
+                <p className={`${T_CAPTION} mt-2`}>ほか {rep.out_of_scope.length - 30} 名。</p>
+              )}
+            </div>
           )}
         </div>
       )}

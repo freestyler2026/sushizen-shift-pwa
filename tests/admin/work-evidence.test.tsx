@@ -52,6 +52,31 @@ function report(over: Record<string, unknown> = {}) {
       outside_shift_grace_minutes: 30, outside_shift_share: 0.5,
       outside_shift_min_outputs: 3,
     },
+    scope: "evaluated",
+    roster_size: 3,
+    coverage_labels: {
+      measured: "変えた記録がある",
+      no_output_comparable: "成果ゼロ・比較できる相手がいる",
+      no_comparison: "成果ゼロだが、同じ画面を使う相手がいない — OSは何も言えない",
+      never_opened: "打刻はあるがOSを開いていない",
+      unwatched: "記録が始まる前の勤務しかない",
+      absent: "この期間、打刻もOSの記録もない",
+    },
+    roster: [
+      { staff_name: "Test Person", role: "ADMIN", city: "manila", coverage: "no_output_comparable",
+        coverage_label: "成果ゼロ・比較できる相手がいる", why: "", outputs: 0, views: 21,
+        punch_minutes: 960, days_punched: 2, days_punched_unobserved: 1 },
+      { staff_name: "Karen Jane Borja", role: "INVENTORY_PURCHASING", city: "manila", coverage: "no_comparison",
+        coverage_label: "成果ゼロだが、同じ画面を使う相手がいない — OSは何も言えない",
+        why: "開いたのは /attendance, /my-shift で、この期間どれも誰も成果を出していない画面です（打刻・自分のシフトなど）。比較する相手がいません。",
+        outputs: 0, views: 12, punch_minutes: 1170, days_punched: 2, days_punched_unobserved: 0 },
+      { staff_name: "Peter Villafuerte", role: "HR_MANAGER", city: "manila", coverage: "measured",
+        coverage_label: "変えた記録がある", why: "", outputs: 83, views: 127,
+        punch_minutes: 1200, days_punched: 2, days_punched_unobserved: 0 },
+    ],
+    out_of_scope: [
+      { staff_name: "Victoria Lim", role: "CK_MANILA", city: "manila", views: 16, http_writes: 35 },
+    ],
     totals: { people: 2, outputs: 147, views: 300, areas: 5 },
     people: [person({ staff_name: "Peter Villafuerte", role: "HR_MANAGER", outputs: 147,
       output_areas: [{ screen: "/admin/hr/recruitment", outputs: 147 }],
@@ -282,6 +307,49 @@ describe("what is in whose hands", () => {
     render(<WorkEvidencePage />);
     expect(await screen.findByText(/名前のついた手元/)).toBeTruthy();
     expect(screen.getByText("該当なし")).toBeTruthy();
+  });
+});
+
+describe("who this page is about", () => {
+  it("names the roles it covers", async () => {
+    render(<WorkEvidencePage />);
+    await openTab("名簿");
+    expect(await screen.findByText(/Inventory & Purchasing/)).toBeTruthy();
+  });
+
+  it("says why cooks and drivers are not on it", async () => {
+    render(<WorkEvidencePage />);
+    await openTab("名簿");
+    expect(await screen.findByText(/調理・配達・接客はOSに仕事がないので/)).toBeTruthy();
+  });
+
+  it("lists a person the OS could say nothing about, with the reason", async () => {
+    render(<WorkEvidencePage />);
+    await openTab("名簿");
+    const row = (await screen.findByText("Karen Jane Borja")).closest("tr")!;
+    expect(within(row).getByText(/OSは何も言えない/)).toBeTruthy();
+    expect(within(row).getByText(/誰も成果を出していない画面です/)).toBeTruthy();
+  });
+
+  it("keeps people with zero output on the list instead of dropping them", async () => {
+    render(<WorkEvidencePage />);
+    await openTab("名簿");
+    expect(await screen.findByText(/「何も無かった」と「見ていない」は/)).toBeTruthy();
+    expect(screen.getByText("Karen Jane Borja")).toBeTruthy();
+  });
+
+  it("shows what somebody out of scope did, rather than hiding them", async () => {
+    render(<WorkEvidencePage />);
+    await openTab("名簿");
+    const row = (await screen.findByText("Victoria Lim")).closest("tr")!;
+    expect(within(row).getByText("35")).toBeTruthy();
+  });
+
+  it("marks an out-of-scope decider on the speed table instead of deleting the row", async () => {
+    serve(report(), { sp: { ...speed, people: [{ ...speed.people[0], in_scope: false }] } });
+    render(<WorkEvidencePage />);
+    const row = (await screen.findAllByText("Cyrine Fernandez"))[0].closest("tr")!;
+    expect(within(row).getByText("対象外")).toBeTruthy();
   });
 });
 
