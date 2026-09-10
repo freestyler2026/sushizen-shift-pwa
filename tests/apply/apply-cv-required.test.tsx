@@ -3,10 +3,11 @@
 // The CV is required, and it is asked for **on the form**.
 //
 // It used to be offered on the screen after submitting, behind the voice
-// interview's consent step, and it said "optional". Over 42 applications six
-// carried a CV. Not one applicant ever pressed "I do not have one" — half of
-// them never reached the step at all, because half never consented. So the
-// button was never the leak, and removing it alone would have changed nothing.
+// interview's consent step, and it said "optional". Of the 22 applications
+// that arrived while that step existed, 11 never consented and so never saw
+// it; of the 11 who did, 6 attached a CV. Not one applicant has ever pressed
+// "I do not have one". So the button was never the leak, and removing it
+// alone would have changed nothing — the step was in the wrong place.
 // These tests pin the two things that actually make the difference: the form
 // will not send without a file, and the file goes up on the same press.
 import React from "react";

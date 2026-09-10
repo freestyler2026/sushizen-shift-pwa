@@ -216,12 +216,14 @@ export default function ApplyPage() {
   // storage folder is not configured -- then nothing is offered, rather than
   // asking someone to record into nowhere.
   const [voiceToken, setVoiceToken] = useState("");
-  // The CV. Required since 2026-09-10: over 42 applications only 6 carried one,
-  // and HR cannot shortlist without it. It is asked for **here** rather than on
-  // the screen after submitting, because the old ask sat behind the voice
-  // interview's consent step and half the applicants never reached it -- and
-  // not one of them ever pressed the "I do not have one" button that was
-  // blamed for the gap. This is the one screen everybody who applies sees.
+  // The CV. Required since 2026-09-10, because HR cannot shortlist without it.
+  // It is asked for **here** rather than on the screen after submitting: the
+  // old ask sat behind the voice interview's consent step, and of the 22
+  // applications that arrived while that step existed, 11 never consented and
+  // so were never shown it. Not one applicant has ever pressed the "I do not
+  // have one" button that was blamed for the gap -- of the 11 who did reach
+  // the step, 6 attached a CV. The problem was where it was asked, not that
+  // there was a way out. This is the one screen everybody who applies sees.
   const [cv, setCv] = useState<File | null>(null);
   const cvInput = useRef<HTMLInputElement | null>(null);
   // Set when the application saved but the file did not. The application is

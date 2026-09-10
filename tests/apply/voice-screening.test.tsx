@@ -146,8 +146,9 @@ describe("voice screening on a phone", () => {
   it("asks for the CV after consent when none is in, and offers no way past it", async () => {
     await renderVoice(loaded(), { startAt: "consent", cvIn: false });
     fireEvent.click(screen.getByText("I understand and agree"));
-    // Required since 2026-09-10. HR cannot shortlist without it, and of 42
-    // applications only 6 carried one while the step said "optional".
+    // Required since 2026-09-10. HR cannot shortlist without it, and while
+    // this step said "optional" it sat behind consent, where half the
+    // applicants never reached it.
     expect(await screen.findByText("Attach your CV")).toBeTruthy();
     expect(screen.queryByText(/optional/i)).toBeNull();
     // The old skip is gone. Nothing here reaches the microphone.
