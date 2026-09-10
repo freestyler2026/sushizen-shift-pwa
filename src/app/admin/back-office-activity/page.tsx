@@ -301,17 +301,13 @@ export default function BackOfficeActivityPage() {
           <li><strong>Inventory &amp; Purchasing は店舗勤務です。</strong>1日の大半は売場で、
             ここではありません。実働が短いのが彼らの通常です。<strong>事務所の行と比べず、
             彼ら同士で比べてください。</strong></li>
-          {/* Added when the three HQ names joined the roster. Their day is
-              measured on the Dubai clock and their work is spread across two
-              timezones, so a gap of several hours is their normal shape --
-              LONG_IDLE would fire on them almost every day and stop meaning
-              anything, the way an alert on every row does. Said here rather
-              than in a comment, because the reader is here. */}
-          <li><strong>HQ の3名（Yuri Yamada・Yusuke Uejima・Ayako Nishimura）は
-            ドバイ時間で働いています。</strong>マニラより4時間遅く1日が終わるので、
-            <strong>判定が出るのも4時間遅れます</strong>（数字は先に出ます）。
-            また2つの時間帯にまたがって働くため、<strong>数時間の空白は彼らの通常です。</strong>
-            「長時間の空白」を彼らの行で読むときは、事務所の行と同じ意味に取らないでください。</li>
+          {/* The three HQ names work in Manila, though the roster registers
+              them under the Dubai entity. The whole page is measured on
+              Manila time for everybody, so the half-hour bars can be read
+              down the column. An earlier note here said their verdict
+              arrived four hours late; that was true of the Dubai clock and
+              is no longer true of anything, so it is gone rather than left
+              to be believed. */}
           <li>閲覧と変更は<strong>サーバーが観測</strong>しています。画面数だけは
             <strong>ブラウザからの申告</strong>なので、<strong>本人がクリックして水増しできる唯一の数字</strong>です。
             判断は実働時間と変更内容で行ってください。</li>
@@ -352,7 +348,7 @@ export default function BackOfficeActivityPage() {
             <thead>
               <tr>
                 {["対象者", "ログイン", "最後の操作", "打刻", "実働", "最長の空白",
-                  "画面", "閲覧", "変更", "1日の推移", ""].map((h) => (
+                  "画面 回/種", "閲覧", "変更", "1日の推移", ""].map((h) => (
                   <th key={h} className={`${TABLE_HEADER} px-4 text-left`}>{h}</th>
                 ))}
               </tr>
@@ -436,7 +432,20 @@ export default function BackOfficeActivityPage() {
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold tabular-nums text-white">{hm(r.active_minutes, !r.unrecorded)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-400">{hm(r.longest_idle_minutes, !r.unrecorded)}</td>
-                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{num(r.screens, !r.unrecorded)}</td>
+                    {/* Views and distinct screens are different questions and
+                        were being answered with one number. Alex Delgado's
+                        2026-09-10 read "9", which is nine views of three
+                        screens -- and nine screens is what a reader takes from
+                        it. Opening the same page nine times is the shape this
+                        page is looking for, so the two have to be separable. */}
+                    <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">
+                      {r.unrecorded ? "—" : (
+                        <span title={`${r.screens} 回開き、種類は ${r.distinct_screens} つ`}>
+                          {r.screens}
+                          <span className="text-zinc-500"> / {r.distinct_screens}種</span>
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{num(r.reads, !r.unrecorded)}</td>
                     <td className="px-4 py-3 text-sm tabular-nums text-zinc-300">{num(r.writes, !r.unrecorded)}</td>
                     <td className="w-52 px-4 py-3"><Strip buckets={r.buckets} shift={r.shift} /></td>

@@ -232,19 +232,17 @@ describe("what the page refuses to claim", () => {
     await renderPage();
     expect(await screen.findByText(/その人の1日が終わるまで、フラグは1つも出しません/)).toBeTruthy();
   });
-  it("warns that the three HQ rows run on a different clock", async () => {
-    // They joined the roster on 2026-09-10. Their day is measured on the Dubai
-    // clock, so a verdict arrives four hours after everyone else's, and a gap
-    // of hours is their ordinary shape rather than a finding. A reader who
-    // takes "long idle" on their row to mean what it means on an office row
-    // has been misled by the page.
+  it("does not claim the HQ rows are on another clock — they work in Manila", async () => {
+    // This used to assert the opposite. The three HQ names are registered
+    // under the Dubai entity but work in Manila, so the page measures the
+    // whole report on Manila time and the note about a verdict arriving four
+    // hours late was true of nothing. A caveat nobody can act on is worse
+    // than none, and this one would have been quietly wrong.
     await renderPage();
     const panel = await screen.findByText(/行を根拠にする前に読んでください/);
-    const box = panel.parentElement!;
-    expect(box.textContent).toMatch(/ドバイ時間で働いています/);
-    expect(box.textContent).toMatch(/判定が出るのも4時間遅れます/);
-    expect(box.textContent).toMatch(/数時間の空白は彼らの通常です/);
+    expect(panel.parentElement!.textContent).not.toMatch(/判定が出るのも4時間遅れます/);
   });
+
   it("marks a login time that is really the first action of a carried-over session", async () => {
     // Sessions outlive the date they start on, so anybody whose shift ends
     // after midnight has no sign-in on the next date. The row still shows a
@@ -300,5 +298,31 @@ describe("what the page refuses to claim", () => {
     await renderPage();
     expect(await screen.findByText("Half Punch")).toBeTruthy();
     expect(screen.getByTitle("この日の打刻がありません")).toBeTruthy();
+  });
+  it("separates how many times a screen was opened from how many screens", async () => {
+    // One number was answering two questions. Alex Delgado's 2026-09-10 read
+    // "9" -- nine views of three screens -- and nine screens is what a reader
+    // takes from that. Opening the same page nine times is exactly the shape
+    // this page is looking for, so it must not hide behind the same figure.
+    mockGetAuth.mockReturnValue({ staffName: "Yukihiro Nishimura", role: "HQ" });
+    mockFetch.mockImplementation(() => ok(report([
+      row({ staff_name: "Nine Views", screens: 9, distinct_screens: 3, flags: [] }),
+    ])));
+    await renderPage();
+    expect(await screen.findByText("Nine Views")).toBeTruthy();
+    expect(screen.getByTitle("9 回開き、種類は 3 つ")).toBeTruthy();
+    expect(screen.getByText(/\/ 3種/)).toBeTruthy();
+  });
+
+  it("still says nothing at all about a date it never watched", async () => {
+    mockGetAuth.mockReturnValue({ staffName: "Yukihiro Nishimura", role: "HQ" });
+    mockFetch.mockImplementation(() => ok(report([
+      row({ staff_name: "Before Recording", unrecorded: true, screens: 0,
+            distinct_screens: 0, flags: [] }),
+    ])));
+    await renderPage();
+    expect(await screen.findByText("Before Recording")).toBeTruthy();
+    // 0 would be a claim about the person; the dash is a statement about us.
+    expect(screen.queryByText("/ 0種")).toBeNull();
   });
 });
