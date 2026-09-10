@@ -584,7 +584,12 @@ export default function VoiceScreening({
       const cvSettled = !!(d.resume?.uploaded || d.resume?.skipped);
       if (d.resume?.uploaded) setCvDone(true);
       if (d.resume?.skipped) setCvSkipped(true);
-      if (d.consent_given && first >= 0) setStage(cvSettled ? "record" : "resume");
+      // Where somebody re-opening their link lands. The CV never stands in
+      // front of unanswered questions -- only after the last one, and only
+      // when they still owe us one. Getting this wrong is the same defect as
+      // sending them there from consent: the wall just moves to the reload.
+      if (d.consent_given && first >= 0) setStage("record");
+      else if (d.consent_given && !cvSettled) setStage("resume");
       // An invite link opens at the consent screen, so somebody who arrived
       // that way would never be shown the company video at all -- and that is
       // most people, because the link is what gets sent over Messenger.

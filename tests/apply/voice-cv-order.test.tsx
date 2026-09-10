@@ -137,4 +137,37 @@ describe("where the CV sits in the interview", () => {
     expect(await screen.findByText("All done")).toBeTruthy();
     expect(screen.queryByText(/your CV/i)).toBeNull();
   });
+  it("puts a returning applicant back on the questions, not on the CV", async () => {
+    // Found by opening the live link rather than by reasoning about it: the
+    // reload path had its own copy of the old order, so consenting, closing
+    // the tab and re-opening it walked straight back into the wall.
+    mockFetch.mockImplementation((url: unknown) => {
+      const u = String(url);
+      calls.push(u);
+      if (u === "/api/voice/tok") {
+        return reply(200, { ...invited(), consent_given: true, answered: [1] });
+      }
+      return reply(200, {});
+    });
+    const Voice = (await import("@/components/apply/VoiceScreening")).default;
+    render(<Voice token="tok" lang="en" startAt="consent" />);
+
+    expect(await screen.findByText(/Hardest thing at work/)).toBeTruthy();
+    expect(screen.queryByText(/your CV/i)).toBeNull();
+  });
+
+  it("does put a returning applicant on the CV once every answer is in", async () => {
+    mockFetch.mockImplementation((url: unknown) => {
+      const u = String(url);
+      calls.push(u);
+      if (u === "/api/voice/tok") {
+        return reply(200, { ...invited(), consent_given: true, answered: [1, 2] });
+      }
+      return reply(200, {});
+    });
+    const Voice = (await import("@/components/apply/VoiceScreening")).default;
+    render(<Voice token="tok" lang="en" startAt="consent" />);
+
+    expect(await screen.findByText("One last thing — your CV")).toBeTruthy();
+  });
 });
