@@ -33,6 +33,11 @@ interface ParLevelRow {
   catalog_unit?: string | null;
   qty_convertible?: boolean;
   qty_factor?: number | null;
+  // How big one counting unit is, when it is not itself a measure. CK counts
+  // Beef Short Plate in Block and buys it in KG; one block is 5kg. Without
+  // this the order quantity has to be typed by hand every single time.
+  unit_size?: number | null;
+  unit_size_uom?: string | null;
   price_source?: string | null;
   // 発注カタログでの品名。item_name とは別に持つ — item_name は棚卸しの鍵で、
   // 変えると現在庫が引けなくなり、その品が発注対象から消える。
@@ -59,6 +64,9 @@ interface OrderLine {
   orderUnit: string;
   needQty: number;        // Par Level の単位での必要量（換算できないときの表示用）
   needUnit: string;
+  // 換算が効いた行の倍率。表示のためだけに持つ — 数量がどこから来たかを
+  // 画面に出さないと、10 という数字を人が検算できない。
+  factor?: number | null;
   askQty: boolean;
   // Picked from the catalogue rather than derived from a par level. Marked so
   // the row can say where it came from — it has no par − stock to show.
@@ -174,6 +182,13 @@ export default function CkParLevelsPage() {
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [unitValue, setUnitValue] = useState<string>("");
   const [savingUnit, setSavingUnit] = useState(false);
+
+  // "1 BLOCK = 5 KG" — how big the counting unit is, for the items that are
+  // counted in something the catalogue does not sell in.
+  const [editingSizeId, setEditingSizeId] = useState<string | null>(null);
+  const [sizeValue, setSizeValue] = useState<string>("");
+  const [sizeUom, setSizeUom] = useState<string>("");
+  const [savingSize, setSavingSize] = useState(false);
 
   // add item modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -375,6 +390,59 @@ export default function CkParLevelsPage() {
       alert(e.message || "Error exporting template");
     } finally {
       setExportingTemplate(false);
+    }
+  };
+
+  /** Rows where saying how big the counting unit is would change something:
+   *  we know the price and the order unit, that unit is different from the one
+   *  the kitchen counts in, and nothing bridges them today. Anywhere else the
+   *  prompt would be noise — the quantity already fills itself in. */
+  const needsSize = (r: ParLevelRow) =>
+    !r.qty_convertible
+    && Number(r.catalog_unit_price ?? 0) > 0
+    && !!(r.catalog_unit || "").trim()
+    && (r.catalog_unit || "").trim().toLowerCase() !== (r.unit || "").trim().toLowerCase();
+
+  // ── counting-unit size inline save ───────────────────────────────────────
+  /** "1 <unit> = size <uom>". Sending an empty size clears both, which puts
+   *  the row back to needing a typed quantity — the honest state when nobody
+   *  has said how big a Block is. */
+  const saveSize = async (row: ParLevelRow, size: string, uom: string) => {
+    const n = Number(size);
+    const clearing = size.trim() === "";
+    if (!clearing && (!Number.isFinite(n) || n <= 0)) {
+      alert("Enter how many of the measure make up one " + (row.unit || "unit") + ".");
+      return;
+    }
+    if (!clearing && !uom.trim()) {
+      alert("Say which measure — kg, g, L or ml.");
+      return;
+    }
+    setSavingSize(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({
+            unit_size: clearing ? null : n,
+            unit_size_uom: clearing ? null : uom.trim().toUpperCase(),
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Save failed");
+      // Reload rather than patching the row: the conversion factor and the
+      // order quantity are worked out on the server, and a locally patched
+      // row would show the new size beside the old quantity.
+      setEditingSizeId(null);
+      await loadRows();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSavingSize(false);
     }
   };
 
@@ -659,6 +727,7 @@ export default function CkParLevelsPage() {
           orderUnit,
           needQty: suggested,
           needUnit: item.unit || "",
+          factor: factor !== null && factor !== 1 ? factor : null,
           askQty,
           qty: askQty ? "" : String(factor !== null ? +(suggested * factor).toFixed(3) : suggested),
           suggested,
@@ -1238,6 +1307,75 @@ export default function CkParLevelsPage() {
                               {row.unit || "—"}
                             </button>
                           )}
+
+                          {/* How big one of those is, when the unit is a thing
+                              you count rather than a thing you measure. Shown
+                              under the unit because that is what it explains.
+                              Only ever offered when it would change something:
+                              a row that already converts needs nothing. */}
+                          {editingSizeId === row.id ? (
+                            <div className="mt-1 flex items-center justify-center gap-1">
+                              <span className="text-[10px] text-zinc-500">1 {row.unit || "unit"} =</span>
+                              <input
+                                type="number" step="0.001" min="0"
+                                value={sizeValue}
+                                onChange={(e) => setSizeValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") void saveSize(row, sizeValue, sizeUom);
+                                  if (e.key === "Escape") setEditingSizeId(null);
+                                }}
+                                autoFocus
+                                aria-label={`How many measures make one ${row.unit || "unit"}`}
+                                placeholder="5"
+                                className="w-12 rounded-lg bg-white/10 px-1 py-0.5 text-center text-xs text-white border border-teal-500/50 outline-none"
+                              />
+                              <input
+                                type="text"
+                                value={sizeUom}
+                                onChange={(e) => setSizeUom(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") void saveSize(row, sizeValue, sizeUom);
+                                  if (e.key === "Escape") setEditingSizeId(null);
+                                }}
+                                aria-label="Measure"
+                                placeholder="kg"
+                                className="w-10 rounded-lg bg-white/10 px-1 py-0.5 text-center text-xs text-white border border-teal-500/50 outline-none"
+                              />
+                              <button
+                                onClick={() => void saveSize(row, sizeValue, sizeUom)}
+                                disabled={savingSize}
+                                className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-teal-500/20 text-teal-300 hover:bg-teal-500/35 disabled:opacity-60"
+                              >{savingSize ? "…" : "✓"}</button>
+                              <button
+                                onClick={() => setEditingSizeId(null)}
+                                className="rounded px-1.5 py-0.5 text-[10px] bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/35"
+                              >✕</button>
+                            </div>
+                          ) : row.unit_size && row.unit_size_uom ? (
+                            <button
+                              onClick={() => {
+                                setEditingSizeId(row.id);
+                                setSizeValue(String(row.unit_size ?? ""));
+                                setSizeUom(row.unit_size_uom || "");
+                              }}
+                              className="mt-0.5 block w-full rounded px-1 text-[10px] text-teal-300/80 hover:bg-teal-500/10 hover:text-teal-200"
+                              title="Click to change. The order quantity is worked out from this."
+                            >
+                              1 {row.unit} = {fmtNum(row.unit_size)} {row.unit_size_uom}
+                            </button>
+                          ) : needsSize(row) ? (
+                            <button
+                              onClick={() => {
+                                setEditingSizeId(row.id);
+                                setSizeValue("");
+                                setSizeUom(row.catalog_unit || "");
+                              }}
+                              className="mt-0.5 block w-full rounded px-1 text-[10px] text-orange-300/90 hover:bg-orange-500/10"
+                              title={`Bought in ${row.catalog_unit}, counted in ${row.unit}. Say how many ${row.catalog_unit} make one ${row.unit} and the order quantity fills itself in.`}
+                            >
+                              + how many {row.catalog_unit} in 1 {row.unit}?
+                            </button>
+                          ) : null}
                         </td>
 
                         {/* Par Level — inline editable */}
@@ -1629,6 +1767,12 @@ export default function CkParLevelsPage() {
                               ) : line.askQty ? (
                                 <div className="mt-0.5 text-[10px] text-orange-300/90">
                                   need {fmtNum(line.needQty)} {line.needUnit} — enter {line.orderUnit}
+                                </div>
+                              ) : line.factor && qtyOf(line) === +(line.suggested * line.factor).toFixed(3) ? (
+                                // Where the number came from. 10 KG is not a
+                                // number anybody can check; "2 BLOCK × 5" is.
+                                <div className="mt-0.5 text-[10px] text-zinc-500">
+                                  {fmtNum(line.suggested)} {line.needUnit} × {fmtNum(line.factor)}
                                 </div>
                               ) : qtyOf(line) !== line.suggested ? (
                                 <div className="mt-0.5 text-[10px] text-zinc-500">
