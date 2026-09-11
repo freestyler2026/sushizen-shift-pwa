@@ -153,6 +153,9 @@ export default function MorningReviewPage() {
   /** HQ carries both cities and covers for managers, so "mine" is not the only
       question they have. Everyone else only ever sees their own. */
   const [scope, setScope] = useState<Scope>("mine");
+  /** What the server holds, which is not always what it sent. The navigation
+      badge counts the first number; this page used to render the second. */
+  const [total, setTotal] = useState(0);
   const isHQ = ["HQ", "ADMIN"].includes(String(auth?.role || "").toUpperCase());
 
   const loadList = useCallback(async () => {
@@ -174,6 +177,7 @@ export default function MorningReviewPage() {
       }
       const d = await res.json();
       setRows(d.reviews || []);
+      setTotal(Number(d.total ?? (d.reviews || []).length));
       if ((d.reviews || []).length) await loadOne(d.reviews[0].id);
       else setReview(null);
     } catch {
@@ -351,6 +355,12 @@ export default function MorningReviewPage() {
             ))}
           </div>
         )}
+
+      {total > rows.length && (
+        <p className={`${T_CAPTION} mb-2 text-amber-300/90`}>
+          Showing the {rows.length} oldest of {total}. The badge counts all {total}.
+        </p>
+      )}
 
       {rows.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2">
