@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Check,
+  Plus,
   RefreshCw,
   Save,
   Sparkles,
@@ -57,6 +58,24 @@ interface ParLevel {
   reason?: string;
   obs_days?: number;
   days_below?: number;
+  /** The shifts this row does NOT govern, with what they reported. A par with
+      no shift is checked against the closing report only; the morning report
+      every branch files daily had nothing to compare against and no way to
+      say so. Only the plain row carries these. */
+  other_shifts?: OtherShift[];
+}
+
+interface OtherShift {
+  shift: string;
+  obs_days: number;
+  obs_min: number;
+  obs_median: number;
+  obs_max: number;
+  obs_unit: string;
+  comparable: boolean;
+  /** How many of those days this par would have alerted on. null when the
+      units do not line up, which is the one case the alert would skip too. */
+  days_below: number | null;
 }
 
 type Verdict = "no_par" | "unit_mixed" | "unit_mismatch" | "too_high" | "no_data" | "thin" | "consistent";
@@ -75,6 +94,20 @@ const VERDICT_STYLE: Record<Verdict, { label: string; cls: string }> = {
   thin:          { label: "Thin history", cls: "text-amber-300 bg-amber-500/12 border-amber-500/25" },
   consistent:    { label: "Matches",      cls: "text-emerald-300 bg-emerald-500/12 border-emerald-500/25" },
 };
+
+/** Which reports a row is graded against. Shown on every row, not only the
+    scoped ones: the reason a 33%-of-par morning report raised nothing was that
+    "closing only" was the default and the screen never said it. */
+function scopeLabel(r: { shift: string; day_type: string }) {
+  const shift = (r.shift || "").trim() || "closing";
+  const day = (r.day_type || "").trim();
+  const name = shift.charAt(0).toUpperCase() + shift.slice(1);
+  return day ? `${name} · ${day}` : name;
+}
+
+function titleCase(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function fmt(n: number | null | undefined) {
   if (n === null || n === undefined) return "—";
@@ -211,8 +244,69 @@ export default function ParLevelsPage() {
     await writeRow(row, row.par_qty, "Confirm");
   }
 
+  /** Create a par for a shift this item is not checked on. The number is the
+      reviewer's, defaulted to the closing par; the new row then carries its own
+      evidence for that shift and sorts to the top if it would cry wolf. */
+  async function addShiftPar(row: ParLevel, sc: OtherShift) {
+    const heard =
+      sc.comparable && sc.days_below !== null
+        ? `On ${sc.shift} this branch reported ${fmt(sc.obs_min)} / ${fmt(sc.obs_median)} / ` +
+          `${fmt(sc.obs_max)} ${sc.obs_unit} over ${sc.obs_days} days.\n` +
+          `At ${fmt(row.par_qty)} ${row.unit} that is ${sc.days_below} alert(s) ` +
+          `in those ${sc.obs_days} days.\n\n`
+        : `On ${sc.shift} this branch reported ${fmt(sc.obs_min)} / ${fmt(sc.obs_median)} / ` +
+          `${fmt(sc.obs_max)} ${sc.obs_unit} over ${sc.obs_days} days.\n\n`;
+    const raw = prompt(
+      `Check ${row.item_name} at ${row.branch_code} on the ${sc.shift} report too.\n\n` +
+        heard +
+        `Par for ${sc.shift} (${row.unit}):`,
+      String(row.par_qty),
+    );
+    if (raw === null) return;
+    const value = Number(raw);
+    if (!raw.trim() || !Number.isFinite(value) || value <= 0) {
+      setBanner({ kind: "err", text: "Par level must be a number greater than 0." });
+      return;
+    }
+    setSavingId(row.id);
+    try {
+      const auth = getAuth();
+      const res = await fetch("/api/admin/management/par-levels", {
+        method: "POST",
+        headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city: row.city,
+          branch_code: row.branch_code,
+          item_name: row.item_name,
+          section: row.section,
+          unit: row.unit,
+          par_qty: value,
+          updated_by: auth?.staffName || null,
+          shift: sc.shift,
+          // Every day. A weekday/weekend split is a second decision and is not
+          // one this button should make on the reviewer's behalf.
+          day_type: "",
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setBanner({
+        kind: "ok",
+        text:
+          `${row.item_name} at ${row.branch_code} is now checked on the ${sc.shift} ` +
+          `report as well, at ${fmt(value)} ${row.unit}. Remove that row to stop it.`,
+      });
+      await load();
+    } catch (e) {
+      setBanner({ kind: "err", text: `Could not add the ${sc.shift} par: ${e}` });
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   async function removeRow(row: ParLevel) {
-    if (!confirm(`Remove the par level for ${row.item_name} at ${row.branch_code}?\n\nNo alert will fire for this item until a new one is set.`)) return;
+    if (!confirm(
+      `Remove the ${scopeLabel(row).toLowerCase()} par for ${row.item_name} at ${row.branch_code}?\n\n` +
+      `No alert will fire for this item on that report until a new one is set.`)) return;
     try {
       const res = await fetch(`/api/admin/management/par-levels/${row.id}`, {
         method: "DELETE",
@@ -249,6 +343,23 @@ export default function ParLevelsPage() {
       a.branch_code.localeCompare(b.branch_code) ||
       a.item_name.localeCompare(b.item_name));
   }, [rows, branchFilter, query]);
+
+  /** Shifts that are reporting below this par and are not checked against it.
+      Only these are offered: a shift the same par would never have fired on
+      does not need a button, and 216 rows each sprouting three is the noise
+      this screen exists to prevent. */
+  const uncovered = useCallback(
+    (r: ParLevel) =>
+      (r.other_shifts || []).filter(
+        (sc) => sc.comparable && (sc.days_below ?? 0) > 0,
+      ),
+    [],
+  );
+
+  const unchecked = useMemo(
+    () => rows.filter((r) => uncovered(r).length > 0).length,
+    [rows, uncovered],
+  );
 
   const unreviewed = rows.filter((r) => r.source === "seeded_median").length;
   const matching = rows.filter(
@@ -295,9 +406,14 @@ export default function ParLevelsPage() {
         <div>
           <h1 className={T_PAGE_TITLE}>Backup Par Levels</h1>
           <p className={T_BODY + " mt-1 max-w-2xl"}>
-            The quantity each branch is expected to hold at closing. A submitted backup
-            report below 70% of this raises a caution for the manager; below 50% raises a
-            critical alert.
+            The quantity each branch is expected to hold. Below 70% of it raises a
+            caution for the manager; below 50% raises a critical alert.{" "}
+            <strong className="text-zinc-200">
+              A par is checked against one shift only — the closing report unless the row
+              says otherwise.
+            </strong>{" "}
+            The “Checked on” column says which, on every row. Where another shift has
+            been reporting below this number, the row offers to check that shift too.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -315,7 +431,7 @@ export default function ParLevelsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Items with a par</div>
           <div className={KPI_VALUE}>{rows.length}</div>
@@ -323,6 +439,18 @@ export default function ParLevelsPage() {
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Branches</div>
           <div className={KPI_VALUE}>{branches.length}</div>
+        </div>
+        {/* The gap the store reported: a shift is filing reports below this
+            par and nothing is measuring them. Counted, not just available on
+            the row, because nobody scrolls 216 rows to discover it. */}
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Another shift is short</div>
+          <div className={KPI_VALUE + (unchecked ? " text-orange-300" : "")}>{unchecked}</div>
+          {unchecked ? (
+            <div className="text-[11px] text-zinc-500 mt-1">
+              not checked on that report yet
+            </div>
+          ) : null}
         </div>
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Not yet reviewed</div>
@@ -422,9 +550,9 @@ export default function ParLevelsPage() {
                 {/* The rule, on the screen. A threshold nobody can see is a
                     threshold nobody trusts. */}
                 Sorted worst first. Figures are the lowest / middle / highest daily total
-                over the last {windowDays} days, counting only the reports each row applies
-                to — closing and any day unless the row says otherwise. An alert fires below
-                70% of par.
+                over the last {windowDays} days, counting only the reports the row is
+                checked on. An alert fires below 70% of par, and only on that shift —
+                a morning report is not measured against a closing par.
               </caption>
               <thead>
                 <tr className="text-left">
@@ -433,6 +561,7 @@ export default function ParLevelsPage() {
                   <th className={TABLE_HEADER}>Item</th>
                   <th className={TABLE_HEADER + " text-right"}>Par</th>
                   <th className={TABLE_HEADER}>Unit</th>
+                  <th className={TABLE_HEADER}>Checked on</th>
                   <th className={TABLE_HEADER}>What the reports say</th>
                   <th className={TABLE_HEADER}>Source</th>
                   <th className={TABLE_HEADER + " text-right pr-2"}>Actions</th>
@@ -445,14 +574,7 @@ export default function ParLevelsPage() {
                     <tr key={r.id} className={TABLE_ROW}>
                       <td className="py-2.5 pl-2 text-sm text-zinc-300">{r.branch_code}</td>
                       <td className="py-2.5 text-xs text-zinc-500">{r.section || "—"}</td>
-                      <td className="py-2.5 text-sm text-zinc-100">
-                        {r.item_name}
-                        {r.shift || r.day_type ? (
-                          <span className="ml-2 text-[10px] uppercase tracking-wide text-violet-300/80 border border-violet-400/25 rounded px-1 py-0.5">
-                            {[r.shift, r.day_type].filter(Boolean).join(" · ")}
-                          </span>
-                        ) : null}
-                      </td>
+                      <td className="py-2.5 text-sm text-zinc-100">{r.item_name}</td>
                       <td className="py-2.5 text-right">
                         <input
                           className="w-24 rounded-lg border border-white/10 bg-white/6 px-2 py-1 text-sm text-white text-right tabular-nums outline-none focus:border-violet-500/50"
@@ -464,6 +586,14 @@ export default function ParLevelsPage() {
                         />
                       </td>
                       <td className="py-2.5 text-xs text-zinc-500">{r.unit}</td>
+                      {/* On every row, including the default. "Closing only"
+                          being unwritten is what made a morning report at 33%
+                          of par look like a broken alert. */}
+                      <td className="py-2.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300/80 border border-violet-400/25 rounded px-1.5 py-0.5 whitespace-nowrap">
+                          {scopeLabel(r)}
+                        </span>
+                      </td>
                       {/* The evidence, on the row. Without it the only way to
                           judge a proposed number was to go and read the reports,
                           which is why none of them were ever judged. */}
@@ -482,6 +612,29 @@ export default function ParLevelsPage() {
                         ) : (
                           <span className="text-[11px] text-zinc-600">—</span>
                         )}
+                        {/* What is going unmeasured, and the way to measure it,
+                            in the same place as the evidence for what is. */}
+                        {uncovered(r).map((sc) => (
+                          <div key={sc.shift} className="mt-1.5 flex items-center gap-2 flex-wrap">
+                            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide rounded border px-1.5 py-0.5 text-orange-300 bg-orange-500/12 border-orange-500/25">
+                              {titleCase(sc.shift)} not checked
+                            </span>
+                            <span className="text-[11px] text-zinc-400">
+                              {fmt(sc.obs_min)} / {fmt(sc.obs_median)} / {fmt(sc.obs_max)}{" "}
+                              {sc.obs_unit} over {sc.obs_days} days · would have alerted on{" "}
+                              {sc.days_below} of them
+                            </span>
+                            <button
+                              onClick={() => addShiftPar(r, sc)}
+                              disabled={savingId === r.id}
+                              className={SMALL_BUTTON + " text-[11px] py-0.5 text-orange-200 disabled:opacity-30"}
+                              title={`Set a par for the ${sc.shift} report as well`}
+                            >
+                              <Plus className="h-3 w-3 inline mr-1" />
+                              Check {sc.shift} too
+                            </button>
+                          </div>
+                        ))}
                       </td>
                       <td className="py-2.5">
                         {r.source === "seeded_median" ? (
