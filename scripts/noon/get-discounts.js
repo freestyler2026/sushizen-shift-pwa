@@ -91,8 +91,13 @@ async function call(cookie, brandCode, p, payload) {
         console.error('\n❌ SESSION_EXPIRED — node scripts/noon/setup-session.js --upload');
         process.exit(1);
       }
-      console.error(`  ${b.name}: ${e.message}`);
-      continue;
+      // ⚠️ Not `continue`. The backend compares this snapshot with the last
+      // one and reports what disappeared, so posting two brands out of three
+      // would announce every discount on the third as GONE. A partial capture
+      // is a failed run, not a smaller one.
+      console.error(`\n❌ ${b.name}: ${e.message}`);
+      console.error('   Posting a partial snapshot would report the missing brand\'s discounts as removed.');
+      process.exit(1);
     }
     const list = (data && data.data) || [];
     console.log(`  ${b.name}: ${list.length} discounts`);

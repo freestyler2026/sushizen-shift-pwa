@@ -1,6 +1,75 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-11（Daily Check を1日1レコードに統合。Careemの値引率22件すべてCareem作成と判明、日次で差分を検知）
+Last updated: 2026-09-11（Noonの値引きも検知。自己監査で3件の欠陥 — 部分取得が「削除」に見える件が最大）
+
+## ✅ 2026-09-11（続き44） — Noon の値引き検知／今日の実装の自己監査
+
+### ① Noon — 値引き14件を記録（Careem と同じ仕組み）
+
+`POST /_food-restaurant/discount/restaurant/list` が返す:
+`discountCode` / `name` / `discountType`（percentage | item_level）/
+`configs.percent` / `configs.flat` / `configs.priceLimit` / `isActive` /
+`isAutoapplied` / `outlets` / `schedule`
+
+実測: Sushi ZEN 9件・Ramen ZEN 4件・All Veggie 1件。稼働中は
+Sushi ZEN 50%、Ramen ZEN の item_level 3件（41.8 / 40.7 / 42.9 AED）ほか。
+`aggregator_promotions` に Careem と同居させ、**差分だけを報告**する。
+
+⚠️ **Noon は「誰が作ったか」を持たない。**Careem には `creation_user_type` があり
+22件すべて `careem` だったが、Noon には該当フィールドが無い。**だから
+「Noonが変えた」とは書かない。**率が動いたことだけを報告する。
+
+⚠️ **cron は付けなかった。**このワークフローに週次cronを置いた実績があり、
+**セッションが2.6日で切れるため8回中6回失敗**している。代わりに
+**毎朝の `aggregator-session-health` タスク**（WAFに弾かれない端末で動き、
+noon の生死を既に判定している）に載せた。生きているときだけ叩く。
+
+⚠️ **メニュー価格も取れる**ことは確認済み（`GET /menu/list` → 100品）。未実装。
+
+### ② ⚠️ 私が「Noonのセッションは死んでいる」と報告したのは誤りだった
+
+`finance/wallet` が401を返したので死亡と判断したが、原因は2つとも私のミス:
+- 読んだのが **`noon-session.b64.txt`（8/21の古い版）**。実体は `.json`（本日11:09）
+- Noon のセッションは **Playwright の storageState ではない**。
+  `npsid` / `nprtnetid` / `npa_rt_v1` の3つで、Cookieヘッダは
+  `get-payouts.js` の `buildCookieHeader()` が組み立てる。`cookies` 配列を
+  探しても空で、生きているセッションが死んで見える。
+
+**読む側のコードに合わせる**（教訓87）。正しく組み立てたら `True`。
+
+### ③ セッション検知に Noon の実測を追加
+
+Careem に続き Noon も推定をやめた。**推定は、死んだあと最大2.5日ぶん嘘をつく。**
+`KNOWN_LIFETIME_H` は**空になった** — 全プラットフォームが実測になった。
+
+### ④ 今日の実装の自己監査
+
+**データ面（問題なし）**
+
+| 検査 | 結果 |
+|---|---|
+| Daily Check の重複グループ | **0** |
+| 退避した行の写真が残した行に無いもの | **0**（305件すべて移設済み） |
+| 注文の重複（同一 order を2回） | **0**（foodpanda 742/742・grab 2559/2559・keeta 1581/1581） |
+| プロキシの許可リスト | `create` / `delete` / `finance/wallet` は **400で拒否**、`list` は通る、`DELETE`メソッドは拒否 |
+
+**見つけて直した欠陥3件**
+
+1. ⚠️ **部分取得が「削除された」と報告する。** Noon は3ブランドを順に叩く。
+   1つが失敗しても残り2つを投入していたため、**欠けたブランドの値引きが全部
+   `GONE` として報告される**。実演して確認 → `GONE bff (was 35)`。
+   **部分取得は失敗した取得**として `exit 1` に変更。
+2. ⚠️ **`offer_type` を監視していなかった。**Noon は `offer_value` に
+   単位の違うものを入れる（percentage なら 50、item_level なら 35 AED）。
+   種別が入れ替わると**率の変化に見える、または数字が同じだと何も出ない**。
+   監視対象に追加 → `CHANGED 50% OFF: offer_type percentage -> item_level` を確認。
+3. ⚠️ **変化メッセージが `%` を決め打ちしていた。**定額割引に `35%` と書いていた。
+   `_promo_amount()` で種別に応じた表記に（`35 (item_level)`）。
+
+**残した既知の不整合（影響小）**
+
+- 統合した103行は `revision` が2以上だが `revisions` は空（履歴は退避行側にある）
+- `first_submitted_at` は未訂正の1,775行でNULL（＝「訂正されていない」の意味）
 
 ## ✅ 2026-09-11（続き43） — Daily Check の重複を解消／Careem の値引率変更を検知
 
