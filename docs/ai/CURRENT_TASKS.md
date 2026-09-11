@@ -1,6 +1,63 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-11（FoodPandaの開店状態APIを日中3回記録。セッション検知が見ていたのはCIが使うファイルではなかった）
+Last updated: 2026-09-11（Talabat14拠点の開店状態も取得。注文はPerimeterXで不可、403は権限ではなかった）
+
+## ✅ 2026-09-11（続き41） — Talabat: 注文は届かないが、**14拠点の開店状態は取れる**
+
+セッション更新後に再確認。結論が前回から変わった。
+
+### ⚠️ Talabat の403は「権限」ではなく **PerimeterX** だった
+
+`get-payouts.js` のコメントは「403はリクエストの投げ方の問題ではない／この
+アカウントでは読めない」と記録していたが、**本文を読んだら PerimeterX**:
+
+```json
+{"appId":"PX24c5Soup","blockScript":"https://captcha.px-cdn.net/PX24c5Soup/captcha.js"...}
+```
+
+`ListOrders` / `SalesOverviewByTime` / `TodayIssues` が同じように弾かれる。
+**投げ方の問題なので、原理的には通り道がある**（まだ見つかっていない）。
+試したが駄目だったもの: 同梱Chromium・実Chrome・ヘッドレス・4回の再読込再試行。
+FoodPanda は**同じPXテナント**で再読込1回で通る。差はドメインごとの設定。
+
+⚠️ **実Chromeの方が弱かった**: 同梱Chromium はポータルを完全に読み込み
+（レスポンス653本・14店舗表示）`ListOrders` を発行するが、実Chromeは
+225本で `ListOrders` を出しもしない。**「本物のブラウザの方が通る」は成り立たない。**
+
+### ✅ 店舗状態は別ホストの素のRESTで、通る
+
+`GET https://vss.me.restaurant-partners.com/api/v2/vendors/status`（ドバイは `me`、マニラは `as`）
+
+**14拠点すべて取得・投入済み。**`scripts/talabat/get-store-status.js`、
+専用ワークフロー `talabat-store-status.yml`（11:05 / 13:05 / 20:05 ドバイ）。
+既存の `talabat-daily-extract.yml` に載せなかったのは、**あちらはcronが無い**
+（PXで売上が取れなくなって以降、手動専用）ため。
+
+取得例: Sushi ZEN 5拠点・Ramen Zen 4拠点・All Veggie 1拠点が `OPEN`、
+**J - Japanese Authentic Deli 4拠点が `OUTSIDE_SCHEDULE`**（07:00-01:00Zの枠）。
+
+⚠️ **店舗名の対応表がずれていた。**コメントは「Ramen Zen は Arjan と Business Bay
+のみ（2026-08-21確認）」だが、実データには **JLT と Al Hudaiba にも存在**。
+未知名はフォールバックで `RAMEN_ZEN_` という造語コードになり、**黙って別拠点として
+記録されるところだった**。`scripts/talabat/stores.js` に切り出して2本で共有し
+（教訓62）、未知名は**止めずに報告**する（`unmapped()`）。
+
+### Careem: 注文一覧は存在しない
+
+`/saturn-ext/merchant/orders` → ホームへ転送、`/order-history` → 404。
+集計API（`partner/analytics/v4/realtime` 等）はあるが注文単位は無い。
+既存スクリプトの記述と一致。**店舗状態APIも未発見。**
+
+### 現在の取得可能性まとめ
+
+| | 注文台帳 | 店舗状態 |
+|---|---|---|
+| Grab（マニラ3） | ✅ 品名・単価・割引つき | — |
+| FoodPanda（マニラ3） | ✅ | ✅ 日中3回 |
+| Beep（マニラ） | ❌ 何も無い | ❌ |
+| Talabat（ドバイ14） | ❌ PerimeterX | ✅ 日中3回 |
+| Careem（ドバイ） | ❌ 存在しない | ❌ |
+| Keeta（ドバイ） | ✅ 既存 | — |
 
 ## ✅ 2026-09-11（続き40） — 開店状態API／Talabat・Careemの現状／セッション検知の3つの嘘
 
