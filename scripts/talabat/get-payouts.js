@@ -53,27 +53,10 @@ const VENDOR_IDS = [
 ];
 
 // Known vendor name → store_code mapping (expanded from live data 2026-08)
-const NAME_TO_CODE = {
-  'sushi zen, al hudaiba':                        'AM',
-  'sushi zen,  al hudaiba':                       'AM',
-  'sushi zen, al barsha 3':                       'AB',
-  'sushi zen, al barsha south':                   'ARJ',
-  'sushi zen, business bay':                      'BB',
-  'sushi zen, jumeirah lakes towers - jlt':       'JLT',
-  // Ramen Zen exists at Arjan and Business Bay only (confirmed 2026-08-21 via vendor API)
-  'ramen zen, arjan':                             'RZ_ARJ',
-  'ramen zen, business bay':                      'RZ_BB',
-  'all veggie sushi, al barsha, al barsha 3':     'VEGGIE_AB',
-  // JJAD: AM and JLT in chain 673913 (old); ARJ and BB in chain 694540 (new billing)
-  'j - japanese authentic deli, al hudaiba':      'JJAD_AM',
-  'j - japanese authentic deli, arjan':           'JJAD_ARJ',
-  'j - japanese authentic deli, business bay':    'JJAD_BB',
-  'j - japanese authentic deli, jlt, jumeirah lakes towers - jlt': 'JJAD_JLT',
-};
-function storeCode(name) {
-  return NAME_TO_CODE[(name || '').toLowerCase().trim()]
-    || (name || `unknown`).replace(/[^a-z0-9]/gi, '_').toUpperCase().slice(0, 10);
-}
+// Moved to ./stores.js — the store-status extractor needs the same map, and a
+// second copy is how two scripts start disagreeing about which branch a number
+// belongs to (lesson 62).
+const { NAME_TO_CODE, storeCode } = require('./stores');
 
 // ── GraphQL query ─────────────────────────────────────────────────────────────
 

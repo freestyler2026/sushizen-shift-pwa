@@ -1,0 +1,42 @@
+name: Talabat Dubai — Outlet Status
+
+# Separate from talabat-daily-extract.yml on purpose. That one has no schedule
+# because the thing it extracts — per-outlet gross sales — has been refused by
+# PerimeterX since 2026-08-25. Store status is a plain REST GET on another host
+# and does work, so it gets its own timetable rather than being hung off a
+# workflow that cannot run.
+#
+# A reading, not a report: it has to be taken while the outlets are trading.
+# 07:05 / 09:05 / 16:05 UTC = 11:05 / 13:05 / 20:05 Dubai — just after opening,
+# lunch, and dinner.
+on:
+  schedule:
+    - cron: '5 7,9,16 * * *'
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm install playwright --no-save
+          npx playwright install chromium --with-deps
+
+      # The session is read from the secret, which is the same artifact
+      # session-health probes since 2026-09-11 — the check and the job now look
+      # at the same file.
+      - name: Read outlet status (14 vendors)
+        run: node scripts/talabat/get-store-status.js
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          TALABAT_SESSION_STATE:  ${{ secrets.TALABAT_SESSION_STATE }}
+        timeout-minutes: 8
