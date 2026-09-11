@@ -123,6 +123,26 @@ function gradeBadgeClass(grade: string): string {
   }
 }
 
+/** Pull a list out of a response, whatever the endpoint decided to call it.
+ *
+ * ⚠️ This page read `data.reviews` and `data.schedule`; both endpoints return
+ * `{items: [...]}`. Neither key ever existed, so Review History showed "No
+ * reviews found" over two saved drafts and Upcoming Reviews showed nothing
+ * over 214 scheduled ones — reported by HR on 2026-09-11 as "Save draft does
+ * not save". The draft had saved every time.
+ *
+ * `items` is checked first because that is what the API actually sends; the
+ * older names stay so this cannot break a caller that was right.
+ */
+function listFrom<T>(data: unknown, ...keys: string[]): T[] {
+  if (Array.isArray(data)) return data as T[];
+  const obj = (data ?? {}) as Record<string, unknown>;
+  for (const k of ["items", ...keys]) {
+    if (Array.isArray(obj[k])) return obj[k] as T[];
+  }
+  return [];
+}
+
 function statusBadgeClass(status: ReviewStatus): string {
   switch (status) {
     case "acknowledged": return BADGE_SUCCESS;
@@ -504,6 +524,7 @@ export default function HRPerformancePage() {
   // ── History tab state ──
   const [reviews, setReviews] = useState<PerformanceReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState("");
   const [filterName, setFilterName] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -588,7 +609,7 @@ export default function HRPerformancePage() {
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setSchedule(Array.isArray(data?.schedule) ? data.schedule : Array.isArray(data) ? data : []);
+      setSchedule(listFrom<ScheduleItem>(data, "schedule"));
       try {
         const ov = await fetch(`${API_BASE}/api/admin/hr/reviews/overdue?city=manila`, {
           headers: getAuthHeaders(a), cache: "no-store",
@@ -641,9 +662,15 @@ export default function HRPerformancePage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setReviews(Array.isArray(data?.reviews) ? data.reviews : Array.isArray(data) ? data : []);
-    } catch {
+      setReviews(listFrom<PerformanceReview>(data, "reviews"));
+      setReviewsError("");
+    } catch (e) {
+      // ⚠️ This used to be `catch { setReviews([]) }`, so a failed request and
+      // an empty result looked identical: the screen said "No reviews found"
+      // either way. A list nobody could load must not read as a list with
+      // nothing in it.
       setReviews([]);
+      setReviewsError(e instanceof Error ? e.message : String(e));
     } finally {
       setReviewsLoading(false);
     }
@@ -991,7 +1018,15 @@ export default function HRPerformancePage() {
           )}
 
           {/* Empty */}
-          {!reviewsLoading && reviews.length === 0 && (
+          {!reviewsLoading && reviewsError && (
+            <div className={`${GLASS_CARD} border-red-500/30 bg-red-500/5 p-6 text-center`}>
+              <p className={T_BODY}>Could not load the reviews — {reviewsError}</p>
+              <p className={`${T_CAPTION} mt-1`}>
+                This is not an empty list. Press Refresh; if it keeps failing, report it.
+              </p>
+            </div>
+          )}
+          {!reviewsLoading && !reviewsError && reviews.length === 0 && (
             <div className={`${GLASS_CARD} px-6 py-10 text-center`}>
               <Star className="mx-auto mb-3 h-8 w-8 text-neutral-600" />
               <p className={T_BODY}>No reviews found. Adjust filters or create a new review.</p>
