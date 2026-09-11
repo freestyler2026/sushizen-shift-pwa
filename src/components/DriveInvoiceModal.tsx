@@ -616,6 +616,19 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
             {saving ? "Saving…" : "Save Draft"}
           </button>
           <div className="flex items-center gap-2">
+            {/* Our own paperwork gets posted into the supplier invoice
+                channels — delivery notes from the Central Kitchen, the
+                Warehouse, branch-to-branch documents. 97 of them were sitting
+                in the review queue as if a supplier had sent them. This takes
+                one out without calling it rejected, which it is not. */}
+            <button
+              onClick={() => submit("not_supplier_invoice")}
+              disabled={saving}
+              title="A ZEN document — a CK or Warehouse delivery note, not a supplier's invoice"
+              className="text-sm px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/60 hover:text-white/90 transition-all border border-white/10 disabled:opacity-50"
+            >
+              Not a supplier invoice
+            </button>
             <button
               onClick={() => submit("rejected")}
               disabled={saving}
