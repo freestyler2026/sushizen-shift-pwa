@@ -1,6 +1,69 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-11（FoodPandaの注文台帳を取り込み開始。マニラは2社に。閾値はストリームごとに4.5倍違う）
+Last updated: 2026-09-11（FoodPandaの開店状態APIを日中3回記録。セッション検知が見ていたのはCIが使うファイルではなかった）
+
+## ✅ 2026-09-11（続き40） — 開店状態API／Talabat・Careemの現状／セッション検知の3つの嘘
+
+### ① FoodPanda は「開いているか」を直接答える（実装済み・日中3回）
+
+`GET https://vss.as.restaurant-partners.com/api/v2/vendors/status`
+
+```json
+{"platformVendorId":"t0z4","state":"OPEN","category":"OPEN","name":"Sushi Zen - Parañaque",
+ "nextOrCurrentSlot":{"openingAt":"2026-09-11T02:00:00Z","closingAt":"2026-09-11T15:30:00Z"}}
+```
+
+**Daily Check が人に聞いていることに、プラットフォーム自身が答える。**
+注文の疎密に依存しないので、**FoodPanda PAR（11-21時の58.7%が注文ゼロ）でも使える**。
+
+実測で出た状態: `OPEN` / `OUTSIDE_SCHEDULE` / `HIGH_DEMAND_MODE`、
+カテゴリ `OPEN` / `OFF_HOURS` / `OPEN_HIGH_DEMAND`。翻訳ファイルには
+`TEMPORARILY_CLOSED` もあり、それが一番捕まえたいもの。
+TAFTは取得時 `HIGH_DEMAND_MODE`（**プラットフォームが調理時間を+12分**、
+author `log_vendor_monitor`）。
+
+`aggregator_store_status` に履歴として貯める（現在値では「11時に開いていたか」に
+翌朝答えられない）。`scripts/foodpanda/get-store-status.js`、
+日中3回（11:05 / 14:05 / 20:05 マニラ）。**その3回は読み取りだけ**で、
+入金と注文は夜の1回だけ（`FULL_RUN` で分岐。セッションを無駄に消費しない）。
+
+⚠️ `fdwv` の正体判明: **「Ramen Zen - Paranaque」＝別ブランド**。Paranaqueの
+ログインが持っている。`FP_VENDOR` で `null` にして**明示的に飛ばす**
+（未知扱いのままだと Ramen Zen に注文が入った日に取込が止まる）。
+
+⚠️ `date_trunc('minute', timestamptz)` は IMMUTABLE ではなくインデックスに使えない。
+`AT TIME ZONE 'UTC'` を挟む。
+
+### ② Talabat / Careem の現状
+
+| | 注文一覧 | 店舗状態 | セッション |
+|---|---|---|---|
+| **Talabat** | **`/orders` と `ListOrders` は存在**。ただし PerimeterX が3回とも403 | `vss` は me/eu/as 全リージョン **401** | **CIが使う `.b64` は失効中** |
+| **Careem** | **無い**（`/orders`→ホーム、`/order-history`→404） | 未発見 | 生存 |
+
+Talabat は FoodPanda と同じ Delivery Hero の `vagw-api` なので**筋は通っている**。
+突破するには `get-payouts.js` が既に持っている PX ヘッダ
+（`x-px-cookies` / `x-user-id` / `x-rps-device`）を使い回す必要がある。**未着手。**
+
+Careem は `partner/analytics/v4/realtime` などの集計APIはあるが注文単位は無い。
+既存スクリプトの「日次の精算明細をAPIで出さない」という記述と一致。
+
+### ③ ⚠️ セッション検知が3通りの嘘をついていた（修正済み）
+
+1. **CIが使うファイルを見ていなかった。**`probe-session.js` は
+   `talabat-session.json` を読み、GitHubのシークレットの元は
+   `talabat-session.b64.txt`。**実測: json は通り、b64 はログイン画面へ。**
+   中身も違う（cookie 18対17・bearerも別物）。**取込が死んでいるのに🟢だった。**
+   → b64 を第一に読む（教訓87）。
+2. **トークンが取れれば、ログイン画面でも「生存」。**`if (fresh)` が
+   `onLogin` より先にあった。ログインSPA自身が認証を持つので観測されうる。
+   → **追い出されていれば失効**を先に判定。
+3. **発行できても、取込が叩くAPIが401のことがある。**同日 foodpanda が
+   「生存（4.0時間）」の表示で `vagw-api/query` 401。
+   → 発行後に**取込が実際に使う口を1回叩き**、駄目なら「半死」と出す。
+   確かめられなかったときは死亡に倒さない（教訓58）。
+
+修正後の実測で **talabat が正しく 🔴 になった**（復旧コマンド付き）。
 
 ## ✅ 2026-09-11（続き39） — FoodPanda の注文台帳を取り込んだ（マニラの2社目）
 
