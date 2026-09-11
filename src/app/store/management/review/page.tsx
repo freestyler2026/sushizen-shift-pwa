@@ -77,7 +77,12 @@ type Review = {
 type ReviewRow = {
   id: number; branch: string; review_date: string; status: string;
   items: number; answered: number;
+  /** Present on every row; only shown when reading somebody else's. */
+  assigned_to?: string | null;
+  city?: string | null;
 };
+
+type Scope = "mine" | "manila" | "dubai";
 
 const BRANCH_LABEL: Record<string, string> = {
   TAFT: "Taft", PAR: "Parañaque", CUB: "Cubao", CK: "Commissary Kitchen",
@@ -145,12 +150,19 @@ export default function MorningReviewPage() {
   const [comment, setComment] = useState("");
   const [open, setOpen] = useState<number | null>(null);
   const [draft, setDraft] = useState<Record<number, Answer>>({});
+  /** HQ carries both cities and covers for managers, so "mine" is not the only
+      question they have. Everyone else only ever sees their own. */
+  const [scope, setScope] = useState<Scope>("mine");
+  const isHQ = ["HQ", "ADMIN"].includes(String(auth?.role || "").toUpperCase());
 
   const loadList = useCallback(async () => {
     setLoading(true);
     setErr("");
     try {
-      const res = await fetch("/api/store/ops-review?status=open", {
+      const q = scope === "mine"
+        ? "status=open"
+        : `status=open&mine=false&city=${scope}`;
+      const res = await fetch(`/api/store/ops-review?${q}`, {
         headers: getAuthHeaders(auth), cache: "no-store",
       });
       if (!res.ok) {
@@ -171,7 +183,7 @@ export default function MorningReviewPage() {
     }
     // loadOne is stable enough for this: it only reads auth.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth]);
+  }, [auth, scope]);
 
   async function loadOne(id: number) {
     const res = await fetch(`/api/store/ops-review/${id}`, {
@@ -260,12 +272,39 @@ export default function MorningReviewPage() {
   if (!review) {
     return (
       <div className="mx-auto max-w-2xl p-4 md:p-6">
+        {isHQ && (
+          <div className="mb-4 flex flex-wrap items-center gap-1.5">
+            <span className={T_CAPTION}>Showing</span>
+            {([
+              ["mine", "Mine"],
+              ["manila", "All — Manila"],
+              ["dubai", "All — Dubai"],
+            ] as [Scope, string][]).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setScope(k)}
+                className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                  scope === k
+                    ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
+                    : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className={`${GLASS_CARD} p-6 text-center`}>
           <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-500/60" />
           <p className={T_SECTION}>Nothing to review</p>
+          {/* A review is addressed to a person by name, so "your branch" was
+              never what decided this — and while the branch was doing the
+              deciding, four reviews addressed to the person reading this sat
+              behind that sentence. */}
           <p className={`${T_BODY} mt-1`}>
-            Yesterday&rsquo;s review is done, or there was nothing at your branch
-            worth looking at. A review is only made on a day that has something in it.
+            {scope === "mine"
+              ? "Nothing is addressed to you right now. A review is only made on a day that has something in it, and it goes to whoever was on the roster for that branch."
+              : "No open reviews in this city."}
           </p>
           <button className={`${SMALL_BUTTON} mt-4`} onClick={() => void loadList()}>Refresh</button>
         </div>
@@ -290,6 +329,29 @@ export default function MorningReviewPage() {
         </button>
       </div>
 
+      {isHQ && (
+          <div className="mb-4 flex flex-wrap items-center gap-1.5">
+            <span className={T_CAPTION}>Showing</span>
+            {([
+              ["mine", "Mine"],
+              ["manila", "All — Manila"],
+              ["dubai", "All — Dubai"],
+            ] as [Scope, string][]).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setScope(k)}
+                className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                  scope === k
+                    ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
+                    : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
       {rows.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {/* Oldest first, from the server. A review left from two days ago is
@@ -307,7 +369,16 @@ export default function MorningReviewPage() {
               <span className="block text-zinc-200">
                 {BRANCH_LABEL[r.branch] || r.branch} · {r.review_date}
               </span>
-              <span className={T_CAPTION}>{r.answered} of {r.items} answered</span>
+              <span className={T_CAPTION}>
+                {r.answered} of {r.items} answered
+                {/* Whose it is. Without it an HQ reading the whole city cannot
+                    tell one branch's manager from another's. */}
+                {scope !== "mine" && r.assigned_to
+                  ? ` · ${r.assigned_to}`
+                  : scope !== "mine"
+                  ? " · nobody assigned"
+                  : ""}
+              </span>
             </button>
           ))}
         </div>
