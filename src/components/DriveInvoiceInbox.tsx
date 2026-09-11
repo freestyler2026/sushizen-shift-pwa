@@ -82,6 +82,9 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DriveInvoice | null>(null);
   const [showAll, setShowAll] = useState(false);
+  /** How many are waiting, which is not how many were fetched. The endpoint
+      used to return the page size as the total, so 634 read as 50. */
+  const [pendingTotal, setPendingTotal] = useState(0);
 
   const fetchInvoices = useCallback(async () => {
     try {
@@ -92,6 +95,7 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
       if (!res.ok) return;
       const data = await res.json();
       setInvoices(data.rows ?? []);
+      setPendingTotal(Number(data.total ?? (data.rows ?? []).length));
     } catch {
       // silent
     } finally {
@@ -132,7 +136,10 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
             <div>
               <h3 className="font-semibold text-white text-sm">Invoice Inbox</h3>
               <p className="text-white/50 text-xs">
-                {invoices.length} invoice{invoices.length !== 1 ? "s" : ""} pending review
+                {pendingTotal.toLocaleString()} invoice{pendingTotal !== 1 ? "s" : ""} pending review
+                {pendingTotal > invoices.length
+                  ? ` · showing the oldest ${invoices.length}`
+                  : ""}
               </p>
             </div>
           </div>
