@@ -36,6 +36,10 @@ type Period = {
 };
 
 type Run = {
+  /** Stamped by the server on a row whose figures it withheld from this
+      caller. Distinct from a null it simply has no value for: the first is
+      "not yours to see", the second is "not set". */
+  salary_hidden?: boolean;
   id: number;
   period_id: number;
   staff_name: string;
@@ -1650,7 +1654,25 @@ export default function ManilaPayrollPeriodPage() {
   useEffect(() => { void loadPeriod(); }, [loadPeriod]);
 
   // Auth guard + salary visibility
-  const canSeeSalary = hasPayrollViewSalary(getAuth());
+  /**
+   * The server has already decided, per value. It nulls the figures this
+   * caller may not read and stamps `salary_hidden` on that row, and the
+   * middleware is the enforcement boundary — the asterisks here are cosmetic.
+   *
+   * Asking the permission list cached in the browser a second time is how
+   * Cyrine Fernandez read a screen of 60 masked rows on 2026-09-11: the server
+   * sent her 59 real figures and hid only Peter Villafuerte, exactly as
+   * intended, while her stored copy of the grant — made 2026-09-02 — had not
+   * caught up. A number that arrived is a number she may see.
+   */
+  const canSeeSalary =
+    hasPayrollViewSalary(getAuth()) ||
+    runs.some(r => r.net_pay != null || r.gross_pay != null);
+  /** Rows the server withheld. The totals below are summed in the browser, so
+      they would quietly leave these people out and still read as the period's
+      total — which is the subtraction the server masks its own totals to
+      prevent. */
+  const hiddenRuns = runs.filter(r => r.salary_hidden).length;
   useEffect(() => {
     const auth = getAuth();
     if (!auth || !canAccessPayrollAdmin(auth)) {
@@ -2033,17 +2055,17 @@ export default function ManilaPayrollPeriodPage() {
                 <div className="mt-4 flex items-stretch gap-1 rounded-xl border border-white/5 overflow-hidden text-center">
                   <div className="flex-1 bg-slate-800/60 px-3 py-3">
                     <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Gross Pay</p>
-                    <p className="text-sm font-bold text-white mt-1 tabular-nums">{canSeeSalary ? fmtPHP(totals.gross) : <span className="font-mono text-slate-600">****</span>}</p>
+                    <p className="text-sm font-bold text-white mt-1 tabular-nums">{canSeeSalary && !hiddenRuns ? fmtPHP(totals.gross) : <span className="font-mono text-slate-600" title={hiddenRuns ? `Not shown: ${hiddenRuns} row(s) are withheld from you, so this total would be short by that much` : undefined}>****</span>}</p>
                   </div>
                   <div className="flex items-center justify-center bg-slate-900/50 px-2 text-slate-600 font-light text-lg select-none">−</div>
                   <div className="flex-1 bg-slate-800/60 px-3 py-3">
                     <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Deductions</p>
-                    <p className="text-sm font-bold text-red-300 mt-1 tabular-nums">{canSeeSalary ? fmtPHPAbs(totals.ded) : <span className="font-mono text-slate-600">****</span>}</p>
+                    <p className="text-sm font-bold text-red-300 mt-1 tabular-nums">{canSeeSalary && !hiddenRuns ? fmtPHPAbs(totals.ded) : <span className="font-mono text-slate-600" title={hiddenRuns ? `Not shown: ${hiddenRuns} row(s) are withheld from you, so this total would be short by that much` : undefined}>****</span>}</p>
                   </div>
                   <div className="flex items-center justify-center bg-slate-900/50 px-2 text-slate-600 font-light text-lg select-none">=</div>
                   <div className="flex-1 bg-violet-900/30 border-l border-violet-500/20 px-3 py-3">
                     <p className="text-[10px] text-violet-400/70 uppercase tracking-wider">Total Net Pay</p>
-                    <p className="text-sm font-bold text-emerald-300 mt-1 tabular-nums">{canSeeSalary ? fmtPHP(totals.net) : <span className="font-mono text-slate-600">****</span>}</p>
+                    <p className="text-sm font-bold text-emerald-300 mt-1 tabular-nums">{canSeeSalary && !hiddenRuns ? fmtPHP(totals.net) : <span className="font-mono text-slate-600" title={hiddenRuns ? `Not shown: ${hiddenRuns} row(s) are withheld from you, so this total would be short by that much` : undefined}>****</span>}</p>
                   </div>
                 </div>
               )}
@@ -2234,11 +2256,11 @@ export default function ManilaPayrollPeriodPage() {
                             )}
                           </div>
                         </td>
-                        <td className="py-2.5 text-right text-slate-300 tabular-nums">{canSeeSalary ? fmtPHP(run.gross_pay) : <span className="font-mono text-slate-600">****</span>}</td>
+                        <td className="py-2.5 text-right text-slate-300 tabular-nums">{canSeeSalary && !run.salary_hidden ? fmtPHP(run.gross_pay) : <span className="font-mono text-slate-600" title="Withheld from you by the payroll rules">****</span>}</td>
                         <td className="py-2.5 text-right text-red-300/80 tabular-nums text-xs">
-                          {canSeeSalary ? `(${fmtPHPAbs(run.total_deductions)})` : <span className="font-mono text-slate-600">(****)</span>}
+                          {canSeeSalary && !run.salary_hidden ? `(${fmtPHPAbs(run.total_deductions)})` : <span className="font-mono text-slate-600" title="Withheld from you by the payroll rules">(****)</span>}
                         </td>
-                        <td className="py-2.5 text-right font-bold text-emerald-300 tabular-nums">{canSeeSalary ? fmtPHP(run.net_pay) : <span className="font-mono text-slate-600">****</span>}</td>
+                        <td className="py-2.5 text-right font-bold text-emerald-300 tabular-nums">{canSeeSalary && !run.salary_hidden ? fmtPHP(run.net_pay) : <span className="font-mono text-slate-600" title="Withheld from you by the payroll rules">****</span>}</td>
                         <td className="py-2.5 text-center">
                           <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[run.status] ?? STATUS_BADGE.draft}`}>
                             {run.status}
@@ -2265,9 +2287,9 @@ export default function ManilaPayrollPeriodPage() {
                     <tr className="border-t-2 border-white/10">
                       <td />
                       <td className="py-2.5 text-xs font-semibold text-slate-400">Total ({runs.length})</td>
-                      <td className="py-2.5 text-right text-sm font-bold text-white tabular-nums">{canSeeSalary ? fmtPHP(totals.gross) : <span className="font-mono text-slate-600">****</span>}</td>
-                      <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">{canSeeSalary ? `(${fmtPHP(totals.ded)})` : <span className="font-mono text-slate-600">(****)</span>}</td>
-                      <td className="py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums">{canSeeSalary ? fmtPHP(totals.net) : <span className="font-mono text-slate-600">****</span>}</td>
+                      <td className="py-2.5 text-right text-sm font-bold text-white tabular-nums">{canSeeSalary && !hiddenRuns ? fmtPHP(totals.gross) : <span className="font-mono text-slate-600" title={hiddenRuns ? `Not shown: ${hiddenRuns} row(s) are withheld from you, so this total would be short by that much` : undefined}>****</span>}</td>
+                      <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">{canSeeSalary && !hiddenRuns ? `(${fmtPHP(totals.ded)})` : <span className="font-mono text-slate-600">(****)</span>}</td>
+                      <td className="py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums">{canSeeSalary && !hiddenRuns ? fmtPHP(totals.net) : <span className="font-mono text-slate-600" title={hiddenRuns ? `Not shown: ${hiddenRuns} row(s) are withheld from you, so this total would be short by that much` : undefined}>****</span>}</td>
                       <td />
                       <td />
                     </tr>
@@ -2310,7 +2332,11 @@ export default function ManilaPayrollPeriodPage() {
                     ? (Number(profiles.get(selectedRun.staff_name)?.monthly_rate) || null)
                     : null
                 }
-                canSeeSalary={canSeeSalary}
+                /* A row the server withheld carries no figures at all, and
+                   fmtPHP renders a missing number as "—" — which reads as
+                   "not set yet" on a payslip that exists and is simply not
+                   this reader's to see. */
+                canSeeSalary={canSeeSalary && !selectedRun.salary_hidden}
               />
             )}
           </div>
