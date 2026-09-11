@@ -34,11 +34,17 @@ const ACCOUNTS = {
   qc:        { env: 'FP_SESSION_QC',        file: 'qc-session.b64.txt' },
 };
 
-// Read off the data 2026-09-11, with the portal's own vendorName beside each:
-//   t0z4 = "Sushi Zen - Parañaque"   ryqc = "Sushi Zen - Taft"
-//   a97i = "Sushi Zen - Cubao"       fdwv = covered by the Paranaque login,
-//                                           no orders in any window checked
-const FP_VENDOR = { t0z4: 'PAR', ryqc: 'TAFT', a97i: 'CUB' };
+// Read off the data 2026-09-11, with the portal's own vendorName beside each.
+// `null` means "we know what this is and it is not ours": fdwv is
+// "Ramen Zen - Paranaque", a different brand on the same login. Skipping it by
+// name rather than letting it fall through to the unknown-vendor stop, which
+// would break the import the first day Ramen Zen takes an order.
+const FP_VENDOR = {
+  t0z4: 'PAR',    // Sushi Zen - Parañaque
+  ryqc: 'TAFT',   // Sushi Zen - Taft
+  a97i: 'CUB',    // Sushi Zen - Cubao
+  fdwv: null,     // Ramen Zen - Paranaque — different brand, not this ledger
+};
 
 const LOC = process.argv[2] || 'paranaque';
 const acct = ACCOUNTS[LOC];
@@ -153,8 +159,10 @@ async function postSessionExpired() {
   }
 
   const unknown = new Map();
+  let skippedOther = 0;
   const out = [];
   for (const o of rows) {
+    if (FP_VENDOR[o.vendorId] === null) { skippedOther++; continue; }
     const store = FP_VENDOR[o.vendorId];
     if (!store) { unknown.set(o.vendorId, o.vendorName || ''); continue; }
     const placed = o.placedTimestamp;
@@ -179,6 +187,7 @@ async function postSessionExpired() {
     process.exit(1);
   }
 
+  if (skippedOther) console.log(`  (skipped ${skippedOther} order(s) belonging to another brand on this login)`);
   const byStore = out.reduce((a, r) => (a[r.store] = (a[r.store] || 0) + 1, a), {});
   console.log(`\n${LOC}: ${out.length} orders in ${FROM}..${TO} —`,
     Object.entries(byStore).map(([s, n]) => `${s} ${n}`).join(', '));

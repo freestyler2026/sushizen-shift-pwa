@@ -4,6 +4,12 @@ on:
   schedule:
     # Every day at 23:05 UTC = 07:05 PHT (after midnight Manila time, previous day closed)
     - cron: '5 23 * * *'
+    # Store status is a reading, not a report: it has to be taken while the
+    # shift is running. 03:05 / 06:05 / 12:05 UTC = 11:05 / 14:05 / 20:05
+    # Manila -- just after lunch opens, mid-afternoon, and during dinner.
+    # Only the status steps run on these three; the payout and order steps
+    # check the schedule so a reading does not pull the ledger four times a day.
+    - cron: '5 3,6,12 * * *'
   workflow_dispatch:
     inputs:
       date_from:
@@ -36,6 +42,19 @@ jobs:
           npm install playwright
           npx playwright install chromium
 
+      # The three daytime crons are readings only. Without this the ledger
+      # would be pulled four times a day and every extra pull is another
+      # chance for a session to be spent for nothing.
+      - name: Decide what this run does
+        run: |
+          if [ "${{ github.event.schedule }}" = "5 3,6,12 * * *" ]; then
+            echo "FULL_RUN=0" >> $GITHUB_ENV
+            echo "This run takes the store-status reading only."
+          else
+            echo "FULL_RUN=1" >> $GITHUB_ENV
+            echo "This run pulls payouts and orders as well."
+          fi
+
       - name: Calculate date range (rolling 30 days, PHT)
         id: dates
         run: |
@@ -54,7 +73,7 @@ jobs:
           echo "Extracting FoodPanda PH payouts: $DATE_FROM to $DATE_TO"
 
       - name: Extract Paranaque payouts
-        if: ${{ github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'paranaque' }}
+        if: ${{ env.FULL_RUN == '1' && (github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'paranaque') }}
         run: node scripts/foodpanda/get-payouts.js paranaque
         env:
           DATE_FROM:              ${{ env.DATE_FROM }}
@@ -64,7 +83,7 @@ jobs:
         timeout-minutes: 8
 
       - name: Extract Taft payouts
-        if: ${{ github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'taft' }}
+        if: ${{ env.FULL_RUN == '1' && (github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'taft') }}
         run: node scripts/foodpanda/get-payouts.js taft
         env:
           DATE_FROM:              ${{ env.DATE_FROM }}
@@ -74,7 +93,7 @@ jobs:
         timeout-minutes: 8
 
       - name: Extract QC payouts
-        if: ${{ github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'qc' }}
+        if: ${{ env.FULL_RUN == '1' && (github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'qc') }}
         run: node scripts/foodpanda/get-payouts.js qc
         env:
           DATE_FROM:              ${{ env.DATE_FROM }}
@@ -101,7 +120,7 @@ jobs:
       # expects that and retries by reloading the page -- a 403 in the log is
       # normal, an empty capture is not and exits non-zero.
       - name: Extract Paranaque orders
-        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque') }}
+        if: ${{ always() && env.FULL_RUN == '1' && ((github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'paranaque')) }}
         run: node scripts/foodpanda/get-orders.js paranaque $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d)
         env:
           WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
@@ -109,7 +128,7 @@ jobs:
         timeout-minutes: 8
 
       - name: Extract Taft orders
-        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'taft') }}
+        if: ${{ always() && env.FULL_RUN == '1' && ((github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'taft')) }}
         run: node scripts/foodpanda/get-orders.js taft $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d)
         env:
           WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
@@ -120,15 +139,43 @@ jobs:
       # store code is CUB. The script reads the store from the vendor id on
       # each row, never from this argument.
       - name: Extract QC orders
-        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'qc') }}
+        if: ${{ always() && env.FULL_RUN == '1' && ((github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'qc')) }}
         run: node scripts/foodpanda/get-orders.js qc $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d)
         env:
           WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
           FP_SESSION_QC:          ${{ secrets.FP_SESSION_QC }}
         timeout-minutes: 8
 
+      # ── Store status ────────────────────────────────────────────────────
+      # What the Daily Check asks a person to confirm, asked of the platform
+      # instead. Runs on every trigger including the status-only crons, where
+      # the payout and order steps above are skipped by `only_status`.
+      - name: Store status — Paranaque
+        if: ${{ always() && (github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'paranaque') }}
+        run: node scripts/foodpanda/get-store-status.js paranaque
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_PARANAQUE:   ${{ secrets.FP_SESSION_PARANAQUE }}
+        timeout-minutes: 5
+
+      - name: Store status — Taft
+        if: ${{ always() && (github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'taft') }}
+        run: node scripts/foodpanda/get-store-status.js taft
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_TAFT:        ${{ secrets.FP_SESSION_TAFT }}
+        timeout-minutes: 5
+
+      - name: Store status — QC
+        if: ${{ always() && (github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'qc') }}
+        run: node scripts/foodpanda/get-store-status.js qc
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_QC:          ${{ secrets.FP_SESSION_QC }}
+        timeout-minutes: 5
+
       - name: Refresh Daily P&L cache
-        if: always()
+        if: ${{ always() && env.FULL_RUN == '1' }}
         run: |
           DATE_FROM=$(date -u -d '35 days ago' +%Y-%m-%d)
           DATE_TO=$(date -u +%Y-%m-%d)
