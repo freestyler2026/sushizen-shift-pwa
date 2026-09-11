@@ -436,6 +436,17 @@ export default function ProcurementInvoicesPage() {
   const [problemReportSummary, setProblemReportSummary] = useState<ProblemReportSummary>({ flagged_invoice_count: 0, flagged_line_count: 0, supplier_count: 0 });
   const [detailsByInvoiceNo, setDetailsByInvoiceNo] = useState<Record<string, InvoiceDetail>>({});
   const [expandedInvoiceNo, setExpandedInvoiceNo] = useState<string | null>(null);
+  // The photograph the store took of this invoice, where one was taken and
+  // read. Fetched for the row that is open, never for the list — these are
+  // whole images.
+  const [invoicePhoto, setInvoicePhoto] = useState<{
+    photo: string | null;
+    reason?: string;
+    read_supplier?: string | null;
+    read_amount?: number | null;
+    read_invoice_no?: string | null;
+  } | null>(null);
+  const [invoicePhotoBusy, setInvoicePhotoBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<"valid" | "problems">("valid");
   const [selectedProblemInvoiceNo, setSelectedProblemInvoiceNo] = useState<string | null>(null);
   const [problemDraft, setProblemDraft] = useState<ProblemDraft | null>(null);
@@ -886,6 +897,42 @@ export default function ProcurementInvoicesPage() {
       setProblemBusy("");
     }
   }, [loadInvoiceDetail]);
+
+  useEffect(() => {
+    const openRow = rows.find((r) => r.invoice_no === expandedInvoiceNo);
+    if (!expandedInvoiceNo || !openRow) {
+      setInvoicePhoto(null);
+      return;
+    }
+    let alive = true;
+    setInvoicePhoto(null);
+    setInvoicePhotoBusy(true);
+    const qs = new URLSearchParams({ city });
+    if (openRow.invoice_date) qs.set("invoice_date", openRow.invoice_date);
+    procurementJson<{
+      photo?: string | null; reason?: string;
+      read_supplier?: string | null; read_amount?: number | null;
+      read_invoice_no?: string | null;
+    }>(
+      `/api/admin/procurement/invoices/${encodeURIComponent(expandedInvoiceNo)}/photo?${qs.toString()}`,
+      { method: "GET" },
+      requestedBy,
+      pin,
+    )
+      .then((d) => {
+        if (!alive) return;
+        setInvoicePhoto({
+          photo: d?.photo ?? null,
+          reason: d?.reason,
+          read_supplier: d?.read_supplier ?? null,
+          read_amount: d?.read_amount ?? null,
+          read_invoice_no: d?.read_invoice_no ?? null,
+        });
+      })
+      .catch(() => { if (alive) setInvoicePhoto({ photo: null, reason: "the photograph could not be loaded" }); })
+      .finally(() => { if (alive) setInvoicePhotoBusy(false); });
+    return () => { alive = false; };
+  }, [city, expandedInvoiceNo, pin, requestedBy, rows]);
 
   const exportQualityCsv = useCallback(() => {
     if (!qualityRows.length) return;
@@ -2006,6 +2053,32 @@ export default function ProcurementInvoicesPage() {
 
                 {isExpanded ? (
                   <div className="mt-4 rounded-2xl border border-white/10 bg-white/6/60 p-4">
+                    <div className="mb-4">
+                      {invoicePhotoBusy ? (
+                        <div className="text-sm text-zinc-500">Looking for the invoice photograph...</div>
+                      ) : invoicePhoto?.photo ? (
+                        <div className="space-y-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={invoicePhoto.photo}
+                            alt={`Invoice ${row.invoice_no}`}
+                            className="max-h-[26rem] w-auto rounded-xl border border-white/10"
+                          />
+                          <div className="text-xs text-zinc-500">
+                            Read off this photograph: invoice {invoicePhoto.read_invoice_no || "-"}
+                            {invoicePhoto.read_supplier ? ` · ${invoicePhoto.read_supplier}` : ""}
+                            {invoicePhoto.read_amount != null
+                              ? ` · ${formatMoney(invoicePhoto.read_amount, city === "dubai" ? "AED" : "PHP")}`
+                              : ""}
+                            <span className="text-zinc-600"> — compare with the figures below.</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-zinc-500">
+                          No photograph — {invoicePhoto?.reason || "none has been linked to this invoice"}.
+                        </div>
+                      )}
+                    </div>
                     {detailBusy === row.invoice_no && !detail ? (
                       <div className="text-sm text-zinc-500">Loading invoice detail...</div>
                     ) : detail ? (
