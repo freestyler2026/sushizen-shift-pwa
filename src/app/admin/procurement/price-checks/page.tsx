@@ -84,6 +84,10 @@ type PoVarianceResult = {
   unit_mismatch_count: number;
   unlinked_lines: number;
   total_invoice_lines: number;
+  /** The newest invoice this market holds, and how many days back that is.
+      An empty table means nothing without it. */
+  newest_invoice_date?: string;
+  days_behind?: number | null;
   currency: string;
   rows: PoVarianceRow[];
 };
@@ -429,6 +433,23 @@ function PoVarianceTab({
       </section>
 
       {/* Unlinked invoice diagnostic */}
+      {/* How current the data is. Dubai's newest invoice was 104 days old while
+          the sheet was being typed into every day — an empty screen read as
+          "no price problems" instead of "nothing recent has been entered". */}
+      {result && Number(result.days_behind ?? 0) > 30 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 mb-4">
+          <div className="text-sm text-amber-200 font-medium">
+            The newest invoice in {city === "dubai" ? "Dubai" : "Manila"} is dated{" "}
+            {result.newest_invoice_date} — {Number(result.days_behind)} days ago.
+          </div>
+          <div className="text-xs text-amber-200/70 mt-1">
+            Everything below covers up to that date only. The import runs daily and is
+            working; what it imports is what has been entered in the supplier invoice
+            sheet, and nothing newer has been.
+          </div>
+        </div>
+      )}
+
       {result && result.unlinked_lines > 0 && (
         <div className="rounded-2xl border border-amber-800/30 bg-amber-950/15 px-5 py-3.5 flex items-start gap-3">
           <TriangleAlert className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
