@@ -2956,8 +2956,8 @@ ul.body-list strong { color: var(--text); }
 
     <div class="tip info" style="margin-top:16px;">
       <span class="tip-icon">ℹ️</span>
-      <span class="ja">backup_le70 / backup_le50 の2テンプレートはDBに登録済みですが、パーレベルデータとの連携（自動検知）はWeek 5–6に実装予定です。現在はManual（手動タスク作成）で対応。</span>
-      <span class="en">The backup_le70 and backup_le50 templates are seeded in the DB, but their auto-detection (integration with par level data) is planned for Week 5–6. Currently handled via manual task creation.</span>
+      <span class="ja"><strong>backup_below_70 / backup_below_50 の自動検知は稼働中です</strong>（Day 4）。手動でタスクを作る必要はありません。ただし<strong>判定されるのは、パーレベル行が指定しているシフトのレポートだけ</strong>で、既定は closing です。開店レポートを判定させたい項目は、パーレベル画面で「Check morning too」を押してそのシフト用の行を作ってください。</span>
+      <span class="en"><strong>backup_below_70 / backup_below_50 auto-detection is live</strong> (Day 4) — no manual task creation is needed. But a par is only judged against <strong>the shift its row names</strong>, and the default is closing. To have the opening report judged, add a shift-scoped row with “Check morning too” on the Par Levels page.</span>
     </div>
   </div>
 
@@ -3133,6 +3133,12 @@ ul.body-list strong { color: var(--text); }
       <span class="tip-icon">⚠️</span>
       <span class="ja"><strong>初期値は「提案値」であって目標値ではありません。</strong>「Propose from last 30 days」は直近30日の提出実績の<strong>中央値</strong>を入れます。中央値は「その支店が普段どれだけ持っているか」であって「どれだけ持つべきか」ではありません。PROPOSED（黄）の行は誰もレビューしていない状態で、レビュー前でもアラートは発火します。数字を修正すると REVIEWED（緑）に変わります。</span>
       <span class="en"><strong>The initial numbers are proposals, not targets.</strong> “Propose from last 30 days” fills in the <strong>median</strong> of what was actually submitted. A median says what the branch <em>typically holds</em>, not what it <em>should</em> hold. Rows marked PROPOSED (amber) have not been reviewed by anyone, and alerts still fire on them. Editing the number marks it REVIEWED (green).</span>
+    </div>
+
+    <div class="tip warn">
+      <span class="tip-icon">🕐</span>
+      <span class="ja"><strong>パーレベルは「1つのシフト」だけに効きます。既定は closing（閉店レポート）です。</strong>morning（開店）や midday のレポートは、closing 用のパーレベルとは比較されません。各行の <strong>Checked on</strong> 列に、その行がどのレポートを見ているかが出ます。2026年9月、TAFT の Seasoned Egg が開店レポートで 10 pcs（パー30の33%）だったのにアラートが出ない、という報告がありました。トリガーは正常で、開店レポートを見るパーレベルが存在しなかったのが理由です。<br>別のシフトが同じパーを下回って提出している行には <strong>「Check morning too」</strong> のボタンが出ます。押すとそのシフト用のパーレベルが1行追加され、そのシフトのレポートも判定対象になります。ボタンには<strong>「直近60日でこのパーなら何回アラートが出ていたか」</strong>が併記されます — 押す前に、その分だけ毎日の件数が増えることを確認してください。止めるときはその行を削除します。</span>
+      <span class="en"><strong>A par is checked against ONE shift, and the default is closing.</strong> A morning (opening) or midday report is not measured against a closing par. The <strong>Checked on</strong> column on every row says which report that row grades. In September 2026 the store reported that TAFT Seasoned Egg read 10 pcs on the opening report — 33% of a par of 30 — with no alert. The trigger was working; no par existed that looked at the opening report.<br>A row whose other shifts have been reporting below its par shows a <strong>“Check morning too”</strong> button. Pressing it adds a second par row scoped to that shift, and that shift's reports start being judged. The button states <strong>how many alerts that par would have raised on that shift in the last 60 days</strong> — read it before pressing, because that is how much louder the queue gets. Remove the row to stop it.</span>
     </div>
 
     <div class="card">
