@@ -44,12 +44,11 @@ AUTH_COOKIE = {
 }
 
 # 期限が読めないので「保存時刻＋寿命」で推定するもの。
-# ⚠️ careem は 2026-09-11 に PROBE へ移した。推定のままだと、実際に死んでから
-# 最大72時間「問題なし」と表示し続ける。noon はまだ推定（叩ける読み取りAPIを
-# 特定していない）。
-KNOWN_LIFETIME_H = {
-    "noon": 62,      # 約2.6日（memory: noon-portal-notes）
-}
+# ⚠️ 2026-09-11 に careem と noon を実測へ移した。推定のままだと、実際に死んでから
+# 最大72時間「問題なし」と表示し続ける。noon はその日まさにそうなっていた:
+# `finance/wallet` が {"error":"UnAuthenticated"} を返している状態で、この画面は
+# 「あと2.5日」と表示していた。**残りは無い。**
+KNOWN_LIFETIME_H = {}
 
 # 自動実行があるもの＝失敗が事実として観測できる。
 # covers は「そのワークフローが実際に読むシークレットの店舗」。ここを店舗全部に
@@ -158,6 +157,60 @@ def probe(platform, store):
     if r.returncode == 1:
         return False, detail
     return None, detail or "判定不能"
+
+
+def noon_still_accepted(path):
+    """noon のセッションが今この瞬間に通るかを、取込が使う口で確かめる。
+
+    2026-09-11 実測: `finance/wallet` が 401 {"error":"UnAuthenticated"} を
+    返している状態で、この画面は「保存時刻＋62時間」の計算から「あと2.5日」と
+    表示していた。**推定は、死んだあと最大2.5日ぶん嘘をつく。**
+
+    ブラウザは使えない。noon の WAF はヘッドレスを門前で落とすので
+    （2026-09-11 実測: どのページも chrome-error）、取込と同じ素のHTTPで叩く。
+
+    True=通った / False=401（死んでいる） / None=確かめられなかった。
+    確かめられなかったときに False へ倒してはいけない（教訓58）。
+    """
+    import urllib.error
+    import urllib.request
+    try:
+        s = json.load(open(path))
+    except Exception:
+        return None
+    # ⚠️ noon のセッションファイルは Playwright の storageState ではない。
+    # `npsid` / `nprtnetid` / `npa_rt_v1` の3つだけを持ち、Cookie ヘッダは
+    # get-payouts.js の buildCookieHeader() が組み立てる。`cookies` 配列を
+    # 探しても空で、この関数は最初「判定できない」を返していた。
+    # **読む側のコードに合わせる**（教訓87）。
+    if not s.get("npsid") or not s.get("nprtnetid"):
+        return None
+    parts = [f"_npsid={s['npsid']}", f"_nprtnetid={s['nprtnetid']}",
+             "npa.pjc.v1=PRJ108431", "npa.au.v1=true"]
+    if s.get("npa_rt_v1"):
+        parts.append(f"npa.rt.v1={s['npa_rt_v1']}")
+    cookie = "; ".join(parts)
+    brand = "R5346332756132073257580964A"   # Sushi ZEN — get-payouts.js の1件目
+    body = json.dumps({"brandCode": brand, "entryType": "payment", "limit": 1}).encode()
+    req = urllib.request.Request(
+        "https://restaurant.noon.partners/_food-restaurant/finance/wallet",
+        data=body, method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "x-project": "PRJ108431", "x-locale": "en-ae",
+            "Cookie": cookie,
+            "Origin": "https://restaurant.noon.partners",
+            "Referer": f"https://restaurant.noon.partners/restaurant/{brand}/payment/?project=PRJ108431",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) "
+                          "Gecko/20100101 Firefox/120.0",
+        })
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return 200 <= r.status < 300
+    except urllib.error.HTTPError as e:
+        return False if e.code in (401, 403) else None
+    except Exception:
+        return None
 
 
 def grab_still_accepted(path):
@@ -387,14 +440,15 @@ def main():
         # Grab は「まだ通るか」を実際に確かめられる。期限が残っていても弾かれる
         # ことがあるので、事実が取れたときは予測より優先する。
         accepted = None
-        if platform == "grab":
-            accepted = grab_still_accepted(path)
+        if platform in ("grab", "noon"):
+            accepted = (grab_still_accepted(path) if platform == "grab"
+                        else noon_still_accepted(path))
             if accepted is False:
                 dead.append((label, "APIが401を返す（期限は残っているが実際には通らない）",
                              platform, store))
                 continue
             if accepted is True:
-                basis += "・いま実際に通ることを確認"
+                basis = (basis + "・" if basis else "") + "いま実際に通ることを確認"
 
         # 事実（CIの失敗）が予測より強い。ただしそのジョブが実際に読む
         # シークレットの店舗にだけ適用する。

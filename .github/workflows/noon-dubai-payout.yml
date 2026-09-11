@@ -46,6 +46,24 @@ jobs:
           WEBHOOK_URL:   ${{ github.event.inputs.dry_run != 'true' && 'https://sushizen-shift-app-038d846023bc.herokuapp.com' || '' }}
         timeout-minutes: 8
 
+      # ── Discounts ───────────────────────────────────────────────────────
+      # Same question as Careem's: a rate can move without anybody telling us.
+      #
+      # ⚠️ No cron was added for this. A weekly one on this workflow already
+      # failed six runs out of eight because the session dies after 2.6 days,
+      # and a mostly-red job is a job nobody reads. The daily cadence comes
+      # from the `aggregator-session-health` task instead: it runs on a machine
+      # the WAF does not block, it already checks whether noon is alive, and it
+      # takes the snapshot only when it is. This step covers the manual run
+      # that follows a fresh login.
+      - name: Record discounts
+        if: always()
+        run: node scripts/noon/get-discounts.js
+        env:
+          WEBHOOK_URL:   https://sushizen-shift-app-038d846023bc.herokuapp.com
+          NOON_SESSION:  ${{ secrets.NOON_SESSION }}
+        timeout-minutes: 6
+
       - name: Refresh Daily P&L cache
         if: always()
         run: |
