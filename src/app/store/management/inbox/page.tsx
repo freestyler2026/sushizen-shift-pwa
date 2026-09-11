@@ -737,6 +737,17 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
                   ? <> · <span className="text-amber-300">For {about}</span></>
                   : null;
               })()}
+              {/* Which report the reading came from. A backup shortfall can
+                  be raised twice in one day — once on the opening report and
+                  once at closing — and the message text is identical, so
+                  without this the pair is indistinguishable. Closing is the
+                  default and is left unsaid. */}
+              {(() => {
+                const sh = typeof task.context?.shift === "string" ? task.context.shift : "";
+                if (!sh || sh === "closing") return null;
+                const name = sh.charAt(0).toUpperCase() + sh.slice(1);
+                return <> · <span className="text-violet-300">{name} report</span></>;
+              })()}
               {task.manager_name ? <> · Owner: <span className="text-zinc-300">{task.manager_name}</span></> : null}
             </div>
           </div>

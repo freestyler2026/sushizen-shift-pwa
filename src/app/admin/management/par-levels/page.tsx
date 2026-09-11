@@ -361,6 +361,14 @@ export default function ParLevelsPage() {
     [rows, uncovered],
   );
 
+  /** One item can hold several rows now (one per shift), so the row count
+      stopped being the item count the moment the opening checks landed. */
+  const itemCount = useMemo(
+    () => new Set(rows.map((r) => `${r.branch_code}\u0000${r.item_name}`)).size,
+    [rows],
+  );
+  const autoAdded = rows.filter((r) => r.source === "opening_check").length;
+
   const unreviewed = rows.filter((r) => r.source === "seeded_median").length;
   const matching = rows.filter(
     (r) => r.source === "seeded_median" && r.verdict === "consistent",
@@ -434,7 +442,10 @@ export default function ParLevelsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Items with a par</div>
-          <div className={KPI_VALUE}>{rows.length}</div>
+          <div className={KPI_VALUE}>{itemCount}</div>
+          <div className="text-[11px] text-zinc-500 mt-1">
+            {rows.length} rows · one per shift checked
+          </div>
         </div>
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Branches</div>
@@ -465,7 +476,12 @@ export default function ParLevelsPage() {
         </div>
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Reviewed</div>
-          <div className={KPI_VALUE}>{rows.length - unreviewed}</div>
+          <div className={KPI_VALUE}>{rows.length - unreviewed - autoAdded}</div>
+          {autoAdded ? (
+            <div className="text-[11px] text-sky-300/80 mt-1">
+              + {autoAdded} auto-added for opening
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -637,9 +653,21 @@ export default function ParLevelsPage() {
                         ))}
                       </td>
                       <td className="py-2.5">
+                        {/* Three states, because two of them were being told
+                            apart by nothing. The 158 opening rows were added
+                            from the reports, not read by a person, and a green
+                            "Reviewed" on them is the screen claiming something
+                            that did not happen. */}
                         {r.source === "seeded_median" ? (
                           <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-300 bg-amber-500/12 border border-amber-500/25 rounded px-1.5 py-0.5">
                             Proposed
+                          </span>
+                        ) : r.source === "opening_check" ? (
+                          <span
+                            className="text-[10px] font-semibold uppercase tracking-wide text-sky-300 bg-sky-500/12 border border-sky-500/25 rounded px-1.5 py-0.5"
+                            title="Copied from this item's closing par when the opening reports showed it was consistently met. Nobody has reviewed the number for the opening shift."
+                          >
+                            Auto-added
                           </span>
                         ) : (
                           <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300 bg-emerald-500/12 border border-emerald-500/25 rounded px-1.5 py-0.5">
