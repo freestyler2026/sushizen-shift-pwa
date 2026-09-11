@@ -1,6 +1,64 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-11（Grabの注文明細に価格チェックの材料が全部あることを実測。日次ジョブが既に毎日呼んでいる）
+Last updated: 2026-09-11（FoodPandaの注文台帳を取り込み開始。マニラは2社に。閾値はストリームごとに4.5倍違う）
+
+## ✅ 2026-09-11（続き39） — FoodPanda の注文台帳を取り込んだ（マニラの2社目）
+
+`scripts/foodpanda/get-orders.js` 新規。日次ワークフロー（既存の payout と同じ
+セッション・同じ時刻）に3店舗ぶんのステップを追加。**742件を投入済み**
+（PAR 105 / TAFT 458 / CUB 179、2026-08-29〜09-10）。
+
+### 取れるもの
+
+`ListOrders`（`vagw-api.ap.prd.portal.restaurant/query`）:
+`orderId` / `vendorId` / `vendorName` / `orderStatus` / **`placedTimestamp`** /
+`subtotal` / `billing.commissionAmount` / `billing.netRevenue`
+
+### ⚠️ 403 は権限不足ではなく PerimeterX
+
+ポータル自身の最初の `ListOrders` が**毎回403**になる。本文はPXのチャレンジ
+（`appId: PX24c5Soup` / `blockScript`）。**待っても通らない。ページを再読み込みすると通る。**
+スクリプトはそれを前提に再読み込みで再試行する。**ログの403は正常、空振りは異常**で
+非ゼロ終了する（教訓47）。
+
+### ⚠️ 1つのログインが複数 vendorId を持つ
+
+Paranaque のログインは `fdwv` と `t0z4` を持ち、注文があるのは `t0z4` だけ。
+**店舗はログイン名ではなく各行の `vendorId` から決める**（2026-09-05 のGrab取り違えと同型／教訓86）。
+未知の vendorId が出たら**止める**。データから確定した対応:
+
+| vendorId | vendorName | store |
+|---|---|---|
+| `t0z4` | Sushi Zen - Parañaque | PAR |
+| `ryqc` | Sushi Zen - Taft | TAFT |
+| `a97i` | Sushi Zen - Cubao | CUB |
+| `fdwv` | （Paranaqueログインが持つが注文ゼロ） | — |
+
+### ⚠️ Grabの検知ルールは FoodPanda に転用できない
+
+「11〜21時に2時間連続で注文ゼロなら閉まっている」はGrabでは誤検知ゼロだが、
+FoodPandaは疎すぎる。**ストリームごとに実測した閾値**（2026-08-29〜09-10・13日）:
+
+| ストリーム | 11-21時のゼロ率 | 最長連続ゼロ | 誤検知ゼロの閾値 |
+|---|---:|---:|---:|
+| grab PAR | 1.4% | 1h | **2時間** |
+| grab TAFT | 0.7% | 1h | **2時間** |
+| grab CUB | 10.5% | 1h | **2時間** |
+| foodpanda TAFT | 6.3% | 1h | **2時間** |
+| foodpanda CUB | 39.2% | 4h | **5時間** |
+| **foodpanda PAR** | **58.7%** | **8h** | **9時間（＝実質検知できない）** |
+
+**単一の閾値だと4.5倍ずれる**（教訓45と同じ）。FoodPanda PAR は
+「9時間沈黙しても平常」なので、この方法では監視できない。**できないと書く。**
+
+### 残り
+
+- **Beep は依然として何も無い**（スクリプトもセッションも）。マニラ3社のうち1社。
+- FoodPanda の `orderStatus` は取得分すべて `DELIVERED`。キャンセルが出ないのか
+  既定フィルタなのかは未確認。
+- `vss.as.restaurant-partners.com/api/v2/vendors/status/counts` が
+  `{"open":1,"closed":0,"offHours":1}` を返す。**開店状態そのもののAPI**で、
+  Daily Check が人に聞いていることに直接答えうる。未着手。
 
 ## ✅ 2026-09-11（続き38） — 価格チェックの自動化は **Grabで成立する**（実測）
 

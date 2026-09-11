@@ -83,6 +83,50 @@ jobs:
           FP_SESSION_QC:          ${{ secrets.FP_SESSION_QC }}
         timeout-minutes: 8
 
+      # ── Order ledger ────────────────────────────────────────────────────
+      # Same sessions, same schedule, different question: payouts say what we
+      # were paid, orders say whether the platform was actually switched on.
+      # Manila had a ledger for Grab only, so two of the three aggregators the
+      # Daily Check asks about could not be answered from data at all.
+      #
+      # A 3-day window because the ledger upserts on (platform, order_id):
+      # re-reading the last two days costs nothing and closes the gap left by a
+      # night when the session was dead.
+      #
+      # Every store is `if: always()` so one expired session cannot skip the
+      # others (lesson 17); the job still ends red so a stuck store is never
+      # reported as success (lesson 47).
+      #
+      # ⚠️ PerimeterX refuses the first ListOrders of every run. The script
+      # expects that and retries by reloading the page -- a 403 in the log is
+      # normal, an empty capture is not and exits non-zero.
+      - name: Extract Paranaque orders
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque') }}
+        run: node scripts/foodpanda/get-orders.js paranaque $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d)
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_PARANAQUE:   ${{ secrets.FP_SESSION_PARANAQUE }}
+        timeout-minutes: 8
+
+      - name: Extract Taft orders
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'taft') }}
+        run: node scripts/foodpanda/get-orders.js taft $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d)
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_TAFT:        ${{ secrets.FP_SESSION_TAFT }}
+        timeout-minutes: 8
+
+      # The login is "qc"; FoodPanda's vendor is "Sushi Zen - Cubao" and the
+      # store code is CUB. The script reads the store from the vendor id on
+      # each row, never from this argument.
+      - name: Extract QC orders
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'qc') }}
+        run: node scripts/foodpanda/get-orders.js qc $(date -u -d '3 days ago' +%Y-%m-%d) $(date -u +%Y-%m-%d)
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          FP_SESSION_QC:          ${{ secrets.FP_SESSION_QC }}
+        timeout-minutes: 8
+
       - name: Refresh Daily P&L cache
         if: always()
         run: |
