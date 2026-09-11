@@ -431,8 +431,10 @@ export default function ProcurementInvoicesPage() {
   // has 1,350, so 350 invoices had no way of being seen or counted.
   const PAGE_SIZE = 200;
   const [page, setPage] = useState(0);
+  const [uncheckedOnly, setUncheckedOnly] = useState(false);
   const [totalInvoices, setTotalInvoices] = useState(0);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
+  const [checkedCount, setCheckedCount] = useState(0);
   const [qualityRows, setQualityRows] = useState<QualityRow[]>([]);
   const [qualitySummary, setQualitySummary] = useState<QualitySummary>({ flagged_invoice_count: 0, flagged_line_count: 0 });
   const [problemReportRows, setProblemReportRows] = useState<ProblemReportRow[]>([]);
@@ -522,6 +524,7 @@ export default function ProcurementInvoicesPage() {
       invoiceQs.set("city", city);
       invoiceQs.set("limit", String(PAGE_SIZE));
       invoiceQs.set("offset", String(page * PAGE_SIZE));
+      if (uncheckedOnly) invoiceQs.set("verified", "no");
       if (invoiceNo.trim()) invoiceQs.set("invoice_no", invoiceNo.trim());
       if (vendorName.trim()) invoiceQs.set("vendor_name", vendorName.trim());
       if (dateFrom) invoiceQs.set("date_from", dateFrom);
@@ -552,7 +555,8 @@ export default function ProcurementInvoicesPage() {
       vendorQs.set("market", city);
 
       const [data, qualityData, reportData, alertData, priceAlertData, paymentAlertData, vendorAlertRaw] = await Promise.all([
-        procurementJson<{ rows?: InvoiceRow[]; total?: number; total_amount?: number }>(
+        procurementJson<{ rows?: InvoiceRow[]; total?: number; total_amount?: number;
+                          verified?: Record<string, number> }>(
           `/api/admin/procurement/invoices?${invoiceQs.toString()}`,
           { method: "GET" },
           requestedBy,
@@ -602,6 +606,9 @@ export default function ProcurementInvoicesPage() {
       setRows(Array.isArray(data?.rows) ? data.rows : []);
       setTotalInvoices(Number(data?.total ?? 0));
       setTotalAmountAll(Number(data?.total_amount ?? 0));
+      setCheckedCount(
+        Object.values(data?.verified ?? {}).reduce<number>((a, b) => a + Number(b || 0), 0),
+      );
       setQualityRows(Array.isArray(qualityData?.rows) ? qualityData.rows : []);
       setQualitySummary({
         flagged_invoice_count: Number(qualityData?.summary?.flagged_invoice_count || 0),
@@ -680,7 +687,7 @@ export default function ProcurementInvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, dateFrom, dateTo, invoiceNo, page, pin, requestedBy, vendorName]);
+  }, [city, dateFrom, dateTo, invoiceNo, page, pin, requestedBy, uncheckedOnly, vendorName]);
 
   const recordVerification = useCallback(
     async (row: InvoiceRow, verdict: "matches" | "mismatch" | "unclear") => {
@@ -715,7 +722,7 @@ export default function ProcurementInvoicesPage() {
   // page 4 of the new one.
   useEffect(() => {
     setPage(0);
-  }, [city, dateFrom, dateTo, invoiceNo, vendorName]);
+  }, [city, dateFrom, dateTo, invoiceNo, uncheckedOnly, vendorName]);
 
   const loadBranchOptions = useCallback(async () => {
     try {
@@ -1986,6 +1993,11 @@ export default function ProcurementInvoicesPage() {
             showing {rows.length ? (page * PAGE_SIZE + 1).toLocaleString() : 0}–
             {(page * PAGE_SIZE + rows.length).toLocaleString()} on this page
           </div>
+          {checkedCount > 0 ? (
+            <div className="mt-1 text-xs text-emerald-300/80">
+              {checkedCount.toLocaleString()} checked so far
+            </div>
+          ) : null}
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Valid Amount</div>
@@ -2029,6 +2041,15 @@ export default function ProcurementInvoicesPage() {
                 <span className="text-zinc-200">{totalInvoices.toLocaleString()}</span>
                 <span className="text-zinc-500"> · newest first</span>
               </div>
+              <button
+                type="button"
+                onClick={() => setUncheckedOnly((v) => !v)}
+                className={uncheckedOnly
+                  ? "rounded-lg border border-violet-500/40 bg-violet-500/20 px-3 py-1.5 text-sm text-violet-200"
+                  : "rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300"}
+              >
+                {uncheckedOnly ? "Showing not yet checked" : "Show not yet checked"}
+              </button>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
