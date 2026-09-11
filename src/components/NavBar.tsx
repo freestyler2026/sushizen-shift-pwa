@@ -585,7 +585,10 @@ export default function NavBar() {
     if (href === "/admin/payments") return canAccessPaymentsAdmin(auth);
     if (href === "/admin/store-par-levels") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || channelAccessForRoute("/admin/store-par-levels", auth);
     if (href === "/admin/store-supplier-orders") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role) || hasChannelAccess("admin.store_supplier_orders", ["view"], auth);
-    if (href === "/admin/ar-payouts") return ["HQ", "ADMIN"].includes(role) || (auth?.permissions || []).includes("channel.admin.ar_payouts.view");
+    // Through hasChannelAccess like its neighbours. Its own `.includes()` did
+    // not know that "*" means every permission, so a session holding the
+    // wildcard and nothing else was told it had no AR Payouts.
+    if (href === "/admin/ar-payouts") return ["HQ", "ADMIN"].includes(role) || hasChannelAccess("admin.ar_payouts", ["view"], auth);
     if (href === "/admin/mgmt-accounting") return ["HQ", "ADMIN"].includes(role) || channelAccessForRoute("/admin/mgmt-accounting", auth);
     // Anything not named above is decided by Role Management. Previously this
     // was `return false`, so every page nobody remembered to add here was

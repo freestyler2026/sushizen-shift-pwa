@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { hasUnsavedEdits, UNSAVED_EVENT } from "@/lib/unsavedGuard";
+import { ACCESS_CHANGED_EVENT } from "@/lib/auth";
 
 const POLL_INTERVAL_MS = 30 * 1000;
 const BUNDLE_BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || "dev";
@@ -93,6 +94,13 @@ export default function AutoReload() {
       hardReload();
     }
 
+    // A grant made while this page is open. 78 pages freeze their copy of the
+    // session at mount, so without this the page keeps the access it had when
+    // it loaded until somebody navigates — nine days, in the case that led
+    // here. Same path as a new deploy: deferred while a form is dirty.
+    function onAccessChanged() { triggerReload(); }
+    window.addEventListener(ACCESS_CHANGED_EVENT, onAccessChanged);
+
     function check() {
       if (reloading.current) return;
       if (document.visibilityState !== "visible") return;
@@ -156,6 +164,7 @@ export default function AutoReload() {
       window.removeEventListener("focus", check);
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener(UNSAVED_EVENT, onUnsavedChange);
+      window.removeEventListener(ACCESS_CHANGED_EVENT, onAccessChanged);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

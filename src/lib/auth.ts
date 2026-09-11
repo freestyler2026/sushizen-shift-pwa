@@ -165,8 +165,26 @@ export function getAuth(): Auth | null {
   };
 }
 
+/** Fired when a stored session's role or permission set actually changes.
+ *
+ *  78 pages read `useMemo(() => getAuth(), [])`, which is deliberate — reading
+ *  it in the render body cost 42 requests a second on one page — but it means
+ *  a page open while a grant is made never sees it. Cyrine Fernandez's payroll
+ *  screen stayed masked for nine days after hers. AutoReload listens for this
+ *  and reloads the page, deferring while a form is dirty, exactly as it does
+ *  for a new deploy. */
+export const ACCESS_CHANGED_EVENT = "sz-access-changed";
+
+function accessSignature(role: string | undefined, permissions: unknown): string {
+  const perms = Array.isArray(permissions) ? permissions.map(String).sort() : [];
+  return `${String(role || "STAFF").toUpperCase()}|${perms.join(",")}`;
+}
+
 export function setAuth(a: Auth) {
   if (typeof window === "undefined") return;
+  // What was stored before this write, so a real change can be told from the
+  // identical rewrite every refresh performs.
+  const previous = getAuth();
   // Deliberately kept out of the localStorage payload below.
   writeStoredPin(a.pin);
   window.localStorage.setItem(
@@ -190,6 +208,16 @@ export function setAuth(a: Auth) {
       mfa: a.mfa || {},
     })
   );
+
+  // Only on a real change, and never on a first sign-in — a reload the moment
+  // somebody logs in would look like the login failed.
+  if (previous && previous.staffName === a.staffName) {
+    const before = accessSignature(previous.role, previous.permissions);
+    const after = accessSignature(a.role, a.permissions);
+    if (before !== after) {
+      window.dispatchEvent(new CustomEvent(ACCESS_CHANGED_EVENT));
+    }
+  }
 }
 
 /**
@@ -241,6 +269,13 @@ export function nonDowngradedAccess(
     // Keep permissions if the response would strip access we currently hold.
     permissions = currentPerms;
   } else if (lostStar) {
+    // A session holding "*" keeps it. That is deliberate (see the test), and it
+    // means a stored "*" can outlive the server having moved that role onto an
+    // explicit list — so every check must treat "*" as "holds everything".
+    // hasPermission does. Anything writing its own `.includes(key)` does not,
+    // and answers false for somebody who holds the key; that is what masked
+    // Cyrine Fernandez's payroll screen for nine days. Go through
+    // hasPermission.
     permissions = currentPerms;
   }
   return { role, permissions };
@@ -853,7 +888,10 @@ export function canAccessPayrollAdmin(a?: Auth | null): boolean {
 export function hasPayrollViewSalary(a?: Auth | null): boolean {
   const auth = a ?? getAuth();
   if ((auth?.role ?? "").toUpperCase() === "HQ") return true;
-  return (auth?.permissions ?? []).includes("payroll.view_salary");
+  // Through hasPermission, which is the one place that knows "*" means every
+  // permission. Written as its own `.includes()` this answered false for a
+  // session holding the wildcard and nothing else.
+  return hasPermission("payroll.view_salary", auth);
 }
 
 /**
