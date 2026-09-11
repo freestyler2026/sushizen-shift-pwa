@@ -408,7 +408,7 @@ export default function WhInventoryPage() {
   const countDirty = Object.values(countDraft).some((v) => (v ?? "").trim() !== "");
   useUnsavedGuard("wh-inventory-count", countDirty);
   const draftKey = `zen:wh-inventory:${city}:${countDate}`;
-  const { restored: draftRestored, discard: discardDraft } = usePersistedDraft<CountDraft>(
+  const { restored: draftRestored, savedAt: draftSavedAt, discard: discardDraft } = usePersistedDraft<CountDraft>(
     draftKey,
     countDraft,
     (r) => setCountDraft(r),
@@ -1484,6 +1484,11 @@ export default function WhInventoryPage() {
               <span className="text-xs text-neutral-500">
                 {masterItems.length} items{stockViewLoading ? " · loading theoretical..." : ""}
                 {" "}· {Object.keys(countDraft).filter((k) => parseFloat(countDraft[k] || "0") !== 0).length} entered
+                {draftSavedAt && (
+                  <span className="ml-2 text-emerald-400">
+                    · Draft saved {draftSavedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
               </span>
               <button
                 type="button"
@@ -1491,7 +1496,7 @@ export default function WhInventoryPage() {
                 onClick={() => {
                   setMasterItems([]);
                   setCountDraft({});
-      discardDraft();
+                  discardDraft();
                   setStockViewForCount([]);
                   void loadMaster(city);
                   void loadStockViewForCount(city);

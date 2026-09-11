@@ -26,8 +26,13 @@ export function usePersistedDraft<T>(
   value: T,
   apply: (restored: T) => void,
   isEmpty: (v: T) => boolean,
-): { restored: boolean; discard: () => void } {
+): { restored: boolean; savedAt: Date | null; discard: () => void } {
   const [restored, setRestored] = useState(false);
+  // ⚠️ Auto-save that shows nothing is indistinguishable from no auto-save
+  // until the moment you need it -- and the person typing has no reason to
+  // trust it, least of all right after losing a count. `savedAt` is what the
+  // screen uses to say so out loud.
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const loaded = useRef(false);
 
   // Restore once, and only into an empty form: overwriting something the user
@@ -56,8 +61,13 @@ export function usePersistedDraft<T>(
   useEffect(() => {
     if (!loaded.current) return;
     try {
-      if (isEmpty(value)) window.localStorage.removeItem(key);
-      else window.localStorage.setItem(key, JSON.stringify(value));
+      if (isEmpty(value)) {
+        window.localStorage.removeItem(key);
+        setSavedAt(null);
+      } else {
+        window.localStorage.setItem(key, JSON.stringify(value));
+        setSavedAt(new Date());
+      }
     } catch {
       /* storage unavailable: the in-memory form still works */
     }
@@ -67,7 +77,8 @@ export function usePersistedDraft<T>(
   const discard = () => {
     try { window.localStorage.removeItem(key); } catch { /* ignore */ }
     setRestored(false);
+    setSavedAt(null);
   };
 
-  return { restored, discard };
+  return { restored, savedAt, discard };
 }

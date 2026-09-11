@@ -123,7 +123,7 @@ export default function CkInventoryPage() {
   const countDirty = Object.values(countDraft).some((v) => (v ?? "").trim() !== "");
   useUnsavedGuard("ck-inventory-count", countDirty);
   const draftKey = `zen:ck-inventory:${city}:${countDate}`;
-  const { restored: draftRestored, discard: discardDraft } = usePersistedDraft<CountDraft>(
+  const { restored: draftRestored, savedAt: draftSavedAt, discard: discardDraft } = usePersistedDraft<CountDraft>(
     draftKey,
     countDraft,
     (r) => setCountDraft(r),
@@ -565,6 +565,11 @@ export default function CkInventoryPage() {
             <div className="ml-auto flex items-center gap-2">
               <span className="text-xs text-neutral-500">
                 {masterItems.length} items{stockViewLoading ? " · loading theoretical..." : ""} · {Object.keys(countDraft).filter((k) => parseFloat(countDraft[k] || "0") !== 0).length} entered
+                {draftSavedAt && (
+                  <span className="ml-2 text-emerald-400">
+                    · Draft saved {draftSavedAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
               </span>
               <button
                 type="button"
@@ -572,7 +577,7 @@ export default function CkInventoryPage() {
                 onClick={() => {
                   setMasterItems([]);
                   setCountDraft({});
-      discardDraft();
+                  discardDraft();
                   setStockView([]);
                   void loadMaster(city);
                   void loadStockView(city);
