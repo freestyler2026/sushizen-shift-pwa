@@ -436,6 +436,18 @@ function PoVarianceTab({
       {/* How current the data is. Dubai's newest invoice was 104 days old while
           the sheet was being typed into every day — an empty screen read as
           "no price problems" instead of "nothing recent has been entered". */}
+      {/* Where the numbers come from. This screen and the Management Inbox
+          alert used to read different tables, so a page showing nothing sat
+          beside unread price alerts about the same invoices. */}
+      <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 mb-4">
+        <div className="text-xs text-zinc-400">
+          From the <strong className="text-zinc-200">PO / invoice check entered at receiving</strong> —
+          the PO price and the invoiced price read off the same document by the person
+          checking the delivery. These are the same rows the Management Inbox price
+          alerts are raised from, so the two always agree.
+        </div>
+      </div>
+
       {result && Number(result.days_behind ?? 0) > 30 && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 mb-4">
           <div className="text-sm text-amber-200 font-medium">
