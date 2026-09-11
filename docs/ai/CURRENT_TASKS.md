@@ -1,6 +1,45 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-11（ドバイの当番割当。`ALL` 行は既にあったが誰も読んでいなかった／自分の修正の監査で2件）
+Last updated: 2026-09-11（Manila Payroll が全額マスク。サーバーは正しく、画面がブラウザの古い権限で二重に判定していた）
+
+## 🔴 2026-09-11（続き55） — 画面が、サーバーの答えを信じずに聞き直していた
+
+Cyrine Fernandez から「Manila Payroll の金額が全部見えない」。
+
+**サーバーは正しかった。** 本番で TestClient 実行:
+
+| | 実額が入っている行 | `salary_hidden` |
+|---|---:|---|
+| Cyrine（ADMIN + `payroll.view_salary`） | **59 / 60** | Peter Villafuerte のみ |
+| 植嶋さん（HQ） | 60 / 60 | なし |
+
+保護対象は `_PROTECTED_PAY_DEFAULT` = Yuri Yamada / Ayako Nishimura / Yusuke Uejima /
+Peter Villafuerte。**マニラの給与に載るのは Peter だけ**なので、仕様どおりの動作。
+
+**原因は画面側。** `canSeeSalary = hasPayrollViewSalary(getAuth())` は
+**ブラウザの localStorage にある権限一覧**を読む。`PAYROLL_SALARY_VIEW` の付与は
+**2026-09-02**（西村さん）で、`/api/auth/session` は今も `payroll.view_salary` を返すのに、
+彼女の保存済みコピーが追いついていなかった。**実額60行分が届いているのに全部アスタリスクで描画されていた。**
+
+サーバーがミドルウェアで強制しており、届いた数字は読んでよい数字。**聞き直す必要がなかった。**
+
+### 直したこと
+
+- `canSeeSalary` を**データ駆動**に。`hasPayrollViewSalary(...) || runs.some(値が来ている)`
+- **`salary_hidden` の行は `****`。** 以前は `fmtPHP(null)` で **`—`** と出ており、
+  「未設定」と「見せない」が同じ見た目だった（バックエンドが `salary_hidden` を付けている理由そのもの）
+- **合計値がブラウザ側で `?? 0` で合算されていた。** 部分閲覧者には**隠した人を黙って除いた合計**が
+  「その期間の合計」として出ていた — サーバーが自分の合計をマスクして防いでいる引き算そのもの。
+  伏せ行があるときは合計も `****` にし、ツールチップに件数を出す
+
+### 残っていること
+
+- **ブラウザに保存した権限が古くなる経路は他ページにも残る。** `hasPayrollViewSalary` と
+  同型の判定は `src/lib/auth.ts` に多数あり、権限を新しく配っても本人の画面が追いつかない。
+  `/api/auth/session` は正しい値を返すので、**どこで refresh されるか**を洗い出すのが次の課題
+
+---
+
 
 ## 2026-09-11（続き54） — Yuri Yamada の積み残しを一括クローズ。**中身で分けた**
 
