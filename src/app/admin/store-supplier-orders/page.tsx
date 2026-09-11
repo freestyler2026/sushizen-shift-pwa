@@ -70,6 +70,7 @@ interface OrderItem {
   qty_suggested?: number | null;
   suggested_par?: number | null;
   suggested_stock?: number | null;
+  stock_counted?: boolean | null;
   par_source?: string | null;
   inventory_date?: string | null;
   inventory_shift?: string | null;
@@ -1392,9 +1393,20 @@ export default function StoreSupplierOrdersPage() {
                                             <div className="text-xs text-zinc-500">{item.item_code}</div>
                                           </td>
                                           <td className="px-3 py-2 text-right tabular-nums text-xs">
-                                            {item.current_stock != null
-                                              ? <span className="text-zinc-300">{Number(item.current_stock)} {item.unit}</span>
-                                              : <span className="text-zinc-600">—</span>}
+                                            {/* The stock the order was built on, not the stock
+                                                now. The line below already dates it, and the
+                                                order quantity is par minus this number — a
+                                                live re-read disagreed with both. It showed 0
+                                                whenever the newest count of the day had no
+                                                entry for the item yet, which reads the same as
+                                                counted and found none. */}
+                                            {item.stock_counted === false
+                                              ? <span className="text-amber-400">not counted</span>
+                                              : (item.suggested_stock ?? item.current_stock) != null
+                                                ? <span className="text-zinc-300">
+                                                    {Number(item.suggested_stock ?? item.current_stock)} {item.unit}
+                                                  </span>
+                                                : <span className="text-zinc-600">—</span>}
                                             {item.suggested_par != null && (
                                               <div className="text-[10px] text-zinc-500">
                                                 par {Number(item.suggested_par)}
