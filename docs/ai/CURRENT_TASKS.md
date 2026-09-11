@@ -1,6 +1,65 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-11（バックアップアラートが開店レポートを見ていなかった件。トリガーは正常、パーの適用範囲が画面に無かった）
+Last updated: 2026-09-11（打刻画面が "Authenticating..." で固まる件。原因は増幅ループだった）
+
+## 🔴 2026-09-11（続き51） — 打刻が固まる。**1人の不具合ではなく、自分で自分を悪化させるループ**
+
+PAR の Angelika Valbarez から報告。**両方のボタンが "Authenticating..." のまま、打刻から9時間22分**。
+
+### 直接の原因
+
+`src/app/attendance/page.tsx` は**1つの `busy` フラグで全ボタンのラベルを決めている**。そして
+その処理には**永久に終わりうる await が3つ**あった。
+
+- `navigator.credentials.get()` — `timeout` は**プラットフォームが無視してよいヒント**。Androidは実際に無視する
+- `/api/attendance/action/options` の fetch（タイムアウトなし）
+- `/api/attendance/action/verify` の fetch（タイムアウトなし）
+
+`finally { setBusy(false) }` は書いてあるが、**try の中が終わらなければ finally には来ない。**
+
+### 増幅ループ（これが本体）
+
+1. パスキーのシートが固まる → ボタンが "Authenticating..." で止まる
+2. 画面が出す唯一の逃げ道は **「Register this device」**
+3. 押すと**新しいパスキーが1本増える**
+4. `list_webauthn_credentials` は `ORDER BY created_at DESC`。次回の `allowCredentials` は
+   **使えない新しい鍵を先頭に**して端末へ渡される
+5. 端末はその列を順に探して見つからない → また固まる → 2へ
+
+**Patrick Danel Santiago はパスキーを24本持っていた。うち23本が未使用。**
+全体で **42人・151本**が「登録されたが一度も使われていない」。
+彼の実際に動く1本（sign_count 236）は、**24本の列の最後尾**にいた。
+
+Angelika は動く鍵（sign_count 117・最終使用 9/9）と、8/9に作られた未使用の鍵の2本を持ち、
+**未使用の方が先に試されていた。**
+
+### 被害の実測
+
+- 30日で **2,807セッション中291件（10.4%）**に手書きの note
+- うち **54件・34人**が「OS自体が記録できなかった」と明記（`Problem in O.S` / `No clock-out record` / `system error`）
+- 9/11当日も **Anthony Andales（CUB）が同じ状態**（note: `Problem in O.S for Time In/Out`）
+
+### 直したこと
+
+| 層 | 修正 |
+|---|---|
+| フロント | `AbortController` + 45秒。`credentials.get()` / `create()` に `signal` を渡し、両方の fetch にも付けた。タイムアウト時は**「記録されていません。もう一度押してください」**と明示 |
+| フロント | エラーの自動消去を 8秒 → **20秒**。押すべき操作が書いてある文が読む前に消えていた |
+| バック | `ORDER BY last_used_at DESC NULLS LAST, created_at DESC`。**動く鍵が先頭に来る** |
+| バック | `_allow_credentials_for()` で **allowCredentials を5本に上限**。2箇所の options エンドポイントを統合 |
+| データ | 未使用かつ7日以上前のパスキー **128本を無効化**（`is_active=FALSE`・`_webauthn_dead_bk_20260911` に退避）。**全員が最低1本を保持することを確認済み** |
+| バック | `ensure_security_hardening_tables()` が**DDLの前にロックを解放**していた。打刻のたびに呼ばれ、フラグはdyno単位なので、**デプロイ直後に2人が同時に打刻すると両方がDDLを実行**し、片方が statement timeout になりうる。ロックをDDLの最後まで保持するよう修正（実際に one-off dyno で踏んだ） |
+
+### 残っていること
+
+- **Angelika の 9/11 の退勤打刻が空のまま**（id `98338ed5-…`）。Anthony Andales（CUB, `5f30b0a6-…`）も同様。
+  **勝手に時刻を入れない** — 退勤時刻を知らないため。BOが StoreHub から入れる運用に従う
+- **Raji Deeban Jegan は有効なパスキーが0本**（今回の掃除の前からそう）。15日打刻しているが OS 経由では打てない
+- **Anthony Plaza の 9/10・9/11 のセッションは `check_in_at` が NULL**（note: `duplicate name`）。別件
+- 未使用パスキーの掃除は**手動実行**。上限5本で実害は消えているが、放置すれば行は再び増える
+
+---
+
 
 ## 2026-09-11（続き50） — 続き49の実装監査。欠陥4件
 
