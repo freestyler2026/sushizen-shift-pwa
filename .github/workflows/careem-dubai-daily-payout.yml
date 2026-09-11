@@ -75,6 +75,24 @@ jobs:
           CAREEM_SESSION: ${{ secrets.CAREEM_SESSION }}
         timeout-minutes: 8
 
+      # ── Discount campaigns ──────────────────────────────────────────────
+      # The owner's problem: Careem changes the rate without telling us. The
+      # portal does say, on a screen nobody opens every morning -- all 22
+      # campaigns live on 2026-09-11 were created by Careem, at 20% to 50%.
+      #
+      # The snapshot is taken here and the BACKEND reports the difference; the
+      # run log carries it, so "did they change it again" has somewhere to be
+      # answered. `if: always()` so a payout failure does not skip it, and the
+      # script exits non-zero on an empty capture rather than reporting success
+      # on nothing (lesson 47).
+      - name: Record discount campaigns
+        if: always()
+        run: node scripts/careem/get-promotions.js
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          CAREEM_SESSION:         ${{ secrets.CAREEM_SESSION }}
+        timeout-minutes: 8
+
       - name: Refresh Daily P&L cache
         if: always()
         run: |
