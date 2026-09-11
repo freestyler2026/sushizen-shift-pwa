@@ -422,6 +422,13 @@ export default function ProcurementInvoicesPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [rows, setRows] = useState<InvoiceRow[]>([]);
+  // The list is a page of a larger set. Before this, the screen asked for
+  // 1,000 against a ceiling of 1,000 and reported that as the count — Manila
+  // has 1,350, so 350 invoices had no way of being seen or counted.
+  const PAGE_SIZE = 200;
+  const [page, setPage] = useState(0);
+  const [totalInvoices, setTotalInvoices] = useState(0);
+  const [totalAmountAll, setTotalAmountAll] = useState(0);
   const [qualityRows, setQualityRows] = useState<QualityRow[]>([]);
   const [qualitySummary, setQualitySummary] = useState<QualitySummary>({ flagged_invoice_count: 0, flagged_line_count: 0 });
   const [problemReportRows, setProblemReportRows] = useState<ProblemReportRow[]>([]);
@@ -495,7 +502,8 @@ export default function ProcurementInvoicesPage() {
     try {
       const invoiceQs = new URLSearchParams();
       invoiceQs.set("city", city);
-      invoiceQs.set("limit", "1000");
+      invoiceQs.set("limit", String(PAGE_SIZE));
+      invoiceQs.set("offset", String(page * PAGE_SIZE));
       if (invoiceNo.trim()) invoiceQs.set("invoice_no", invoiceNo.trim());
       if (vendorName.trim()) invoiceQs.set("vendor_name", vendorName.trim());
       if (dateFrom) invoiceQs.set("date_from", dateFrom);
@@ -526,7 +534,7 @@ export default function ProcurementInvoicesPage() {
       vendorQs.set("market", city);
 
       const [data, qualityData, reportData, alertData, priceAlertData, paymentAlertData, vendorAlertRaw] = await Promise.all([
-        procurementJson<{ rows?: InvoiceRow[] }>(
+        procurementJson<{ rows?: InvoiceRow[]; total?: number; total_amount?: number }>(
           `/api/admin/procurement/invoices?${invoiceQs.toString()}`,
           { method: "GET" },
           requestedBy,
@@ -574,6 +582,8 @@ export default function ProcurementInvoicesPage() {
         ).catch(() => ({ ...EMPTY_VENDOR_DATA })),
       ]);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      setTotalInvoices(Number(data?.total ?? 0));
+      setTotalAmountAll(Number(data?.total_amount ?? 0));
       setQualityRows(Array.isArray(qualityData?.rows) ? qualityData.rows : []);
       setQualitySummary({
         flagged_invoice_count: Number(qualityData?.summary?.flagged_invoice_count || 0),
@@ -635,6 +645,8 @@ export default function ProcurementInvoicesPage() {
       });
     } catch (e: any) {
       setRows([]);
+      setTotalInvoices(0);
+      setTotalAmountAll(0);
       setQualityRows([]);
       setQualitySummary({ flagged_invoice_count: 0, flagged_line_count: 0 });
       setProblemReportRows([]);
@@ -650,7 +662,13 @@ export default function ProcurementInvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, dateFrom, dateTo, invoiceNo, pin, requestedBy, vendorName]);
+  }, [city, dateFrom, dateTo, invoiceNo, page, pin, requestedBy, vendorName]);
+
+  // A filter changes what is being asked, so page 4 of the old answer is not
+  // page 4 of the new one.
+  useEffect(() => {
+    setPage(0);
+  }, [city, dateFrom, dateTo, invoiceNo, vendorName]);
 
   const loadBranchOptions = useCallback(async () => {
     try {
@@ -1079,16 +1097,6 @@ export default function ProcurementInvoicesPage() {
     const flagged = new Set(qualityRows.map((row) => `${row.market}:${row.invoice_no}`));
     return rows.filter((row) => !flagged.has(`${row.market}:${row.invoice_no}`));
   }, [qualityRows, rows]);
-
-  const validSummary = useMemo(() => {
-    const totalAmount = validRows.reduce((sum, row) => sum + Number(row.invoice_amount || 0), 0);
-    const totalLines = validRows.reduce((sum, row) => sum + Number(row.line_count || 0), 0);
-    return {
-      invoiceCount: validRows.length,
-      totalAmount,
-      totalLines,
-    };
-  }, [validRows]);
 
   const problemDirty = useMemo(() => {
     if (!problemDraft || !problemBaseDraft) return false;
@@ -1890,11 +1898,18 @@ export default function ProcurementInvoicesPage() {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Valid Invoices</div>
-          <div className="mt-2 text-2xl font-semibold text-white">{validSummary.invoiceCount}</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{totalInvoices.toLocaleString()}</div>
+          <div className="mt-1 text-xs text-zinc-500">
+            showing {rows.length ? (page * PAGE_SIZE + 1).toLocaleString() : 0}–
+            {(page * PAGE_SIZE + rows.length).toLocaleString()} on this page
+          </div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Valid Amount</div>
-          <div className="mt-2 text-2xl font-semibold text-white">{formatMoney(validSummary.totalAmount, city === "dubai" ? "AED" : "PHP")}</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{formatMoney(totalAmountAll, city === "dubai" ? "AED" : "PHP")}</div>
+          <div className="mt-1 text-xs text-zinc-500">
+            all {totalInvoices.toLocaleString()} invoices, not this page
+          </div>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Problem Invoices</div>
@@ -1909,7 +1924,7 @@ export default function ProcurementInvoicesPage() {
             onClick={() => setActiveTab("valid")}
             className={activeTab === "valid" ? TAB_ACTIVE : TAB_INACTIVE}
           >
-            Valid Data ({validRows.length})
+            Valid Data ({totalInvoices.toLocaleString()})
           </button>
           <button
             type="button"
@@ -1923,6 +1938,37 @@ export default function ProcurementInvoicesPage() {
 
       {activeTab === "valid" ? (
         <div className="space-y-3">
+          {totalInvoices > PAGE_SIZE && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+              <div className="text-sm text-zinc-400">
+                Invoices {(page * PAGE_SIZE + 1).toLocaleString()}–
+                {(page * PAGE_SIZE + rows.length).toLocaleString()} of{" "}
+                <span className="text-zinc-200">{totalInvoices.toLocaleString()}</span>
+                <span className="text-zinc-500"> · newest first</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={page === 0 || loading}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-200 disabled:opacity-40"
+                >
+                  ← Newer
+                </button>
+                <span className="text-xs text-zinc-500">
+                  Page {page + 1} of {Math.max(1, Math.ceil(totalInvoices / PAGE_SIZE))}
+                </span>
+                <button
+                  type="button"
+                  disabled={(page + 1) * PAGE_SIZE >= totalInvoices || loading}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-200 disabled:opacity-40"
+                >
+                  Older →
+                </button>
+              </div>
+            </div>
+          )}
           {validRows.map((row) => {
             const isExpanded = expandedInvoiceNo === row.invoice_no;
             const detail = detailsByInvoiceNo[detailKeyFor(city, row.invoice_no)];
