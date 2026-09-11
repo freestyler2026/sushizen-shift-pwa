@@ -145,3 +145,44 @@ describe("submitting again corrects the record", () => {
     expect(await screen.findByText(/Check submitted\. Add photos below\./i)).toBeTruthy();
   });
 });
+
+describe("adding a photo later is not a correction", () => {
+  it("offers a way back to the existing record without re-submitting", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      const u = String(url);
+      const body =
+        u.includes("/aggregators") ? { aggregators: [{ key: "grabfood", label: "GrabFood" }] }
+        : u.includes("/today") ? { checks: [{ id: "chk-0", check_type: "LUNCH_OPEN", submitted_by: "Erica",
+            submitted_at: "2026-09-11T02:59:00+00:00", status: "CONFIRMED_OK", photo_urls: [] }] }
+        : u.includes("branches") ? { branches: [{ code: "PAR", label: "Paranaque" }] }
+        : {};
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+    });
+    render(<DailyCheckPage />);
+    fireEvent.click(await screen.findByText("Lunch Open"));
+    const btn = await screen.findByText("Add photos to this record");
+    fireEvent.click(btn);
+    // The upload box opens on the record that already exists — no second
+    // submission, so the back office's confirmation is not thrown away.
+    expect(await screen.findByText(/Upload Device Photos/i)).toBeTruthy();
+    const submits = mockFetch.mock.calls.filter((c) => String(c[0]).includes("/submit"));
+    expect(submits.length).toBe(0);
+  });
+
+  it("is not offered for a check type that takes no photos", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      const u = String(url);
+      const body =
+        u.includes("/aggregators") ? { aggregators: [{ key: "grabfood", label: "GrabFood" }] }
+        : u.includes("/today") ? { checks: [{ id: "chk-9", check_type: "BUSINESS_CLOSE", submitted_by: "Erica",
+            submitted_at: "2026-09-11T02:59:00+00:00", status: "SUBMITTED", photo_urls: [] }] }
+        : u.includes("branches") ? { branches: [{ code: "PAR", label: "Paranaque" }] }
+        : {};
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+    });
+    render(<DailyCheckPage />);
+    fireEvent.click(await screen.findByText("Business Close"));
+    await screen.findByText(/Already submitted today/i);
+    expect(screen.queryByText("Add photos to this record")).toBeNull();
+  });
+});

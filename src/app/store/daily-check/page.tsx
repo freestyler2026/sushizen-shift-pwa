@@ -419,6 +419,19 @@ export default function DailyCheckPage() {
               <p className="text-xs text-amber-300/70">
                 Sending it again corrects this record — it does not add a second one.
               </p>
+              {/* Photos used to appear only straight after a submission, so
+                  somebody who forgot to take one had to send the check again
+                  just to reach the upload box -- which counted as a correction
+                  and put the record back in front of the back office. Adding a
+                  photo is not a correction, so it opens the same record. */}
+              {takesPhotos && (
+                <button
+                  onClick={() => { setSubmittedId(alreadySubmitted[0].id); setMsg(null); }}
+                  className="mt-2 rounded-lg border border-amber-400/40 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/10"
+                >
+                  Add photos to this record
+                </button>
+              )}
               <p className="text-xs text-amber-300/70 mt-0.5">
                 {alreadySubmitted[0].submitted_by} at {new Date(alreadySubmitted[0].submitted_at).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" })}
                 {(alreadySubmitted[0].status === "CONFIRMED_OK" || alreadySubmitted[0].status === "CONFIRMED")
