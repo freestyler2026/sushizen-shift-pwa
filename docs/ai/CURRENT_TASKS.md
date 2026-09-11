@@ -1,6 +1,48 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-09-11（打刻画面が "Authenticating..." で固まる件。原因は増幅ループだった）
+Last updated: 2026-09-11（Morning Review のバッジ4件・画面0件。レビューは人宛なのに、見る側の都市で絞っていた）
+
+## 🔴 2026-09-11（続き52） — Morning Review が「4件」と言いながら何も出さなかった
+
+植嶋さんから報告。**バッジは4、画面は「Nothing to review」。両方とも自分のクエリについては正しかった。**
+
+| | 都市フィルタ | 件数 |
+|---|---|---|
+| バッジ `/api/store/management/badge` | **なし**。`assigned_to = 自分` だけ | 4 |
+| 一覧 `/api/store/ops-review` | **見る人のアカウント都市**を適用 | 0 |
+
+**植嶋さんのアカウントは `dubai`、担当は Cubao（manila）。**
+`assigned_to = 'Yusuke Uejima'` の4件（9/05・9/06・9/08・9/10、全部 CUB・status=open）は
+**一覧から都市で弾かれ、開ける画面が存在しなかった。1週間待たされていた。**
+
+**レビューは人に宛てられている。その時点で範囲は決まっている。** 都市はその上から掛けるものではない。
+
+### 直したこと
+
+- `mine=true` のとき**都市で絞らない**。都市は「他人のぶんも見る」ビューだけを絞る
+- **HQ/ADMIN 限定で `mine=false` を開放**。都市は推測せず引数で受ける。それ以外のロールは **403**
+- 画面に **Mine / All — Manila / All — Dubai** の切替（HQのみ表示）。他人のぶんを見るときは**担当者名を各チップに表示**
+- 空状態の文面を修正。「there was nothing at **your branch**」は誤り — 決めているのは支店ではなく**宛先の名前**で、
+  4件はその文の裏で待っていた
+
+### 検証（本番・TestClient で実HTTP経路）
+
+| 実行 | 結果 |
+|---|---|
+| 植嶋さん `mine` | **4件**（CUB 9/05・9/06・9/08・9/10）＝バッジと一致 |
+| Peter Villafuerte `mine` | 3件（PAR）。影響なし |
+| HQ `mine=false&city=manila` | 11件、担当者名つき |
+| HR_MANAGER が `mine=false` | **403 Only HQ can read other managers' reviews** |
+
+### あわせて見つけたこと
+
+- **ドバイの open レビュー20件が `assigned_to` 空**（9/05以降）。`mine` は宛先で絞るので**誰の画面にも出ない**。
+  HQの「All — Dubai」でだけ見え、チップに `nobody assigned` と出る。**当番表側の設定が要る**
+- バッジは `management_tasks` の `lane='review'` も同じ数に足しているが、Morning Review の画面は
+  `ops_reviews` しか出さない。**現在は該当0件**なので実害なし。1件でも出たらまた数が食い違う
+
+---
+
 
 ## 🔴 2026-09-11（続き51） — 打刻が固まる。**1人の不具合ではなく、自分で自分を悪化させるループ**
 
