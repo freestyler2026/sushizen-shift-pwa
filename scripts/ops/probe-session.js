@@ -46,30 +46,43 @@ const ROOT = path.dirname(__dirname);
 const PORTAL = {
   talabat: 'https://partner-app.talabat.com',
   foodpanda: 'https://partner.foodpanda.com',
+  careem: 'https://partners.careem.com/saturn-ext/merchant/home',
 };
+
+// Careem does not hand the page a Bearer -- it is cookie-authenticated -- so
+// "a fresh token was minted" cannot be the test there. Its liveness is: the
+// portal did not bounce us to login, and an authenticated GET answers.
+// Until 2026-09-11 Careem was judged by "saved at + a 72-hour lifetime from
+// memory", which is a guess, and the daily check would have said healthy for
+// up to three days after it actually died.
+const COOKIE_AUTH = new Set(['careem']);
 
 // 取込が実際に叩くもの。発行できたあとに1回だけ確かめる。
 // foodpanda: 店舗状態の取込（get-store-status.js）が使う本物。
 // talabat: 認証つきの読み取りAPIがまだ無いので、ポータルに留まれたかだけを見る。
 const VERIFY = {
   foodpanda: 'https://vss.as.restaurant-partners.com/api/v2/vendors/status',
+  // Small, read-only, and behind the same auth the promotions snapshot needs.
+  careem: 'https://partners.careem.com/api/saturn-ext/v1/partners/me',
 };
 
 const platform = process.argv[2];
 const store = process.argv[3] || '';
 if (!PORTAL[platform]) {
-  console.error('Use: talabat | foodpanda [store]');
+  console.error('Use: talabat | foodpanda [store] | careem');
   process.exit(2);
 }
 
 // CI が使うのは b64（シークレットの中身）。それを第一に読む。
 // .json はローカルにしか無く、片方だけ新しいことが実際にあった。
-const b64File = platform === 'talabat'
-  ? path.join(ROOT, 'talabat', 'talabat-session.b64.txt')
-  : path.join(ROOT, 'foodpanda', `${store || 'paranaque'}-session.b64.txt`);
-const jsonFile = platform === 'talabat'
-  ? path.join(ROOT, 'talabat', 'talabat-session.json')
-  : path.join(ROOT, 'foodpanda', `${store || 'paranaque'}-session.json`);
+const FILES = {
+  talabat: ['talabat/talabat-session.b64.txt', 'talabat/talabat-session.json'],
+  careem: ['careem/careem-session.b64.txt', 'careem/careem-session.json'],
+  foodpanda: [`foodpanda/${store || 'paranaque'}-session.b64.txt`,
+              `foodpanda/${store || 'paranaque'}-session.json`],
+};
+const b64File = path.join(ROOT, FILES[platform][0]);
+const jsonFile = path.join(ROOT, FILES[platform][1]);
 
 const label = `${platform}${store ? ` (${store})` : ''}`;
 
@@ -127,18 +140,20 @@ function jwtExp(tok) {
     console.log(`${label}: 失効 — ログイン画面に飛ばされた（${loaded.from}／${url.slice(0, 50)}）`);
     process.exit(1);
   }
-  if (!fresh) {
+  if (!fresh && !COOKIE_AUTH.has(platform)) {
     await browser.close();
     console.log(`${label}: 判定不能 — トークンもログイン画面も観測できなかった（${loaded.from}）`);
     process.exit(3);
   }
 
-  const h = ((fresh * 1000 - Date.now()) / 3600000).toFixed(1);
+  const h = fresh ? ((fresh * 1000 - Date.now()) / 3600000).toFixed(1) : null;
 
   // 発行できた。では取込が使う口は答えるか。
   let verdict = '';
-  if (VERIFY[platform] && authHeaders) {
-    const r = await ctx.request.get(VERIFY[platform], { headers: authHeaders }).catch(() => null);
+  if (VERIFY[platform]) {
+    // Cookie-authenticated platforms carry their auth in the context, so an
+    // empty header set is correct there and must not skip the check.
+    const r = await ctx.request.get(VERIFY[platform], { headers: authHeaders || {} }).catch(() => null);
     if (!r) {
       verdict = '・取込APIは確認できず';           // 確認できないことを死亡に倒さない（教訓58）
     } else if (r.ok()) {
@@ -150,7 +165,15 @@ function jwtExp(tok) {
     }
   }
 
+  if (COOKIE_AUTH.has(platform) && !verdict) {
+    await browser.close();
+    console.log(`${label}: 判定不能 — ポータルは開けたが、確認用のAPIに届かなかった（${loaded.from}）`);
+    process.exit(3);
+  }
+
   await browser.close();
-  console.log(`${label}: 生存 — 新しいトークンを発行できた（あと ${h} 時間有効${verdict}／${loaded.from}）`);
+  console.log(h
+    ? `${label}: 生存 — 新しいトークンを発行できた（あと ${h} 時間有効${verdict}／${loaded.from}）`
+    : `${label}: 生存 — ポータルに留まれた${verdict}／${loaded.from}）`);
   process.exit(0);
 })();

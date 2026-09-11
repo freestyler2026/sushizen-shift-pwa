@@ -21,8 +21,8 @@ API を叩く前後で mexusers_authn_token の有効期限は 0.0 時間しか�
   2. ローカルのセッションファイル …… 次にいつ切れるかの予測。
      Grab と Keeta は認証Cookieに有効期限があるので実測値が読める。
      Careem / Noon は Cookie に期限が無く、保存時刻＋既知の寿命から推定する。
-     Talabat / Foodpanda は認証が期限なしのセッションCookieで、寿命も
-     確認できていない。**推定せず「判定できない」と出す。**
+     Talabat / Foodpanda / Careem は実際にポータルを開いて確かめる（下の PROBE）。
+     残る推定は Noon だけで、そこは叩ける読み取りAPIをまだ特定していない。
      見えないものを「問題なし」と表示するのが、この種の画面で最悪の嘘になる。
 
 使い方:  python3 scripts/ops/session-health.py
@@ -43,9 +43,11 @@ AUTH_COOKIE = {
     "keeta": "token",                 # 長期（2027-02まで／memory）
 }
 
-# 期限が読めないので「保存時刻＋寿命」で推定するもの
+# 期限が読めないので「保存時刻＋寿命」で推定するもの。
+# ⚠️ careem は 2026-09-11 に PROBE へ移した。推定のままだと、実際に死んでから
+# 最大72時間「問題なし」と表示し続ける。noon はまだ推定（叩ける読み取りAPIを
+# 特定していない）。
 KNOWN_LIFETIME_H = {
-    "careem": 72,    # 固定72時間（memory: careem-portal-limits）
     "noon": 62,      # 約2.6日（memory: noon-portal-notes）
 }
 
@@ -53,6 +55,10 @@ KNOWN_LIFETIME_H = {
 # covers は「そのワークフローが実際に読むシークレットの店舗」。ここを店舗全部に
 # 広げると、今日更新したばかりの taft まで «失敗» と表示してしまう
 # （grab の日次ジョブが読むのは GRAB_SESSION_PARANAQUE だけ）。
+#
+# ⚠️ 2026-09-11: careem と talabat が入っていなかった。どちらも日次の
+# ワークフローを持っているのに、失敗しても「GitHub Actions の事実」の側からは
+# 見えていなかった。
 #
 # ⚠️ 名前は「payout」だが、どちらのワークフローもいまは3つ運んでいる:
 #   grab      … 入金 + 注文台帳（注文明細に品名と単価があり、価格チェックの元になる）
@@ -65,6 +71,12 @@ WORKFLOWS = {
     "grab": ("grab-manila-daily-payout.yml", {"paranaque", "taft", "qc"}),
     "foodpanda": ("foodpanda-manila-daily-payout.yml", {"paranaque", "taft", "qc"}),
     "keeta": ("keeta-dubai-payout.yml", {""}),
+    # careem … 入金スナップショット + 値引キャンペーンの記録
+    "careem": ("careem-dubai-daily-payout.yml", {""}),
+    # talabat … 14拠点の開店状態。talabat-daily-extract.yml は cron を持たない
+    # （PerimeterX で売上が取れなくなって以降は手動専用）ので、実際に回っている
+    # こちらを見る。
+    "talabat": ("talabat-store-status.yml", {""}),
 }
 
 # 更新手順。ファイル名は実物を確認済み（存在しない手順を案内するのは教訓21）。
@@ -124,7 +136,7 @@ def session_files():
 # 保存直後から数時間で必ず切れる。実測でも 294時間前に期限切れのトークンを持つ
 # Talabat セッションが問題なく生きていた。ポータルを開くと SPA が保存済み
 # セッションを新しい JWT に交換するので、健全性は「まだ交換できるか」に等しい。
-PROBE = {"foodpanda", "talabat"}
+PROBE = {"foodpanda", "talabat", "careem"}
 
 
 def probe(platform, store):
