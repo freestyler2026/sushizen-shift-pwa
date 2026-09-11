@@ -285,6 +285,9 @@ export default function DailyCheckPage() {
   const isOpening = checkType === "OPENING";
 
   const takesPhotos = PHOTO_TYPES.has(checkType);
+  // Pressing the button when a record already exists changes that record. The
+  // control says so rather than offering "Submit" a second time.
+  const isCorrection = alreadySubmitted.length > 0 && !submittedId;
   // A photo of a device at Lunch Close is evidence it is OFF, not ON. The same
   // wording for both would ask for the opposite of what the check records.
   const photoAsk = checkType === "LUNCH_CLOSE"
@@ -315,8 +318,9 @@ export default function DailyCheckPage() {
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || "Submission failed.");
       setSubmittedId(d.check?.id ?? null);
+      const verb = (d.check?.revision ?? 1) > 1 ? "Check updated" : "Check submitted";
       setMsg({ ok: true, text: PHOTO_TYPES.has(checkType)
-        ? "Check submitted. Add photos below." : "Check submitted successfully." });
+        ? `${verb}. Add photos below.` : `${verb} successfully.` });
       loadTodayChecks(checkDate);
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -408,6 +412,13 @@ export default function DailyCheckPage() {
             <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
             <div>
               <p className="font-medium">Already submitted today</p>
+              {/* It used to say this and then accept a second submission
+                  anyway, which is how one branch-day ended up with thirty-six
+                  rows and photos spread across them. Sending it again now
+                  corrects that record, so the screen says so. */}
+              <p className="text-xs text-amber-300/70">
+                Sending it again corrects this record — it does not add a second one.
+              </p>
               <p className="text-xs text-amber-300/70 mt-0.5">
                 {alreadySubmitted[0].submitted_by} at {new Date(alreadySubmitted[0].submitted_at).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" })}
                 {(alreadySubmitted[0].status === "CONFIRMED_OK" || alreadySubmitted[0].status === "CONFIRMED")
@@ -519,7 +530,11 @@ export default function DailyCheckPage() {
             <button type="button" onClick={submit} disabled={submitting}
               className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2`}>
               {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
-              {submitting ? "Submitting..." : `Submit ${checkTypeMeta.label}`}
+              {submitting
+                ? (isCorrection ? "Updating..." : "Submitting...")
+                : isCorrection
+                  ? `Update ${checkTypeMeta.label}`
+                  : `Submit ${checkTypeMeta.label}`}
             </button>
           </div>
         )}

@@ -98,3 +98,50 @@ describe("every aggregator gets a slot", () => {
     }
   });
 });
+
+describe("submitting again corrects the record", () => {
+  function withExisting(revision = 1) {
+    mockFetch.mockImplementation((url: string) => {
+      const u = String(url);
+      const body =
+        u.includes("/aggregators") ? { aggregators: [{ key: "grabfood", label: "GrabFood" }] }
+        : u.includes("/today") ? { checks: [{ id: "chk-0", check_type: "LUNCH_OPEN", submitted_by: "Erica",
+            submitted_at: "2026-09-11T02:59:00+00:00", status: "SUBMITTED", photo_urls: [] }] }
+        : u.includes("/submit") ? { check: { id: "chk-0", revision: revision + 1 } }
+        : u.includes("branches") ? { branches: [{ code: "PAR", label: "Paranaque" }] }
+        : {};
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+    });
+  }
+
+  it("says so on the notice instead of only saying 'already submitted'", async () => {
+    withExisting();
+    render(<DailyCheckPage />);
+    fireEvent.click(await screen.findByText("Lunch Open"));
+    expect(await screen.findByText(/corrects this record — it does not add a second one/i)).toBeTruthy();
+  });
+
+  it("the button names the action it performs", async () => {
+    withExisting();
+    render(<DailyCheckPage />);
+    fireEvent.click(await screen.findByText("Lunch Open"));
+    expect(await screen.findByText(/Update Lunch Open/i)).toBeTruthy();
+    expect(screen.queryByText(/Submit Lunch Open/i)).toBeNull();
+  });
+
+  it("the confirmation says updated, not submitted, on a correction", async () => {
+    withExisting();
+    render(<DailyCheckPage />);
+    fireEvent.click(await screen.findByText("Lunch Open"));
+    const name = await screen.findByPlaceholderText(/name/i);
+    fireEvent.change(name, { target: { value: "Erica" } });
+    fireEvent.click(screen.getByText(/Update Lunch Open/i));
+    expect(await screen.findByText(/Check updated\. Add photos below\./i)).toBeTruthy();
+  });
+
+  it("a first submission still says submitted", async () => {
+    serve();
+    await submitAs("Lunch Open");
+    expect(await screen.findByText(/Check submitted\. Add photos below\./i)).toBeTruthy();
+  });
+});
