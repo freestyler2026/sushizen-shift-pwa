@@ -7,6 +7,8 @@ import SelectDark from "@/components/SelectDark";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import type { City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { useUnsavedGuard } from "@/lib/unsavedGuard";
+import { usePersistedDraft } from "@/lib/draftStore";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -110,6 +112,23 @@ export default function CkInventoryPage() {
   const [countQ, setCountQ] = useState("");
   const [countDate, setCountDate] = useState(todayIso());
   const [countDraft, setCountDraft] = useState<CountDraft>({});
+
+  // ⚠️ A stocktake is dozens of numbers typed over several minutes, and
+  // AutoReload hard-reloads every open tab when a new build ships. On
+  // 2026-09-11 a warehouse count was wiped that way, twice, while deploys were
+  // going out -- the reload even leaves its own `?_r=` on the URL. Two guards,
+  // because they cover different things: the first makes AutoReload WAIT while
+  // numbers are being entered, the second means a reload that happens anyway
+  // (or a closed tab, or a manual refresh) does not take the numbers with it.
+  const countDirty = Object.values(countDraft).some((v) => (v ?? "").trim() !== "");
+  useUnsavedGuard("ck-inventory-count", countDirty);
+  const draftKey = `zen:ck-inventory:${city}:${countDate}`;
+  const { restored: draftRestored, discard: discardDraft } = usePersistedDraft<CountDraft>(
+    draftKey,
+    countDraft,
+    (r) => setCountDraft(r),
+    (v) => !Object.values(v ?? {}).some((x) => (x ?? "").trim() !== ""),
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
@@ -219,6 +238,7 @@ export default function CkInventoryPage() {
     if (tab === "count") {
       setMasterItems([]);
       setCountDraft({});
+      discardDraft();
       setStockView([]);
       void loadMaster(city);
       void loadStockView(city);
@@ -302,6 +322,7 @@ export default function CkInventoryPage() {
       );
       setSaveSuccess(`Saved ${res.count} items. Switching to Current Stock...`);
       setCountDraft({});
+      discardDraft();
       // Reload stock and switch tab after brief delay
       setTimeout(() => {
         setSaveSuccess("");
@@ -533,6 +554,14 @@ export default function CkInventoryPage() {
                 className="w-56 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600"
               />
             </div>
+            {draftRestored && (
+              <div className="w-full rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-200">
+                Your unsaved count for this date was restored. Nothing has been submitted yet — check the
+                numbers, then press Save.{" "}
+                <button type="button" onClick={() => { setCountDraft({}); discardDraft(); }}
+                  className="underline underline-offset-2">Start over</button>
+              </div>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <span className="text-xs text-neutral-500">
                 {masterItems.length} items{stockViewLoading ? " · loading theoretical..." : ""} · {Object.keys(countDraft).filter((k) => parseFloat(countDraft[k] || "0") !== 0).length} entered
@@ -543,6 +572,7 @@ export default function CkInventoryPage() {
                 onClick={() => {
                   setMasterItems([]);
                   setCountDraft({});
+      discardDraft();
                   setStockView([]);
                   void loadMaster(city);
                   void loadStockView(city);
