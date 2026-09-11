@@ -100,6 +100,31 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
   const isPdf = (invoice.drive_file_name || "").toLowerCase().endsWith(".pdf");
   const driveFileId = invoice.drive_file_id;
   const previewUrl = `https://drive.google.com/file/d/${driveFileId}/preview`;
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(false);
+
+  // The Drive embed asks the person at the screen for their own access to the
+  // file, and only the upload service account has it. Fetch it through the
+  // server, which does.
+  useEffect(() => {
+    if (isPdf || !invoice.id) return;
+    let alive = true;
+    setPhoto(null);
+    setPreviewError(false);
+    setPhotoLoading(true);
+    fetch(`/api/admin/drive-invoices/${invoice.id}/file`, {
+      headers: authHeaders,
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => {
+        if (!alive) return;
+        if (d?.photo) setPhoto(d.photo);
+        else setPreviewError(true);
+      })
+      .catch(() => { if (alive) setPreviewError(true); })
+      .finally(() => { if (alive) setPhotoLoading(false); });
+    return () => { alive = false; };
+  }, [invoice.id, isPdf, authHeaders]);
 
   const buildPayload = (reviewStatus: string) => ({
     vendor_name: vendorName,
@@ -325,13 +350,24 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
         <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
           {/* Left: file preview */}
           <div className="w-full lg:w-[45%] border-b lg:border-b-0 lg:border-r border-white/10 bg-black/20 shrink-0 h-48 lg:h-auto flex flex-col">
-            {!previewError ? (
+            {photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photo}
+                alt="Invoice"
+                className="w-full flex-1 object-contain min-h-0"
+              />
+            ) : isPdf && !previewError ? (
               <iframe
                 src={previewUrl}
                 title="Invoice preview"
                 className="w-full flex-1 border-0"
                 onError={() => setPreviewError(true)}
               />
+            ) : photoLoading ? (
+              <div className="flex-1 flex items-center justify-center text-white/40 text-sm">
+                Loading the invoice…
+              </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 text-white/40">
                 <span className="text-4xl">{isPdf ? "📄" : "🖼"}</span>
