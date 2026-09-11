@@ -132,7 +132,10 @@ function credentialToJSON(cred: PublicKeyCredential): Record<string, unknown> {
   return { id: cred.id, rawId: b64uEncode(cred.rawId), type: cred.type };
 }
 
-async function webauthnRegister(options: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function webauthnRegister(
+  options: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
   const pubKey = options as PublicKeyCredentialCreationOptionsJSON;
   const createOptions: CredentialCreationOptions = {
     publicKey: {
@@ -153,13 +156,25 @@ async function webauthnRegister(options: Record<string, unknown>): Promise<Recor
         transports: (c.transports ?? []) as AuthenticatorTransport[],
       })),
     },
+    signal,
   };
   const cred = await navigator.credentials.create(createOptions);
   if (!cred) throw new Error("Registration cancelled");
   return credentialToJSON(cred as PublicKeyCredential);
 }
 
-async function webauthnAuthenticate(options: Record<string, unknown>): Promise<Record<string, unknown>> {
+/** How long the whole clock-in/out attempt may take before it is abandoned.
+    `PublicKeyCredentialRequestOptions.timeout` is a hint the platform is free
+    to ignore, and on Android it routinely does: navigator.credentials.get()
+    neither resolves nor rejects, the one `busy` flag that labels every button
+    stays true, and the screen reads "Authenticating..." until the app is
+    killed. Reported from PAR on 2026-09-11 after 9h22m on shift. */
+const ACTION_TIMEOUT_MS = 45000;
+
+async function webauthnAuthenticate(
+  options: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
   const pubKey = options as PublicKeyCredentialRequestOptionsJSON;
   const getOptions: CredentialRequestOptions = {
     publicKey: {
@@ -173,6 +188,8 @@ async function webauthnAuthenticate(options: Record<string, unknown>): Promise<R
         transports: (c.transports ?? []) as AuthenticatorTransport[],
       })),
     },
+    // The only thing that actually stops a hung platform sheet.
+    signal,
   };
   const cred = await navigator.credentials.get(getOptions);
   if (!cred) throw new Error("Authentication cancelled");
@@ -463,7 +480,9 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (!error) return;
-    const t = setTimeout(() => setError(""), 8000);
+    // Eight seconds is not long enough to read a sentence telling you what to
+    // do next on a phone you are holding in a kitchen.
+    const t = setTimeout(() => setError(""), 20000);
     return () => clearTimeout(t);
   }, [error]);
 
@@ -501,6 +520,13 @@ export default function AttendancePage() {
       const a = getAuth();
       if (!a) return;
       setBusy(true); setError(""); setSuccess("");
+      // Everything below has to be able to end. Before this, three of the
+      // awaits could hang forever -- the passkey sheet and both fetches -- and
+      // the button had no way back.
+      const ctrl = new AbortController();
+      const killer = setTimeout(() => ctrl.abort(), ACTION_TIMEOUT_MS);
+      let timedOut = false;
+      ctrl.signal.addEventListener("abort", () => { timedOut = true; });
       try {
         // Use the cached GPS fix if it is still within the 5-minute TTL.
         // Only call acquireGps() when the cached position has expired or was never obtained.
@@ -527,19 +553,21 @@ export default function AttendancePage() {
           credentials: "same-origin",
           headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
           body: JSON.stringify({ action, ...extra }),
+          signal: ctrl.signal,
         });
         if (!optRes.ok) {
           const e = await optRes.json().catch(() => ({ detail: "Error" }));
           throw new Error(e.detail || "Failed to get options");
         }
         const { state_token, options } = await optRes.json();
-        const credential = await webauthnAuthenticate(options as Record<string, unknown>);
+        const credential = await webauthnAuthenticate(options as Record<string, unknown>, ctrl.signal);
 
         const verRes = await fetch(`/api/attendance/action/verify`, {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
           body: JSON.stringify({ state_token, credential, action, lat, lng, accuracy, ...extra }),
+          signal: ctrl.signal,
         });
         if (!verRes.ok) {
           const e = await verRes.json().catch(() => ({ detail: "Error" }));
@@ -605,7 +633,14 @@ export default function AttendancePage() {
         const isPasskeyMissing =
           eName === "NotImplementedError" || eName === "NotSupportedError" ||
           msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not supported");
-        if (!isUserCancelled) {
+        if (timedOut) {
+          // Distinct from a cancel: nothing was recorded, and saying so is the
+          // difference between trying again and standing there.
+          setError(
+            "The passkey check did not finish. Nothing was recorded — tap the button again. " +
+            "If it stops a second time, tap \"Register this device\" below, then try once more.",
+          );
+        } else if (!isUserCancelled) {
           setError(
             isPasskeyMissing
               ? "Passkey not found on this device. Please tap \"Register this device\" below to set up your passkey, then try again."
@@ -613,6 +648,7 @@ export default function AttendancePage() {
           );
         }
       } finally {
+        clearTimeout(killer);
         setBusy(false);
       }
     },
@@ -624,25 +660,33 @@ export default function AttendancePage() {
     const a = getAuth();
     if (!a) return;
     setBusy(true); setError(""); setSuccess(""); setGpsError("");
+    // Registration hangs the same way clocking in does, and it is the screen's
+    // own suggested remedy — so a stuck remedy leaves no move at all.
+    const ctrl = new AbortController();
+    const killer = setTimeout(() => ctrl.abort(), ACTION_TIMEOUT_MS);
+    let timedOut = false;
+    ctrl.signal.addEventListener("abort", () => { timedOut = true; });
     try {
       const optRes = await fetch(`/api/auth/webauthn/register/options`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
         body: JSON.stringify({ friendly_name: "My Device", replace: true }),
+        signal: ctrl.signal,
       });
       if (!optRes.ok) {
         const e = await optRes.json().catch(() => ({ detail: "Error" }));
         throw new Error(e.detail || "Failed to get options");
       }
       const { state_token, options } = await optRes.json();
-      const credential = await webauthnRegister(options as Record<string, unknown>);
+      const credential = await webauthnRegister(options as Record<string, unknown>, ctrl.signal);
 
       const verRes = await fetch(`/api/auth/webauthn/register/verify`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
         body: JSON.stringify({ state_token, credential, friendly_name: "My Device" }),
+        signal: ctrl.signal,
       });
       if (!verRes.ok) {
         const e = await verRes.json().catch(() => ({ detail: "Error" }));
@@ -659,7 +703,12 @@ export default function AttendancePage() {
       const isPasskeyMissing =
         eName === "NotImplementedError" || eName === "NotSupportedError" ||
         msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not supported");
-      if (!isUserCancelled) {
+      if (timedOut) {
+        setError(
+          "Registering this device did not finish. Nothing was changed — tap it again. " +
+          "If it stops a second time, tell your manager so the record can be corrected for today.",
+        );
+      } else if (!isUserCancelled) {
         setError(
           isPasskeyMissing
             ? "This device or browser does not support passkeys. Please update Chrome to the latest version, ensure Google Play Services is up to date, and make sure a screen lock (PIN or fingerprint) is set up."
@@ -667,6 +716,7 @@ export default function AttendancePage() {
         );
       }
     } finally {
+      clearTimeout(killer);
       setBusy(false);
     }
   }, [fetchToday]);
