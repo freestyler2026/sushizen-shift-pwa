@@ -70,6 +70,17 @@ const CHECK_TYPES: { key: string; label: string; icon: string; desc: string; cit
   { key: "BUSINESS_CLOSE", label: "Business Close", icon: "🌙", desc: "End of day close",                cities: ["manila", "dubai"] },
 ];
 
+// Which checks offer a photo. Opening had it from the start; Manila asked for
+// the two lunch checks because the lunch menu is switched on and off by hand,
+// and the one moment those items are visible on the device is the moment
+// somebody is standing in front of it doing this check. Nothing on the server
+// ever restricted the check type -- `/api/store/daily-check/{id}/photo` takes
+// any id -- the control simply was not drawn.
+//
+// Business Close is deliberately not here: it was not asked for, and a photo of
+// a closed device at midnight answers a question nobody has raised yet.
+const PHOTO_TYPES = new Set(["OPENING", "LUNCH_OPEN", "LUNCH_CLOSE"]);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function nowHHMM(tz = "Asia/Manila"): string {
@@ -273,6 +284,15 @@ export default function DailyCheckPage() {
   const alreadySubmitted = todayChecks.filter((c) => c.check_type === checkType);
   const isOpening = checkType === "OPENING";
 
+  const takesPhotos = PHOTO_TYPES.has(checkType);
+  // A photo of a device at Lunch Close is evidence it is OFF, not ON. The same
+  // wording for both would ask for the opposite of what the check records.
+  const photoAsk = checkType === "LUNCH_CLOSE"
+    ? "Photograph each device showing lunch service is paused."
+    : checkType === "LUNCH_OPEN"
+      ? "Photograph each device showing lunch service is live, with the lunch items visible."
+      : "Take photos of each aggregator device showing it is open, and the dine-in area if applicable.";
+
   const submit = async () => {
     if (!staffName.trim()) { setMsg({ ok: false, text: "Enter your name." }); return; }
     setSubmitting(true); setMsg(null);
@@ -295,7 +315,8 @@ export default function DailyCheckPage() {
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || "Submission failed.");
       setSubmittedId(d.check?.id ?? null);
-      setMsg({ ok: true, text: isOpening ? "Opening check submitted! Add photos below." : "Check submitted successfully." });
+      setMsg({ ok: true, text: PHOTO_TYPES.has(checkType)
+        ? "Check submitted. Add photos below." : "Check submitted successfully." });
       loadTodayChecks(checkDate);
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -515,13 +536,11 @@ export default function DailyCheckPage() {
           </div>
         )}
 
-        {/* Photo upload section — Opening only, after submit */}
-        {submittedId && isOpening && (
+        {/* Photo upload — opening and the two lunch checks, after submit */}
+        {submittedId && takesPhotos && (
           <div className={`${GLASS_CARD} space-y-3`}>
             <h3 className="text-sm font-semibold text-white">📸 Upload Device Photos</h3>
-            <p className="text-xs text-white/40">
-              Take photos of each aggregator device showing it is open, and the dine-in area if applicable.
-            </p>
+            <p className="text-xs text-white/40">{photoAsk}</p>
             {aggregators.map((agg) => (
               <div key={agg.key} className="flex items-center gap-3">
                 <span className={`text-xs font-medium w-24 ${aggStatus[agg.key]?.open ? "text-emerald-300" : "text-slate-500"}`}>
@@ -537,7 +556,7 @@ export default function DailyCheckPage() {
                 />
               </div>
             ))}
-            {dineInOpen === true && (
+            {dineInOpen === true && isOpening && (
               <div className="flex items-center gap-3">
                 <span className="text-xs font-medium w-24 text-emerald-300">Dine-in</span>
                 <PhotoUploadCell
@@ -551,7 +570,7 @@ export default function DailyCheckPage() {
               </div>
             )}
             <p className="text-xs text-white/30 pt-1">
-              {Object.keys(uploadedPhotos).length} / {aggregators.length + (dineInOpen === true ? 1 : 0)} photo(s) uploaded.
+              {Object.keys(uploadedPhotos).length} / {aggregators.length + (dineInOpen === true && isOpening ? 1 : 0)} photo(s) uploaded.
               Photos are optional but recommended.
             </p>
           </div>
