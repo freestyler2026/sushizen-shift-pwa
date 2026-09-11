@@ -469,15 +469,59 @@ function PoVarianceTab({
         </div>
       )}
 
-      {/* Empty state */}
-      {result && filteredRows.length === 0 && !busy && (
+      {/* Empty state.
+          "No variances found" reads as "the prices matched", and for a table
+          where every single line is missing a PO number it is the opposite of
+          what happened: the comparison never ran. Both cities were in that
+          state — 8,078 invoice lines, not one with a PO number — and the
+          screen offered "try lowering the Min Variance %", which cannot help. */}
+      {result && filteredRows.length === 0 && !busy && (() => {
+        // Read as numbers before anything is formatted: a response that is
+        // older or partial has these undefined, and .toLocaleString() then
+        // throws during render — which turns an empty table into a blank page.
+        const totalLines = Number(result.total_invoice_lines ?? 0);
+        const unlinked = Number(result.unlinked_lines ?? 0);
+        return (
         <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center space-y-2">
-          <div className="text-sm text-zinc-400 font-medium">No variances found for this period</div>
-          <div className="text-xs text-zinc-600 max-w-md mx-auto">
-            This could mean prices matched the PO exactly, or that invoices in this period don&apos;t have PO numbers linked. Try lowering the Min Variance % or check the unlinked invoice count above.
-          </div>
+          {totalLines === 0 ? (
+            <>
+              <div className="text-sm text-zinc-400 font-medium">No invoice lines in this period</div>
+              <div className="text-xs text-zinc-600 max-w-md mx-auto">
+                Nothing has been imported for these dates, so there is nothing to compare.
+                Check Supplier Hub for the last successful invoice import.
+              </div>
+            </>
+          ) : unlinked >= totalLines ? (
+            <>
+              <div className="text-sm text-amber-300 font-medium">
+                This comparison could not run
+              </div>
+              <div className="text-xs text-zinc-500 max-w-lg mx-auto">
+                Every one of the {totalLines.toLocaleString()} invoice lines in
+                this period is missing a PO number, and the comparison needs one on each line.
+                <strong className="text-zinc-300"> This is not a result — nothing was checked.</strong>
+              </div>
+              <div className="text-xs text-zinc-600 max-w-lg mx-auto pt-1">
+                The supplier invoice workbook has no PO column. The link is taken from the
+                PO/invoice check entered at receiving, which carries both numbers — so a line
+                gets its PO number once that check exists for the same invoice number.
+                Lowering the Min Variance % will not change this.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-sm text-zinc-400 font-medium">No variances found for this period</div>
+              <div className="text-xs text-zinc-600 max-w-md mx-auto">
+                Of {totalLines.toLocaleString()} invoice lines,{" "}
+                {(totalLines - unlinked).toLocaleString()} could be
+                compared against a PO and none differed by more than {minPct}%.
+                {unlinked > 0 ? ` The other ${unlinked.toLocaleString()} have no PO number and were not checked.` : ""}
+              </div>
+            </>
+          )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Table */}
       {filteredRows.length > 0 && (
