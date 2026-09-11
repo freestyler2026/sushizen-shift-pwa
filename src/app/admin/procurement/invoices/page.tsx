@@ -35,6 +35,10 @@ type InvoiceRow = {
   line_count: number;
   quantity_total: number;
   updated_at: string;
+  verify_verdict?: string;
+  verify_by?: string;
+  verify_at?: string | null;
+  verify_note?: string;
   created_at: string;
 };
 
@@ -447,6 +451,9 @@ export default function ProcurementInvoicesPage() {
     read_invoice_no?: string | null;
   } | null>(null);
   const [invoicePhotoBusy, setInvoicePhotoBusy] = useState(false);
+  const [verifyBusy, setVerifyBusy] = useState<string | null>(null);
+  const [verifyNote, setVerifyNote] = useState("");
+
   const [activeTab, setActiveTab] = useState<"valid" | "problems">("valid");
   const [selectedProblemInvoiceNo, setSelectedProblemInvoiceNo] = useState<string | null>(null);
   const [problemDraft, setProblemDraft] = useState<ProblemDraft | null>(null);
@@ -674,6 +681,35 @@ export default function ProcurementInvoicesPage() {
       setLoading(false);
     }
   }, [city, dateFrom, dateTo, invoiceNo, page, pin, requestedBy, vendorName]);
+
+  const recordVerification = useCallback(
+    async (row: InvoiceRow, verdict: "matches" | "mismatch" | "unclear") => {
+      setVerifyBusy(row.invoice_no);
+      try {
+        await procurementJson(
+          `/api/admin/procurement/invoices/${encodeURIComponent(row.invoice_no)}/verify`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              city,
+              verdict,
+              note: verifyNote,
+              invoice_date: row.invoice_date || "",
+            }),
+          },
+          requestedBy,
+          pin,
+        );
+        setVerifyNote("");
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setVerifyBusy(null);
+      }
+    },
+    [city, load, pin, requestedBy, verifyNote],
+  );
 
   // A filter changes what is being asked, so page 4 of the old answer is not
   // page 4 of the new one.
@@ -2072,6 +2108,44 @@ export default function ProcurementInvoicesPage() {
                               : ""}
                             <span className="text-zinc-600"> — compare with the figures below.</span>
                           </div>
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <input
+                              value={verifyNote}
+                              onChange={(e) => setVerifyNote(e.target.value)}
+                              placeholder="What did you find? (only needed if something is off)"
+                              className="min-w-[16rem] flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600"
+                            />
+                            <button
+                              type="button"
+                              disabled={verifyBusy === row.invoice_no}
+                              onClick={() => recordVerification(row, "matches")}
+                              className="rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-3 py-1.5 text-sm text-emerald-200 disabled:opacity-40"
+                            >
+                              Matches the photo
+                            </button>
+                            <button
+                              type="button"
+                              disabled={verifyBusy === row.invoice_no}
+                              onClick={() => recordVerification(row, "mismatch")}
+                              className="rounded-lg border border-rose-500/30 bg-rose-500/15 px-3 py-1.5 text-sm text-rose-200 disabled:opacity-40"
+                            >
+                              Does not match
+                            </button>
+                            <button
+                              type="button"
+                              disabled={verifyBusy === row.invoice_no}
+                              onClick={() => recordVerification(row, "unclear")}
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300 disabled:opacity-40"
+                            >
+                              Can&apos;t tell
+                            </button>
+                          </div>
+                          {row.verify_verdict ? (
+                            <div className="text-xs text-zinc-500">
+                              Checked by {row.verify_by} — {row.verify_verdict}
+                              {row.verify_note ? ` · ${row.verify_note}` : ""}. Press again to change it.
+                            </div>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="text-sm text-zinc-500">
