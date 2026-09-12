@@ -282,6 +282,7 @@ td.muted{color:var(--muted);font-size:12px}
         <div class="lc-dot blue"></div>
         <div class="lc-header"><span class="lc-status" data-en="⑤ Review & Correct DTR" data-ja="⑤ DTR確認・修正">⑤ Review & Correct DTR</span><span class="lc-who admin">Admin/HQ</span></div>
         <div class="lc-detail" data-en="Check payroll readiness flags (missing IDs, bank account). Correct individual attendance records if needed, then recompute affected runs." data-ja="給与準備フラグ（ID・銀行口座欠落）を確認。必要に応じて出退勤記録を個別修正し、影響するランを再計算。">Check readiness flags. Correct attendance records if needed, then recompute individual runs.</div>
+        <div class="lc-detail" data-en="Read the warning lines on the runs before approving. &quot;Paid … basic for a cut-off with no day worked and no leave recorded&quot; means a full half-month went to somebody who worked none of it. The basic is paid flat and only taken back for days carrying an absence row, so a person who simply stops coming — and whose DTR stops with them — is paid in full. Over 2026-08-2H this named four people. It is not corrected automatically, because leaving, unpaid leave and maternity all look the same at that point: if they left, set the last working date; if they are on leave, mark the days." data-ja="承認する前に、ランに出ている警告行を読んでください。「Paid … basic for a cut-off with no day worked and no leave recorded」は、1日も働いていない人に半月分の基本給が出ている、という意味です。基本給は定額で支払われ、欠勤行のある日だけ差し引かれるため、出社しなくなってDTRも止まった人は満額支払われます。2026-08-2H では4名が該当しました。自動では直しません — 退職・無給休職・産休はこの時点では見分けがつかないためです。退職なら最終出社日を入れ、休職なら日に印を付けてください。">Read the run warnings before approving. &quot;No day worked and no leave recorded&quot; = a full half-month paid to someone who worked none of it. Not auto-corrected: set the last working date, or mark the leave days.</div>
         <span class="lc-path">Period detail → DTR Correction / Recompute</span>
       </div>
       <div class="lc-step">
@@ -320,9 +321,13 @@ td.muted{color:var(--muted);font-size:12px}
     <div class="card-title" data-en="Period Date Ranges" data-ja="期間の日付範囲">Period Date Ranges</div>
     <div class="table-wrap"><table>
       <tr><th data-en="Half" data-ja="半期">Half</th><th data-en="Date range" data-ja="日付範囲">Date range</th><th data-en="Notes" data-ja="備考">Notes</th></tr>
-      <tr><td><span class="chip blue">1H</span></td><td class="muted" data-en="26th of previous month → 10th of current month" data-ja="前月26日 → 当月10日">26th prev. month → 10th current</td><td class="muted" data-en="SSS/PhilHealth/Pag-IBIG × 0.5 (estimated gross)" data-ja="SSS/PhilHealth/Pag-IBIG × 0.5（推定総支給）">Statutory deductions × 0.5 (estimated)</td></tr>
+      <tr><td><span class="chip blue">1H</span></td><td class="muted" data-en="26th of previous month → 10th of current month" data-ja="前月26日 → 当月10日">26th prev. month → 10th current</td><td class="muted" data-en="SSS/PhilHealth/Pag-IBIG × 0.5. The SSS bracket comes from the contractual monthly rate, not the gross — same base PhilHealth uses, so the two halves add up to one monthly contribution." data-ja="SSS/PhilHealth/Pag-IBIG × 0.5。SSSの等級は総支給ではなく契約月給から引きます（PhilHealthと同じ基礎）。両方の締めが同じ基礎なので、合計がちょうど1ヶ月分の掛金になります。">Statutory × 0.5. SSS bracket = contractual monthly rate, not gross</td></tr>
       <tr><td><span class="chip blue">2H</span></td><td class="muted" data-en="11th → 25th of current month" data-ja="11日 → 25日">11th → 25th current</td><td class="muted" data-en="Remaining 50% of statutory deductions; BIR uses combined 1H+2H gross for bracket" data-ja="法定控除の残り50%；BIRは1H+2H合算総支給でブラケット決定">Remaining 50% statutory; BIR uses 1H+2H combined gross</td></tr>
     </table></div>
+    <div class="tip info" style="margin-top:10px;margin-bottom:0">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="A cut-off with no pay takes no deduction at all — not SSS, not PhilHealth, not Pag-IBIG, not tax. Somebody who joins on the 13th has nothing to deduct from in the half that ended on the 10th, and a payslip must never come out negative. Before 2026-09-12 it did: a new hire with zero pay in her first half showed a net of −346.19." data-ja="支給がゼロの締めでは、控除は一切かかりません（SSS・PhilHealth・Pag-IBIG・源泉すべて）。13日入社の人には、10日で締まった半期から引くものが無いためです。明細がマイナスになることはあってはなりません。2026-09-12 以前は実際にマイナスが出ており、初回の支給がゼロだった新入社員の net が −346.19 になっていました。">A cut-off with no pay takes no deduction at all — SSS, PhilHealth, Pag-IBIG and tax are all skipped. A payslip must never come out negative.</span>
+    </div>
   </div>
 </div>
 
