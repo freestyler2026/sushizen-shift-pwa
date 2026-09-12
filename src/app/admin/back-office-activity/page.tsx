@@ -163,6 +163,124 @@ const ROLE_LABEL: Record<string, string> = {
   INVENTORY_PURCHASING: "Inventory & Purchasing", HQ: "HQ",
 };
 
+/** The page's own reading instructions.
+ *
+ * This screen puts a person's day on a row and flags it, so being read wrongly
+ * here costs somebody their standing rather than costing an hour. The three
+ * refusals in the header comment, the limits of what a request log can see,
+ * and the four readings that look obvious and are wrong, all belong on the
+ * screen rather than in whatever was said when it was built. */
+function ReadingGuide() {
+  return (
+    <div className="space-y-3">
+      <div className={`${GLASS_CARD} p-5 space-y-3`}>
+        <h2 className={T_SECTION}>何のための画面か</h2>
+        <p className={T_BODY}>
+          オーナーからの問いはひとつでした — <b>ログインして、動いているふりをしている人がいないか。</b>
+          システムに見えるのは<b>「居ること」と「関わっていること」の差</b>だけなので、
+          この画面はその差を中心に組み立ててあります。
+          それ以外の要素はすべて、<b>その差が実際より大きく読まれるのを止めるため</b>に載っています。
+        </p>
+        <p className={T_BODY}>
+          隣の「仕事の証拠」は次の問い — <b>誰が実際に記録を変えているか</b> — を扱います。
+          こちらは<b>その日のかたち</b>（いつ来て、どれだけ手が動いて、何を開いたか）です。
+        </p>
+      </div>
+
+      <div className={`${GLASS_CARD} p-5 space-y-3`}>
+        <h2 className={T_SECTION}>この画面が引き受けないこと</h2>
+        <p className={T_BODY}>
+          <b>点数を出しません。</b> 1つの数字は判決として読まれ、
+          しかも同じ数字がレビュー職と入力職では正反対の意味になるからです。
+        </p>
+        <p className={T_BODY}>
+          <b>時計が動いていない時間を「やっていない」とは呼びません。</b>
+          記録開始より前に始まった1日には、不在系のフラグを1つも出しません。
+        </p>
+        <p className={T_BODY}>
+          <b>閾値はフラグのすぐ隣に必ず書きます。</b>
+          読めないルールは信用されないルールで、しかもこのルールは<b>人が何を咎められるかを決めます</b>。
+          画面下部の「フラグの意味」に全文があります。
+        </p>
+      </div>
+
+      <div className={`${GLASS_CARD} p-5 space-y-3`}>
+        <h2 className={T_SECTION}>列の見方</h2>
+        <div className="space-y-2.5">
+          <div>
+            <p className={T_LABEL}>ログイン / 最後の操作 / 打刻</p>
+            <p className={T_BODY}>
+              いつ来て、いつまで触っていたか。打刻とOSの使用時間は別物で、
+              <b>打刻は「居た」、OSは「触っていた」</b>を指します。
+            </p>
+          </div>
+          <div>
+            <p className={T_LABEL}>実働・最長の空白</p>
+            <p className={T_BODY}>
+              実働は、操作の間隔が閾値以内で続いた時間の合計。
+              <b>閾値より長くあいた時間は「考えていた」ではなく「離席」</b>として数えます。
+              最長の空白は、その日いちばん長く途切れた時間です。
+            </p>
+          </div>
+          <div>
+            <p className={T_LABEL}>画面 回/種</p>
+            <p className={T_BODY}>
+              開いた回数と、その種類数。<b>ここだけはブラウザからの申告</b>で、
+              <b>本人がクリックして水増しできる唯一の数字</b>です。判断には使わないでください。
+              閲覧と変更はサーバーが観測しています。
+            </p>
+          </div>
+          <div>
+            <p className={T_LABEL}>閲覧・変更</p>
+            <p className={T_BODY}>
+              サーバー側の観測値。<b>判断はこの2つと実働で行ってください。</b>
+              「変更」が記録を動かした書き込みで、こちらが仕事の跡です。
+            </p>
+          </div>
+          <div>
+            <p className={T_LABEL}>1日の推移</p>
+            <p className={T_BODY}>
+              その日の操作が時間帯にどう散っているか。
+              合計が同じでも、<b>固まっている1日と細切れの1日は別のかたち</b>です。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className={`${GLASS_CARD} p-5 space-y-3`}>
+        <h2 className={T_SECTION}>誤読しやすいところ</h2>
+        <p className={T_BODY}>
+          <b>静かな行は、静かな1日の証拠ではありません。</b>
+          ここで測っているのはOSの使用だけで、電話・会議・Excel・紙の仕事は1件も残りません。
+        </p>
+        <p className={T_BODY}>
+          <b>何も書いていないことと、何もしていないことは違います。</b>
+          40件確認して全部問題なければ、記録は1件も増えません。
+        </p>
+        <p className={T_BODY}>
+          <b>Inventory &amp; Purchasing は店舗勤務です。</b>
+          1日の大半は売場で、ここではありません。実働が短いのが彼らの通常です。
+          <b>事務所の行と比べず、彼ら同士で比べてください。</b>
+        </p>
+        <p className={T_BODY}>
+          <b>その人の1日が終わるまで、フラグは1つも出しません。</b>
+          過去の日付か、本日ならシフト終了後です。マニラの0時はドバイの夕方なので、
+          これが無いと毎朝ほぼ全員が「欠勤」に見えます。
+          <b>数字は常時ライブで、判定だけが待ちます。</b>
+        </p>
+        <p className={T_BODY}>
+          <b>公開シフトが無い人は、「静かな日」と「休みの日」を区別できません。</b>
+          その行は欠勤とは呼ばず、その旨を表示します。
+        </p>
+        <p className={T_CAPTION}>
+          この画面は Yukihiro Nishimura と Ayako Nishimura の2名のみが開けます。
+          権限のチェックボックスではなく氏名で固定されており、増やすにはコードの変更が要ります。
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function BackOfficeActivityPage() {
   // Prerendered HTML is the same for everybody and has no localStorage, so a
   // page that decides access on the first render tells every reader they are
@@ -174,6 +292,9 @@ export default function BackOfficeActivityPage() {
   const [date, setDate] = useState(() =>
     new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()));
   const [data, setData] = useState<Report | null>(null);
+  // The intent lived in a source comment. This page accuses people of things,
+  // so how to read it has to be on it.
+  const [tab, setTab] = useState<"day" | "guide">("day");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState<string>("");
@@ -279,6 +400,18 @@ export default function BackOfficeActivityPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        {([["day", "1日のかたち"], ["guide", "このページの読み方"]] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`${SMALL_BUTTON} ${tab === k ? "ring-2 ring-cyan-400/60" : "opacity-70"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "guide" && <ReadingGuide />}
+
+      {tab === "day" && (<>
       {/* What this cannot tell you. First, not last: a reader who takes a low
           row as proof of idleness before reaching a footnote has already made
           the mistake this panel exists to prevent. */}
@@ -508,6 +641,7 @@ export default function BackOfficeActivityPage() {
           </dl>
         </div>
       )}
+      </>)}
     </div>
   );
 }
