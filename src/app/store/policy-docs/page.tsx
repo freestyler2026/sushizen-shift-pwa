@@ -13,6 +13,13 @@ import {
 
 const API = "/api/store/policy-docs";
 
+function cityLabel(c: string) {
+  const k = (c || "").toLowerCase();
+  if (k === "dubai") return "Dubai";
+  if (k === "manila") return "Manila";
+  return c || "your account";
+}
+
 function apiFetch(path: string, opts?: RequestInit) {
   const auth = getAuth();
   const headers: Record<string, string> = {};
@@ -340,10 +347,23 @@ export default function StaffPolicyDocsPage() {
 
       {/* Document list */}
       <div className="space-y-3">
-        {docs.length === 0 && !loading && (
+        {docs.length === 0 && !loading && !err && (
+          /* "Nothing is published for you" and "the page is broken" used to read
+             the same, so an empty list looked like a fault and got reported as
+             one. Say which list was looked in. */
           <div className={`${GLASS_CARD} p-10 text-center`}>
             <BookOpen size={32} className="text-zinc-600 mx-auto mb-3" />
-            <p className="text-zinc-500">No policy documents available.</p>
+            <p className="text-zinc-400">
+              No policy documents published for{" "}
+              <span className="text-zinc-200 font-medium">
+                {city && city !== "all" ? cityLabel(city) : "your account"}
+              </span>{" "}
+              yet.
+            </p>
+            <p className="text-xs text-zinc-500 mt-2">
+              You are seeing documents set to {city && city !== "all" ? cityLabel(city) : "all locations"} or to
+              all locations. Nothing is missing from this screen — there is nothing to read yet.
+            </p>
           </div>
         )}
 
