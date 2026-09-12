@@ -108,11 +108,19 @@ export default function StoreProcurementReceivingPage() {
   const [requestId, setRequestId] = useState("");
   const [filterSearch, setFilterSearch] = useState("");
   const [filterHideConfirmed, setFilterHideConfirmed] = useState(false);
-  // Dubai holds 2,185 orders against a server limit of 1,000, and open ones are
-  // deliberately sorted first, so every confirmed order fell off the end and a
-  // part delivery arriving later had nothing to be recorded against. Narrowing
-  // the dates is what brings them back.
-  const [dateFrom, setDateFrom] = useState("");
+  // Opens on the last 30 days. Dubai holds 2,185 orders against a server limit
+  // of 1,000, and open ones are deliberately sorted first, so with no range the
+  // limit is filled by open orders alone and every confirmed one falls past the
+  // end — a part delivery arriving days later then has nothing to be recorded
+  // against. Thirty days is 657 orders in Dubai and 241 in Manila, well inside
+  // the limit; sixty already reaches it. Clearing the dates still shows
+  // everything, and the page says when that has hit the limit.
+  const last30 = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  };
+  const [dateFrom, setDateFrom] = useState(last30);
   const [dateTo, setDateTo] = useState("");
   const [requestDetail, setRequestDetail] = useState<RequestDetail | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
@@ -849,20 +857,36 @@ export default function StoreProcurementReceivingPage() {
                 className={FIELD + " text-xs"}
                 aria-label="Orders up to this date"
               />
-              {(dateFrom || dateTo) && (
+              {(dateFrom || dateTo) ? (
                 <button
                   type="button"
                   onClick={() => { setDateFrom(""); setDateTo(""); }}
                   className="shrink-0 text-xs text-zinc-400 underline"
+                  title="Show every order, not just the last 30 days"
                 >
-                  clear
+                  show all
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setDateFrom(last30()); setDateTo(""); }}
+                  className="shrink-0 text-xs text-zinc-400 underline"
+                >
+                  last 30 days
                 </button>
               )}
             </div>
-            {!dateFrom && !dateTo && requests.length >= 1000 && (
+            {requests.length >= 1000 ? (
               <p className="text-xs text-amber-400">
-                Showing the 1,000 most recent orders, open ones first — confirmed
-                orders are past that. Pick a date range to reach them.
+                This is the first 1,000 orders, open ones first — confirmed
+                orders are behind them. Narrow the dates to reach one.
+              </p>
+            ) : !dateFrom && !dateTo ? (
+              <p className="text-xs text-zinc-500">Showing every order.</p>
+            ) : (
+              <p className="text-xs text-zinc-500">
+                Showing orders from {dateFrom || "the beginning"} to {dateTo || "today"}.
+                Clear the dates to see all of them.
               </p>
             )}
           </div>
