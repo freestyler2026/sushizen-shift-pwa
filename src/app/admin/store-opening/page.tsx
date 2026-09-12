@@ -501,6 +501,13 @@ export default function StoreOpeningPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [savingTask, setSavingTask] = useState<string | null>(null);
+  // Closing a project lived inside Edit, three fields down a modal, offering
+  // "completed" and "cancelled" while the list said "active" — so the word
+  // somebody went looking for ("inactive") was not there, and neither was the
+  // control. It is on the header now, where the thing being closed is.
+  const [closing, setClosing] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusError, setStatusError] = useState("");
 
   const accessToken = auth?.accessToken ?? "";
   const staffName = auth?.staffName ?? "";
@@ -520,6 +527,29 @@ export default function StoreOpeningPage() {
       setSelectedId(prev => (prev === null && list.length > 0 ? list[0].id : prev));
     } catch { /* ignore */ }
   }, [accessToken]);
+
+  async function setProjectStatus(projectId: number, status: string) {
+    setStatusBusy(true); setStatusError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/store-opening/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ detail: res.statusText }));
+        setStatusError(e.detail || "Could not change the status");
+        return;
+      }
+      const data = await res.json();
+      setProjects(prev => prev.map(x => (x.id === projectId ? data.project : x)));
+      setClosing(false);
+    } catch (e) {
+      setStatusError(String(e));
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   const loadTasks = useCallback(async (projectId: number) => {
     setLoadingTasks(true);
@@ -591,7 +621,12 @@ export default function StoreOpeningPage() {
           {projects.length === 0 && (
             <p className="text-xs text-neutral-500 px-4 py-6 text-center">No openings yet.</p>
           )}
-          {projects.map(p => {
+          {/* Closed ones sink and fade. A project whose status changed used to sit
+              in the same place looking the same, so there was no way to tell the
+              change had taken. */}
+          {[...projects]
+            .sort((a, b) => Number(b.status === "active") - Number(a.status === "active"))
+            .map(p => {
             const active = p.id === selectedId;
             const overdueCount = CHECKLIST_SECTIONS.flatMap(s => s.items).filter(i =>
               getDueDateColor(p.start_date, i.dDay, taskStatuses[i.key]?.is_checked ?? false) !== "normal"
@@ -603,6 +638,7 @@ export default function StoreOpeningPage() {
                 className={[
                   "w-full text-left px-4 py-3 transition-colors",
                   active ? "bg-violet-600/20 border-r-2 border-violet-500" : "hover:bg-white/5",
+                  p.status !== "active" ? "opacity-45" : "",
                 ].join(" ")}
               >
                 <div className="flex items-start justify-between gap-1">
@@ -656,12 +692,76 @@ export default function StoreOpeningPage() {
                   <span className="text-xs text-neutral-400">{totalProgress.done} / {totalProgress.total}</span>
                 </div>
               </div>
-              <button
-                onClick={() => setEditingProject(selectedProject)}
-                className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors shrink-0"
-              >
-                <Pencil className="h-3.5 w-3.5" /> Edit
-              </button>
+              <div className="flex items-center gap-3 shrink-0">
+                {selectedProject.status === "active" ? (
+                  closing ? (
+                    // Two ways to stop, because they are not the same thing: the
+                    // store opened, or it is not going ahead. Naming both is the
+                    // point — one button called "Close" would have to guess.
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          disabled={statusBusy}
+                          onClick={() => void setProjectStatus(selectedProject.id, "completed")}
+                          className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-2.5 py-1 text-xs text-violet-200 hover:bg-violet-500/25 disabled:opacity-60"
+                        >
+                          It opened — complete
+                        </button>
+                        <button
+                          disabled={statusBusy}
+                          onClick={() => void setProjectStatus(selectedProject.id, "cancelled")}
+                          className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-neutral-300 hover:bg-white/10 disabled:opacity-60"
+                        >
+                          Not going ahead — cancel
+                        </button>
+                        <button
+                          disabled={statusBusy}
+                          onClick={() => { setClosing(false); setStatusError(""); }}
+                          className="px-2 py-1 text-xs text-neutral-500 hover:text-neutral-300"
+                        >
+                          Keep open
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-neutral-500">
+                        Either one takes its overdue tasks out of the Store Opening badge. You can reopen it.
+                      </span>
+                      {statusError && <span className="text-[10px] text-red-400">{statusError}</span>}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setClosing(true)}
+                      className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      Close this opening
+                    </button>
+                  )
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      selectedProject.status === "completed"
+                        ? "bg-violet-500/20 text-violet-300"
+                        : "bg-white/10 text-neutral-400"
+                    }`}>
+                      {selectedProject.status === "completed" ? "Completed" : "Cancelled"}
+                    </span>
+                    {/* The way back, next to the thing it undoes. */}
+                    <button
+                      disabled={statusBusy}
+                      onClick={() => void setProjectStatus(selectedProject.id, "active")}
+                      className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-neutral-400 hover:text-white hover:bg-white/5 disabled:opacity-60"
+                    >
+                      Reopen
+                    </button>
+                    {statusError && <span className="text-[10px] text-red-400">{statusError}</span>}
+                  </div>
+                )}
+                <button
+                  onClick={() => setEditingProject(selectedProject)}
+                  className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </button>
+              </div>
             </div>
 
             {/* Checklist body */}
