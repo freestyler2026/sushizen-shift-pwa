@@ -168,7 +168,11 @@ export default function BackOfficeActivityPage() {
   // page that decides access on the first render tells every reader they are
   // not allowed, for a frame (lesson 42).
   const [mounted, setMounted] = useState(false);
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // The Manila day, not the browser's and not UTC. This report is measured on
+  // Manila's clock, and between midnight and 08:00 there the UTC date is still
+  // yesterday — the page would open on the wrong day every morning.
+  const [date, setDate] = useState(() =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()));
   const [data, setData] = useState<Report | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -204,14 +208,14 @@ export default function BackOfficeActivityPage() {
     const key = r.staff_name;
     if (open === key) { setOpen(""); return; }
     setOpen(key);
-    if (screens[key]) return;
+    if (screens[`${date}|${key}`]) return;
     try {
       const res = await fetch(
         `/api/admin/back-office/screens?staff_name=${encodeURIComponent(key)}&date=${date}&city=${r.city}`,
         { headers: getAuthHeaders(), cache: "no-store" });
       if (res.ok) {
         const j = await res.json();
-        setScreens((s) => ({ ...s, [key]: j.rows || [] }));
+        setScreens((s) => ({ ...s, [`${date}|${key}`]: j.rows || [] }));
       }
     } catch { /* the row still shows its numbers */ }
   }
@@ -458,11 +462,11 @@ export default function BackOfficeActivityPage() {
                   {open === r.staff_name && (
                     <tr className="border-t border-white/5 bg-black/20">
                       <td colSpan={11} className="px-4 py-4">
-                        {(screens[r.staff_name] || []).length === 0 ? (
+                        {(screens[`${date}|${r.staff_name}`] || []).length === 0 ? (
                           <p className={T_BODY}>この日、この人の画面の記録はありません。</p>
                         ) : (
                           <div className="space-y-1">
-                            {(screens[r.staff_name] || []).map((s) => (
+                            {(screens[`${date}|${r.staff_name}`] || []).map((s) => (
                               <div key={s.screen} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
                                 <span className="w-64 font-mono text-xs text-violet-200">{s.screen}</span>
                                 <span className="tabular-nums text-zinc-400">
