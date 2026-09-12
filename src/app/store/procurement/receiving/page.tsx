@@ -108,6 +108,12 @@ export default function StoreProcurementReceivingPage() {
   const [requestId, setRequestId] = useState("");
   const [filterSearch, setFilterSearch] = useState("");
   const [filterHideConfirmed, setFilterHideConfirmed] = useState(false);
+  // Dubai holds 2,185 orders against a server limit of 1,000, and open ones are
+  // deliberately sorted first, so every confirmed order fell off the end and a
+  // part delivery arriving later had nothing to be recorded against. Narrowing
+  // the dates is what brings them back.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [requestDetail, setRequestDetail] = useState<RequestDetail | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
 
@@ -168,6 +174,8 @@ export default function StoreProcurementReceivingPage() {
     try {
       const activeCity = String(cityOverride || city || "manila").toLowerCase();
       const qs = new URLSearchParams({ city: activeCity, status: "APPROVED,CANCELLED", limit: "1000", open_first: "true", exclude_not_received: "false" });
+      if (dateFrom) qs.set("date_from", dateFrom);
+      if (dateTo) qs.set("date_to", dateTo);
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs}`,
         { method: "GET" },
@@ -178,7 +186,15 @@ export default function StoreProcurementReceivingPage() {
     } catch (e: any) {
       setError(friendlyProcurementError(e));
     }
-  }, [city, pin, requestedBy]);
+  }, [city, dateFrom, dateTo, pin, requestedBy]);
+
+  // Changing the dates has to fetch again — the filtering happens on the
+  // server, because the rows being looked for never reached the browser.
+  const dateRangeReady = useRef(false);
+  useEffect(() => {
+    if (!dateRangeReady.current) { dateRangeReady.current = true; return; }
+    void loadMyRequests();
+  }, [dateFrom, dateTo, loadMyRequests]);
 
   // ── Load receivings ────────────────────────────────────────────────────────
 
@@ -817,6 +833,38 @@ export default function StoreProcurementReceivingPage() {
               />
               Hide already confirmed orders
             </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className={FIELD + " text-xs"}
+                aria-label="Orders from this date"
+              />
+              <span className="text-xs text-zinc-500">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className={FIELD + " text-xs"}
+                aria-label="Orders up to this date"
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  type="button"
+                  onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  className="shrink-0 text-xs text-zinc-400 underline"
+                >
+                  clear
+                </button>
+              )}
+            </div>
+            {!dateFrom && !dateTo && requests.length >= 1000 && (
+              <p className="text-xs text-amber-400">
+                Showing the 1,000 most recent orders, open ones first — confirmed
+                orders are past that. Pick a date range to reach them.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             {filteredRequests.map((row) => {
