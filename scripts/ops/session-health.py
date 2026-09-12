@@ -317,16 +317,34 @@ def gh_secrets():
     return out
 
 
+def has_cron(body):
+    """そのワークフローが自分で動くか（cron を持つか）。
+
+    コメントは落としてから見る。noon-dubai-payout.yml は「cron を置かない理由」を
+    コメントで長く説明しており、この種のファイルは今後も増える。いまは `cron:` の
+    形では書かれていないので落とさなくても結果は同じ（14ファイルで検証済み）だが、
+    説明文に一行 `# cron: 0 3 * * *` と例を書いた瞬間に逆の判定になる。
+    """
+    live = "\n".join(re.sub(r"#.*$", "", ln) for ln in body.splitlines())
+    return re.search(r"^\s*-?\s*cron\s*:", live, re.M) is not None
+
+
 def workflow_readers():
-    """{シークレット名: [そのシークレットを読むワークフロー]}。
+    """({シークレット名: [読むワークフロー]}, {ワークフロー: cronを持つか})。
 
     表に持たず毎回 .github/workflows を読む。ワークフローが増減しても
     自動で追従させるため（手で写した一覧は必ずどこかで古くなる）。
+
+    cron の有無も一緒に返す。**シークレットを読む口があることと、それが
+    自分で動くことは別**で、後者が無いシークレットを毎朝更新しても、次に
+    人が手で回すときには寿命で死んでいる（2026-09-12 に noon で実際に
+    そうなっていた — 前日に入れた NOON_SESSION は一度も使われないまま
+    失効した）。
     """
     wf_dir = os.path.join(os.path.dirname(ROOT), ".github", "workflows")
-    readers = {}
+    readers, cron_of = {}, {}
     if not os.path.isdir(wf_dir):
-        return readers
+        return readers, cron_of
     for fn in sorted(os.listdir(wf_dir)):
         if not fn.endswith((".yml", ".yaml")):
             continue
@@ -334,9 +352,10 @@ def workflow_readers():
             body = open(os.path.join(wf_dir, fn)).read()
         except Exception:
             continue
+        cron_of[fn] = has_cron(body)
         for name in set(re.findall(r"secrets\.([A-Z0-9_]+)", body)):
             readers.setdefault(name, []).append(fn)
-    return readers
+    return readers, cron_of
 
 
 def decodes_like_ci(path, encoding):
@@ -361,15 +380,20 @@ def decodes_like_ci(path, encoding):
     return True, ""
 
 
-def secret_findings(secrets, readers):
+def secret_of(platform, store):
+    """(シークレット名, 材料ファイルの絶対パス, encoding)。"""
+    tmpl, art, enc = SECRET_OF[platform]
+    key = store or "paranaque"
+    return tmpl.format(STORE=key.upper()), os.path.join(ROOT, art.format(store=key)), enc
+
+
+def secret_findings(secrets, readers, cron_of):
     """更新手順そのものの欠陥を返す。[(深刻度, 見出し, 詳細)]"""
     out = []
-    for platform, (tmpl, art, enc) in sorted(SECRET_OF.items()):
+    for platform in sorted(SECRET_OF):
         stores = sorted({s for p, s, _ in session_files() if p == platform}) or [""]
         for store in stores:
-            key = store or "paranaque"
-            name = tmpl.format(STORE=key.upper())
-            path = os.path.join(ROOT, art.format(store=key))
+            name, path, enc = secret_of(platform, store)
             label = platform + (f" ({store})" if store else "")
 
             ok, why = decodes_like_ci(path, enc)
@@ -381,10 +405,38 @@ def secret_findings(secrets, readers):
             if not used:
                 out.append(("info", f"{name} を読むワークフローが無い",
                             f"{label} を更新しても取込には影響しない（手元の作業専用）"))
-            elif secrets is not None and name not in secrets:
+            elif not [f for f in used if cron_of.get(f)]:
+                # 読む口はあるが自分では動かない。毎朝更新しても、次に人が
+                # 手で回すときには寿命で死んでいる。更新は「回す直前」に寄せる。
+                out.append(("info", f"{name} を読むワークフローに cron が無い",
+                            f"{', '.join(used)} は手動起動のみ。{label} のシークレットは"
+                            "毎朝ではなく、取込を回す直前に更新する"))
+            if used and secrets is not None and name not in secrets:
                 out.append(("bad", f"{name} が存在しない",
                             f"{', '.join(used)} が読もうとしている"))
     return out
+
+
+def refresh_steps(platform, store, readers, cron_of):
+    """画面に出す更新手順。
+
+    2行目（シークレット）は、それを読む口が**自分で動く**ときだけ出す。cron を
+    持たないワークフローのシークレットを毎朝入れ替えても、次に人が手で回すとき
+    には寿命で死んでいる。案内に残すと、効かない作業を毎朝させることになる
+    （教訓21 — 実行できない案内は、案内が無いより悪い）。2026-09-12 に noon で
+    実際にそうなっていた。ログイン自体は値引きスナップショットに要るので残す。
+    """
+    cmds = REFRESH.get(platform)
+    if not cmds:
+        return []
+    key = store or "paranaque"
+    fmt = lambda c: "      " + c.format(store=key, STORE=key.upper())
+    name = secret_of(platform, store)[0] if platform in SECRET_OF else None
+    used = (readers.get(name) or []) if name else []
+    if used and not [f for f in used if cron_of.get(f)]:
+        return [fmt(cmds[0]),
+                f"      ※ シークレットは毎朝ではなく、{used[0]} を手で回す直前に更新する"]
+    return [fmt(c) for c in cmds]
 
 
 def last_run(workflow):
@@ -412,7 +464,8 @@ def main():
     dead, soon, ok, unknown = [], [], [], []
 
     runs = {p: last_run(w) for p, (w, _) in WORKFLOWS.items()}
-    findings = secret_findings(gh_secrets(), workflow_readers())
+    readers, cron_of = workflow_readers()
+    findings = secret_findings(gh_secrets(), readers, cron_of)
 
     # プローブは1件あたりブラウザを1つ起動するので直列だと4分近くかかる。
     # 毎朝の確認が数分止まると実行されなくなるため、まとめて走らせる。
@@ -474,11 +527,7 @@ def main():
             ok.append((label, f"あと {left/24:.1f}日（{basis}）", platform, store))
 
     def how(platform, store):
-        cmds = REFRESH.get(platform)
-        if not cmds:
-            return []
-        return ["      " + c.format(store=store or "paranaque", STORE=(store or "paranaque").upper())
-                for c in cmds]
+        return refresh_steps(platform, store, readers, cron_of)
 
     print(f"アグリゲーター・セッション状態  {NOW.astimezone().strftime('%Y-%m-%d %H:%M')}")
     print()
