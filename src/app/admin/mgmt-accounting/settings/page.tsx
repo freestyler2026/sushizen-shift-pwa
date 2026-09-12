@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -274,29 +275,37 @@ export default function MgmtSettingsPage() {
       <div className={`${GLASS_CARD} p-4 flex flex-wrap gap-3`}>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">都市</label>
-          <select value={city} onChange={e => { setCity(e.target.value); setStoreCode(""); }}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            <option value="dubai">ドバイ</option>
-            <option value="manila">マニラ</option>
-          </select>
+          <SelectDark
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
+            value={city}
+            onChange={(v) => { setCity(v); setStoreCode(""); }}
+            options={[
+              { value: "dubai", label: "ドバイ" },
+              { value: "manila", label: "マニラ" },
+            ]}
+          />
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">店舗</label>
-          <select value={storeCode} onChange={e => setStoreCode(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            {storeOptions.map(s => (
-              <option key={s} value={s}>
-                {s === "" ? "City-wide" : s === "CK" ? "CK — Shared/Central Kitchen" : s}
-              </option>
-            ))}
-          </select>
+          <SelectDark
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
+            value={storeCode}
+            onChange={(v) => setStoreCode(v)}
+            options={[
+              ...storeOptions.map(s => ({ value: s, label: s === "" ? "City-wide" : s === "CK" ? "CK — Shared/Central Kitchen" : s })),
+            ]}
+          />
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">対象月</label>
-          <select value={yearMonth} onChange={e => setYearMonth(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+          <SelectDark
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
+            value={yearMonth}
+            onChange={(v) => setYearMonth(v)}
+            options={[
+              ...monthOptions.map(m => ({ value: m, label: m })),
+            ]}
+          />
         </div>
       </div>
 
@@ -447,10 +456,14 @@ export default function MgmtSettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-zinc-400">費目</label>
-                <select value={ohCategory} onChange={e => setOhCategory(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white">
-                  {OVERHEAD_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <SelectDark
+                  className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white"
+                  value={ohCategory}
+                  onChange={(v) => setOhCategory(v)}
+                  options={[
+                    ...OVERHEAD_CATEGORIES.map(c => ({ value: c, label: c })),
+                  ]}
+                />
               </div>
               {ohCategory === "Other" && (
                 <div className="space-y-1.5">
@@ -532,12 +545,14 @@ export default function MgmtSettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-zinc-400">費目</label>
-                <select value={budCategory} onChange={e => setBudCategory(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white">
-                  {BUDGET_CATEGORIES.map(c => (
-                    <option key={c} value={c}>{c === "food" ? "Food Cost" : c === "labor" ? "Labor Cost" : "Overhead"}</option>
-                  ))}
-                </select>
+                <SelectDark
+                  className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white"
+                  value={budCategory}
+                  onChange={(v) => setBudCategory(v)}
+                  options={[
+                    ...BUDGET_CATEGORIES.map(c => ({ value: c, label: c === "food" ? "Food Cost" : c === "labor" ? "Labor Cost" : "Overhead" })),
+                  ]}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-zinc-400">Budget Amount ({cur})</label>

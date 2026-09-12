@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import {
   AlertCircle, Calculator, CheckCircle2, ClipboardList, Database,
   Loader2, RefreshCw, Trash2, Users, Zap,
@@ -433,11 +434,15 @@ export default function DubaiPayrollPage() {
                           </div>
                           <div>
                             <label className="mb-1 block text-xs text-slate-400">Staff Group</label>
-                            <select value={staffGroup[c.id] ?? "all"} onChange={e => setStaffGroup(prev => ({ ...prev, [c.id]: e.target.value as StaffGroup }))}
-                              className="rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none">
-                              <option value="all">All Staff</option>
-                              <option value="parttime">Part-time Staff only (8 names)</option>
-                            </select>
+                            <SelectDark
+                              className="rounded-lg border border-white/10 bg-slate-800 px-2.5 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none"
+                              value={staffGroup[c.id] ?? "all"}
+                              onChange={(v) => setStaffGroup(prev => ({ ...prev, [c.id]: v as StaffGroup }))}
+                              options={[
+                                { value: "all", label: "All Staff" },
+                                { value: "parttime", label: "Part-time Staff only (8 names)" },
+                              ]}
+                            />
                           </div>
                           <button
                             onClick={() => handleAutoCalculate(c)}

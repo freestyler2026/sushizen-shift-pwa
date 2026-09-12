@@ -1932,36 +1932,27 @@ ${pages}
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_140px_140px]">
-          <select
-            ref={recipeProductSelectRef}
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={recipeProductId}
-            onChange={(e) => {
-              setRecipeProductId(e.target.value);
+            onChange={(v) => {
+              setRecipeProductId(v);
               setError("");
             }}
-          >
-            <option value="">Select a recipe product</option>
-            {productOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} {item.sku ? `(${item.sku})` : ""}
-              </option>
-            ))}
-          </select>
-          <select
+            options={[
+              { value: "", label: "Select a recipe product" },
+              ...productOptions.map((item) => ({ value: item.id, label: `${item.name} ${item.sku ? `(${item.sku})` : ""}` })),
+            ]}
+          />
+          <SelectDark
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={recipeIngredientId}
-            onChange={(e) => setRecipeIngredientId(e.target.value)}
-            onMouseDown={handleRecipeIngredientFocus}
-            onFocus={handleRecipeIngredientFocus}
-          >
-            <option value="">{recipeProductId ? "Select an ingredient" : "Select a recipe product first"}</option>
-            {ingredientOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} {item.sku ? `(${item.sku})` : ""}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setRecipeIngredientId(v)}
+            options={[
+              { value: "", label: recipeProductId ? "Select an ingredient" : "Select a recipe product first" },
+              ...ingredientOptions.map((item) => ({ value: item.id, label: `${item.name} ${item.sku ? `(${item.sku})` : ""}` })),
+            ]}
+          />
           <input
             type="text"
             inputMode="decimal"

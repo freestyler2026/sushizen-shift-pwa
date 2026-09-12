@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
@@ -1454,17 +1455,15 @@ export default function CkParLevelsPage() {
                             {editingSupId === row.id ? (
                               <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-1">
-                                  <select
-                                    autoFocus
-                                    value={suppValue}
-                                    onChange={(e) => setSuppValue(e.target.value)}
+                                  <SelectDark
                                     className="rounded bg-zinc-800 border border-teal-500/50 px-2 py-0.5 text-xs text-white outline-none max-w-[160px]"
-                                  >
-                                    <option value="">— None —</option>
-                                    {vendors.map((v) => (
-                                      <option key={v} value={v}>{v}</option>
-                                    ))}
-                                  </select>
+                                    value={suppValue}
+                                    onChange={(v) => setSuppValue(v)}
+                                    options={[
+                                      { value: "", label: "— None —" },
+                                      ...vendors.map((v) => ({ value: v, label: v })),
+                                    ]}
+                                  />
                                   <button
                                     onClick={() => saveSupplier(row, suppValue)}
                                     disabled={savingSup}
@@ -1632,14 +1631,15 @@ export default function CkParLevelsPage() {
                   </div>
                   <div>
                     <label className="block text-xs text-zinc-400 mb-1">Supplier</label>
-                    <select
-                      value={addForm.supplier}
-                      onChange={(e) => setAddForm((f) => ({ ...f, supplier: e.target.value }))}
+                    <SelectDark
                       className="w-full rounded-lg bg-zinc-800 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                    >
-                      <option value="">— None —</option>
-                      {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
-                    </select>
+                      value={addForm.supplier}
+                      onChange={(v) => setAddForm((f) => ({ ...f, supplier: v }))}
+                      options={[
+                        { value: "", label: "— None —" },
+                        ...vendors.map((v) => ({ value: v, label: v })),
+                      ]}
+                    />
                   </div>
                 </div>
               )}

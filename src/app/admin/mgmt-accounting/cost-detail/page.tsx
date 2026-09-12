@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -113,26 +114,38 @@ export default function CostDetailPage() {
       <div className={`${GLASS_CARD} p-4 flex flex-wrap gap-3`}>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">City</label>
-          <select value={city} onChange={e => { setCity(e.target.value); setStoreCode(""); }}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
+          <SelectDark
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
+            value={city}
+            onChange={(v) => { setCity(v); setStoreCode(""); }}
+            options={[
+              { value: "dubai", label: "Dubai" },
+              { value: "manila", label: "Manila" },
+            ]}
+          />
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Store</label>
-          <select value={storeCode} onChange={e => setStoreCode(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            <option value="">All Stores</option>
-            {storeOptions.filter(Boolean).map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <SelectDark
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
+            value={storeCode}
+            onChange={(v) => setStoreCode(v)}
+            options={[
+              { value: "", label: "All Stores" },
+              ...storeOptions.filter(Boolean).map(s => ({ value: s, label: s })),
+            ]}
+          />
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Month</label>
-          <select value={yearMonth} onChange={e => setYearMonth(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+          <SelectDark
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
+            value={yearMonth}
+            onChange={(v) => setYearMonth(v)}
+            options={[
+              ...monthOptions.map(m => ({ value: m, label: m })),
+            ]}
+          />
         </div>
         <div className="flex items-end">
           <button onClick={fetchData} className={PRIMARY_BUTTON} disabled={loading}>

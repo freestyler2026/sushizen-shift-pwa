@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState, useCallback } from "react";
 import {
   RefreshCw, PackageCheck, CheckCircle, AlertTriangle, PackageX,
@@ -450,15 +451,16 @@ export default function SupplierReceivingPage() {
                               </div>
                               <div>
                                 <label className="mb-1 block text-xs text-zinc-500">Condition</label>
-                                <select
+                                <SelectDark
                                   className={SELECT_CLASS}
                                   value={entry.status}
-                                  onChange={(e) => setEntry(item.id, "status", e.target.value)}
-                                >
-                                  <option value="received">OK</option>
-                                  <option value="partial">Partial</option>
-                                  <option value="issue">Issue</option>
-                                </select>
+                                  onChange={(v) => setEntry(item.id, "status", v)}
+                                  options={[
+                                    { value: "received", label: "OK" },
+                                    { value: "partial", label: "Partial" },
+                                    { value: "issue", label: "Issue" },
+                                  ]}
+                                />
                               </div>
                               <div>
                                 <label className="mb-1 block text-xs text-zinc-500">Note</label>

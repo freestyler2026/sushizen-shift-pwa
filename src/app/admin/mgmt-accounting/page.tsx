@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { MgmtTabBar, DashboardLink } from "./MgmtTabs";
@@ -212,19 +213,27 @@ function CostIntelligenceTab({ yearMonth }: { yearMonth: string }) {
       <div className={`${GLASS_CARD} p-4 flex flex-wrap gap-3 items-end`}>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">都市</label>
-          <select value={city} onChange={e => { setCity(e.target.value); setStoreCode(""); }}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            <option value="dubai">ドバイ</option>
-            <option value="manila">マニラ</option>
-          </select>
+          <SelectDark
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
+            value={city}
+            onChange={(v) => { setCity(v); setStoreCode(""); }}
+            options={[
+              { value: "dubai", label: "ドバイ" },
+              { value: "manila", label: "マニラ" },
+            ]}
+          />
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">店舗</label>
-          <select value={storeCode} onChange={e => setStoreCode(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white">
-            <option value="">全店舗</option>
-            {storeOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <SelectDark
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
+            value={storeCode}
+            onChange={(v) => setStoreCode(v)}
+            options={[
+              { value: "", label: "全店舗" },
+              ...storeOptions.map(s => ({ value: s, label: s })),
+            ]}
+          />
         </div>
         <button onClick={fetchData} className={PRIMARY_BUTTON} disabled={loading}>
           {loading ? "Loading…" : "Refresh"}
@@ -1567,10 +1576,14 @@ export default function MgmtAccountingPage() {
         <MgmtTabBar active={tab} onSelect={(k) => setTab(k as Tab)} />
         <div className="flex items-center gap-2">
           <label className="text-xs text-zinc-500 uppercase tracking-widest">対象月</label>
-          <select value={yearMonth} onChange={e => setYearMonth(e.target.value)}
-            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100">
-            {MONTH_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+          <SelectDark
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100"
+            value={yearMonth}
+            onChange={(v) => setYearMonth(v)}
+            options={[
+              ...MONTH_OPTIONS.map(m => ({ value: m, label: m })),
+            ]}
+          />
         </div>
       </div>
 

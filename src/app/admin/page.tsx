@@ -484,16 +484,15 @@ function RequestCard({
           <div className="grid grid-cols-3 gap-2">
             <div>
               <div className="mb-1 text-[10px] text-neutral-500">Role</div>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as "MANAGER" | "HQ")}
+              <SelectDark
                 className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs"
-              >
-                <option value="MANAGER">MANAGER</option>
-                <option value="HQ" disabled={!canUseHQRole}>
-                  HQ
-                </option>
-              </select>
+                value={role}
+                onChange={(v) => setRole(v as "MANAGER" | "HQ")}
+                options={[
+                  { value: "MANAGER", label: "MANAGER" },
+                  { value: "HQ", label: "HQ", disabled: !canUseHQRole },
+                ]}
+              />
             </div>
             <div>
               <div className="mb-1 text-[10px] text-neutral-500">PIN</div>

@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState } from "react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
@@ -181,18 +182,15 @@ export default function AdminHandbookPage() {
           {/* Filter controls */}
           <div className={GLASS_CARD + " p-4 flex flex-wrap items-center gap-3"}>
             <span className={T_LABEL}>Version</span>
-            <select
+            <SelectDark
               className="h-8 rounded-lg border border-neutral-800 bg-neutral-950 px-3 text-xs text-white"
               value={filterVersion}
-              onChange={(e) => setFilterVersion(e.target.value)}
-            >
-              <option value="">All versions</option>
-              {versions.map((v) => (
-                <option key={v.version} value={v.version}>
-                  {v.version}{v.is_active ? " (current)" : ""}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setFilterVersion(v)}
+              options={[
+                { value: "", label: "All versions" },
+                ...versions.map((v) => ({ value: v.version, label: `${v.version}${v.is_active ? " (current)" : ""}` })),
+              ]}
+            />
             <button
               onClick={() => loadAcks(filterVersion)}
               disabled={statusLoading}

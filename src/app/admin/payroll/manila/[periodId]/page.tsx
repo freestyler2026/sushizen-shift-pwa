@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown,
   ChevronUp, Clock, Download, Eye, EyeOff, History, Loader2, MinusCircle, PlusCircle,
@@ -533,19 +534,20 @@ function DTRModal({
                     <tr key={row.work_date} className={`border-b border-white/5 ${rowBg}`}>
                       <td className="py-2 pr-2 font-mono text-slate-300">{row.work_date}</td>
                       <td className="py-2 pr-2">
-                        <select
-                          value={currentDayType}
-                          onChange={e => setEdits(prev => ({
-                            ...prev,
-                            [row.work_date]: { ...prev[row.work_date], day_type: e.target.value },
-                          }))}
+                        <SelectDark
                           className="rounded border border-white/10 bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 focus:border-blue-500/60 focus:outline-none"
-                        >
-                          <option value="ordinary_day">Ordinary</option>
-                          <option value="rest_day">Rest Day</option>
-                          <option value="regular_holiday">Regular Holiday</option>
-                          <option value="special_non_working_holiday">Special Holiday</option>
-                        </select>
+                          value={currentDayType}
+                          onChange={(v) => setEdits(prev => ({
+                            ...prev,
+                            [row.work_date]: { ...prev[row.work_date], day_type: v },
+                          }))}
+                          options={[
+                            { value: "ordinary_day", label: "Ordinary" },
+                            { value: "rest_day", label: "Rest Day" },
+                            { value: "regular_holiday", label: "Regular Holiday" },
+                            { value: "special_non_working_holiday", label: "Special Holiday" },
+                          ]}
+                        />
                       </td>
                       <td className="py-2 pr-2">
                         {row.is_worked

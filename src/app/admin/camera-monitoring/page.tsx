@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -266,15 +267,16 @@ export default function CameraMonitoringPage() {
             <p className={`${T_BODY} mt-1`}>AI edge detection — Jetson Orin Nano Super</p>
           </div>
           <div className="flex items-center gap-3">
-            <select
-              value={filterCity}
-              onChange={(e) => setFilterCity(e.target.value)}
+            <SelectDark
               className="cursor-pointer appearance-none rounded-xl border border-white/10 bg-white/6 px-4 py-2 text-sm text-white outline-none focus:border-violet-500/50"
-            >
-              <option value="">All Cities</option>
-              <option value="Dubai">Dubai</option>
-              <option value="Manila">Manila</option>
-            </select>
+              value={filterCity}
+              onChange={(v) => setFilterCity(v)}
+              options={[
+                { value: "", label: "All Cities" },
+                { value: "Dubai", label: "Dubai" },
+                { value: "Manila", label: "Manila" },
+              ]}
+            />
             <button
               onClick={refresh}
               className={`${SMALL_BUTTON} flex items-center gap-1.5`}

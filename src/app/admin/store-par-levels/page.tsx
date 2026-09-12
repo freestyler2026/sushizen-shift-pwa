@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Pencil, Trash2, RefreshCw, Search } from "lucide-react";
 import {
@@ -214,16 +215,15 @@ export default function StoreParLevelsPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <select
+          <SelectDark
             className={SELECT_CLASS + " max-w-[200px]"}
             value={filterSupplier}
-            onChange={(e) => setFilterSupplier(e.target.value)}
-          >
-            <option value="all">All Suppliers</option>
-            {suppliers.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+            onChange={(v) => setFilterSupplier(v)}
+            options={[
+              { value: "all", label: "All Suppliers" },
+              ...suppliers.map((s) => ({ value: s, label: s })),
+            ]}
+          />
           <button onClick={load} className={SECONDARY_BUTTON + " flex items-center gap-2"} title="Refresh">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -354,13 +354,14 @@ export default function StoreParLevelsPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs text-zinc-400">Category</label>
-                <select
+                <SelectDark
                   className={SELECT_CLASS}
                   value={form.category}
-                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                >
-                  {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-                </select>
+                  onChange={(v) => setForm((f) => ({ ...f, category: v }))}
+                  options={[
+                    ...CATEGORIES.map((c) => ({ value: c, label: c })),
+                  ]}
+                />
               </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-xs text-zinc-400">Item Name *</label>
@@ -399,13 +400,14 @@ export default function StoreParLevelsPage() {
               </div>
               <div>
                 <label className="mb-1 block text-xs text-zinc-400">Unit</label>
-                <select
+                <SelectDark
                   className={SELECT_CLASS}
                   value={form.unit}
-                  onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-                >
-                  {UNITS.map((u) => <option key={u}>{u}</option>)}
-                </select>
+                  onChange={(v) => setForm((f) => ({ ...f, unit: v }))}
+                  options={[
+                    ...UNITS.map((u) => ({ value: u, label: u })),
+                  ]}
+                />
               </div>
               <div className="col-span-2">
                 <label className="mb-1 block text-xs text-zinc-400">Supplier *</label>

@@ -2181,16 +2181,15 @@ function SearchRankingsSection() {
           </div>
           <div className="flex items-center gap-2">
             <span className={LABEL_TEXT}>Date:</span>
-            <select
+            <SelectDark
               className="rounded-lg border border-white/10 bg-neutral-900 px-3 py-1.5 text-sm text-white"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            >
-              <option value="all">All dates</option>
-              {dates.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
+              onChange={(v) => setSelectedDate(v)}
+              options={[
+                { value: "all", label: "All dates" },
+                ...dates.map((d) => ({ value: d, label: d })),
+              ]}
+            />
           </div>
         </div>
 

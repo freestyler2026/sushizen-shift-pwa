@@ -4,7 +4,7 @@ import { ChevronDown, X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-type OptionItem = { value: string; label: string };
+type OptionItem = { value: string; label: string; disabled?: boolean };
 
 type Props = {
   value: string;
@@ -21,6 +21,13 @@ type Props = {
    *  field's label ("All Stores", "City"), so the control is never nameless. */
   "aria-label"?: string;
   id?: string;
+  /** A native <select> takes this, and pages that used one relied on it to
+   *  freeze the control while a save is in flight. Without it here, replacing
+   *  the native control would have quietly made those rows editable mid-save. */
+  disabled?: boolean;
+  /** Carried over from the native <select> it replaced, so an inline editor
+   *  still lands on the control the row was opened to change. */
+  autoFocus?: boolean;
 };
 
 /**
@@ -38,6 +45,8 @@ export default function SelectDark({
   clearable = false,
   "aria-label": ariaLabel,
   id,
+  disabled = false,
+  autoFocus = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -52,6 +61,9 @@ export default function SelectDark({
 
   // Recompute fixed position whenever the dropdown opens or the page scrolls/resizes
   // useLayoutEffect runs before paint so there's no position flash on open
+  // Never leave the list open underneath a control that has just been disabled.
+  useEffect(() => { if (disabled && open) setOpen(false); }, [disabled, open]);
+
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
     const update = () => {
@@ -116,6 +128,10 @@ export default function SelectDark({
   }, [normalized, query]);
 
   function select(opt: OptionItem) {
+    // Kept in the list rather than filtered out: a greyed option says the
+    // choice exists and is not yours, which is the whole point of the HQ role
+    // being visible to a manager who cannot pick it.
+    if (opt.disabled) return;
     onChange(opt.value);
     setOpen(false);
     setQuery("");
@@ -123,6 +139,7 @@ export default function SelectDark({
 
   function clear(e: React.MouseEvent) {
     e.stopPropagation();
+    if (disabled) return;
     onChange("");
     setQuery("");
   }
@@ -147,8 +164,13 @@ export default function SelectDark({
         // The value the page holds, which a native <select> exposed and a
         // button does not. Tests asserted on it; nothing in the UI reads it.
         data-value={value}
-        onClick={() => setOpen((prev) => !prev)}
-        className={`flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-sm text-left transition-all duration-200 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 cursor-pointer ${
+        disabled={disabled}
+        autoFocus={autoFocus}
+        aria-disabled={disabled || undefined}
+        onClick={() => { if (!disabled) setOpen((prev) => !prev); }}
+        className={`flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-sm text-left transition-all duration-200 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 ${
+          disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+        } ${
           variant === "light"
             ? "border border-gray-200 bg-white"
             : "border border-white/10 bg-white/6"
@@ -208,14 +230,22 @@ export default function SelectDark({
                   type="button"
                   role="option"
                   aria-selected={opt.value === value}
+                  disabled={opt.disabled}
+                  aria-disabled={opt.disabled || undefined}
                   // The value a native <option> carried. Nothing in the UI uses
                   // it; it is what lets a test pick an option by the value the
                   // page will actually receive, rather than by its wording.
                   data-value={opt.value}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => select(opt)}
-                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-violet-500/15 hover:text-violet-200 ${
-                    opt.value === value ? "bg-violet-500/20 text-violet-200 font-medium" : "text-zinc-200"
+                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${
+                    opt.disabled
+                      ? "text-zinc-600 cursor-not-allowed"
+                      : "hover:bg-violet-500/15 hover:text-violet-200"
+                  } ${
+                    opt.value === value && !opt.disabled
+                      ? "bg-violet-500/20 text-violet-200 font-medium"
+                      : opt.disabled ? "" : "text-zinc-200"
                   }`}
                 >
                   {opt.label}

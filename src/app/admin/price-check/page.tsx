@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { motion } from "framer-motion";
 import {
@@ -347,16 +348,14 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
             </div>
             <div className="flex items-center gap-2">
               <label className={T_LABEL}>Branch</label>
-              <select
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
+              <SelectDark
                 className={INPUT_CLASS}
-                style={{ width: "140px" }}
-              >
-                {DUBAI_BRANCHES.map((b) => (
-                  <option key={b.value} value={b.value}>{b.label}</option>
-                ))}
-              </select>
+                value={branch}
+                onChange={(v) => setBranch(v)}
+                options={[
+                  ...DUBAI_BRANCHES.map((b) => ({ value: b.value, label: b.label })),
+                ]}
+              />
             </div>
           </div>
         </div>

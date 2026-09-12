@@ -10,6 +10,7 @@
 // alone would have changed nothing — the step was in the wrong place.
 // These tests pin the two things that actually make the difference: the form
 // will not send without a file, and the file goes up on the same press.
+import { chooseValueByName } from "../select-dark";
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -43,10 +44,12 @@ function cvFile(name = "cv.pdf", type = "application/pdf", size = 40_000) {
 function fillTheForm() {
   fireEvent.change(screen.getByPlaceholderText("Juan Dela Cruz"), { target: { value: "Ana Cruz" } });
   fireEvent.change(screen.getByPlaceholderText("0917 123 4567"), { target: { value: "09171234567" } });
-  const selects = screen.getAllByRole("combobox");
-  fireEvent.change(selects[0], { target: { value: "kitchen" } });
-  fireEvent.change(selects[1], { target: { value: "TAFT" } });
-  fireEvent.change(selects[2], { target: { value: "1_3y" } });
+  // These were native <select>s driven by fireEvent.change. They are SelectDark
+  // now, and all three show the same "Choose…" until something is picked, so
+  // they are told apart by their accessible name rather than by position.
+  chooseValueByName("What work are you applying for?", "kitchen");
+  chooseValueByName("Which branch do you prefer?", "TAFT");
+  chooseValueByName("Experience in food service", "1_3y");
   fireEvent.click(screen.getByText("This is my first job"));
 }
 

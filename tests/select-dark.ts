@@ -111,3 +111,19 @@ export function optionLabels(showing: string): string[] {
   fireEvent.click(selectShowing(showing)); // leave it closed
   return labels;
 }
+
+/** Open the select with accessible name `name` and pick the option whose value
+ *  is `value`. Use this where several selects show the same placeholder and
+ *  only their name tells them apart -- three "Choose…" controls on one form
+ *  cannot be told apart by what they show. */
+export function chooseValueByName(name: string | RegExp, value: string): void {
+  fireEvent.click(screen.getByRole("combobox", { name }));
+  const listbox = screen.getByRole("listbox");
+  const opt = listbox.querySelector(`[data-value="${CSS.escape(value)}"]`);
+  if (!opt) {
+    const had = Array.from(listbox.querySelectorAll("[data-value]"))
+      .map((o) => (o as HTMLElement).dataset.value).join(", ");
+    throw new Error(`No option with value "${value}" under "${String(name)}". Offered: ${had || "(none)"}`);
+  }
+  fireEvent.click(opt);
+}

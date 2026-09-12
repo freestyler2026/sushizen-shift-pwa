@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import {
   AlertCircle, Archive, BookOpen, Calendar, CheckCircle2,
   ChevronDown, ChevronRight, Clock, Download, FileText,
@@ -134,19 +135,27 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-zinc-400 mb-1 block">Category</label>
-              <select value={category} onChange={e => setCategory(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white">
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
+              <SelectDark
+                className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+                value={category}
+                onChange={(v) => setCategory(v)}
+                options={[
+                  ...CATEGORIES.map(c => ({ value: c, label: c })),
+                ]}
+              />
             </div>
             <div>
               <label className="text-xs text-zinc-400 mb-1 block">Target City</label>
-              <select value={city} onChange={e => setCity(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white">
-                <option value="all">All Cities</option>
-                <option value="manila">Manila</option>
-                <option value="dubai">Dubai</option>
-              </select>
+              <SelectDark
+                className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+                value={city}
+                onChange={(v) => setCity(v)}
+                options={[
+                  { value: "all", label: "All Cities" },
+                  { value: "manila", label: "Manila" },
+                  { value: "dubai", label: "Dubai" },
+                ]}
+              />
             </div>
           </div>
           <div>
@@ -456,17 +465,25 @@ export default function PolicyDocsAdminPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-sm text-white">
-          <option value="all">All Cities</option>
-          <option value="manila">Manila</option>
-          <option value="dubai">Dubai</option>
-        </select>
-        <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
-          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-sm text-white">
-          <option value="">All Categories</option>
-          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-        </select>
+        <SelectDark
+          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-sm text-white"
+          value={cityFilter}
+          onChange={(v) => setCityFilter(v)}
+          options={[
+            { value: "all", label: "All Cities" },
+            { value: "manila", label: "Manila" },
+            { value: "dubai", label: "Dubai" },
+          ]}
+        />
+        <SelectDark
+          className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-sm text-white"
+          value={catFilter}
+          onChange={(v) => setCatFilter(v)}
+          options={[
+            { value: "", label: "All Categories" },
+            ...CATEGORIES.map(c => ({ value: c, label: c })),
+          ]}
+        />
         <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
           <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} className="rounded" />
           Show Archived

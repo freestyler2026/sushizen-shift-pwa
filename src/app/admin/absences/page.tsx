@@ -1848,38 +1848,28 @@ export default function AdminAbsencesPage() {
                             <NoteCell note={r.note} category={r.reason_category} />
                           </td>
                           <td className={`${TABLE_CELL} px-4`}>
-                            <select
+                            <SelectDark
+                              className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${flagClass(r.prior_notice)}`}
+                              value={(r.prior_notice as AbsenceFlag) || ""}
+                              onChange={(v) => saveFlags(r, { prior_notice: v as AbsenceFlag })}
                               aria-label={`Prior notice for ${r.staff_name} on ${r.work_date}`}
                               disabled={loading}
-                              value={(r.prior_notice as AbsenceFlag) || ""}
-                              onChange={(e) =>
-                                saveFlags(r, { prior_notice: e.target.value as AbsenceFlag })
-                              }
-                              className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${flagClass(r.prior_notice)}`}
-                            >
-                              {NOTICE_OPTIONS.map((o) => (
-                                <option key={o.value} value={o.value} className="bg-zinc-900 text-zinc-200">
-                                  {o.label}
-                                </option>
-                              ))}
-                            </select>
+                              options={[
+                                ...NOTICE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+                              ]}
+                            />
                           </td>
                           <td className={`${TABLE_CELL} px-4`}>
-                            <select
+                            <SelectDark
+                              className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${flagClass(r.mc_submitted)}`}
+                              value={(r.mc_submitted as AbsenceFlag) || ""}
+                              onChange={(v) => saveFlags(r, { mc_submitted: v as AbsenceFlag })}
                               aria-label={`Medical certificate for ${r.staff_name} on ${r.work_date}`}
                               disabled={loading}
-                              value={(r.mc_submitted as AbsenceFlag) || ""}
-                              onChange={(e) =>
-                                saveFlags(r, { mc_submitted: e.target.value as AbsenceFlag })
-                              }
-                              className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${flagClass(r.mc_submitted)}`}
-                            >
-                              {MC_OPTIONS.map((o) => (
-                                <option key={o.value} value={o.value} className="bg-zinc-900 text-zinc-200">
-                                  {o.label}
-                                </option>
-                              ))}
-                            </select>
+                              options={[
+                                ...MC_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+                              ]}
+                            />
                           </td>
                           <td className={`${TABLE_CELL} px-4`}>
                             {manual ? (

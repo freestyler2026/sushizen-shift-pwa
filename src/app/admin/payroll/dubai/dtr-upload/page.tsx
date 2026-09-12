@@ -1106,28 +1106,30 @@ export default function DubaiDtrUploadPage() {
                     onChange={e => { setDtrDateTo(e.target.value); setDtrPage(0); }}
                     className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50 w-36 [color-scheme:dark]"
                   />
-                  <select
+                  <SelectDark
+                    className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50"
                     value={dtrStoreFilter}
-                    onChange={e => { setDtrStoreFilter(e.target.value); setDtrPage(0); }}
+                    onChange={(v) => { setDtrStoreFilter(v); setDtrPage(0); }}
+                    options={[
+                      { value: "", label: "All Stores" },
+                      ...dtrStores.map(s => ({ value: s, label: s })),
+                    ]}
+                  />
+                  <SelectDark
                     className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50"
-                  >
-                    <option value="">All Stores</option>
-                    {dtrStores.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <select
                     value={dtrStatusFilter}
-                    onChange={e => { setDtrStatusFilter(e.target.value); setDtrPage(0); }}
-                    className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-xs text-white outline-none focus:border-sky-500/50"
-                  >
-                    <option value="">All Status</option>
-                    <option value="worked">Worked</option>
-                    <option value="rest_day">Day Off</option>
-                    <option value="awp">Absent (AWP)</option>
-                    <option value="annual_leave">Annual Leave</option>
-                    <option value="late">Late (&gt;15 min)</option>
-                    <option value="no_clockin">No Clock-in</option>
-                    <option value="generated">Generated rows only</option>
-                  </select>
+                    onChange={(v) => { setDtrStatusFilter(v); setDtrPage(0); }}
+                    options={[
+                      { value: "", label: "All Status" },
+                      { value: "worked", label: "Worked" },
+                      { value: "rest_day", label: "Day Off" },
+                      { value: "awp", label: "Absent (AWP)" },
+                      { value: "annual_leave", label: "Annual Leave" },
+                      { value: "late", label: "Late (&gt;15 min)" },
+                      { value: "no_clockin", label: "No Clock-in" },
+                      { value: "generated", label: "Generated rows only" },
+                    ]}
+                  />
                   {hasFilter && (
                     <button
                       onClick={() => { setDtrStaffFilter(""); setDtrDateFrom(""); setDtrDateTo(""); setDtrStoreFilter(""); setDtrStatusFilter(""); setDtrPage(0); }}

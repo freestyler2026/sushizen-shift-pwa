@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -185,11 +186,16 @@ function AddPaymentModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>City</label>
-              <select className={selectCls} value={form.city} onChange={e => set("city", e.target.value)}>
-                <option value="both">Both</option>
-                <option value="manila">Manila</option>
-                <option value="dubai">Dubai</option>
-              </select>
+              <SelectDark
+                className={selectCls}
+                value={form.city}
+                onChange={(v) => set("city", v)}
+                options={[
+                  { value: "both", label: "Both" },
+                  { value: "manila", label: "Manila" },
+                  { value: "dubai", label: "Dubai" },
+                ]}
+              />
             </div>
             <div>
               <label className={labelCls}>Branch (optional)</label>
@@ -200,19 +206,25 @@ function AddPaymentModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Category</label>
-              <select className={selectCls} value={form.category} onChange={e => set("category", e.target.value)}>
-                {(Object.entries(CATEGORY_LABELS) as [PaymentCategory, string][]).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
+              <SelectDark
+                className={selectCls}
+                value={form.category}
+                onChange={(v) => set("category", v)}
+                options={[
+                  ...(Object.entries(CATEGORY_LABELS) as [PaymentCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
+                ]}
+              />
             </div>
             <div>
               <label className={labelCls}>Payment Method</label>
-              <select className={selectCls} value={form.payment_method} onChange={e => set("payment_method", e.target.value)}>
-                {(Object.entries(PAYMENT_METHOD_LABELS) as [PaymentMethod, string][]).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
+              <SelectDark
+                className={selectCls}
+                value={form.payment_method}
+                onChange={(v) => set("payment_method", v)}
+                options={[
+                  ...(Object.entries(PAYMENT_METHOD_LABELS) as [PaymentMethod, string][]).map(([k, v]) => ({ value: k, label: v })),
+                ]}
+              />
             </div>
           </div>
 
@@ -233,9 +245,14 @@ function AddPaymentModal({
             </div>
             <div>
               <label className={labelCls}>Currency</label>
-              <select className={selectCls} value={form.currency} onChange={e => set("currency", e.target.value)}>
-                {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <SelectDark
+                className={selectCls}
+                value={form.currency}
+                onChange={(v) => set("currency", v)}
+                options={[
+                  ...CURRENCY_OPTIONS.map(c => ({ value: c, label: c })),
+                ]}
+              />
             </div>
           </div>
 
@@ -262,12 +279,17 @@ function AddPaymentModal({
           {form.is_recurring && (
             <div>
               <label className={labelCls}>Recurrence</label>
-              <select className={selectCls} value={form.recurrence} onChange={e => set("recurrence", e.target.value)}>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="semi_annual">Semi-Annual</option>
-                <option value="annual">Annual</option>
-              </select>
+              <SelectDark
+                className={selectCls}
+                value={form.recurrence}
+                onChange={(v) => set("recurrence", v)}
+                options={[
+                  { value: "monthly", label: "Monthly" },
+                  { value: "quarterly", label: "Quarterly" },
+                  { value: "semi_annual", label: "Semi-Annual" },
+                  { value: "annual", label: "Annual" },
+                ]}
+              />
             </div>
           )}
 
@@ -625,17 +647,25 @@ export default function PaymentsPage() {
 
             {/* Filters */}
             <div className="flex gap-2 mb-5">
-              <select className={selectCls} value={filterCity} onChange={e => setFilterCity(e.target.value)}>
-                <option value="all">All Cities</option>
-                <option value="manila">Manila</option>
-                <option value="dubai">Dubai</option>
-              </select>
-              <select className={selectCls} value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
-                <option value="all">All Categories</option>
-                {(Object.entries(CATEGORY_LABELS) as [string, string][]).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
+              <SelectDark
+                className={selectCls}
+                value={filterCity}
+                onChange={(v) => setFilterCity(v)}
+                options={[
+                  { value: "all", label: "All Cities" },
+                  { value: "manila", label: "Manila" },
+                  { value: "dubai", label: "Dubai" },
+                ]}
+              />
+              <SelectDark
+                className={selectCls}
+                value={filterCategory}
+                onChange={(v) => setFilterCategory(v)}
+                options={[
+                  { value: "all", label: "All Categories" },
+                  ...(Object.entries(CATEGORY_LABELS) as [string, string][]).map(([k, v]) => ({ value: k, label: v })),
+                ]}
+              />
             </div>
 
             {loading && <p className="text-white/40 text-sm text-center py-8">Loading…</p>}

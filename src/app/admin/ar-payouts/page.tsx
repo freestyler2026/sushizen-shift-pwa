@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState, useCallback } from "react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, KPI_CARD, T_PAGE_TITLE,
@@ -890,19 +891,17 @@ export default function ArPayoutsPage() {
           {cityTab === "dubai" && (
             <>
               <div className="w-px bg-white/10" />
-              <select
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
+              <SelectDark
                 className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 focus:outline-none"
-              >
-                {/* Values must be the brand as stored, not as displayed: the filter is an
-                    equality match, and "Ramen Zen" matched nothing while the rows said
-                    ramen_zen. All Veggie Sushi was missing from the list entirely. */}
-                <option value="all">All Brands</option>
-                <option value="sushi_zen">Sushi ZEN</option>
-                <option value="ramen_zen">Ramen ZEN</option>
-                <option value="all_veggie">All Veggie Sushi</option>
-              </select>
+                value={brandFilter}
+                onChange={(v) => setBrandFilter(v)}
+                options={[
+                  { value: "all", label: "All Brands" },
+                  { value: "sushi_zen", label: "Sushi ZEN" },
+                  { value: "ramen_zen", label: "Ramen ZEN" },
+                  { value: "all_veggie", label: "All Veggie Sushi" },
+                ]}
+              />
             </>
           )}
           {/* Period — filters on payout date, the column shown in the table */}
@@ -947,16 +946,15 @@ export default function ArPayoutsPage() {
           {storeCodes.length > 1 && (
             <>
               <div className="w-px bg-white/10" />
-              <select
-                value={storeFilter}
-                onChange={(e) => setStoreFilter(e.target.value)}
+              <SelectDark
                 className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 focus:outline-none"
-              >
-                <option value="all">All Stores</option>
-                {storeCodes.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+                value={storeFilter}
+                onChange={(v) => setStoreFilter(v)}
+                options={[
+                  { value: "all", label: "All Stores" },
+                  ...storeCodes.map((c) => ({ value: c, label: c })),
+                ]}
+              />
             </>
           )}
         </div>

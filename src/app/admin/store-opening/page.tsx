@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState, useCallback } from "react";
 import { Building2, Plus, ChevronDown, ChevronRight, Check, Pencil, X, AlertTriangle, Trash2 } from "lucide-react";
 import { getAuth, getAuthHeaders, canAccessStoreOpeningAdmin } from "@/lib/auth";
@@ -384,14 +385,15 @@ function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdat
           </div>
           <div>
             <label className="block text-xs text-neutral-400 mb-1">City</label>
-            <select
+            <SelectDark
               className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
               value={city}
-              onChange={e => setCity(e.target.value)}
-            >
-              <option value="MANILA">Manila</option>
-              <option value="DUBAI">Dubai</option>
-            </select>
+              onChange={(v) => setCity(v)}
+              options={[
+                { value: "MANILA", label: "Manila" },
+                { value: "DUBAI", label: "Dubai" },
+              ]}
+            />
           </div>
           <div>
             <label className="block text-xs text-neutral-400 mb-1">Start Date (D+1) *</label>
@@ -405,15 +407,16 @@ function ProjectModal({ project, headers, staffName, onClose, onCreated, onUpdat
           {!isNew && (
             <div>
               <label className="block text-xs text-neutral-400 mb-1">Status</label>
-              <select
+              <SelectDark
                 className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
                 value={status}
-                onChange={e => setStatus(e.target.value)}
-              >
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+                onChange={(v) => setStatus(v)}
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "completed", label: "Completed" },
+                  { value: "cancelled", label: "Cancelled" },
+                ]}
+              />
             </div>
           )}
           <div>

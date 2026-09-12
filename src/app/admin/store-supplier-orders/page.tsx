@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   RefreshCw, Zap, ChevronDown, ChevronRight,
@@ -1301,16 +1302,21 @@ export default function StoreSupplierOrdersPage() {
 
             {/* Filters */}
             <div className={GLASS_CARD + " p-4 flex flex-wrap gap-3 items-center"}>
-              <select className={SELECT_CLASS + " max-w-[160px]"} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="all">All Statuses</option>
-                <option value="draft">Draft</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="approved">Approved</option>
-                <option value="sent">Sent</option>
-                <option value="received">Received</option>
-                <option value="partial">Partial</option>
-                <option value="issue">Issue</option>
-              </select>
+              <SelectDark
+                className={SELECT_CLASS + " max-w-[160px]"}
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v)}
+                options={[
+                  { value: "all", label: "All Statuses" },
+                  { value: "draft", label: "Draft" },
+                  { value: "confirmed", label: "Confirmed" },
+                  { value: "approved", label: "Approved" },
+                  { value: "sent", label: "Sent" },
+                  { value: "received", label: "Received" },
+                  { value: "partial", label: "Partial" },
+                  { value: "issue", label: "Issue" },
+                ]}
+              />
               <input type="date" className={INPUT_CLASS + " max-w-[150px]"} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
               <span className="text-zinc-500 text-sm">to</span>
               <input type="date" className={INPUT_CLASS + " max-w-[150px]"} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
@@ -2104,27 +2110,23 @@ export default function StoreSupplierOrdersPage() {
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-xs text-zinc-500">Daily Inv Link (optional)</label>
-                    <select
+                    <SelectDark
                       className={SELECT_CLASS + " mt-1 text-xs w-full"}
                       value={addForm.daily_inv_item_code}
-                      onChange={(e) => setAddForm((f) => ({ ...f, daily_inv_item_code: e.target.value }))}
-                    >
-                      <option value="">(none — use par only)</option>
-                      {dailyInvItems.filter(d => d.source_type === "supplier").length > 0 && (
-                        <optgroup label="── Supplier Items ──">
-                          {dailyInvItems.filter(d => d.source_type === "supplier").map((d) => (
-                            <option key={d.item_code} value={d.item_code}>{d.item_code} — {d.item_name}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {dailyInvItems.filter(d => d.source_type === "ck").length > 0 && (
-                        <optgroup label="── CK Items ──">
-                          {dailyInvItems.filter(d => d.source_type === "ck").map((d) => (
-                            <option key={d.item_code} value={d.item_code}>{d.item_code} — {d.item_name}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </select>
+                      onChange={(v) => setAddForm((f) => ({ ...f, daily_inv_item_code: v }))}
+                      aria-label="Daily inventory link"
+                      options={[
+                        { value: "", label: "(none — use par only)" },
+                        // The two <optgroup> headings became a prefix on each row. The list is
+                        // searchable now, so "CK" narrows it the way the heading used to separate it.
+                        ...dailyInvItems.filter(d => d.source_type === "supplier").map((d) => (
+                          { value: d.item_code, label: `Supplier — ${d.item_code} — ${d.item_name}` }
+                        )),
+                        ...dailyInvItems.filter(d => d.source_type === "ck").map((d) => (
+                          { value: d.item_code, label: `CK — ${d.item_code} — ${d.item_name}` }
+                        )),
+                      ]}
+                    />
                   </div>
                 </div>
                 <div className="flex gap-2 pt-1">
@@ -2271,32 +2273,24 @@ export default function StoreSupplierOrdersPage() {
                         <td className="px-4 py-3">
                           {editingCatalogId === item.id ? (
                             <div className="flex items-center gap-2 flex-wrap">
-                              <select
+                              <SelectDark
                                 className={SELECT_CLASS + " min-w-[200px] text-xs"}
                                 value={catalogLinkCode}
-                                onChange={(e) => setCatalogLinkCode(e.target.value)}
+                                onChange={(v) => setCatalogLinkCode(v)}
                                 autoFocus
-                              >
-                                <option value="">(none — use par only)</option>
-                                {dailyInvItems.filter(d => d.source_type === "supplier").length > 0 && (
-                                  <optgroup label="── Supplier Items ──">
-                                    {dailyInvItems.filter(d => d.source_type === "supplier").map((d) => (
-                                      <option key={d.item_code} value={d.item_code}>
-                                        {d.item_code} — {d.item_name}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                )}
-                                {dailyInvItems.filter(d => d.source_type === "ck").length > 0 && (
-                                  <optgroup label="── CK Items ──">
-                                    {dailyInvItems.filter(d => d.source_type === "ck").map((d) => (
-                                      <option key={d.item_code} value={d.item_code}>
-                                        {d.item_code} — {d.item_name}
-                                      </option>
-                                    ))}
-                                  </optgroup>
-                                )}
-                              </select>
+                                aria-label="Daily inventory link"
+                                options={[
+                                  { value: "", label: "(none — use par only)" },
+                                  // The two <optgroup> headings became a prefix on each row. The list is
+                                  // searchable now, so "CK" narrows it the way the heading used to separate it.
+                                  ...dailyInvItems.filter(d => d.source_type === "supplier").map((d) => (
+                                    { value: d.item_code, label: `Supplier — ${d.item_code} — ${d.item_name}` }
+                                  )),
+                                  ...dailyInvItems.filter(d => d.source_type === "ck").map((d) => (
+                                    { value: d.item_code, label: `CK — ${d.item_code} — ${d.item_name}` }
+                                  )),
+                                ]}
+                              />
                               <button
                                 onClick={() => saveCatalogLink(item)}
                                 disabled={catalogSaving}
@@ -2533,18 +2527,15 @@ export default function StoreSupplierOrdersPage() {
                 {addItemCatalogLoading ? (
                   <div className="text-xs text-zinc-500">Loading catalog…</div>
                 ) : (
-                  <select
+                  <SelectDark
                     className={SELECT_CLASS + " w-full"}
                     value={addItemSelectedCode}
-                    onChange={(e) => setAddItemSelectedCode(e.target.value)}
-                  >
-                    <option value="">— Select item —</option>
-                    {addItemCatalog.map((c) => (
-                      <option key={c.item_code} value={c.item_code}>
-                        {c.item_name} ({c.item_code}) · {c.unit}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setAddItemSelectedCode(v)}
+                    options={[
+                      { value: "", label: "— Select item —" },
+                      ...addItemCatalog.map((c) => ({ value: c.item_code, label: `${c.item_name} (${c.item_code}) · ${c.unit}` })),
+                    ]}
+                  />
                 )}
               </div>
               <div>

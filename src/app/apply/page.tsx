@@ -1,5 +1,6 @@
 "use client";
 
+import SelectDark from "@/components/SelectDark";
 import { useRef, useState } from "react";
 import VoiceScreening from "@/components/apply/VoiceScreening";
 import { formatBytes, prepareIfImage, UPLOAD_LIMIT_BYTES } from "@/lib/image-compress";
@@ -412,30 +413,30 @@ export default function ApplyPage() {
 
         <div>
           <label className="mb-1.5 block text-sm text-zinc-300">{t.position}</label>
-          <select
-            value={form.position_group} onChange={(e) => set("position_group", e.target.value)}
+          <SelectDark
             className={`${FIELD} ${bad.includes("position_group") ? BAD : ""}`}
-          >
-            <option value="">{t.choose}</option>
-            {POSITIONS.map((p) => (
-              <option key={p} value={p}>{t.positions[p]}</option>
-            ))}
-          </select>
+            value={form.position_group}
+            onChange={(v) => set("position_group", v)}
+            aria-label={t.position}
+            options={[
+              { value: "", label: t.choose },
+              ...POSITIONS.map((p) => ({ value: p, label: t.positions[p] })),
+            ]}
+          />
         </div>
 
         <div>
           <label className="mb-1.5 block text-sm text-zinc-300">{t.branch}</label>
-          <select
-            value={form.branch} onChange={(e) => set("branch", e.target.value)}
+          <SelectDark
             className={`${FIELD} ${bad.includes("branch") ? BAD : ""}`}
-          >
-            <option value="">{t.choose}</option>
-            {BRANCHES.map((b) => (
-              <option key={b.code} value={b.code}>
-                {b.area ? `${b.label} — ${b.area}` : b.label}
-              </option>
-            ))}
-          </select>
+            value={form.branch}
+            onChange={(v) => set("branch", v)}
+            aria-label={t.branch}
+            options={[
+              { value: "", label: t.choose },
+              ...BRANCHES.map((b) => ({ value: b.code, label: b.area ? `${b.label} — ${b.area}` : b.label })),
+            ]}
+          />
           {branchPicked && (
             <div className="mt-1.5 text-xs text-zinc-400">
               {branchPicked.address || branchPicked.area}
@@ -445,16 +446,16 @@ export default function ApplyPage() {
 
         <div>
           <label className="mb-1.5 block text-sm text-zinc-300">{t.experience}</label>
-          <select
-            value={form.experience_level}
-            onChange={(e) => set("experience_level", e.target.value)}
+          <SelectDark
             className={`${FIELD} ${bad.includes("experience_level") ? BAD : ""}`}
-          >
-            <option value="">{t.choose}</option>
-            {EXPERIENCE.map((x) => (
-              <option key={x} value={x}>{t.experiences[x]}</option>
-            ))}
-          </select>
+            value={form.experience_level}
+            onChange={(v) => set("experience_level", v)}
+            aria-label={t.experience}
+            options={[
+              { value: "", label: t.choose },
+              ...EXPERIENCE.map((x) => ({ value: x, label: t.experiences[x] })),
+            ]}
+          />
         </div>
 
         {/* Required once somebody says they have experience, and never before
