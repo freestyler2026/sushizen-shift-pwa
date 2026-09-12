@@ -1857,7 +1857,10 @@ function lateApiFetch(path: string, opts?: RequestInit) {
   const headers: Record<string, string> = {};
   if (method !== "GET" && method !== "HEAD") headers["Content-Type"] = "application/json";
   if (auth?.accessToken) headers["Authorization"] = `Bearer ${auth.accessToken}`;
-  return fetch(path, { ...opts, headers: { ...headers, ...(opts?.headers ?? {}) } });
+  // no-store: the reload after a save was allowed to come from the browser
+  // cache, so a recipient who had just been added could be missing from the
+  // list that reloaded to show them.
+  return fetch(path, { cache: "no-store", ...opts, headers: { ...headers, ...(opts?.headers ?? {}) } });
 }
 
 type AlertRecipient = {
@@ -1989,6 +1992,20 @@ function LateAlertsTab() {
     setScheduleLoading(false);
   }
 
+  async function patchRecipient(recipientId: number, patch: { city?: string | null; is_active?: boolean }) {
+    setError("");
+    const r = await lateApiFetch(`${LATE_API}/recipients/${recipientId}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({})) as { detail?: string };
+      setError(d.detail ?? `Could not update (HTTP ${r.status}).`);
+      return;
+    }
+    await loadData();
+  }
+
   async function handleRemove(recipientId: number) {
     if (!confirm("Remove this recipient?")) return;
     await lateApiFetch(`${LATE_API}/recipients/${recipientId}`, { method: "DELETE" });
@@ -2013,7 +2030,9 @@ function LateAlertsTab() {
       await loadData();
     } else {
       const d = await r.json().catch(() => ({})) as { detail?: string };
-      setError(d.detail ?? "Failed to add.");
+      // "Failed to add." on its own sent somebody back to this screen twice
+      // with nothing to act on. Say which failure it was.
+      setError(d.detail ?? `Could not add (HTTP ${r.status}).`);
     }
     setSaving(false);
   }
@@ -2324,17 +2343,41 @@ function LateAlertsTab() {
                   <tr key={r.id} className={`border-b border-white/5 transition-colors ${r.is_active ? "hover:bg-white/3" : "opacity-40"}`}>
                     <td className="py-2.5 px-4 text-white font-medium">{r.display_name}</td>
                     <td className="py-2.5 px-4 text-white/40 font-mono text-xs">{r.discord_user_id}</td>
-                    <td className="py-2.5 px-4 text-white/50 text-xs capitalize">{r.city ?? "All"}</td>
+                    {/* City was fixed when the person was added and could only be
+                        changed by removing them and retyping their Discord ID. */}
+                    <td className="py-2.5 px-4">
+                      <SelectDark
+                        className="min-w-[120px] text-xs"
+                        aria-label={`Which city ${r.display_name} hears about`}
+                        value={r.city ?? ""}
+                        onChange={(v) => void patchRecipient(r.id, { city: v || null })}
+                        options={[
+                          { value: "", label: "All cities" },
+                          { value: "manila", label: "Manila" },
+                          { value: "dubai", label: "Dubai" },
+                        ]}
+                      />
+                    </td>
                     <td className="py-2.5 px-4">
                       {r.is_active
                         ? <span className="text-xs text-emerald-400">Active</span>
                         : <span className="text-xs text-white/30">Inactive</span>}
                     </td>
                     <td className="py-2.5 px-4 text-right">
-                      {r.is_active && (
+                      {r.is_active ? (
                         <button onClick={() => handleRemove(r.id)}
+                          title="Stop sending to this person"
                           className="text-white/30 hover:text-red-400 transition-colors p-1 rounded">
                           <Trash2 size={13} />
+                        </button>
+                      ) : (
+                        // Removing sets a flag; the row was always still here.
+                        // Adding the same Discord ID again just flipped it back
+                        // without saying so, which is why re-adding somebody
+                        // looked like it had done nothing.
+                        <button onClick={() => void patchRecipient(r.id, { is_active: true })}
+                          className="rounded-lg border border-white/10 px-2 py-1 text-[11px] text-white/50 hover:text-white hover:bg-white/5 transition-colors">
+                          Turn back on
                         </button>
                       )}
                     </td>
