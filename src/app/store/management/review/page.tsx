@@ -206,11 +206,16 @@ export default function MorningReviewPage() {
   useEffect(() => {
     const city = review?.city || auth?.city;
     if (!city) return;
-    fetch(`/api/staff/names?city=${encodeURIComponent(city)}`, { headers: getAuthHeaders(auth) })
+    // The branch this review belongs to goes first in the list. An incident is
+    // usually about somebody who was on that shift, and scrolling 62 names to
+    // find them is how the wrong one gets picked.
+    const qs = new URLSearchParams({ city });
+    if (review?.branch) qs.set("branch", review.branch);
+    fetch(`/api/staff/names?${qs.toString()}`, { headers: getAuthHeaders(auth) })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setStaff(d?.names || []))
       .catch(() => setStaff([]));
-  }, [review?.city, auth]);
+  }, [review?.city, review?.branch, auth]);
 
   const blank = (): Answer => ({
     assessment: null, issue_type: [], root_cause: [], action_taken: [], staff: [], note: "",
