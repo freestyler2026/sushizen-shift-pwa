@@ -86,6 +86,13 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   async function submit() {
     if (!title.trim()) { setErr("Title is required"); return; }
     if (!file) { setErr("Please select a PDF file"); return; }
+    // Without a deadline nothing chases the document: the reminder, the HR
+    // dashboard row and the banner on the attendance screen all key off it, so
+    // an acknowledgement that has no date is one nobody will ever be asked for.
+    if (requiresAck && !deadline) {
+      setErr("Set an acknowledgement deadline — without one, nobody is ever reminded to read it.");
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) { setErr("File too large (max 10 MB)"); return; }
     setBusy(true); setErr("");
     try {

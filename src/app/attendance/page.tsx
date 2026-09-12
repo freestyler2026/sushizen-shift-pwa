@@ -286,6 +286,16 @@ export default function AttendancePage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [mealAllowanceBanner, setMealAllowanceBanner] = useState<{ amount: number; isBonus?: boolean } | null>(null);
+  // Policies this person has not acknowledged yet. Published documents used to
+  // live only behind a menu item nobody opened: four reached their deadline
+  // with 1 of 62 acknowledged, and a fifth was at 0 with two days left. The
+  // reading itself is cheap — one person cleared four in ninety seconds — so
+  // what was missing was arriving at the page at all. This is the screen
+  // everybody opens twice a day.
+  const [pendingPolicies, setPendingPolicies] = useState<{
+    id: number; title: string; acknowledgement_deadline: string | null;
+  }[]>([]);
+
   const [probationStatus, setProbationStatus] = useState<{
     is_probation: boolean;
     graduated?: boolean;
@@ -468,6 +478,31 @@ export default function AttendancePage() {
     })
       .then((r) => r.json())
       .then((j) => setBranchList((j.branches || []).map((b: { branch_code: string }) => b.branch_code)))
+      .catch(() => {});
+  }, [auth]);
+
+  // ─── Policies still waiting for this person's acknowledgement ────────────
+  useEffect(() => {
+    if (!auth?.staffName) return;
+    const city = (auth.city || "all").toLowerCase();
+    fetch(`/api/store/policy-docs?staff_name=${encodeURIComponent(auth.staffName)}&city=${encodeURIComponent(city)}`, {
+      credentials: "same-origin",
+      headers: getAuthHeaders(auth),
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? r.json() : { documents: [] }))
+      .then((j: { documents?: { id: number; title: string; acknowledged?: boolean;
+                                requires_acknowledgement?: boolean;
+                                acknowledgement_deadline?: string | null }[] }) => {
+        setPendingPolicies(
+          (j.documents ?? [])
+            .filter((d) => d.requires_acknowledgement && !d.acknowledged)
+            .map((d) => ({ id: d.id, title: d.title,
+                           acknowledgement_deadline: d.acknowledgement_deadline ?? null })),
+        );
+      })
+      // Silent: a policy reminder must never be the reason somebody cannot
+      // see the clock button.
       .catch(() => {});
   }, [auth]);
 
@@ -1324,6 +1359,64 @@ export default function AttendancePage() {
           )}
         </div>
       )}
+
+      {/* ── Policies waiting to be read ──────────────────────────────────────
+          Placed above the clock card on purpose. It does not block clocking in
+          — somebody who cannot start their shift because of a document is a
+          worse outcome than an unread document — but it sits between them and
+          the button they came to press, which a menu item never did. */}
+      {pendingPolicies.length > 0 && (() => {
+        const days = (d: string | null) =>
+          d === null ? null
+            : Math.ceil((new Date(d + "T00:00:00").getTime() - Date.now()) / 86400000);
+        const worst = pendingPolicies
+          .map((p) => days(p.acknowledgement_deadline))
+          .filter((n): n is number => n !== null)
+          .sort((a, b) => a - b)[0] ?? null;
+        const overdue = worst !== null && worst < 0;
+        const soon = worst !== null && worst >= 0 && worst <= 3;
+        const when =
+          worst === null ? "No deadline set"
+            : overdue ? `${-worst} day${worst === -1 ? "" : "s"} overdue`
+            : worst === 0 ? "Due today"
+            : `Due in ${worst} day${worst === 1 ? "" : "s"}`;
+        return (
+          <button
+            onClick={() => router.push("/store/policy-docs")}
+            className={`w-full rounded-2xl border px-4 py-4 text-left transition-colors ${
+              overdue ? "border-red-500/60 bg-red-950/30 hover:bg-red-950/45"
+                : soon ? "border-amber-500/50 bg-amber-950/25 hover:bg-amber-950/40"
+                : "border-sky-500/40 bg-sky-950/25 hover:bg-sky-950/40"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className={`text-base font-bold ${
+                overdue ? "text-red-300" : soon ? "text-amber-300" : "text-sky-300"
+              }`}>
+                {pendingPolicies.length === 1
+                  ? "1 policy to read"
+                  : `${pendingPolicies.length} policies to read`}
+              </span>
+              <span className={`text-xs font-semibold shrink-0 ${
+                overdue ? "text-red-300" : soon ? "text-amber-300" : "text-zinc-400"
+              }`}>{when}</span>
+            </div>
+            <ul className="mt-2 space-y-0.5">
+              {pendingPolicies.slice(0, 2).map((p) => (
+                <li key={p.id} className="text-xs text-zinc-300 truncate">• {p.title}</li>
+              ))}
+              {pendingPolicies.length > 2 && (
+                <li className="text-xs text-zinc-500">
+                  and {pendingPolicies.length - 2} more
+                </li>
+              )}
+            </ul>
+            <div className="mt-2 text-xs text-zinc-400">
+              Tap to read and confirm — under a minute each. Clocking in is not affected.
+            </div>
+          </button>
+        );
+      })()}
 
       {/* WebAuthn not supported */}
       {!wauSupported && (
