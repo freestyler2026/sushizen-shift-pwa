@@ -117,7 +117,7 @@ export default function WorkEvidencePage() {
   const [red, setRed] = useState<Redistribution | null>(null);
   const [bl, setBl] = useState<Backlog | null>(null);
   const [sp, setSp] = useState<Speed | null>(null);
-  const [tab, setTab] = useState<"people" | "areas" | "flags" | "hands" | "roster">("hands");
+  const [tab, setTab] = useState<"people" | "areas" | "flags" | "hands" | "roster" | "guide">("hands");
   const [open, setOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -228,13 +228,148 @@ export default function WorkEvidencePage() {
       )}
 
       <div className="flex gap-2">
-        {([["hands", `手元で止まっているもの${bl ? ` (${bl.unowned_total + bl.held_total})` : ""}`], ["flags", `確認が要る人${rep ? ` (${rep.flags.length})` : ""}`], ["people", "人ごと"], ["roster", `名簿${rep ? ` (${rep.roster_size})` : ""}`], ["areas", "業務の分担"]] as const).map(([k, label]) => (
+        {([["hands", `手元で止まっているもの${bl ? ` (${bl.unowned_total + bl.held_total})` : ""}`], ["flags", `確認が要る人${rep ? ` (${rep.flags.length})` : ""}`], ["people", "人ごと"], ["roster", `名簿${rep ? ` (${rep.roster_size})` : ""}`], ["areas", "業務の分担"], ["guide", "このページの読み方"]] as const).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k as typeof tab)}
             className={`${SMALL_BUTTON} ${tab === k ? "ring-2 ring-cyan-400/60" : "opacity-70"}`}>
             {label}
           </button>
         ))}
       </div>
+
+      {/* ── このページの読み方 ─────────────────────────────────────────
+          意図を人づてに伝えると、伝わらなかった分だけ画面が誤読される。
+          この画面は人について語るので、誤読の代償が他の画面より大きい。 */}
+      {tab === "guide" && (
+        <div className="space-y-3">
+          <div className={`${GLASS_CARD} p-5 space-y-3`}>
+            <h3 className={T_SECTION}>何のための画面か</h3>
+            <p className={T_BODY}>
+              隣の「BO 稼働状況」は、在席と関与の差を見る画面です。こちらはその次の問いに答えます —
+              <b> 誰が実際に仕事をしていて、誰が仕事をしているように見せているか。</b>
+            </p>
+            <p className={T_BODY}>
+              回数では答えられません。ページを20回開けば20行になり、
+              <b>それは何もせずに作れる唯一の数字</b>だからです。
+              だからこの画面が数える「成果」は、<b>記録を変えた書き込みだけ</b>です。
+              承認された案件、値段の入った品目、採用された応募者、公開された週 —
+              どれも人が開いて確認できるものが残ります。クリックでは作れません。
+            </p>
+          </div>
+
+          <div className={`${GLASS_CARD} p-5 space-y-3`}>
+            <h3 className={T_SECTION}>成果に数えるもの・数えないもの</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <p className={T_LABEL}>数える</p>
+                <p className={T_BODY}>
+                  記録を変えた書き込み。承認・却下、値段や在庫の入力、応募者の採否、
+                  シフトの公開、DTRの修正など、<b>後から誰かが開いて確認できるもの</b>。
+                </p>
+              </div>
+              <div>
+                <p className={T_LABEL}>数えない</p>
+                <p className={T_BODY}>
+                  打刻・店内QR確認・Excel出力。<b>前の2つは「居た」という主張そのもの</b>で、
+                  仕事の証拠にはなりません。最後は何も変えないためです。
+                </p>
+              </div>
+            </div>
+            <p className={T_CAPTION}>
+              1件の納品は明細が何行でも1件です。発注だけは「作成」と「提出」で2件に数えます
+              （同じ画面の人は全員そうなるので画面内の比較には影響しませんが、その人の合計はその分だけ多く出ます）。
+            </p>
+          </div>
+
+          <div className={`${GLASS_CARD} p-5 space-y-3`}>
+            <h3 className={T_SECTION}>この画面が守っていること</h3>
+            <p className={T_BODY}>
+              <b>点数を出しません。</b> 1つの数字は判決として読まれるからです。
+              順位も総合評価もこの画面には出しません。
+            </p>
+            <p className={T_BODY}>
+              <b>比較対象を必ず名前で書きます。</b>
+              「同じ画面を使っている何人の中央値」が添えられない指摘は出しません。
+              <b>OSの外の仕事はこの画面から見えません。</b>
+              調理・配達・接客の人の成果ゼロは、働いていないという意味ではありません。
+              比較できる相手がいない人は、そもそも指摘しません。
+            </p>
+            <p className={T_BODY}>
+              <b>記録が始まる前に始まった勤務は、判定に使いません。</b>
+              見ていなかった時間について「やっていない」とは言えないためです。
+              画面上部に、記録の開始時刻と、判定から外した勤務の件数が出ています。
+            </p>
+          </div>
+
+          <div className={`${GLASS_CARD} p-5 space-y-3`}>
+            <h3 className={T_SECTION}>タブの見方</h3>
+            <div className="space-y-2.5">
+              <div>
+                <p className={T_LABEL}>手元で止まっているもの</p>
+                <p className={T_BODY}>
+                  <b>人ではなく、仕事の滞留を見るタブ。</b>
+                  「誰の手元にもないまま止まっているもの」は<b>ロールにだけ割り当てられて名前が無い</b>もので、
+                  誰も遅れていません — 誰も頼まれていないからです。
+                  「名前のついた手元」はその人が受け取っているもの。
+                  待ちかどうかは<b>発注側の状態</b>で判定しており、承認ケースの行の状態ではありません。
+                </p>
+              </div>
+              <div>
+                <p className={T_LABEL}>確認が要る人</p>
+                <p className={T_BODY}>
+                  <b>説明がつかない人だけ</b>が出ます。0件は「該当なし」であって「調べていない」ではありません。
+                  ここに名前が出ても<b>結論ではなく、聞きに行く理由</b>です。押すとその人の内訳に飛びます。
+                </p>
+              </div>
+              <div>
+                <p className={T_LABEL}>人ごと</p>
+                <p className={T_BODY}>
+                  1人の内訳 — どの業務で何を変えたか、開いただけの画面はどれか。
+                  <b>まず内訳を開いてから判断してください。</b>合計だけでは職種の違いと働き方の違いが区別できません。
+                </p>
+              </div>
+              <div>
+                <p className={T_LABEL}>名簿</p>
+                <p className={T_BODY}>
+                  <b>誰について語れて、誰について語れないかを明示するタブ。</b>
+                  「BO 稼働状況」と同じ名簿を読んでいます（2つの画面が別の名簿を持つと数が食い違うため）。
+                  対象外だがOSを使った人も併記しています。
+                </p>
+              </div>
+              <div>
+                <p className={T_LABEL}>業務の分担</p>
+                <p className={T_BODY}>
+                  <b>評価ではなく、引き継ぎ先を決めるための一覧です。</b>
+                  「その人しかやっていない業務」は、その人が休んだ日に止まる業務。
+                  「1人に寄っている業務」は複数人が触れるのに8割以上を1人が処理しているもの。
+                  「誰も主担当でない業務」は落ちやすい業務です。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${GLASS_CARD} p-5 space-y-3`}>
+            <h3 className={T_SECTION}>誤読しやすいところ</h3>
+            <p className={T_BODY}>
+              <b>成果ゼロ＝働いていない、ではありません。</b>
+              OSを使わない職種はここに現れません。名簿タブで対象範囲を確認してください。
+            </p>
+            <p className={T_BODY}>
+              <b>「開いた回数」が多いことは、悪いことではありません。</b>
+              確認が仕事の人は当然多くなります。この画面が見ているのは
+              <b>開いた回数と変えた件数の関係</b>であって、開いた回数そのものではありません。
+            </p>
+            <p className={T_BODY}>
+              <b>止まっている件数は、担当者の遅れとは限りません。</b>
+              大半は宛先に名前が無いもので、これは仕組みの問題です。
+            </p>
+            <p className={T_CAPTION}>
+              この画面は Yukihiro Nishimura と Ayako Nishimura の2名のみが開けます。
+              権限のチェックボックスではなく氏名で固定されており、増やすにはコードの変更が要ります。
+              Ayako はこの画面を見ると同時に、集計対象としても載ります — 自分の行も他人と同じ扱いです。
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── 手元で止まっているもの ─────────────────────────────────── */}
       {tab === "hands" && bl && (
