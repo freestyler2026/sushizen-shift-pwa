@@ -24308,3 +24308,41 @@ heroku config:set MGR_CHECKLIST_BRANCHES=TAFT,PAR -a sushizen-shift-app  # 水�
   Manager Checklist を追記済み）。消灯中に書くと、現場が見られない画面の説明になる
 - BO Dashboard への完了状況の表示は未実装
 - Tagalog の説明文は未作成
+
+## 2026-09-13 — Manager Checklist の自己レビューで見つけた4件（すべて修正済み）
+
+実装後に読み直して発見。**どれも「動くが使えない／守られていない」型**で、APIの往復テストでは出ない。
+
+1. **メモ欄が1文字ごとにフォーカスを失う** — `Half` をページ関数の内側で定義していたため、
+   毎レンダーで関数の同一性が変わり React が部分木を作り直していた。メモ入力→state更新→再レンダー
+   →**入力中の欄が再マウント**。マネージャーが問題を書く欄がまさに使えない状態だった。
+   モジュールスコープへ移動。**uncontrolled な担当者入力は `key` が必要**になった
+   （再マウントが偶然その役をしていた）
+2. **提案した担当者が保存されていなかった** — 画面は「On duty: Joanna」と出すのに記録は空。
+   名前を触らなければ永久に保存されない。**既定値は値でなければ意味がない**ので作成時に書き込む
+3. **引き継ぎが Closing 担当に届いていなかった** — 項目6（Opening列）の中に出るだけで、
+   Closing 担当が見る場所に無かった。Closing列の先頭にバナーを追加
+4. **権限チェックが無かった** — `/api/store/*` はログイン確認のみ。ログインできる167名の誰でも
+   どの店舗のチェックリストも回答・完了できた。0行の今が追加できる唯一のタイミング（教訓57）
+
+あわせて「What was the issue?」欄がボタンの下にあったのを上へ移動（押してから書くことになっていた）。
+
+## 2026-09-13 — BO Dashboard に当日の Manager Checklist を表示
+
+`ManagerChecklistBar`（`/admin/management/back-office` の上部、既存バナー群と同じ形）。
+
+- 店舗ごとに Opening / Closing の担当者と進捗（`6/6 done` / `1/4`）
+- **未解決の Issue Found を全文表示**。これが植嶋の言う「Management Inbox と被らない形での報告」の
+  着地先。Inbox は1日17件の自動検知で埋まっており、そこへ入れると埋もれる
+- `GET /api/admin/management/checklist-summary`（`channel.admin.management_back_office.view`
+  または Manager Checklist 権限）
+- **点灯店舗が無い間は何も描かない。**「0 of 0」を出すと読み飛ばす行になる
+
+### 検証済み（隔離city・後始末済み）
+
+消灯中=何も出ない / 開始済み店舗=進捗と担当者 / 未開始店舗=「not opened yet」/
+Issue は全文表示され、resolved にすると消える。本番の日レコードは0件のまま。
+
+⚠️ **点灯は店舗ごとの作業ではない。** コードは全店共通で、違うのは環境変数だけ:
+`MGR_CHECKLIST_BRANCHES=TAFT,PAR` で同時に点く。段階的に点けるのは運用上の理由（説明していない
+店舗に指示画面を出さない）であって、技術的な制約ではない。
