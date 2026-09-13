@@ -24346,3 +24346,48 @@ Issue は全文表示され、resolved にすると消える。本番の日レ�
 ⚠️ **点灯は店舗ごとの作業ではない。** コードは全店共通で、違うのは環境変数だけ:
 `MGR_CHECKLIST_BRANCHES=TAFT,PAR` で同時に点く。段階的に点けるのは運用上の理由（説明していない
 店舗に指示画面を出さない）であって、技術的な制約ではない。
+
+## 2026-09-13 — 山田からの請求書チェック6件の調査（写真の件は修正・デプロイ済み）
+
+`/admin/procurement/invoices`。手順書にある機能が画面に無い、という6件の報告。
+
+### 修正した: 請求書の写真が一度も表示されていなかった
+
+フロントが `supplier_name` を送っておらず、サーバは照合する仕入先名を持てないため、
+**全候補が「同じ仕入先か」の判定に落ち**、`no invoice was photographed for this supplier
+around this date` を返していた。
+
+実測: **現状 0/50件（両都市とも）→ supplier_name を送れば Dubai 25/50・Manila 43/50**。
+彼女が開いた PO029435 は候補6件すべて `supplier_matches=True`（proc_receivings・同日）なのに
+「写真なし」と出ていた。
+
+**Matches / Does not match / Can't tell は写真の内側にある**ので、同じ原因で誰も押せていなかった。
+`invoice_verifications` は**全期間0行**＝この機能は一度も使われたことがない。
+
+あわせて直した2点:
+- 写真の下の行が `read_supplier` / `read_amount` / `read_invoice_no` を読んでいたが、
+  エンドポイントはこれらを返さない（`photo_vendor` / `photo_date` / `photo_store`）。
+  **全行で「invoice -」と出ていた。**「受領時に店舗が入力した値であって読み取りではない」と明記
+- 仕入先名の綴りが違うと行き止まりだった → その日の他の写真を一覧し、押して切替できるようにした
+
+### 手順書の訂正が必要（実装が違う）
+
+| 手順書の記述 | 実際 |
+|---|---|
+| 「Invoice Number」を確認 | **左上の太字「PO029435」がそれ**。仕入先がPO番号を請求書番号として印字するため紛らわしい |
+| 「その欄をクリックして正しい値を直接入力」 | **通常行からは編集できない。** 編集は「金額が取れていない請求書」のレポートパネル限定 |
+| 「No PO linked」→「Link PO」で紐づけ | **このページに存在しない。** `Link PO` は price-checks の別機能 |
+| Vendor Name | ヘッダの仕入先名が正。SUPPLIER カードは別ソースで7月以降は全件空 |
+
+### 未解決・別途調査が必要
+
+**`invoice_summary` が2026-07以降0件**（両都市）。このため Payment Terms / Prepared By /
+Approved By / Due Date / VAT が**8月以降の全請求書で空**になる。
+
+- 取込ジョブは動いている（COMPLETED: Manila 581件・最終9/13、Dubai 260件・最終9/12）
+- ワークブックの中身も更新されている（8月以降に観測された異なる hash: Manila 31種・Dubai 11種）
+- それでも `invoice_summary` に行が入らない。**`frames.invoice_summary` が空になる理由が未特定**
+- `invoice_line_items` は入り続けている（Dubai 9月 434件）ので、パーサの summary 側だけが不発
+
+⚠️ **Dubai は8月以降 399件中0件で PO番号が取れていない**（Manila は 2/182）。
+手順書の「Purchase Order Match」は Dubai では実行不能。
