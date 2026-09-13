@@ -24096,9 +24096,23 @@ vs マスタ99/155）。名称は空白の連続と大小文字を無視して�
 **症状**: Peter John Villafuerte が 10:17（マニラ）に `I'll handle it` と返信した後も、
 Bot からの督促が届き続けた（alert id=661 / Anthony Andales / manila CUB / OPENING）。
 
-**原因**: DMを送るのは `Notification_bot`（Notification Bot, 1500915356577828884）だが、
-`on_message` を持つ唯一のリスナーは `DISCORD_BOT_TOKEN`（upload pictures bot,
-1316013419190685787）で動いていた。**別アプリケーションなので返信は誰も読まない受信箱に入る。**
+**原因**: 2026-08-01 の実装時は DM送信もack受信も `DISCORD_BOT_TOKEN` で、**同じBotだったので動いていた**。
+2026-08-13 の `f6611199`「use Notification_bot token for DMs」で**送信側だけが別アプリに移り**、
+受信側は `DISCORD_BOT_TOKEN` に置き去りになった。以後31日間、返信は誰も開かない受信箱に入っていた。
+
+⚠️ **ack分岐が書かれていた `run_discord_bot()` は「upload pictures bot」で、
+完成画像のチャンネルを見るBot。返信を受けるのは本来の用途ではない。**
+実装当時たまたま同じBotがDMも送っていたので成立していただけ。
+
+実測（OPENING・DM送信済み62件）— **ack率ではなく ack した主体で数えること**:
+
+| ackした主体 | 件数 | 期間 |
+|---|---:|---|
+| auto: 期限切れ | 32 | 08-01〜09-11 |
+| auto: 本人が打刻した | 21 | 08-03〜09-10 |
+| **人（Discord返信）** | **8** | **08-01〜08-13 のみ** |
+
+「acked 34/35（97%）」という集計は中身が全部自動で、**人によるackは 8/13 の Camilla が最後**。
 Peter のメッセージは `_ACK_KEYWORDS` に完全一致しており、**本人の書き方は正しかった**。
 
 **修正**: `app/services/discord_bot_service.py` に `run_ack_listener()` /

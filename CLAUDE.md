@@ -968,12 +968,34 @@ npx tsc --noEmit
     - 固定的な誤読はプロンプトでは直らない。**書類を開いて人が入れ、根拠を `confidence_notes` に残す**（「書類には20/08/2026とある。OCRは3回とも26/07/2026を返した」）。
     - 一括再実行の前に **before を退避する**。今回 `drive_invoices` の日付書き換えにバックアップ表が無く、`ocr_raw_json` に元の読みが残っていたことだけが復元の根拠だった（教訓37）。
 
-101. **「〜と返信してください」と書く機能は、その返信を受け取る側が同じBotアプリケーションか確かめる** → 遅刻アラートのDMは「Reply with: `I'll handle it`」と案内していたが、DMを送るのは `Notification_bot`（Notification Bot / 1500915356577828884）で、`on_message` を持つ唯一のリスナーは `DISCORD_BOT_TOKEN`（upload pictures bot / 1316013419190685787）で動いていた。**別アプリケーションなので、返信は誰も読まない受信箱に入る。** Peter は正しく返信したのに、60分後・120分後の督促が予定どおり届いた（alert id=661、`acknowledged_at` は NULL のまま）。（2026-09-13 修正・`run_ack_listener()` を追加）
-    - **トークンが2種類ある時点で疑う。** 両方とも `message_content` intent を持ち、両方とも正常に動いていた。壊れていたのは**送信側と受信側の対応**だけで、どちらのBotを単体で調べても異常は出ない。
-    - 判定方法は**送信コードが読む環境変数名と、リスナーが読む環境変数名を並べる**こと（`app/discord_webhook.py` の `send_discord_dm` = `Notification_bot` / `discord_bot_service.run_discord_bot` = `DISCORD_BOT_TOKEN`）。
-    - ack判定のキーワードは**1箇所に置く**（`_ACK_KEYWORDS` / `_take_ack_if_that_is_what_it_is`）。2つのBotが同じ文言を待つので、写すと必ず片方がずれる（教訓62）。
-    - 新しいリスナーは**DMのみ**を見る。ギルドのメッセージに触るとQC採点をしている既存Botと二重処理になる。
-    - 教訓21と同型 — **実行できない案内は、案内が無いより悪い。** 今回は「現場が指示どおりに返信したのに無視された」ので、次から誰も返信しなくなる方向に効く。
+101. **送信するBotを別アプリに移したら、その返信を聞いているリスナーも一緒に動かす** → 遅刻アラートは「Reply with: `I'll handle it`」と案内しながら、返信が1ヶ月間どこにも届いていなかった。**最初から壊れていたのではなく、途中で壊れた。**（2026-09-13 修正・`run_ack_listener()` を追加）
+
+    | 日付 | 起きたこと | acking |
+    |---|---|---|
+    | 2026-08-01 `9d6d7695` | 遅刻アラートを実装。DM送信もack受信も `DISCORD_BOT_TOKEN`＝**同じBot**だったので動いた | 人によるack **8件** |
+    | 2026-08-13 `f6611199` | `send_discord_dm` を `Notification_bot` に変更（1行）。**受信側は置き去り** | 以後31日間 **0件** |
+
+    - 実測（OPENING・DM送信済み62件）: ack 主体の内訳は **auto:期限切れ 32 / auto:本人が打刻 21 / 人 8**。
+      **人によるackは全て 2026-08-01〜08-13 に収まり、最後は Camilla の 8/13** — トークンを移した当日。
+      **「acked 97%」という集計は嘘で、中身は全部自動だった。** ack率ではなく **ack した主体**で数えること。
+    - ⚠️ **ack分岐が書かれていたのは `run_discord_bot()`＝「upload pictures bot」で、
+      これは完成画像のチャンネルを見るBot。返信を受けるのは本来の用途ではない。**
+      実装当時はたまたま同じBotがDMも送っていたので成立していただけ。
+      **用途の違うBotに「ついでに」載せた処理は、送信側が引っ越した瞬間に孤立する。**
+    - 判定方法は**送信コードが読む環境変数名と、リスナーが読む環境変数名を並べる**こと
+      （`app/discord_webhook.py:86` = `Notification_bot` or `DISCORD_BOT_TOKEN` /
+      `discord_bot_service.run_discord_bot:290` = `DISCORD_BOT_TOKEN`）。
+      **`or` のフォールバックが、壊れた瞬間を見えなくした** — 設定を足すまでは同じ値なので、
+      移行の日まで誰も差に気づけない。
+    - ack判定は `_ACK_KEYWORDS` / `_take_ack_if_that_is_what_it_is()` の**1関数**に集約し、
+      両リスナーから呼ぶ（写さない／教訓62）。画像Bot側のDM分岐は3行だけ残してある —
+      設定が戻っても効くようにするためで、**実装が2つあるわけではない**。
+    - 新しいリスナーは**DMのみ**を見る。ギルドに触ると画像Bot側の処理と二重になる。
+    - 現在のBotは4アプリ: `Notification_bot`（DM送信＋ack受信）/ `DISCORD_BOT_TOKEN`（完成画像）/
+      `Dubai_Invoice_Bot_Token`（請求書）/ webhook。**`discord_invoice_uploader.py:3` の
+      「Uses Notification_bot token」というコメントは誤り**（実際は `Dubai_Invoice_Bot_Token`）。
+    - 教訓21と同型 — **実行できない案内は、案内が無いより悪い。** 今回は現場が指示どおりに
+      返信して無視されたので、次から誰も返信しなくなる方向に効く。
 
 102. **Pythonの `if __name__ == "__main__": main()` より下に関数を定義すると、その関数は永久に存在しない** → `worker.py:2116` の `run_management_send_reminder` は `main()` の呼び出し行より後ろに置かれていた。モジュール本体は `main()` で止まるので def が実行されず、`main()` 内の呼び出しは毎回 `NameError`。**2026-09-04 に追加されてから一度も動いていない。** docstring には「Par-level alerts waited an average of 9.9 hours」とあり、その待ち時間を解消するために作った機能そのものが動いていなかった。
     - 同じ日のコミットで `autosend_due_backup_tasks` も `app/db.py` から削除され、`worker.py:1740` の import だけが残って `ImportError` を出し続けている。**worker は例外を握って次の処理に進むので、9日間ログ以外どこにも症状が出なかった。**
