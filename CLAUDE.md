@@ -253,6 +253,59 @@ city_stamp(ts, "dubai")           # UTCの瞬間 → その都市の壁時計（
 3. **ローカル日付の列（`work_date` / `delivery_date` / `report_date`）を `CURRENT_DATE` と比較する。**
    境界が8時間ずれる。`city_today()` を渡すか、両辺を `AT TIME ZONE` で揃える。
 
+### 4つ目の型 — ブラウザの `toISOString()` は UTC に変換してから切る
+
+**`new Date().toISOString().slice(0, 10)` は現地の日付ではない。**
+マニラ(+8)・ドバイ(+4) はどちらも UTC より進んでいるので、**現地 08:00 / 04:00 より前は
+必ず前日**になる。さらに `new Date(iso + "T00:00:00").toISOString()` は**何時であっても
+前日**になる（ローカル0時はUTCでは前日の16時/20時）。
+
+2026-09-13 に **116箇所**がこれをやっていた。`src/lib/date.ts` に正しい実装
+（`isoToday`）が最初からあり、**それを import していたのは1ファイルだけ**だった。
+
+```ts
+import { isoDate, isoToday, businessToday } from "@/lib/date";
+isoToday()        // 端末の現地日付。toISOString は使わない
+isoDate(d)        // 任意の Date を現地日付で
+```
+
+⚠️ **`new Date(Date.UTC(...))` から作った日付を `toISOString()` するのは正しい。**
+意図的にUTCで揃えている箇所（`absences` の `addDaysIso` 等）を巻き込まないこと。
+
+### 「現地の今日」が正解とは限らない — 締めの画面は営業日
+
+**直す前に、その画面が実際に何時に使われているかを測る。**
+
+| 画面 | 深夜(現地0-8時)の投稿 | 保存された日付 | 正解 |
+|---|---|---|---|
+| Cash Report | 134件（**うち0時台133件**） | **全件が前日** | **営業日**（閉店作業。深夜0時は前日のシフト） |
+| Petty cash | 26件 | 全件が当日 | 現地の今日 |
+| Store request / CK Delivery | 68件 | 当日と前日が**混在** | 現地の今日（混在＝既定が前日で人が直していた） |
+
+Cash Report は `toISOString()` が**偶然正しかった**。マニラ+8 で 0時台は UTC 前日に
+落ちるため。**偶然に頼っていたので、UTCバグを直した瞬間に壊れるところだった。**
+規則を明示すること:
+
+```ts
+businessToday()            // フロント: 現地 05:00 より前は前日
+```
+```python
+from app.city_time import business_day
+business_day("manila")     # バックエンド: 同じ規則
+```
+
+境界は **05:00**。実測は0時台133件・1時台1件で、日中の投稿は8時以降。
+2〜7時台の実績はゼロなので、開店準備(7-8時)に掛からない5時に置いた。
+
+### デプロイ後の生存確認は本番URLで
+
+```bash
+curl -s -o /dev/null -w "%%{http_code}" https://sushizen-shift-pwa.vercel.app/api/admin/overview
+# 401 = 起動している / 503 = 落ちている
+```
+⚠️ **`sushizen-shift-app.herokuapp.com` を直接叩くと全パスが 404** になる（2026-09-13 実測）。
+dyno が up でも404なので、**これを「落ちている」と誤読しない。** 判定は必ず Vercel 経由で。
+
 ### 新しい都市を足すとき
 
 `CITY_OFFSET_HOURS` と `CITY_TZ_NAME` の2箇所だけ。**他のどこにもオフセットを書かない。**
