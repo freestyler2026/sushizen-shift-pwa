@@ -18,6 +18,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { routerMock } from "../setup";
 import { buildFetchMock } from "../helpers/fetch-mock";
+import { isoDate } from "../../src/lib/date";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
@@ -37,11 +38,20 @@ function signIn() {
   );
 }
 
-/** A date `offset` days from now, as the API sends it (YYYY-MM-DD). */
+/** A date `offset` days from now, as the API sends it (YYYY-MM-DD).
+ *
+ * ⚠️ Not `toISOString().slice(0, 10)`. That converts to UTC first, so east of
+ * Greenwich it returns yesterday for the whole local morning -- every deadline
+ * here came out a day early and the banner's wording was one day off. The test
+ * passed in the afternoon and failed before 09:00 JST, which reads as a flake
+ * and is not one. The page reads the deadline against the device's own date,
+ * so the fixture has to be built the same way (`isoDate`, lesson: toISOString
+ * is UTC).
+ */
 function deadline(offset: number) {
   const d = new Date();
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 const TODAY = { today: "2026-05-10", passkey_count: 1, session: null, visits: [] };

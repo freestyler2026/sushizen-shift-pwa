@@ -71,6 +71,10 @@ type Applicant = {
   never_moved?: boolean;
   prior_applications?: number;
   prior_last_applied?: string | null;
+  /** Duplicates folded into this person. Same phone, same application done
+   *  over -- the rows still exist, they are just out of the queue. Shown so
+   *  the undo sits in the same place as the thing it undoes (lesson 22). */
+  merged_count?: number;
   /** Where the resume is. The file itself is never in this payload -- only
    *  which screening holds it, so the panel can offer to open that one
    *  (lesson 29). Null means none on file. */
@@ -633,6 +637,15 @@ function statusLabel(s: string): string {
   return KANBAN_COLUMNS.find((c) => c.id === s)?.label || s;
 }
 
+/** A duplicate application folded into this person. The row is not deleted --
+ *  deleting it would cascade into hr_interview_evaluations and strand the
+ *  voice answers, which have no foreign key (lesson 43). */
+type MergedRow = {
+  id: string; full_name: string; position_applied: string; source: string;
+  status: string; applied_date: string; voice_status: string | null;
+  answers: number; merged_at: string | null; merged_by: string | null;
+};
+
 type ApplicantEvent = {
   id: number; kind: string; from_status: string; to_status: string;
   reason: string; note: string; actor: string; origin: string; created_at: string;
@@ -643,12 +656,14 @@ function DetailPanel({
   onClose,
   onStatusChange,
   onRecordOutcome,
+  onRefresh,
   reasons,
 }: {
   applicant: Applicant;
   onClose: () => void;
   onStatusChange: (id: string, status: KanbanStatus) => void;
   onRecordOutcome: (a: Applicant) => void;
+  onRefresh: () => void;
   reasons: OutcomeReason[];
 }) {
   const [tab, setTab] = useState<"info" | "interview" | "evaluation">("info");
@@ -665,6 +680,8 @@ function DetailPanel({
   // and letting the server refuse would show a 400 where a question belongs.
   const [pendingStatus, setPendingStatus] = useState<KanbanStatus | null>(null);
   const [events, setEvents] = useState<ApplicantEvent[]>([]);
+  const [mergedRows, setMergedRows] = useState<MergedRow[]>([]);
+  const [unmerging, setUnmerging] = useState("");
   const [error, setError] = useState("");
   const [assignedBranch, setAssignedBranch] = useState(applicant.assigned_branch || "");
   const [savingBranch, setSavingBranch] = useState(false);
@@ -720,10 +737,40 @@ function DetailPanel({
     }
   }, [applicant.id]);
 
+  const loadMerged = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicant.id}/merged`,
+        { headers: getAuthHeaders(), cache: "no-store" });
+      if (!res.ok) return;
+      setMergedRows(((await res.json())?.rows ?? []) as MergedRow[]);
+    } catch { setMergedRows([]); }
+  }, [applicant.id]);
+
   useEffect(() => {
     if (tab === "interview") void loadInterviews();
     if (tab === "evaluation") void loadEvaluations();
-  }, [tab, loadInterviews, loadEvaluations]);
+    if (tab === "info" && (applicant.merged_count ?? 0) > 0) void loadMerged();
+  }, [tab, loadInterviews, loadEvaluations, loadMerged, applicant.merged_count]);
+
+  // Undo lives beside the thing it undoes, and the row comes back into the
+  // queue immediately -- not behind a filter the reader has to know about
+  // (lesson 56).
+  const handleUnmerge = async (id: string) => {
+    setUnmerging(id);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${id}/unmerge`,
+        { method: "POST", headers: getAuthHeaders() });
+      if (!res.ok) throw new Error(await res.text());
+      setMergedRows((prev) => prev.filter((r) => r.id !== id));
+      onRefresh();
+    } catch {
+      setError("Could not separate that application. Nothing was changed.");
+    } finally {
+      setUnmerging("");
+    }
+  };
 
   const loadEvents = useCallback(async () => {
     try {
@@ -867,6 +914,51 @@ function DetailPanel({
                 </div>
               ))}
             </div>
+
+            {/* Same phone, same application done over. The duplicates are out
+                of the queue but not gone, and the way back is here rather than
+                behind a filter nobody knows about. */}
+            {(applicant.merged_count ?? 0) > 0 && (
+              <div className={`${GLASS_CARD} p-4 space-y-2`}>
+                <p className={T_LABEL}>
+                  Folded in &mdash; {applicant.merged_count} duplicate
+                  {(applicant.merged_count ?? 0) > 1 ? "s" : ""}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Same phone number. These applications were the same person
+                  starting over, so they are kept out of the queue. Nothing was
+                  deleted &mdash; separate one to put it back.
+                </p>
+                {mergedRows.map((m) => (
+                  <div
+                    key={m.id}
+                    className="flex items-center justify-between gap-2 border-t border-zinc-800 pt-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm text-zinc-200 truncate">
+                        {m.full_name}
+                        <span className="text-zinc-500">
+                          {" "}&middot; {m.applied_date}
+                        </span>
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        {m.position_applied || "—"} &middot; {m.source}
+                        {m.voice_status
+                          ? ` · voice ${m.voice_status}${m.answers ? ` (${m.answers} answers)` : ""}`
+                          : " · no voice screening"}
+                      </p>
+                    </div>
+                    <button
+                      className="shrink-0 rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 disabled:opacity-50"
+                      disabled={unmerging === m.id}
+                      onClick={() => void handleUnmerge(m.id)}
+                    >
+                      {unmerging === m.id ? "Separating…" : "Separate"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Resume. It is asked for at application time and 72 of the 101
                 people waiting in New have sent one, but until now the pipeline
@@ -3520,6 +3612,7 @@ export default function HRRecruitmentPage() {
                   onClose={() => setSelectedApplicant(null)}
                   onStatusChange={handleStatusChange}
                   onRecordOutcome={setOutcomeFor}
+                  onRefresh={() => void loadData()}
                   reasons={outcomeReasons}
                 />
               </div>
@@ -3539,6 +3632,7 @@ export default function HRRecruitmentPage() {
                   onClose={() => setSelectedApplicant(null)}
                   onStatusChange={handleStatusChange}
                   onRecordOutcome={setOutcomeFor}
+                  onRefresh={() => void loadData()}
                   reasons={outcomeReasons}
                 />
               </div>
