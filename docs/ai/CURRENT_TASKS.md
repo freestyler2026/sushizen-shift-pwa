@@ -24602,3 +24602,56 @@ CK ラベルの3件に加えて、チャンネル全体を調べて出たもの�
 
 バッジ（`count_unprocessed_incidents`）は未解決20件を正しく数えており、**見えていないのではなく
 着手されていない。**
+
+## 2026-09-13 — 誤記録の訂正・通知の有効化・時刻のずれの一掃
+
+### ① 誤記録の訂正（実行済み・バックアップあり）
+
+バックアップ: `_ck_delivery_items_bk_20260913`（77行）/ `_incident_reports_bk_20260913`（13件）/
+`_incident_dt_bk_20260913`（13件）
+
+| | 件数 |
+|---|---:|
+| 誤 EXPIRED フラグを解除 | **77行**（7納品） |
+| レポートを取り下げ（`[WITHDRAWN 2026-09-13 — raised in error]` を先頭に付与、status=resolved） | **6件** |
+| レポートに注記（`[PARTLY CORRECTED …]`、実害が残るので open のまま） | **1件**（#109: 3件中2件が誤り） |
+| **触っていない**: 納品日時点で本当に期限切れ | 7行 |
+| **触っていない**: 期限日<製造日（現物確認が要る） | 5行 |
+
+削除ではなく取り消しの記録として残している。
+
+### ② high/critical の record も通知対象に（有効化済み・実際に送信された）
+
+`get_urgent_reports_to_notify` が `report_kind='urgent'` だけを見ており、urgent は全期間0件だった。
+→ `severity IN ('high','critical')` を OR で追加。**緊急は分単位、record は時間単位**
+（critical 6時間 / high 24時間）で追う。
+
+⚠️ **デプロイ直後に worker が走り、20:46（マニラ時刻）に5件が実際に Discord へ送信された。**
+事前に測った「初回5件」と一致。文面も record 用に分岐済み（偽の `LEVEL 0` や
+「Trading affected: no」を出さない／待ち時間は「28 days ago」表記）。
+
+### ③ 時刻のずれ（`app/city_time.py` に集約）
+
+**ルールを CLAUDE.md に追加**（「🕐 時刻は必ず店舗の時計で」）。新しい都市を足すときは
+`CITY_OFFSET_HOURS` と `CITY_TZ_NAME` の2箇所だけ。
+
+修正したもの:
+
+| 箇所 | 症状 |
+|---|---|
+| `incident_datetime`（既存13件） | UTC で入っており**マニラで8時間早く表示**。現地時刻に変換。作成日時との差が0分になった |
+| `confirm_ck_delivery` の起票 | 同上。`city_stamp()` に統一 |
+| NTE 自動検知 `as_of` | **AE/PH に同じUTC日付**を使用。市場ごとに `city_today(city)`。返り値に `as_of_by_market` を追加 |
+| **`list_ck_pending_for_branch`** | `delivery_date = CURRENT_DATE`（UTC）。**マニラの朝8時までは前日の納品が出て当日分が出ない** — 朝番がCK納品を受け取る画面そのもの |
+| `regularized_at` / `acknowledged_at`（HR） | `CURRENT_DATE` で書き込み。8時間は前日になる |
+
+⚠️ **一括置換はしていない。** `CURRENT_DATE` は154箇所あり46箇所は変換済み。残りを機械的に
+書き換えると壊すので、**「今日と等しい」判定と「今日を書き込む」型に絞って**直した。
+残りは `>= CURRENT_DATE - 90 days` のような期間で、8時間のずれは結果を変えない。
+
+### 未着手
+
+- **期限日<製造日の5行** — 正しい期限は現物のラベルを見ないと確定できない（Nobashi Shrimp ×2 /
+  Bamboo Shoot / Edamame 500g / Vegetable Oil 16L）。推測で入れると「推測で入れた値」と
+  区別がつかなくなるので、CKに確認してもらう
+- 滞留20件（解決率23%、最古99日）は運用の問題
