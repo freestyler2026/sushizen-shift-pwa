@@ -24205,3 +24205,51 @@ Interviewed / offer_sent / hired は音声面接の導入前なので0件。**1�
 
 今日の未ackアラート4件のうち、**662 / 663 / 664（すべてTAFT）は `dm_recipients` が空**で
 誰にもDMが飛んでいない。661（CUB）だけが6人宛。TAFT の3件が通知されない理由は未調査。
+
+## 2026-09-13 — Manila Manager Candidate ロールの検証と修正（完了）
+
+植嶋が6名（TAFT: Jerryboy/Rachelle/Reymar、PAR: James/Cherish/Joven）に
+`MANILA_MANAGER_CANDIDATE` を付与。**旧ロールは `is_active=false` にされており、
+候補ロール1本で動く（union されない）** ため、自己完結している必要があった。
+
+### Time-in は構造的に塞げない（確認済み）
+
+`canAccessAttendancePage` は `return x != null`。加えて `db.py` のセーフティ移行が
+**権限を1つでも持つ全ロールに `channel.attendance.view` を強制INSERT**する。二重に守られている。
+My Shift / Week / My Pay / Calendar も付与済み。
+
+⚠️ **チャンネル権限の「無し」＝「見えない」ではない。** NavBar のスタッフ項目フィルタは
+既定が `return true` で、明示的に絞っているのは attendance / my-shift / week / calendar /
+my-pay / store-evaluation / CK系 のみ。21件が「権限無し」と出ても大半は表示される。
+
+### 修正1: Procurement のタブがロール名のベタ書きで消えていた
+
+`ProcurementTabs.roleToAccessLevel` が `INVENTORY_ROLES` というロール名の Set で判定しており、
+新ロールは `"staff"` に落ちて**6タブが消えた**（PO Match / Invoices / Intelligence /
+Payments / Price Checks / Dashboard）。
+
+実測: `proc_po_invoice_checks` を書くのは `POST /api/admin/procurement/po-match`＝消えたタブ。
+Reymar 31件・James 26件（**66件中61件が直近30日、James は適用当日の 9/13 にも入力**）。
+ページ自体にガードは無くAPIも通るので、**消えたのは導線だけ**だが現場は止まる。
+
+→ `accessLevelFor(auth)` に変更し、**`channel.admin.procurement.manage` を持つなら
+inventory 相当**とした。ロール名リストは HQ・management 用に残す（権限で表現されていないため）。
+
+### 修正2: Store Evaluation は別チャンネルが付いていた
+
+意図は「Store Evaluation」だが、付いていたのは `channel.admin.store_evaluations.view`
+（管理集計 `/admin/store-evaluations`）のみ。入力フォーム `/store/evaluation` の
+`channel.store_evaluation.view` が無く、フォームを開けなかった。
+
+判断材料: `store_daily_evaluations` の提出者は**全員マネージャー層**
+（植嶋56・Peter 47・Ayako 35・Francis 32・Richard 37）で、候補6名の提出は0件。
+**これから彼らが担う側の画面**なので付与した（44権限に。`scope_type='global'`、
+既存43行と同じ形。`access_role_permission_revocations` に該当なし＝seedに巻き戻されない）。
+
+検証: `resolve_staff_access_profile` で3名を往復確認。全員 67権限、上記すべて OK。
+
+### 使われていないので外して問題なかったもの
+
+CK Inventory / CK Dispatch / CK Ingredient Receiving / Spot Purchase / Emergency Requests(管理)。
+実測で Spot Purchase 生涯2件（最終 7/27）・CK Delivery 1件（7/16）・直近30日は0件。
+6名は TAFT/PAR 所属なので CK 系は本来不要。
