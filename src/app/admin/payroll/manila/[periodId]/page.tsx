@@ -59,6 +59,10 @@ type Run = {
   /** Newest adjustment for this staff and period. Later than computed_at means
    *  the figures below do not include it yet. */
   last_adjustment_at?: string | null;
+  /** Statutory rules that moved this person's contributions out of the usual
+   *  50/50 split. Carried on the run so the list can show them without opening
+   *  every payslip. */
+  statutory_flags?: string[] | null;
   published_at: string | null;
   published_by: string | null;
 };
@@ -178,6 +182,41 @@ function getMissingFields(p: StaffProfileMin | undefined): string[] {
  *  Taken from the quantity= arguments in manila_payroll_engine.py; keep the two
  *  in step when a new item code is added. An unmapped code prints no unit at
  *  all, which is honest, rather than guessing at one. */
+/** What each statutory flag means to the person reading the list.
+ *
+ *  Short enough for a table cell, and the title carries the sentence payroll
+ *  needs before they ring the employee. */
+const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: string }> = {
+  STATUTORY_DEFERRED: {
+    label: "deferred",
+    cls: "text-sky-300 bg-sky-900/25 border-sky-500/40",
+    title: "First cut-off after hire and too short to take half a month from — "
+         + "nothing was collected here. The whole month comes off the next "
+         + "cut-off, so tell them their next payslip will be smaller.",
+  },
+  STATUTORY_CATCH_UP: {
+    label: "whole month",
+    cls: "text-violet-300 bg-violet-900/25 border-violet-500/40",
+    title: "The first cut-off collected nothing, so this payslip carries the "
+         + "whole month's contributions — about twice the usual deduction. "
+         + "Nothing was waived and nothing is charged twice.",
+  },
+  STATUTORY_UNCOLLECTED: {
+    label: "part uncollected",
+    cls: "text-amber-300 bg-amber-900/25 border-amber-500/40",
+    title: "The pay in this cut-off would not cover the employee's share, so "
+         + "only what it covers was taken. The balance is named on the payslip "
+         + "— decide whether to collect it next cut-off or have the member pay "
+         + "the agency directly.",
+  },
+  BIR_ANNUAL_INCOMPLETE: {
+    label: "year incomplete",
+    cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
+    title: "The year-end adjustment ran without the start of the year. Enter "
+         + "the opening year-to-date figures before approving this period.",
+  },
+};
+
 const ITEM_QTY_UNIT: Record<string, "hour" | "day" | "minute" | "fraction"> = {
   // hourly_rate × hours
   NIGHT_DIFF_REGULAR:            "hour",
@@ -1315,7 +1354,10 @@ function PayslipDetail({
 
         {run.minimum_wage_compliant === false && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
-            <AlertTriangle size={12} /> Daily rate is below minimum wage (₱695/day)
+            <AlertTriangle size={12} />{" "}
+            {run.daily_rate != null
+              ? <>Daily rate ₱{run.daily_rate.toLocaleString("en-PH")} is below the statutory minimum wage for this period.</>
+              : <>Daily rate is below the statutory minimum wage for this period.</>}
           </div>
         )}
 
@@ -2197,6 +2239,41 @@ export default function ManilaPayrollPeriodPage() {
               )}
             </div>
 
+            {/* Which people are on a statutory rule that moved their
+                contributions. Named here rather than left to be discovered by
+                opening each payslip: the deferred ones need to be told before
+                their next payslip, and that is the whole point of showing it. */}
+            {(() => {
+              const groups = Object.keys(STATUTORY_FLAG_BADGE)
+                .map(code => ({
+                  code,
+                  meta: STATUTORY_FLAG_BADGE[code],
+                  names: runs.filter(r => (r.statutory_flags ?? []).includes(code))
+                              .map(r => r.staff_name),
+                }))
+                .filter(g => g.names.length > 0);
+              if (groups.length === 0) return null;
+              return (
+                <div className="mx-5 mb-3 space-y-2">
+                  {groups.map(g => (
+                    <div key={g.code}
+                      className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border ${g.meta.cls}`}>
+                          {g.meta.label}
+                        </span>
+                        <span className="font-semibold text-slate-200">
+                          {g.names.length} {g.names.length === 1 ? "person" : "people"}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 leading-relaxed text-slate-400">{g.meta.title}</p>
+                      <p className="mt-1.5 text-slate-300">{g.names.join(" · ")}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* Error */}
             {error && (
               <div className="mx-5 mb-3 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 p-3 text-sm text-red-300">
@@ -2272,6 +2349,15 @@ export default function ManilaPayrollPeriodPage() {
                                 needs recompute
                               </span>
                             )}
+                            {(run.statutory_flags ?? []).map(code => {
+                              const b = STATUTORY_FLAG_BADGE[code];
+                              return b ? (
+                                <span key={code} title={b.title}
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-bold border whitespace-nowrap ${b.cls}`}>
+                                  {b.label}
+                                </span>
+                              ) : null;
+                            })}
                           </div>
                         </td>
                         <td className="py-2.5 text-right text-slate-300 tabular-nums">{canSeeSalary && !run.salary_hidden ? fmtPHP(run.gross_pay) : <span className="font-mono text-slate-600" title="Withheld from you by the payroll rules">****</span>}</td>
