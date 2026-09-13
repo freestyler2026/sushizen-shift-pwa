@@ -604,7 +604,10 @@ function QuickEntryTab({
   const loadPendingChecks = useCallback(async () => {
     setPendingLoading(true);
     try {
-      const d = await apiFetch(`/procurement/po-match/pending?city=${city}&limit=50`);
+      // The whole queue, not a page of it. Dubai stands at 303 and the rows
+      // carry no images — the photograph is a boolean here and fetched when a
+      // row is opened — so this is about 40KB.
+      const d = await apiFetch(`/procurement/po-match/pending?city=${city}&limit=500`);
       setPendingTotal(Number(d?.total ?? 0));
       setPendingChecks(d.rows || []);
     } catch { /* best-effort */ }
@@ -1019,9 +1022,11 @@ function QuickEntryTab({
               {!pendingLoading && pendingChecks.length === 0 && (
                 <p className="text-xs text-zinc-500">No pending items.</p>
               )}
-              {!pendingLoading && pendingTotal > pendingChecks.length && (
+              {!pendingLoading && pendingChecks.length > 0 && (
                 <p className="text-xs text-amber-300/80">
-                  Showing the {pendingChecks.length} oldest of {pendingTotal} waiting.
+                  {pendingTotal > pendingChecks.length
+                    ? `Showing the ${pendingChecks.length} oldest of ${pendingTotal} waiting.`
+                    : `All ${pendingChecks.length} waiting.`}{" "}
                   Entering an invoice number here is what puts the PO on the invoice screen.
                 </p>
               )}
