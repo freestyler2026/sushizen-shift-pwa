@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, CheckCircle2, Clock, RefreshCw, X } from "lucide-react";
@@ -72,7 +73,7 @@ interface SlotDef {
 }
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 export default function RushCheckPage() {

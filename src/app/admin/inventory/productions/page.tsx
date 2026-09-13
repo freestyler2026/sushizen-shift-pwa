@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import SelectDark from "@/components/SelectDark";
@@ -143,7 +144,7 @@ function monthNow() {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 function defaultBranch(city: City) {

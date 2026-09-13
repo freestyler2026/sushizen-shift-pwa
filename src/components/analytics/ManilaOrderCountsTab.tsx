@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAuth, getAuthHeaders, refreshAuthFromApi, tryRefreshAccessToken } from "@/lib/auth";
 import { GLASS_CARD, SECONDARY_BUTTON, T_CAPTION, T_SECTION } from "@/lib/ui-tokens";
@@ -94,7 +95,7 @@ function shiftMonthKey(mk: string, delta: number): string {
 function shiftDate(iso: string, days: number): string {
   const d = new Date(iso);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 /** Compute the "same-length window immediately before" a given [from, to] range */
@@ -314,8 +315,8 @@ export function ManilaOrderCountsTab({
     to.setDate(to.getDate() - 2); // 前々日
     const from = new Date(to);
     from.setDate(from.getDate() - (days - 1));
-    const toStr   = to.toISOString().slice(0, 10);
-    const fromStr = from.toISOString().slice(0, 10);
+    const toStr   = isoDate(to);
+    const fromStr = isoDate(from);
     setLocalFrom(fromStr);
     setLocalTo(toStr);
     setSelectedMonth("");

@@ -1,6 +1,7 @@
 // src/app/admin/staff/employment-details/page.tsx
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -48,7 +49,7 @@ const EARLIEST_HIRE: Record<string, string> = {
   manila: "2025-08-01",
   dubai: "2022-01-01",
 };
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = isoToday();
 
 export default function EmploymentDetailsPage() {
   const [city, setCity] = useState("manila");

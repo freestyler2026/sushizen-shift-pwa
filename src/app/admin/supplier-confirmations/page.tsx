@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
@@ -367,7 +368,7 @@ export default function SupplierConfirmationsPage() {
                     <p className={T_CAPTION}>{row.vendor_name} | {row.store_code} | {row.request_no}</p>
                     {row.delivery_date && (
                       <p className={`text-xs mt-0.5 flex items-center gap-1 ${
-                        row.delivery_date <= new Date().toISOString().slice(0, 10) ? "text-amber-400" : "text-zinc-400"
+                        row.delivery_date <= isoToday() ? "text-amber-400" : "text-zinc-400"
                       }`}>
                         <Clock className="h-3 w-3" />Delivery: {row.delivery_date}
                       </p>

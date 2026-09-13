@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -1056,7 +1057,7 @@ export default function AdminAbsencesPage() {
 
       let count = 0;
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const wd = new Date(d).toISOString().slice(0, 10);
+        const wd = isoDate(new Date(d));
         for (const sn of names) {
           await apiPost("/api/admin/absences/upsert", {
             city,

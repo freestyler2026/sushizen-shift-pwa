@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -253,7 +254,7 @@ export default function AggregatorPriceMonitorPage() {
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const todayAlerts = alerts.filter(
-    (a) => a.alert_date === new Date().toISOString().slice(0, 10)
+    (a) => a.alert_date === isoToday()
   );
 
   return (

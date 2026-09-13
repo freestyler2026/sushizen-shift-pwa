@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Check, Clock, Phone, ShieldCheck } from "lucide-react";
@@ -219,7 +220,7 @@ export default function MyContactPage() {
                 className="mt-1.5 w-full rounded-lg border border-white/10 bg-white/6 px-3 py-2.5 text-base tabular-nums text-white outline-none focus:border-violet-500/50"
                 value={hireDate}
                 min={earliest || undefined}
-                max={new Date().toISOString().slice(0, 10)}
+                max={isoToday()}
                 onChange={(e) => setHireDate(e.target.value)}
                 disabled={loading}
               />

@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prepareUpload } from "@/lib/image-compress";
@@ -165,7 +166,7 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
   const [myLoadError, setMyLoadError] = useState("");
 
   const photoInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const today = new Date().toISOString().split("T")[0];
+  const today = isoToday();
 
   async function loadMyRequests() {
     setLoadingMy(true);

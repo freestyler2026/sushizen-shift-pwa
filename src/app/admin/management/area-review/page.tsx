@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, RefreshCw, X } from "lucide-react";
@@ -87,13 +88,13 @@ interface WeekResult {
 function mondayOf(d: Date): string {
   const c = new Date(d);
   c.setDate(c.getDate() - ((c.getDay() + 6) % 7));
-  return c.toISOString().slice(0, 10);
+  return isoDate(c);
 }
 
 function shiftWeeks(iso: string, weeks: number): string {
   const d = new Date(iso + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + weeks * 7);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 const GRADE_STYLE: Record<string, string> = {

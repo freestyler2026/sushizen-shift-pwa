@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import {
   AlertCircle, ChevronDown, ChevronRight, Download, Loader2,
   Pencil, Plus, RefreshCw, Trash2, Upload, X,
@@ -104,7 +105,7 @@ function AdjModal({
     subtype: adj?.subtype ?? "",
     amount: String(adj?.amount ?? ""),
     vat: String(adj?.vat ?? "0"),
-    incurred_at: adj?.incurred_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    incurred_at: adj?.incurred_at?.slice(0, 10) ?? isoToday(),
     note: adj?.note ?? "",
     reference_no: adj?.reference_no ?? "",
   });
@@ -280,7 +281,7 @@ const CSV_VALID_TYPES = new Set(["addition", "deduction", "recurring_deduction"]
 const CSV_TEMPLATE_HEADERS = "staff_name,adj_type,subtype,amount,incurred_date,reference_no,note";
 
 function downloadAdjTemplate(city: string) {
-  const ex = `John Doe,addition,Overtime,500.00,${new Date().toISOString().slice(0, 10)},,OT work`;
+  const ex = `John Doe,addition,Overtime,500.00,${isoToday()},,OT work`;
   const blob = new Blob(["﻿" + CSV_TEMPLATE_HEADERS + "\r\n" + ex], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

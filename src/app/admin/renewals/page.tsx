@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -1420,7 +1421,7 @@ export default function RenewalsAdminPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const d = window.prompt("Set scheduled renewal date (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
+                                  const d = window.prompt("Set scheduled renewal date (YYYY-MM-DD):", isoToday());
                                   if (d) void handlePatchCustomAlert(ca.id, { scheduled_renewal_date: d });
                                 }}
                                 className="rounded-lg border border-emerald-700/60 bg-emerald-950/30 px-2.5 py-1.5 text-xs text-emerald-300 transition hover:bg-emerald-900/50"

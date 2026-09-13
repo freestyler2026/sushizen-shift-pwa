@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -536,7 +537,7 @@ function SafetyBoxView() {
   const [depBy,   setDepBy]   = useState("");
   const [depAmt,  setDepAmt]  = useState("");
   const [depRef,  setDepRef]  = useState("");
-  const [depDate, setDepDate] = useState(new Date().toISOString().slice(0, 10));
+  const [depDate, setDepDate] = useState(isoToday());
   const [depBusy, setDepBusy] = useState(false);
   const [depMsg,  setDepMsg]  = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -615,7 +616,7 @@ function SafetyBoxView() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.detail || "Failed.");
-      setDepId(null); setDepBy(""); setDepAmt(""); setDepRef(""); setDepDate(new Date().toISOString().slice(0, 10));
+      setDepId(null); setDepBy(""); setDepAmt(""); setDepRef(""); setDepDate(isoToday());
       loadCollections();
     } catch (e: any) { setDepMsg({ ok: false, text: e.message }); }
     finally { setDepBusy(false); }

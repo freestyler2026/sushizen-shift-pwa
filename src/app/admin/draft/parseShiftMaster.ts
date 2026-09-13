@@ -2,6 +2,7 @@
 // parseShiftMaster.ts — parse Sushi ZEN Master Excel file in the browser
 // Uses dynamic import of "xlsx" to avoid SSR issues
 // ---------------------------------------------------------------------------
+import { isoDate } from "@/lib/date";
 import type {
   ShiftMasterData,
   StaffMaster,
@@ -24,11 +25,11 @@ function parseExcelDate(v: unknown): string | null {
     const utc = (v - 25569) * 86400 * 1000;
     const d = new Date(utc);
     if (isNaN(d.getTime())) return null;
-    return d.toISOString().slice(0, 10);
+    return isoDate(d);
   }
   if (typeof v === "string") {
     const d = new Date(v);
-    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    if (!isNaN(d.getTime())) return isoDate(d);
   }
   return null;
 }

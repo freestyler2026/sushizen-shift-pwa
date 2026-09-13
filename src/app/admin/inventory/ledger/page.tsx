@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import SelectDark from "@/components/SelectDark";
@@ -49,13 +50,13 @@ function formatEventType(code: string): string {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 function thirtyDaysAgoStr() {
   const d = new Date();
   d.setDate(d.getDate() - 30);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 export default function InventoryLedgerPage() {

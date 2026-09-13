@@ -9,6 +9,7 @@ import {
   PRIMARY_BUTTON, INPUT_CLASS, T_PAGE_TITLE, T_LABEL, T_CAPTION, GLASS_CARD,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import { isoToday } from "@/lib/date";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -34,7 +35,7 @@ interface FormState {
   cancellation_reason: string;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => isoToday();
 
 const emptyForm = (): FormState => ({
   platform: "",

@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -78,7 +79,7 @@ function PaymentModal({
 }) {
   const auth = getAuth();
   const [paidVia, setPaidVia] = useState(existingPayment?.paid_via || record.paid_via || "cash");
-  const [paidAt, setPaidAt] = useState(existingPayment?.paid_at?.slice(0, 10) || new Date().toISOString().slice(0, 10));
+  const [paidAt, setPaidAt] = useState(existingPayment?.paid_at?.slice(0, 10) || isoToday());
   const [refNo, setRefNo] = useState(existingPayment?.reference_no || "");
   const [note, setNote] = useState(existingPayment?.note || "");
   // record.net_pay is null when masked — fall back to an empty field, never "null"
@@ -352,7 +353,7 @@ function PayrollTransactionsInner() {
   const [paymentModal, setPaymentModal] = useState<RunRecord | null>(null);
   const [batchModal, setBatchModal] = useState(false);
   const [batchPaidVia, setBatchPaidVia] = useState("cash");
-  const [batchPaidAt, setBatchPaidAt] = useState(new Date().toISOString().slice(0, 10));
+  const [batchPaidAt, setBatchPaidAt] = useState(isoToday());
   const [batchRefNo, setBatchRefNo] = useState("");
   const [batchSaving, setBatchSaving] = useState(false);
   const cycleLoadRef = useRef(0);

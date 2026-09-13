@@ -31,6 +31,7 @@ import {
   T_CAPTION,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import { isoToday } from "@/lib/date";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -431,7 +432,7 @@ function DispatchForm({ city }: { city: string }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed.");
       const dispatchId  = data.dispatch?.id ?? "";
-      const dispatchDate = data.dispatch?.dispatch_date ?? new Date().toISOString().slice(0, 10);
+      const dispatchDate = data.dispatch?.dispatch_date ?? isoToday();
 
       // Step 2: Upload photo if provided
       if (photoFile && dispatchId) {

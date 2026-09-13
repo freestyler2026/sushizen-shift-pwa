@@ -13,6 +13,7 @@ import {
   T_PAGE_TITLE, T_LABEL, T_CAPTION, GLASS_CARD,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import { isoToday } from "@/lib/date";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -403,7 +404,7 @@ function HistoryTab({ branch }: { branch: string }) {
     </div>
   );
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
 
   return (
     <div className="space-y-3">
@@ -1152,7 +1153,7 @@ function OpeningForm({ branch, onBranchChange, today }: { branch: string; onBran
 export default function CashReportPage() {
   const router = useRouter();
   const auth   = getAuth();
-  const today  = new Date().toISOString().slice(0, 10);
+  const today  = isoToday();
   const [branch, setBranch] = useState<string>("PAR");
   const [tab, setTab]       = useState<"closing" | "opening" | "history">("closing");
 

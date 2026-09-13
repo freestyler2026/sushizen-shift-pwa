@@ -1,6 +1,7 @@
 // src/app/admin/page.tsx
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { motion } from "framer-motion";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -662,7 +663,7 @@ function AdminPageInner() {
   const [opLoading, setOpLoading] = useState(false);
 
   // ---- Search Rankings Input state ----
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = isoToday();
   const [rankingDate, setRankingDate] = useState(todayIso);
   type RankKey = `${string}-${string}-${string}`;
   const [rankingValues, setRankingValues] = useState<Record<RankKey, string>>({});

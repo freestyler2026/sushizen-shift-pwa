@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Package } from "lucide-react";
 import {
@@ -27,8 +28,8 @@ interface BackupReport {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function todayStr() { return new Date().toISOString().slice(0, 10); }
-function weekAgoStr() { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); }
+function todayStr() { return isoToday(); }
+function weekAgoStr() { const d = new Date(); d.setDate(d.getDate() - 7); return isoDate(d); }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const auth = getAuth();

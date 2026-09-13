@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useState, useEffect, useCallback } from "react";
 import { GLASS_CARD } from "@/lib/ui-tokens";
 import { getAuthHeaders } from "@/lib/auth";
@@ -83,8 +84,8 @@ export default function PrepTimeLedger({ approverName, pin }: { approverName: st
       const from = new Date(Date.now() - days * 86400000);
       const p = new URLSearchParams({
         city,
-        date_from: from.toISOString().slice(0, 10),
-        date_to: to.toISOString().slice(0, 10),
+        date_from: isoDate(from),
+        date_to: isoDate(to),
         approver_name: approverName, pin,
       });
       const res = await fetch(`/api/admin/prep-time/ledger?${p}`, { headers: getAuthHeaders() });

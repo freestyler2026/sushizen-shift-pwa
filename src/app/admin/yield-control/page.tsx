@@ -1,6 +1,7 @@
 // src/app/admin/yield-control/page.tsx
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
@@ -59,9 +60,9 @@ interface YieldRecord {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+function todayStr() { return isoToday(); }
 function daysAgo(n: number) {
-  const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10);
+  const d = new Date(); d.setDate(d.getDate() - n); return isoDate(d);
 }
 
 async function apiFetch<T>(path: string): Promise<T> {

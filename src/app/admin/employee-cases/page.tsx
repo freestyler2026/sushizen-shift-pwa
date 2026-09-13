@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prepareUpload } from "@/lib/image-compress";
@@ -279,7 +280,7 @@ function fmtDate(d: string | null | undefined): string {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 function getRankingColor(total: number): string {
@@ -3435,7 +3436,19 @@ export default function EmployeeCasesPage() {
                   <span className="text-zinc-400">
                     {(autoDetectResult as {skipped_dedup?: number}).skipped_dedup ?? 0} skipped (duplicate)
                   </span>
-                  <span className="text-zinc-500 text-xs">as of {(autoDetectResult as {as_of?: string}).as_of}</span>
+                  {/* One date could never describe two markets: the detector
+                      works each one out on its own clock, because before 08:00
+                      in Manila the server is still on yesterday and this date
+                      decides which day's lateness a notice is drawn from. */}
+                  <span className="text-zinc-500 text-xs">
+                    as of{" "}
+                    {Object.entries(
+                      (autoDetectResult as { as_of_by_market?: Record<string, string> })
+                        .as_of_by_market ?? {},
+                    )
+                      .map(([mkt, d]) => `${mkt} ${d}`)
+                      .join(" · ") || "—"}
+                  </span>
                 </div>
                 {((autoDetectResult as {details?: unknown[]}).details ?? []).length > 0 && (
                   <div className="overflow-x-auto max-h-48 overflow-y-auto rounded border border-zinc-700/50">

@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -1799,13 +1800,13 @@ function absenceBadgeClass(t: string) {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 function addDaysIso(base: Date, days: number) {
   const d = new Date(base);
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 function monthRangeFromMonthKey(monthKey: string): { from: string; to: string } | null {
@@ -1982,8 +1983,8 @@ function splitDateRangeIntoChunks(dateFrom: string, dateTo: string, chunkSize = 
     chunkEnd.setDate(chunkEnd.getDate() + chunkSize - 1);
     if (chunkEnd > end) chunkEnd.setTime(end.getTime());
     out.push({
-      from: chunkStart.toISOString().slice(0, 10),
-      to: chunkEnd.toISOString().slice(0, 10),
+      from: isoDate(chunkStart),
+      to: isoDate(chunkEnd),
     });
     cursor.setDate(cursor.getDate() + chunkSize);
   }
@@ -3156,7 +3157,7 @@ export default function AdminAnalyticsPage() {
     // Default range: 30 days ending 2 days ago (前々日)
     const baseTo = new Date();
     baseTo.setDate(baseTo.getDate() - 2);
-    setDateTo(baseTo.toISOString().slice(0, 10));
+    setDateTo(isoDate(baseTo));
     setDateFrom(addDaysIso(baseTo, -29));
     const dr = previousCalendarMonthRangeIso();
     setSummaryDateFrom(dr.from);
@@ -6584,7 +6585,7 @@ export default function AdminAnalyticsPage() {
                 onClick={() => {
                   const now = new Date();
                   const first = new Date(now.getFullYear(), now.getMonth(), 1);
-                  setDateFrom(first.toISOString().slice(0, 10));
+                  setDateFrom(isoDate(first));
                   setDateTo(todayIso());
                 }}
                 className={SMALL_BUTTON}

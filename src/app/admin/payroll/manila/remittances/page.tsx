@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import {
   AlertCircle, AlertTriangle, BadgeCheck, Banknote, CalendarDays,
   ChevronLeft, Loader2, Plus, RefreshCw, ReceiptText, Trash2, X, Wand2,
@@ -83,7 +84,7 @@ function statusBadge(r: Remittance) {
 // ── Mark as Paid Modal ─────────────────────────────────────────────────────────
 
 function MarkPaidModal({ row, onSaved, onClose }: { row: Remittance; onSaved: (r: Remittance) => void; onClose: () => void }) {
-  const [paidDate, setPaidDate]     = useState(row.paid_date ?? new Date().toISOString().slice(0,10));
+  const [paidDate, setPaidDate]     = useState(row.paid_date ?? isoToday());
   const [paidAmount, setPaidAmount] = useState(row.paid_amount ?? row.amount);
   const [refNo, setRefNo]           = useState(row.reference_no ?? "");
   const [notes, setNotes]           = useState(row.notes ?? "");

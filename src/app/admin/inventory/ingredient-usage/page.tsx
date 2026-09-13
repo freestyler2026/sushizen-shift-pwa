@@ -9,6 +9,7 @@
 //   * how much of what was sold has a recipe at all (77% of Manila units)
 //   * which lines cannot be compared with purchases, and why
 
+import { isoDate } from "@/lib/date";
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import SelectDark from "@/components/SelectDark";
@@ -84,7 +85,7 @@ const STATUS_NOTE: Record<UsageRow["compare_status"], string> = {
 };
 
 function iso(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 function daysAgo(n: number) {
   const d = new Date();

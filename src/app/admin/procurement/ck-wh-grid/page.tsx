@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -39,7 +40,7 @@ const ORIGINS = [
   { value: "WH", label: "Warehouse (WH)" },
 ];
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() { return isoToday(); }
 function fmt(n: number) {
   return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

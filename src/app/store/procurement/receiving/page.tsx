@@ -10,6 +10,7 @@ import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { receivingsForRequest, receivingStepState } from "@/lib/procurementStatus";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
+import { isoToday, isoDate } from "@/lib/date";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ export default function StoreProcurementReceivingPage() {
   const last30 = () => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
+    return isoDate(d);
   };
   const [dateFrom, setDateFrom] = useState(last30);
   const [dateTo, setDateTo] = useState("");
@@ -129,7 +130,7 @@ export default function StoreProcurementReceivingPage() {
   const [itemChecks, setItemChecks] = useState<Record<string, ItemCheck>>({});
 
   // Delivery form
-  const [deliveryDate, setDeliveryDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [deliveryDate, setDeliveryDate] = useState(() => isoToday());
   const [overallQuality, setOverallQuality] = useState("ACCEPTED");
   const [notes, setNotes] = useState("");
 

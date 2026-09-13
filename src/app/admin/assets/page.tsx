@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -323,7 +324,7 @@ function LoanModal({
   const [assigneeType, setAssigneeType] = useState<AssigneeType>("staff");
   const [assignee, setAssignee] = useState("");
   const [locationInput, setLocationInput] = useState("");
-  const [loanedAt, setLoanedAt] = useState(new Date().toISOString().slice(0, 10));
+  const [loanedAt, setLoanedAt] = useState(isoToday());
   const [condition, setCondition] = useState("good");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -409,7 +410,7 @@ function ReturnModal({
 }) {
   const [condition, setCondition] = useState("good");
   const [returnNotes, setReturnNotes] = useState("");
-  const [returnedAt, setReturnedAt] = useState(new Date().toISOString().slice(0, 10));
+  const [returnedAt, setReturnedAt] = useState(isoToday());
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -582,7 +583,7 @@ function LifecyclePanel({ asset, auth }: { asset: Asset; auth: ReturnType<typeof
     event_type: "condition_check",
     notes: "",
     performed_by: auth?.staffName ?? "",
-    performed_at: new Date().toISOString().slice(0, 10),
+    performed_at: isoToday(),
     photo_data: "",
   });
   const [photoName, setPhotoName] = useState("");
@@ -636,7 +637,7 @@ function LifecyclePanel({ asset, auth }: { asset: Asset; auth: ReturnType<typeof
       const d = await res.json();
       if (!res.ok) throw new Error(d.detail ?? "Failed");
       setShowForm(false);
-      setForm({ event_type: "condition_check", notes: "", performed_by: auth?.staffName ?? "", performed_at: new Date().toISOString().slice(0, 10), photo_data: "" });
+      setForm({ event_type: "condition_check", notes: "", performed_by: auth?.staffName ?? "", performed_at: isoToday(), photo_data: "" });
       setPhotoName("");
       load();
     } catch (e: unknown) {

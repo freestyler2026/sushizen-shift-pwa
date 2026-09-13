@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2 } from "lucide-react";
@@ -1993,7 +1994,7 @@ function AddApplicantModal({
   onClose: () => void;
   saving: boolean;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
   const [form, setForm] = useState<AddApplicantForm>({
     full_name: "",
     position_applied: "",
@@ -2214,7 +2215,7 @@ function BulkAddModal({
   onClose: () => void;
   saving: boolean;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
   const [position, setPosition] = useState({
     requisition_id: "",
     position_applied: "",

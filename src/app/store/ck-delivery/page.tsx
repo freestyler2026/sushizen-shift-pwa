@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -214,7 +215,7 @@ export default function CKDeliveryPage() {
   const [costRows, setCostRows] = useState<CostRow[]>([]);
   const [eprCostRows, setEprCostRows] = useState<EprCostRow[]>([]);
   const [costLoading, setCostLoading] = useState(false);
-  const [costFromDate, setCostFromDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); });
+  const [costFromDate, setCostFromDate] = useState(() => { const d = new Date(); d.setDate(1); return isoDate(d); });
   const [costToDate, setCostToDate] = useState(todayIso());
   const [costBranch, setCostBranch] = useState("");
   const [costStatus, setCostStatus] = useState("");

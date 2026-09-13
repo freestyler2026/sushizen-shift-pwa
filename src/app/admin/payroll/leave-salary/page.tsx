@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -273,7 +274,7 @@ function DetailPanel({
   const [showPay, setShowPay]     = useState(false);
   const [rejNote, setRejNote]     = useState("");
   const [payVia, setPayVia]       = useState("cash");
-  const [payDate, setPayDate]     = useState(new Date().toISOString().slice(0,10));
+  const [payDate, setPayDate]     = useState(isoToday());
   const [payRef, setPayRef]       = useState("");
   const [payCycleId, setPayCycleId] = useState<string>("");
   const [payNote, setPayNote]     = useState("");

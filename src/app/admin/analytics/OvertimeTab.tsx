@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ChevronDown, ChevronRight, Clock, AlertTriangle,
@@ -54,7 +55,7 @@ function isoFirstOfMonth(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 function isoLastOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return isoDate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
 }
 function otColor(mins: number) {
   if (mins >= 120) return { bar: "#ef4444", badge: "bg-red-500/20 text-red-300 border-red-500/30" };

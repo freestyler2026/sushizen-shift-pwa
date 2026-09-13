@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
@@ -87,12 +88,12 @@ type PosBomCoverage = {
 };
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 function daysAgoStr(n: number) {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 export default function InventoryRecipesPage() {

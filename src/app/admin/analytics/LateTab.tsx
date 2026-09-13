@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChevronDown, ChevronRight, AlertTriangle, Users, Building2, Search, AlarmClock, TrendingUp, Clock } from "lucide-react";
 import { apiGet, qs } from "@/lib/api";
@@ -64,7 +65,7 @@ function isoFirstOfMonth(d: Date) {
 }
 
 function isoLastOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return isoDate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
 }
 
 // Severity color based on total late minutes

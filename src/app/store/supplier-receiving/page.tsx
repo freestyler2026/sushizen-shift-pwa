@@ -22,6 +22,7 @@ import {
 } from "@/lib/ui-tokens";
 import { getAuthHeaders, getAuth } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
+import { isoToday } from "@/lib/date";
 
 const STORES = ["PAR", "CUB", "TAFT"] as const;
 type Store = (typeof STORES)[number];
@@ -108,7 +109,7 @@ export default function SupplierReceivingPage() {
   const [eddSuccessMsg, setEddSuccessMsg] = useState<string | null>(null);
   const [eddError, setEddError] = useState<string | null>(null);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
 
   // ── Receiving tab ─────────────────────────────────────────────────────────────
   const load = useCallback(async () => {

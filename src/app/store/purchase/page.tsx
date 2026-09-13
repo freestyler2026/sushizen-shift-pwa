@@ -35,6 +35,7 @@ import {
   Star,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
+import { isoToday } from "@/lib/date";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ export default function StorePurchasePage() {
   const [vendorIsNew, setVendorIsNew]   = useState(false);
 
   // ── Form ──
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
   const [requestDate, setRequestDate] = useState(today);
   const [storeCode, setStoreCode]     = useState("");
   const [items, setItems]             = useState<ItemRow[]>([newItem()]);

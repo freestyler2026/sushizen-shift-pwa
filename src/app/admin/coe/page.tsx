@@ -1,6 +1,7 @@
 // src/app/admin/coe/page.tsx
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { FileCheck2, AlertTriangle, Download } from "lucide-react";
@@ -52,7 +53,7 @@ type CoeRow = {
   reject_note: string;
 };
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => isoToday();
 
 export default function CoePage() {
   const auth = getAuth();

@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import SelectDark from "@/components/SelectDark";
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { motion } from "framer-motion";
@@ -144,7 +145,7 @@ const STORE_LABELS: Record<Tab, string> = {
 function yesterday(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 function fmtPrice(v: number | null | undefined): string {

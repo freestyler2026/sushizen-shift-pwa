@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -288,7 +289,7 @@ function mergeOrderCountsResponses(responses: DubaiOrderCountsResp[]): DubaiOrde
 
 function defaultWideRange() {
   const to = new Date();
-  return { from: "2025-10-01", to: to.toISOString().slice(0, 10) };
+  return { from: "2025-10-01", to: isoDate(to) };
 }
 
 const MONTH_NAMES_DISPLAY = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -633,8 +634,8 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - (p.days - 1));
-    const fromStr = from.toISOString().slice(0, 10);
-    const toStr = to.toISOString().slice(0, 10);
+    const fromStr = isoDate(from);
+    const toStr = isoDate(to);
     setDateFrom(fromStr);
     setDateTo(toStr);
     void fetchData({ from: fromStr, to: toStr });

@@ -1,6 +1,7 @@
 // src/app/admin/backup/page.tsx
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prepareUpload } from "@/lib/image-compress";
@@ -373,7 +374,7 @@ const SECTION_LABELS: Record<string, string> = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+function todayStr() { return isoToday(); }
 let _k = 0;
 function nextKey() { return `fl_${++_k}`; }
 
@@ -679,7 +680,7 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
   const [expanded, setExpanded] = useState<number | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(d.getDate() - 7); return isoDate(d);
   });
   const [dateTo, setDateTo] = useState(todayStr);
 

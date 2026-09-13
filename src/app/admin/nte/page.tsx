@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -391,7 +392,7 @@ function IssueNteModal({
     staff_name: "",
     violation_code: "",
     severity_class: "B",
-    incident_date: new Date().toISOString().slice(0, 10),
+    incident_date: isoToday(),
     observed_acts: "",
     operational_impact: "",
     response_days: "5",

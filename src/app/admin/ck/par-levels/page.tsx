@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import SelectDark from "@/components/SelectDark";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
@@ -382,7 +383,7 @@ export default function CkParLevelsPage() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const today = new Date().toISOString().slice(0, 10);
+      const today = isoToday();
       a.href = url;
       a.download = `CK_ParLevel_Template_${city}_${today}.xlsx`;
       a.click();
@@ -521,7 +522,7 @@ export default function CkParLevelsPage() {
         return;
       }
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = isoToday();
       let successCount = 0;
       const errors: string[] = [];
 
@@ -898,7 +899,7 @@ export default function CkParLevelsPage() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const today = new Date().toISOString().slice(0, 10);
+      const today = isoToday();
       a.href = url;
       a.download = planType === "production"
         ? `CK_ProductionPlan_${city}_${today}.xlsx`
@@ -918,7 +919,7 @@ export default function CkParLevelsPage() {
     setPushResult(null);
     try {
       const auth = getAuth();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = isoToday();
       const res = await fetch(
         `/api/admin/ck/par-levels/push-to-plan?city=${cityParam(city)}&plan_date=${today}`,
         { method: "POST", headers: getAuthHeaders(auth) }

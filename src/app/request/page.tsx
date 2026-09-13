@@ -1,6 +1,7 @@
 // src/app/request/page.tsx
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prepareIfImage } from "@/lib/image-compress";
 import {
@@ -72,7 +73,7 @@ type Notification = {
   created_at: string;
 };
 
-function todayIso() { return new Date().toISOString().slice(0, 10); }
+function todayIso() { return isoToday(); }
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "approved") return <span className={BADGE_SUCCESS}><CheckCircle2 size={11} />Approved</span>;

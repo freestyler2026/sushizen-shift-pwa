@@ -1,4 +1,5 @@
 "use client";
+import { isoDate } from "@/lib/date";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -63,9 +64,8 @@ function investorFetch(path: string): Promise<unknown> {
 
 function defaultDateRange(): DateRange {
   const today = new Date();
-  const to = today.toISOString().slice(0, 10);
-  const from = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate())
-    .toISOString().slice(0, 10);
+  const to = isoDate(today);
+  const from = isoDate(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate()));
   return { from, to };
 }
 

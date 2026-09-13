@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
@@ -133,7 +134,7 @@ async function apiGet<T>(path: string): Promise<T> {
 
 function defaultWideRange() {
   const to = new Date();
-  return { from: "2025-10-01", to: to.toISOString().slice(0, 10) };
+  return { from: "2025-10-01", to: isoDate(to) };
 }
 
 function ratingColor(score: number | null | undefined): string {
@@ -214,8 +215,8 @@ export default function AggregatorRatingsTab({ approverName, pin, stepUpReady }:
     const to = new Date();
     const from = new Date(to);
     from.setDate(from.getDate() - (days - 1));
-    const fs = from.toISOString().slice(0, 10);
-    const ts = to.toISOString().slice(0, 10);
+    const fs = isoDate(from);
+    const ts = isoDate(to);
     setDateFrom(fs);
     setDateTo(ts);
     void fetchData({ from: fs, to: ts });

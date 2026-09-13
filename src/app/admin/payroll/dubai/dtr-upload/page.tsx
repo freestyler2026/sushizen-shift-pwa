@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import {
   AlertCircle, CheckCircle2, ChevronLeft, ClipboardList,
   FileSpreadsheet, Info, Loader2, RefreshCw, Upload, X, Eye, Download, Zap,
@@ -222,7 +223,7 @@ function downloadDtrCsv(rows: AttendanceRow[], periodId: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `dtr_period${periodId}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `dtr_period${periodId}_${isoToday()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }

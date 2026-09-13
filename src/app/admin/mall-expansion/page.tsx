@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useState } from "react";
 import { getAuthHeaders } from "@/lib/auth";
 
@@ -32,7 +33,7 @@ export default function MallExpansionPage() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const today = isoToday().replace(/-/g, "");
       a.href = url;
       a.download = `sushizen_mall_expansion_${today}.zip`;
       a.click();

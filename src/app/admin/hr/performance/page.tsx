@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Star, ChevronRight, X, CheckCircle, RefreshCw, AlertCircle, Clock } from "lucide-react";
@@ -547,7 +548,7 @@ export default function HRPerformancePage() {
   const [form, setForm] = useState({
     staff_name: "",
     review_type: "" as ReviewType | "",
-    review_date: new Date().toISOString().slice(0, 10),
+    review_date: isoToday(),
     review_period: "",
     reviewed_by: "",
     score_attendance: 0,
@@ -771,7 +772,7 @@ export default function HRPerformancePage() {
       setForm({
         staff_name: "",
         review_type: "",
-        review_date: new Date().toISOString().slice(0, 10),
+        review_date: isoToday(),
         review_period: "",
         reviewed_by: "",
         score_attendance: 0,

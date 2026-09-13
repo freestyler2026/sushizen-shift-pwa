@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -960,7 +961,7 @@ export default function DailyReportPage() {
     // Default to yesterday PHT
     const d = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
     d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
+    return isoDate(d);
   });
   const [error, setError] = useState("");
   const [allowed, setAllowed] = useState(false);
@@ -1011,7 +1012,7 @@ export default function DailyReportPage() {
       autoGenRef.current[city] = true;
       const d = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
       d.setDate(d.getDate() - 1);
-      const yesterday = d.toISOString().slice(0, 10);
+      const yesterday = isoDate(d);
       setGenerating(true);
       try {
         await apiPost<{ ok: boolean }>(

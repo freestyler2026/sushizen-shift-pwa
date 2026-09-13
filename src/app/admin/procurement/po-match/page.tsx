@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { prepareDataUrl } from "@/lib/image-compress";
 import {
@@ -213,7 +214,7 @@ type PendingCheck = {
   has_store_invoice_photo?: boolean;
 };
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = isoToday();
 
 // City context — set by PoMatchPage, consumed by all tabs
 const CityCtx = createContext<string>("dubai");
@@ -1960,7 +1961,7 @@ function AllRecordsTab() {
   const [vendorFilter, setVendorFilter] = useState("");
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
+    return isoDate(d);
   });
   const [dateTo, setDateTo] = useState(TODAY);
 

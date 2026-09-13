@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -147,7 +148,7 @@ function DubaiOverallRatings({ dateFrom: extFrom, dateTo: extTo, approverName, p
     if (days == null) { setDateFrom(""); setDateTo(""); void fetchData({ from: "", to: "" }); return; }
     const to = new Date(), from = new Date(to);
     from.setDate(from.getDate() - (days - 1));
-    const fs = from.toISOString().slice(0, 10), ts = to.toISOString().slice(0, 10);
+    const fs = isoDate(from), ts = isoDate(to);
     setDateFrom(fs); setDateTo(ts); void fetchData({ from: fs, to: ts });
   }
 
@@ -349,7 +350,7 @@ function ManilaRatingOverview({ dateFrom: extFrom, dateTo: extTo, approverName, 
     setActivePreset(label);
     if (days == null) { setDateFrom(""); setDateTo(""); void fetchData({ from: "", to: "" }); return; }
     const to = new Date(), from = new Date(to); from.setDate(from.getDate() - (days - 1));
-    const fs = from.toISOString().slice(0, 10), ts = to.toISOString().slice(0, 10);
+    const fs = isoDate(from), ts = isoDate(to);
     setDateFrom(fs); setDateTo(ts); void fetchData({ from: fs, to: ts });
   }
 

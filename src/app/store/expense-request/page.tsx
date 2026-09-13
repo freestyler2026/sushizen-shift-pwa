@@ -32,6 +32,7 @@ import {
   TABLE_CELL,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import { isoToday } from "@/lib/date";
 
 const CATEGORIES = ["Ingredients", "Transport", "Uniform", "Equipment", "Mobile", "Other"] as const;
 
@@ -90,7 +91,7 @@ export default function ExpenseRequestPage() {
   // Form state
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
-  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [expenseDate, setExpenseDate] = useState(() => isoToday());
   const [description, setDescription] = useState("");
   const [receiptImage, setReceiptImage] = useState("");
   const [receiptPreview, setReceiptPreview] = useState("");
@@ -175,7 +176,7 @@ export default function ExpenseRequestPage() {
       setSubmitSuccess("Request submitted successfully. You will receive a confirmation in your Inbox.");
       setCategory("");
       setAmount("");
-      setExpenseDate(new Date().toISOString().slice(0, 10));
+      setExpenseDate(isoToday());
       setDescription("");
       setReceiptImage("");
       setReceiptPreview("");

@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ChevronDown, ChevronRight, AlertTriangle,
@@ -39,22 +40,22 @@ function isoFirstOfMonth(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 function isoLastOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return isoDate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
 }
 function isoWeekStart(d: Date) {
   const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   const mon = new Date(d); mon.setDate(d.getDate() + diff);
-  return mon.toISOString().slice(0, 10);
+  return isoDate(mon);
 }
 function isoWeekEnd(weekStart: string) {
   const d = new Date(weekStart);
   d.setDate(d.getDate() + 6);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 function isoYesterday() {
   const d = new Date(); d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 function fmtShortDate(iso: string) {
   const d = new Date(iso + "T00:00:00");
@@ -205,7 +206,7 @@ export default function AbsenceTab({
     setLoading(true); setError(""); setRangeResult(null); setStaffRangeSearch("");
     try {
       const mFrom = `${monthYear}-${String(monthMonth).padStart(2, "0")}-01`;
-      const mTo   = new Date(monthYear, monthMonth, 0).toISOString().slice(0, 10);
+      const mTo   = isoDate(new Date(monthYear, monthMonth, 0));
       const r = await apiGet<RangeResult>(`/api/admin/analytics/absence/by_range${qs({ city, date_from: mFrom, date_to: mTo, approver_name: approverName, pin })}`);
       setRangeResult(r);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }

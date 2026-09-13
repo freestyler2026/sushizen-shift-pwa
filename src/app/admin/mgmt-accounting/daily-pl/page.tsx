@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import { useEffect, useState, useCallback } from "react";
 import { MgmtTabBar, DashboardLink } from "../MgmtTabs";
 import { useRouter } from "next/navigation";
@@ -100,13 +101,13 @@ const profitColor = (n: number) =>
 
 const today = () => {
   const d = new Date();
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 };
 
 const daysAgo = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 };
 
 // ─── Platform label map ───────────────────────────────────────────────────────

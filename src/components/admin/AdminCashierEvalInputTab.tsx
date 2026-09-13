@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
@@ -689,7 +690,7 @@ export default function AdminCashierEvalInputTab() {
             onClick={() => {
               const d = new Date(selectedDate + "T12:00:00");
               d.setDate(d.getDate() - 1);
-              setSelectedDate(d.toISOString().slice(0, 10));
+              setSelectedDate(isoDate(d));
             }}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
           >
@@ -706,7 +707,7 @@ export default function AdminCashierEvalInputTab() {
             onClick={() => {
               const d = new Date(selectedDate + "T12:00:00");
               d.setDate(d.getDate() + 1);
-              setSelectedDate(d.toISOString().slice(0, 10));
+              setSelectedDate(isoDate(d));
             }}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
           >

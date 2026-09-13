@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -36,7 +37,7 @@ const STORE_COLORS: Record<string, string> = {
 function monthStart(ym: string) { return `${ym}-01`; }
 function monthEnd(ym: string) {
   const [y, m] = ym.split("-").map(Number);
-  return new Date(y, m, 0).toISOString().slice(0, 10);
+  return isoDate(new Date(y, m, 0));
 }
 function daysInMonth(ym: string): string[] {
   const [y, m] = ym.split("-").map(Number);
@@ -275,7 +276,7 @@ export default function DeliverySchedulePage() {
             }
             const { day, isWeekend } = dayLabel(date);
             const dayEntries = byDate.get(date) || [];
-            const isToday = date === new Date().toISOString().slice(0, 10);
+            const isToday = date === isoToday();
 
             return (
               <div

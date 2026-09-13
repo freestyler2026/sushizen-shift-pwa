@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
@@ -261,7 +262,7 @@ export default function InventoryCountSheetsPage() {
 
   function autoTemplateName() {
     const branchLabel = labelOf(city, branchCode) || branchCode || city.toUpperCase();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = isoToday();
     return `${branchLabel} ${cycleLabel(cycle)} ${today}`;
   }
 

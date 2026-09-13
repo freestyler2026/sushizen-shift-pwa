@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   BarChart,
@@ -150,13 +151,13 @@ function scoreBg(score: number) {
 }
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 function sevenDaysAgoIso() {
   const d = new Date();
   d.setDate(d.getDate() - 6);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 // Return ISO date of the Sunday that starts the week containing dateStr
@@ -164,7 +165,7 @@ function weekKey(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   const sun = new Date(d);
   sun.setDate(d.getDate() - d.getDay());
-  return sun.toISOString().slice(0, 10);
+  return isoDate(sun);
 }
 
 // "MM/DD – MM/DD" label for a Sunday-start week
@@ -264,7 +265,7 @@ function WeeklyHistoryPanel({
   function sameWeekLastYear(weekStart: string): WeeklyHistoryRow | null {
     const d = new Date(weekStart + "T00:00:00");
     d.setDate(d.getDate() - 364);
-    return weekMap.get(d.toISOString().slice(0, 10)) ?? null;
+    return weekMap.get(isoDate(d)) ?? null;
   }
 
   const dubaiStores = allStores.filter((s) => s.city === "dubai");

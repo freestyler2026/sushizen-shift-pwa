@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import SelectDark from "@/components/SelectDark";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -57,7 +58,7 @@ function fmtAmt(amount: number | null, currency: string): string {
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 function isOverdue(p: Payment): boolean {
@@ -72,7 +73,7 @@ function isDueSoon(p: Payment): boolean {
 function addDays(d: string, n: number): string {
   const dt = new Date(d);
   dt.setDate(dt.getDate() + n);
-  return dt.toISOString().slice(0, 10);
+  return isoDate(dt);
 }
 
 function statusLabel(p: Payment): { label: string; color: string } {

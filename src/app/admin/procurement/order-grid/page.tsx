@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -44,7 +45,7 @@ const ORDER_TYPES = [
   { value: "CK_WH_to_supplier", label: "CK/WH → Supplier" },
 ];
 
-function today(): string { return new Date().toISOString().slice(0, 10); }
+function today(): string { return isoToday(); }
 function fmt(n: number) {
   return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -196,7 +197,7 @@ function LoanDetailPanel({
   const [showRejectForm, setShowRejectForm] = useState(false);
   // Disburse modal state
   const [showDisburseForm, setShowDisburseForm] = useState(false);
-  const [disburseAt, setDisburseAt] = useState(new Date().toISOString().slice(0, 10));
+  const [disburseAt, setDisburseAt] = useState(isoToday());
   const [startCycleId, setStartCycleId] = useState<string>(String(cycles[0]?.id ?? ""));
 
   useEffect(() => {

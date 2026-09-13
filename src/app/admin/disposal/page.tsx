@@ -1,6 +1,7 @@
 // src/app/admin/disposal/page.tsx
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prepareUpload } from "@/lib/image-compress";
@@ -124,7 +125,7 @@ function normaliseCategory(cat: string): string {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function todayStr(): string { return new Date().toISOString().slice(0, 10); }
+function todayStr(): string { return isoToday(); }
 
 function formatDateTime(iso: string): string {
   if (!iso) return "";
@@ -449,7 +450,7 @@ function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
   const [syncingReportId, setSyncingReportId] = useState<number | null>(null);
   const [syncResults, setSyncResults] = useState<Record<number, string>>({});
   const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(d.getDate() - 7); return isoDate(d);
   });
   const [dateTo, setDateTo] = useState(todayStr);
 

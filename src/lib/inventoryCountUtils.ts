@@ -1,3 +1,4 @@
+import { isoToday } from "@/lib/date";
 import { BRANCHES, type City } from "@/lib/branches";
 
 export type InventoryItemLookup = {
@@ -39,7 +40,7 @@ export function monthNow() {
 }
 
 export function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 export function defaultBranch(city: City) {

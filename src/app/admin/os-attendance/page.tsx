@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday, isoDate } from "@/lib/date";
 import {
   AlertTriangle, BarChart2, CheckCircle, ChevronDown, ChevronRight,
   Clock, Download, Fingerprint, Loader2, MapPin, Pencil, Plus,
@@ -165,7 +166,7 @@ function localTimeToIso(date: string, hhmm: string, city = "manila"): string {
 function nextDateStr(date: string): string {
   const d = new Date(`${date}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 function sessionStatus(s: AttendanceSession): "clocked_out" | "on_shift" | "not_clocked_in" {
@@ -289,9 +290,9 @@ function StaffReportTab({ city }: { city: string }) {
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
     d.setDate(1);
-    return d.toISOString().slice(0, 10);
+    return isoDate(d);
   });
-  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [toDate, setToDate] = useState(() => isoToday());
   const [report, setReport] = useState<StaffReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -1935,7 +1936,7 @@ function LateAlertsTab() {
   const [schedule, setSchedule] = useState<PublishedShift[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
 
   async function loadData() {
     setLoading(true);
@@ -2742,7 +2743,7 @@ type SummaryRow = {
 type SortKey = "absent" | "late" | "late_min" | "name";
 
 function AttendanceSummaryTab({ city }: { city: string }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
   const firstOfMonth = today.slice(0, 8) + "01";
 
   const [fromDate, setFromDate] = useState(firstOfMonth);

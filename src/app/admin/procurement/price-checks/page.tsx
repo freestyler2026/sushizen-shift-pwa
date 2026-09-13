@@ -1,5 +1,6 @@
 "use client";
 
+import { isoDate } from "@/lib/date";
 import {
   AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Download,
   Minus, RefreshCw, TrendingDown, TrendingUp, TriangleAlert,
@@ -15,7 +16,7 @@ import SelectDark from "@/components/SelectDark";
 // ─────────────────────────────────────────────────────────────────────────────
 
 function toIso(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return isoDate(d);
 }
 
 function getPresetRange(key: string): { from: string; to: string } {

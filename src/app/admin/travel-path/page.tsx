@@ -1,5 +1,6 @@
 "use client";
 
+import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
@@ -213,7 +214,7 @@ function TemperatureInputGrid({
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return isoToday();
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {

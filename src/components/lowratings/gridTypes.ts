@@ -1,3 +1,4 @@
+import { isoToday } from "@/lib/date";
 import type { LowRatingCity } from "@/types/lowRating";
 
 export type GridRowState = {
@@ -74,7 +75,7 @@ export function getColumnsForCity(city: LowRatingCity): ColDef[] {
 }
 
 export function newEmptyRow(city: LowRatingCity, localId: string): GridRowState {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoToday();
   return {
     _localId: localId,
     _isDraft: true,
