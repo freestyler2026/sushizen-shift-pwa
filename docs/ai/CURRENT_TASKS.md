@@ -24447,3 +24447,54 @@ Pending バッジは**取得した1ページの長さ**を出していたため�
 `count_pending_po_invoice_checks` を追加し、実件数を表示。あわせて
 「Showing the 50 oldest of 304 waiting. 請求書番号を入れることが、請求書画面にPOを出す操作です」
 と、その入力が何に効くのかを画面に書いた。
+
+## 2026-09-13 — 入力待ちキューの上限撤廃と、処理経路の通し検証
+
+### 上限を上げる前に測ったこと（教訓29の表に載っているテーブル）
+
+`proc_po_invoice_checks` は base64 画像を持ち、**過去に一覧クエリで本番を3回落としたテーブル**。
+上限を上げる前に実測:
+
+- `list_pending_po_invoice_checks` は**写真本体を SELECT していない**（`has_photo_data` /
+  `has_store_invoice_photo` の真偽値のみ）
+- `extra_photos` は選択されているが、**PENDING 行では全件空**（最大2バイト＝`[]`）
+- 1行あたり約130バイト
+
+→ 安全と確認したうえで `le=200 → le=1000`、既定 `100 → 500`、画面の要求を `50 → 500` に。
+**実測: Dubai 303行を 150ms / 222KB、Manila 300行を 52ms / 214KB で返す。**
+
+### ⚠️ 自分が前日に入れた件数が一覧と食い違っていた（修正済み）
+
+`count_pending_po_invoice_checks` を `COALESCE(BTRIM(invoice_no),'')=''` で数えていたが、
+一覧の条件は `match_status='PENDING'`。**同じに見えて違った**:
+
+| | invoice_no 空 | PENDING | 両方 |
+|---|---:|---:|---:|
+| dubai | 304 | 303 | 303 |
+| **manila** | **287** | **300** | **261** |
+
+Manila は **39件が PENDING なのに請求書番号を持ち、26件が空なのに PENDING でない**。
+バッジ287・一覧300という、まさに自分が教訓73で戒めた形を作っていた。→ 一覧と同じ WHERE に統一。
+
+### 入力しても画面に反映されなかった（修正済み）
+
+`finalize_po_invoice_check` は請求書番号を書くだけで、`invoice_line_items.po_number` は
+**翌日の sync まで入らなかった**。入力した人が画面の変化を見られない＝キューが続かない形。
+
+→ finalize の直後に **その請求書1件だけ**紐づける（`link_invoice_lines_to_pos(invoice_no=...)`
+を追加）。市場全体の走査は Dubai で **430ms** あり、300件を捌く操作に毎回は重いため。
+レスポンスに `po_linked` を載せ、何行に効いたかを返す。
+
+### 通し検証（隔離city `qa-po`・実HTTP・後始末済み）
+
+```
+① 明細の PO番号（入力前）: None
+② 入力待ちキュー: HTTP 200 / rows=2 / total=2
+③ PATCH finalize     : HTTP 200 / match_status=MATCHED / po_linked=1
+④ 明細: QA-INV-0001 → 'PO-CASE-QA-0001'      ← その場で入る
+⑤ キュー: rows=1 / total=1                    ← 処理済みは消える
+⑥ 残存: checks 0 / lines 0
+```
+
+⚠️ 検証用スクリプトの接続が `autocommit=True` だったため、最初の失敗した試行が
+`qa-po` に1行残した（数分）。削除済み・残存0を確認（教訓38）。
