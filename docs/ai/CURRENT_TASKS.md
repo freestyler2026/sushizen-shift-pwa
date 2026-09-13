@@ -1,5 +1,58 @@
 # CURRENT_TASKS.md
 
+## 2026-09-13（続き3） — 年初来残高は CSV 取込に決定
+
+レビューの推奨（CSV取込＋検証レポート）を採用。**ただし前提に2つ誤りがあった。**
+
+| レビューの記述 | 実際 |
+|---|---|
+| 「Camilla さんが CSV を作る」 | **Camilla は HR_STAFF。** 給与担当は **Cyrine Fernandez**（PAYROLL_SALARY_VIEW 保有）。私が検算例で Camilla Gadingan を使ったため名前を拾われた |
+| 「93名分」 | **在籍64名。開始残高が要るのは34名**（2026-06-25より前から在籍）。別に17名が前職2316の対象になりうる |
+| CSV に `employee_code` | **その列は存在しない。** bayzat_id 41/64・TIN 32/64・SSS 45/64 と歯抜けで、全員を一意に指せるのは `staff_name` のみ |
+
+### レビューが知りようがなかった点
+
+「CSVの合計が旧システムの月次集計と一致するか。**この最後の照合が最も重要**」——同意だが、
+**このDBには照合材料が無い。** `payroll_staff_monthly` にマニラの2026-01〜03があるが、
+**全行 金額ゼロ**（名簿の取込で、通貨もAED誤り）。最初これを照合に使う実装にしたところ、
+実額 vs 0.00 という**存在しない差異**を表示した。
+
+→ 照合は `--expect-gross / --expect-taxable / --expect-wht` で**旧システムの報告合計を別途入力**し、
+CSVの明細合計と突き合わせる形にした。同じ報告書から2通りに転記させ、食い違えばどちらかが誤り。
+合計を渡さない場合は「何も照合していない」と明示する。
+
+### 双方が見落としていた点 — 年の境界
+
+レビューは「給与上の年 = 2025-12-26〜2026-12-25」と書けばよいとした。だが
+**BIR は発生ではなく支払に課税する**（RR 2-98）。当社の期間ラベルは支払月で付いているので、
+`period.year` はそのまま BIR の課税年になり、実装は既に正しい。
+
+**⚠️ ただし `manila_payroll_periods.paid_at` が全期間 NULL。** 「ラベル＝支払月」という前提が
+どこにも記録されていない。→ `docs/payroll/manila-cutoff-to-calendar-month.md` に明文化し、
+**今後は支払時に `paid_at` を記録する**運用を課題として残した。
+
+### 作ったもの
+
+- `manila_ytd_opening` を拡張：`source`（OLD_SYSTEM / PRIOR_EMPLOYER_2316）、gross・
+  SSS・PhilHealth・Pag-IBIG の内訳、covers_from/to、前職名とTIN、監査列。
+  **キーは (staff_name, year, source)** — 1人が両方を持ちうる
+- `scripts/import_ytd_opening.py`：在籍確認・負値・taxable≤gross・法定控除の整合・
+  移行日をまたぐ期間の検出・合計照合・CSV未掲載者の列挙。**`--commit` なしでは書かない**
+- `~/Downloads/ytd_opening_2026_template.csv`（34名・covers_from を入社日で個別設定済み）
+- `docs/payroll/manila-cutoff-to-calendar-month.md`
+
+### 検証
+
+不正4行（移行日跨ぎ・taxable>gross・在籍外・マイナス）を全て捕捉、正常3行を受理、
+合計一致でOK / 1,000円ずらすと MISMATCH で書き込み拒否。本番 401。
+
+### 次にやること
+
+1. **Cyrine に CSV 作成を依頼**（今週中）。34名分＋旧システムの年合計3つ
+2. 11月中旬までに取込・検証、11月下旬にテスト実行
+3. BIR Form 2316 の帳票出力（期限は翌年1/31。年末調整のデータ構造は2316の項目に合わせてある）
+
+
 ## 2026-09-13（続き2） — Fable のレビュー指摘を反映
 
 第1版の計算式を外部レビューに掛けた結果の修正。**3点が法令上の要対応だった。**
