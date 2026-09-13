@@ -24090,3 +24090,51 @@ vs マスタ99/155）。名称は空白の連続と大小文字を無視して�
 - 店舗別食材費にCK納品を全額載せると都市合計を78万PHP超過する。仕切り価格の扱いを要決定。
 - Talabatの入金は SZ/RZ/AVS のブランド単位で店舗配分不可（ユーザー了承済み）。
 - マニラ 2025-10〜2026-02 の経費が直近の3倍（按分補正では解消せず）。
+
+## 2026-09-13 — 遅刻アラートの ack が届いていなかった件（完了・デプロイ済み v2831）
+
+**症状**: Peter John Villafuerte が 10:17（マニラ）に `I'll handle it` と返信した後も、
+Bot からの督促が届き続けた（alert id=661 / Anthony Andales / manila CUB / OPENING）。
+
+**原因**: DMを送るのは `Notification_bot`（Notification Bot, 1500915356577828884）だが、
+`on_message` を持つ唯一のリスナーは `DISCORD_BOT_TOKEN`（upload pictures bot,
+1316013419190685787）で動いていた。**別アプリケーションなので返信は誰も読まない受信箱に入る。**
+Peter のメッセージは `_ACK_KEYWORDS` に完全一致しており、**本人の書き方は正しかった**。
+
+**修正**: `app/services/discord_bot_service.py` に `run_ack_listener()` /
+`start_ack_listener_thread()` を追加。`Notification_bot` トークンで接続し、**DMのみ**を見る
+（ギルドは既存BotのQC採点に任せる）。ack判定は `_ACK_KEYWORDS` +
+`_take_ack_if_that_is_what_it_is()` の1箇所に集約。`worker.py` が起動時に立ち上げ、
+watchdog で落ちたら再起動する。
+
+**検証**: `heroku logs --tail` を張った状態で `ps:restart worker` し、
+`[Ack Listener] Connected as Notification Bot#1047 (1500915356577828884)` を実測で確認。
+本番の未ackアラートに対し「Peter の `I'll handle it` が何件にマッチするか」を
+**SELECTのみ**で確認（id=661 の1件／`ok`・`Noted po` は無視される）。
+
+**残**: id=661 は `acknowledged_at` が NULL のまま。督促は `OPENING_ESCALATION_MIN=(60,120)`
+の2回で打ち止めなので、これ以上は送られない。**当日の記録として、実際にシステムが
+受け取れていなかったことをそのまま残す**（今さら ack を書くと時刻が嘘になる）。
+
+## 2026-09-13 — worker.py で見つかった既存の不具合2件（未修正・報告のみ）
+
+どちらも 2026-09-04 のコミットで入り、**9日間一度も動いていない**。今回のDiscord調査で
+worker の起動ログを読んで発覚した。私の変更が原因ではない（`git show HEAD~1` で確認済み）。
+
+1. `worker.py:1760` `run_management_send_reminder(now)` → **NameError**。
+   関数の def が `if __name__ == "__main__": main()` **より下**（2116行目）にあるため、
+   モジュール本体が `main()` で止まり def が実行されない。
+   17:30 に BO オーナーへ「未送信が溜まっている」と伝える機能で、docstring によれば
+   par-level alert の平均待ち時間 9.9 時間を解消するために作られたもの。
+   **直すと Discord DM が飛び始めるので、代表の判断を待つ。**
+
+2. `worker.py:1740` `from app.db import autosend_due_backup_tasks` → **ImportError**。
+   この関数は 2026-09-04 の `19e6e35f` で `app/db.py` から削除され、**どこにも存在しない**。
+   worker は例外を握って次に進むので、ログ以外に症状が出ない。
+
+⚠️ **Heroku のログ保持枠はこのアプリでは1分程度しかない。**`heroku logs -n 1500` では
+worker の起動行が既に流れている。起動ログを読むときは `heroku logs --tail` を先に張ってから
+`heroku ps:restart worker` すること。
+
+⚠️ リポジトリに `app/db 2.py` / `worker 2.py`（Finder の複製）が残っている。
+grep の結果を汚すので、整理の対象。

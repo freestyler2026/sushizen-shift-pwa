@@ -968,6 +968,18 @@ npx tsc --noEmit
     - 固定的な誤読はプロンプトでは直らない。**書類を開いて人が入れ、根拠を `confidence_notes` に残す**（「書類には20/08/2026とある。OCRは3回とも26/07/2026を返した」）。
     - 一括再実行の前に **before を退避する**。今回 `drive_invoices` の日付書き換えにバックアップ表が無く、`ocr_raw_json` に元の読みが残っていたことだけが復元の根拠だった（教訓37）。
 
+101. **「〜と返信してください」と書く機能は、その返信を受け取る側が同じBotアプリケーションか確かめる** → 遅刻アラートのDMは「Reply with: `I'll handle it`」と案内していたが、DMを送るのは `Notification_bot`（Notification Bot / 1500915356577828884）で、`on_message` を持つ唯一のリスナーは `DISCORD_BOT_TOKEN`（upload pictures bot / 1316013419190685787）で動いていた。**別アプリケーションなので、返信は誰も読まない受信箱に入る。** Peter は正しく返信したのに、60分後・120分後の督促が予定どおり届いた（alert id=661、`acknowledged_at` は NULL のまま）。（2026-09-13 修正・`run_ack_listener()` を追加）
+    - **トークンが2種類ある時点で疑う。** 両方とも `message_content` intent を持ち、両方とも正常に動いていた。壊れていたのは**送信側と受信側の対応**だけで、どちらのBotを単体で調べても異常は出ない。
+    - 判定方法は**送信コードが読む環境変数名と、リスナーが読む環境変数名を並べる**こと（`app/discord_webhook.py` の `send_discord_dm` = `Notification_bot` / `discord_bot_service.run_discord_bot` = `DISCORD_BOT_TOKEN`）。
+    - ack判定のキーワードは**1箇所に置く**（`_ACK_KEYWORDS` / `_take_ack_if_that_is_what_it_is`）。2つのBotが同じ文言を待つので、写すと必ず片方がずれる（教訓62）。
+    - 新しいリスナーは**DMのみ**を見る。ギルドのメッセージに触るとQC採点をしている既存Botと二重処理になる。
+    - 教訓21と同型 — **実行できない案内は、案内が無いより悪い。** 今回は「現場が指示どおりに返信したのに無視された」ので、次から誰も返信しなくなる方向に効く。
+
+102. **Pythonの `if __name__ == "__main__": main()` より下に関数を定義すると、その関数は永久に存在しない** → `worker.py:2116` の `run_management_send_reminder` は `main()` の呼び出し行より後ろに置かれていた。モジュール本体は `main()` で止まるので def が実行されず、`main()` 内の呼び出しは毎回 `NameError`。**2026-09-04 に追加されてから一度も動いていない。** docstring には「Par-level alerts waited an average of 9.9 hours」とあり、その待ち時間を解消するために作った機能そのものが動いていなかった。
+    - 同じ日のコミットで `autosend_due_backup_tasks` も `app/db.py` から削除され、`worker.py:1740` の import だけが残って `ImportError` を出し続けている。**worker は例外を握って次の処理に進むので、9日間ログ以外どこにも症状が出なかった。**
+    - 検知は起動直後のログを1画面読むだけでよい。**ただし Heroku のログ保持枠はこのアプリでは1分程度しかない** — `heroku logs -n 1500` では起動行が既に流れている。`heroku logs --tail` を先に張ってから `heroku ps:restart` する。
+    - 教訓55・58と同型（「動いているように見えて、入口が繋がっていない」）。違いは、**ここでは Python の定義順という言語仕様が入口を切っていた**こと。
+
 18. **外部マスタ（公開シフト）を無条件に信じて実績データを上書きしない** → 公開シフトが誤っているケースは実在する（正しいDTR×誤シフト35行 vs その逆9行）。実打刻という「事実」を判定基準にし、乖離が大きい場合は上書きせず要確認リストに回す（`_SCHEDULE_CONFLICT_H = 2.0`）。真の遅刻者は既存スケジュールと公開シフトが一致するため影響を受けない。（2026-08-24 実装）
 
 41. **`dangerouslySetInnerHTML` のテンプレートリテラル内で `\'` を書くと、ブラウザに届く前に素の `'` になる** → `layout.tsx` の ChunkLoadError 復旧スクリプトが `onclick="...removeItem(\'zen:reload-attempt\')..."` を innerHTML 文字列に埋めており、テンプレートリテラルが `\'` を `'` に変換した結果、JS文字列が途中で終端して `Uncaught SyntaxError: Unexpected identifier 'zen'` になっていた。**構文エラーはスクリプト全体を殺すので、末尾の `addEventListener` が一度も登録されていなかった** — デプロイ後に古いHTMLを掴んだ端末が自動リロードされず、白画面のまま放置される。**2026-08-09 から3週間、全ページで発動していた。**（2026-09-01 修正）
