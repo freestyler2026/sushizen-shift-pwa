@@ -230,15 +230,23 @@ taxable(month equivalent)
            - 2 x (SSS + WISP + PhilHealth + Pag-IBIG actually taken here)
            - de minimis , 0 )
 
-annual   = taxable x 12
-tax      = bracket.base + bracket.rate x max(annual - bracket.over, 0)
-this cut-off = round(tax / 12, 2) x 0.5        i.e. annual / 24`}</Formula>
+taxable(this cut-off) = that / 2
+
+this cut-off = the PRESCRIBED semi-monthly table (RR 11-2018 Annex E):
+    up to    10,416.99   0.00
+    10,417 - 16,666.99   0.00      + 15% over  10,417
+    16,667 - 33,332.99   937.50    + 20% over  16,667
+    33,333 - 83,332.99   4,270.70  + 25% over  33,333
+    83,333 - 333,332.99  16,770.70 + 30% over  83,333
+    333,333 and above    91,770.70 + 35% over 333,333`}</Formula>
         <p className={T_BODY}>
-          Dividing the annual brackets by 24 <em>is</em> the semi-monthly column
-          of Annex E — the two agree to the centavo. The contributions subtracted
-          are the ones actually withheld this period, which is what RR 2-98
-          requires; the doubling is only because the base is expressed as a
-          month.
+          The table is read, not derived. Dividing the annual brackets by 24 is
+          close but not the same figure: it gives 4,270.83 where the prescribed
+          table says 4,270.70, and the same thirteen centavos runs through the
+          two bands above it. The regulation says to withhold in accordance with
+          the prescribed table, so the prescribed table is what is stored. The
+          contributions subtracted are the ones actually withheld this period,
+          which is what RR 2-98 requires.
         </p>
         <Note tone="warn">
           Tax is never computed from the contract rate. A new hire paid ₱2,000.44
@@ -421,7 +429,7 @@ export default function HowPayIsComputedPage() {
         </div>
         <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400">
           <Scale size={14} className="text-violet-400" />
-          Reviewed 13 Sep 2026
+          Reviewed 13 Sep 2026 · Annex E verified
         </div>
       </div>
 
