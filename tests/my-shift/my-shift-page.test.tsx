@@ -297,12 +297,16 @@ describe("MyShiftPage", () => {
         })
       );
       render(<MyShiftPage />);
-      // dayThisMonth(12) appears in both the Selected Day header and the monthly table
+      // Two monthly_rows go in, and the Monthly Shifts header counts one: the
+      // absence row was filtered out. Asserted on the count rather than on the
+      // dates, because the page selects today whenever today is one of the days
+      // — so on the 13th of the month the Selected Day header carries
+      // dayThisMonth(13) and its DAY_OFF chip, which is correct and not this
+      // test's subject.
       await waitFor(() =>
-        expect(screen.getAllByText(dayThisMonth(12)).length).toBeGreaterThanOrEqual(2)
+        expect(screen.getByText(/^1 entries$/i)).toBeInTheDocument()
       , { timeout: 5000 });
-      // Absence row should NOT appear in the monthly table
-      expect(screen.queryByText("DAY_OFF")).not.toBeInTheDocument();
+      expect(screen.getAllByText(dayThisMonth(12)).length).toBeGreaterThanOrEqual(1);
     });
   });
 
