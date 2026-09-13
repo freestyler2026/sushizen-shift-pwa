@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus, ChevronRight, RefreshCw, Star, Calendar, ClipboardList } from "lucide-react";
+import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2 } from "lucide-react";
 import { getAuth, refreshAuthFromApi, getAuthHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -70,6 +70,12 @@ type Applicant = {
   never_moved?: boolean;
   prior_applications?: number;
   prior_last_applied?: string | null;
+  /** Where the resume is. The file itself is never in this payload -- only
+   *  which screening holds it, so the panel can offer to open that one
+   *  (lesson 29). Null means none on file. */
+  resume_screening_id?: number | null;
+  resume_filename?: string;
+  resume_bytes?: number;
 };
 
 /** After this long with nothing happening, an open application is not being
@@ -102,6 +108,35 @@ const LANE_LABEL: Record<Lane, string> = {
 
 /** The two points where a decision is actually made. Past these, moving someone
  *  on without saying why is what left 55 candidates undecided for up to 49 days. */
+/** The resume is served one file at a time from the screening that holds it.
+ *  Relative path on purpose: the httpOnly cookie only reaches the Vercel
+ *  domain, and the proxy is what turns it into a Bearer header (lesson 13). */
+function resumeHref(screeningId: number): string {
+  return `/api/admin/hr/voice-screenings/${screeningId}/resume`;
+}
+
+function isImageName(name: string): boolean {
+  return /\.(jpe?g|png|gif|webp|heic)$/i.test(name.trim());
+}
+
+/** The stage before this one, so a move made by mistake has a way back.
+ *  The board's one-tap button only ever moves forward, and until now the only
+ *  route back was a dropdown two clicks inside a panel nobody had opened. */
+function getPrevStatus(status: KanbanStatus): KanbanStatus | null {
+  const order: KanbanStatus[] = ["new", "screened", "scheduled", "interviewed", "offer_sent"];
+  const i = order.indexOf(status);
+  return i > 0 ? order[i - 1] : null;
+}
+
+/** Readable size for a resume. A filename on its own does not say whether the
+ *  thing is a real CV or a screenshot of one. */
+function fileSize(bytes: number): string {
+  if (!bytes) return "";
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.round(bytes / 1024)} KB`;
+}
+
 function needsOutcome(status: KanbanStatus) {
   return status === "scheduled" || status === "interviewed";
 }
@@ -832,6 +867,62 @@ function DetailPanel({
               ))}
             </div>
 
+            {/* Resume. It is asked for at application time and 72 of the 101
+                people waiting in New have sent one, but until now the pipeline
+                could not say so -- the file sits on the voice-screening row,
+                and nothing on this screen pointed at it. Only the name and
+                size travel here; the file is fetched when it is opened. */}
+            <div className={`${GLASS_CARD} p-4`}>
+              <p className={T_LABEL}>Resume 履歴書</p>
+              {applicant.resume_screening_id ? (
+                <>
+                  <p className="mt-1 text-sm text-zinc-200 break-all">
+                    {applicant.resume_filename || "resume"}
+                    {applicant.resume_bytes ? (
+                      <span className="ml-2 text-zinc-500">
+                        {fileSize(applicant.resume_bytes)}
+                      </span>
+                    ) : null}
+                  </p>
+                  {isImageName(applicant.resume_filename || "") && (
+                    // Most of them are a photo of a printed CV. A thumbnail
+                    // answers "is this readable at all" without a round trip
+                    // to another tab.
+                    <a
+                      href={resumeHref(applicant.resume_screening_id)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 block overflow-hidden rounded-lg border border-white/10"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={resumeHref(applicant.resume_screening_id)}
+                        alt={applicant.resume_filename || "Resume"}
+                        className="max-h-56 w-full object-cover object-top"
+                      />
+                    </a>
+                  )}
+                  <a
+                    href={resumeHref(applicant.resume_screening_id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`${PRIMARY_BUTTON} mt-2 flex w-full items-center justify-center gap-2`}
+                  >
+                    <FileText className="h-4 w-4" />
+                    Open resume
+                  </a>
+                </>
+              ) : (
+                // Two different situations, and we cannot tell them apart from
+                // here, so say both rather than pick one and be wrong half the
+                // time.
+                <p className={`${T_CAPTION} mt-1`}>
+                  Nothing on file — either they never sent one, or it is past
+                  its retention date.
+                </p>
+              )}
+            </div>
+
             {applicant.notes && (
               <div className={`${GLASS_CARD} p-4`}>
                 <p className={T_LABEL}>Notes</p>
@@ -858,6 +949,20 @@ function DetailPanel({
                   onChange={v => void handleStatusChange(v as KanbanStatus)}
                   options={ALL_STATUSES.map(s => ({ value: s, label: KANBAN_COLUMNS.find(c => c.id === s)?.label || s }))}
                 />
+                {/* A named way back. The dropdown could already do this, but it
+                    reads as "set the stage", not as "I pressed the wrong
+                    button" -- so a move made by accident had no obvious
+                    undo and people asked for one (lesson 22). */}
+                {getPrevStatus(localStatus) && !pendingStatus && (
+                  <button
+                    className={`${SMALL_BUTTON} mt-2 flex w-full items-center justify-center gap-1`}
+                    disabled={statusChanging}
+                    onClick={() => void handleStatusChange(getPrevStatus(localStatus) as KanbanStatus)}
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                    Move back to {KANBAN_COLUMNS.find(c => c.id === getPrevStatus(localStatus))?.label}
+                  </button>
+                )}
                 {pendingStatus && (
                   <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3">
                     <p className={`${T_LABEL} mb-2`}>Why are we turning them down?</p>
@@ -2666,6 +2771,12 @@ export default function HRRecruitmentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
+  /** The last one-tap stage move, kept so it can be taken back. It stays until
+   *  it is used, dismissed, or replaced by the next move -- a bar that fades
+   *  after a few seconds is the same as not having one, because the card has
+   *  already jumped to another column by then (lesson 56). */
+  const [lastMove, setLastMove] =
+    useState<{ id: string; name: string; from: KanbanStatus; to: KanbanStatus } | null>(null);
   const [showAddApplicant, setShowAddApplicant] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
@@ -2696,6 +2807,9 @@ export default function HRRecruitmentPage() {
   const [savingRequisition, setSavingRequisition] = useState(false);
 
   const authRef = useRef(getAuth());
+  /** Read inside a callback without putting the whole list in its deps -- the
+   *  undo needs the stage a card was on the instant it was clicked. */
+  const applicantsRef = useRef<Applicant[]>([]);
 
   // ── Auth check ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -3013,6 +3127,8 @@ export default function HRRecruitmentPage() {
     }
   };
 
+  useEffect(() => { applicantsRef.current = applicants; }, [applicants]);
+
   const handleStatusChange = useCallback(
     (id: string, status: KanbanStatus) => {
       setApplicants((prev) =>
@@ -3025,8 +3141,8 @@ export default function HRRecruitmentPage() {
     [selectedApplicant]
   );
 
-  const handleQuickStatus = useCallback(
-    async (id: string, newStatus: KanbanStatus) => {
+  const patchStatus = useCallback(
+    async (id: string, newStatus: KanbanStatus, origin: string) => {
       const auth = authRef.current;
       if (!auth) return;
       // Optimistic update
@@ -3035,7 +3151,10 @@ export default function HRRecruitmentPage() {
         const res = await fetch(`${API_BASE}/api/admin/hr/applicants/${id}`, {
           method: "PATCH",
           headers: getAuthHeaders(auth),
-          body: JSON.stringify({ status: newStatus }),
+          // The history is only worth reading if it says where the move came
+          // from. Left unset this defaults to "detail_panel", which is untrue
+          // for every card on the board.
+          body: JSON.stringify({ status: newStatus, origin_screen: origin }),
         });
         if (!res.ok) {
           // Revert on error by reloading
@@ -3047,6 +3166,24 @@ export default function HRRecruitmentPage() {
     },
     [handleStatusChange, loadData]
   );
+
+  const handleQuickStatus = useCallback(
+    async (id: string, newStatus: KanbanStatus) => {
+      const from = applicantsRef.current.find((a) => a.id === id);
+      if (from) {
+        setLastMove({ id, name: from.full_name, from: from.status, to: newStatus });
+      }
+      await patchStatus(id, newStatus, "board");
+    },
+    [patchStatus]
+  );
+
+  const handleUndoMove = useCallback(async () => {
+    if (!lastMove) return;
+    const m = lastMove;
+    setLastMove(null);
+    await patchStatus(m.id, m.from, "board_undo");
+  }, [lastMove, patchStatus]);
 
   // ── Kanban grouping ───────────────────────────────────────────────────────
 
@@ -3282,6 +3419,32 @@ export default function HRRecruitmentPage() {
             </p>
           </div>
 
+          {/* Taking back the last move. The one-tap button only goes forward
+              and the card leaves the column as it is pressed, so without this
+              the way back was: find the card in its new column, open it, find
+              a dropdown, pick the old stage. Four steps for a slip. */}
+          {lastMove && (
+            <div className="mx-3 mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2">
+              <p className="text-xs text-amber-100">
+                Moved <span className="font-semibold">{lastMove.name}</span> to{" "}
+                {KANBAN_COLUMNS.find((c) => c.id === lastMove.to)?.label}
+              </p>
+              <button
+                className={`${SMALL_BUTTON} flex items-center gap-1`}
+                onClick={() => void handleUndoMove()}
+              >
+                <Undo2 className="h-3 w-3" />
+                Undo — back to {KANBAN_COLUMNS.find((c) => c.id === lastMove.from)?.label}
+              </button>
+              <button
+                className="ml-auto text-xs text-zinc-500 hover:text-zinc-300"
+                onClick={() => setLastMove(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           {/* One row: whichever screen is selected, plus the detail panel beside
               it. The panel sits outside the choice on purpose -- when it lived
               inside the board branch, clicking a name on either of the other two
@@ -3343,9 +3506,13 @@ export default function HRRecruitmentPage() {
             )}
             </div>
 
-            {/* Detail Panel (right slide-in) */}
+            {/* Detail panel. It follows the page now: it used to sit at the top
+                of a very long row, so clicking somebody near the bottom of a
+                101-card column drew their details off-screen and you had to
+                scroll back up to read them. self-start is required — a
+                stretched flex item has no room to move. */}
             {selectedApplicant && (
-              <div className="hidden md:flex w-[360px] shrink-0 border-l border-white/10 bg-[#0d1117]/95 p-4 flex-col">
+              <div className="hidden md:flex w-[360px] shrink-0 border-l border-white/10 bg-[#0d1117]/95 p-4 flex-col sticky top-4 self-start h-[calc(100vh-5rem)]">
                 <DetailPanel
                   key={selectedApplicant.id}
                   applicant={selectedApplicant}
