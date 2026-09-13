@@ -682,6 +682,35 @@ export default function VoiceScreening({
    *  answers at -90 dBFS -- fifty minutes of nothing -- and every screen said
    *  it had been sent. Six seconds here is the whole cost of never doing that
    *  to somebody again. */
+  /** What the microphone check actually concluded.
+   *
+   *  `client_can_record` next to this only says the browser has the functions
+   *  — it was true for every one of the 34 interviews that started and never
+   *  produced an answer, so it cannot say which step lost them. This does:
+   *  denied, silent, busy, unsupported are four different problems with four
+   *  different answers, and until they are counted the fix is a guess.
+   *
+   *  Never blocks the check, and never surfaces an error of its own.
+   */
+  function reportMic(result: string) {
+    void fetch(`/api/voice/${token}/client`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mic: result }),
+    }).catch(() => { /* measurement must not break the interview */ });
+  }
+
+  /** The browser's own word for what went wrong, as one of the names we count.
+   *  Mirrors micMessage below: the screen and the tally must not disagree. */
+  function micOutcome(e: unknown): string {
+    const name = (e as { name?: string })?.name || "";
+    if (name === "NotAllowedError" || name === "SecurityError") return "denied";
+    if (name === "NotFoundError" || name === "OverconstrainedError") return "none";
+    if (name === "NotReadableError" || name === "AbortError") return "busy";
+    if (name === "TypeError") return "unsupported";
+    return "other";
+  }
+
   async function runMicCheck() {
     setErr(""); setShowFix(false); setBar(0);
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
@@ -692,6 +721,7 @@ export default function VoiceScreening({
       setErr(t.micUnsupported);
       setMic("bad");
       setShowFix(true);
+      reportMic("unsupported");
       return;
     }
     let stream: MediaStream;
@@ -700,6 +730,7 @@ export default function VoiceScreening({
     } catch (e) {
       setErr(micMessage(e));
       setMic("bad"); setShowFix(true);
+      reportMic(micOutcome(e));
       return;
     }
     const meter = attachMeter(stream);
@@ -708,6 +739,7 @@ export default function VoiceScreening({
       // microphone is broken. Let them through and rely on the per-answer
       // check, which will also say "unmeasured" rather than "silent".
       stream.getTracks().forEach((tr) => tr.stop());
+      reportMic("unmeasured");
       setStage("record");
       return;
     }
@@ -723,6 +755,7 @@ export default function VoiceScreening({
       const ok = peak > SILENT_PEAK_DBFS;
       setMic(ok ? "good" : "bad");
       setShowFix(!ok);
+      reportMic(ok ? "ok" : "silent");
     }, 6000);
   }
 

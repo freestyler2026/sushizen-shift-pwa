@@ -1,7 +1,7 @@
 "use client";
 
 import SelectDark from "@/components/SelectDark";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import VoiceScreening from "@/components/apply/VoiceScreening";
 import { formatBytes, prepareIfImage, UPLOAD_LIMIT_BYTES } from "@/lib/image-compress";
 
@@ -64,6 +64,7 @@ const T = {
     doneTitle: "Thank you",
     doneBody: "We have your application. Someone from Sushi ZEN will message you on the number you gave.",
     doneAgain: "Send another application",
+    resumeNote: "Picking up where you left off — your answers so far are saved.",
     errRequired: "Please complete the highlighted fields.",
     errNetwork: "Could not send. Check your connection and try again.",
     errBusy: "Too many applications from this connection. Please try later, or message us on Facebook.",
@@ -122,6 +123,7 @@ const T = {
     doneTitle: "Salamat",
     doneBody: "Natanggap na namin ang aplikasyon mo. May mag-me-message sa iyo mula sa Sushi ZEN sa numerong ibinigay mo.",
     doneAgain: "Magpadala ng panibagong aplikasyon",
+    resumeNote: "Itutuloy po natin kung saan ka tumigil — nakasave na ang mga sinagot mo.",
     errRequired: "Pakikumpleto ang mga naka-highlight na bahagi.",
     errNetwork: "Hindi naipadala. Pakicheck ang koneksyon at subukan ulit.",
     errBusy: "Masyadong maraming aplikasyon mula sa koneksyong ito. Subukan mamaya, o mag-message sa Facebook.",
@@ -185,6 +187,46 @@ const FIELD =
   "placeholder:text-zinc-500 focus:border-violet-400/60 focus:outline-none";
 const BAD = "border-red-400/70";
 
+/** Where the interview link is kept while it is being answered.
+ *
+ * The token used to live only in React state. A reload -- a phone call, a tab
+ * the OS evicted, a stray back swipe, a deploy landing on the tab -- and it was
+ * gone, and the only thing the screen then offered was the empty form. Filling
+ * it again is what produced the duplicate applications: 16 of the 20 duplicate
+ * phone numbers on 2026-09-14 were one person starting over, with the
+ * half-finished recording stranded on the row nobody looks at.
+ *
+ * The recording itself was never the fragile part -- each answer is uploaded as
+ * it is made and the interview resumes at the first unanswered question. What
+ * was missing was a way back to it.
+ *
+ * Kept on the device only, and never anything but the token.
+ */
+const RESUME_KEY = "zen:apply-voice";
+const RESUME_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;   // the link's own lifetime
+
+function rememberVoice(token: string): void {
+  if (!token) return;
+  try {
+    localStorage.setItem(RESUME_KEY, JSON.stringify({ token, at: Date.now() }));
+  } catch { /* private mode, or storage refused: the session still works */ }
+}
+
+function forgetVoice(): void {
+  try { localStorage.removeItem(RESUME_KEY); } catch { /* nothing to undo */ }
+}
+
+function rememberedVoice(): string {
+  try {
+    const raw = localStorage.getItem(RESUME_KEY);
+    if (!raw) return "";
+    const v = JSON.parse(raw) as { token?: string; at?: number };
+    if (!v?.token || !v?.at) return "";
+    if (Date.now() - v.at > RESUME_MAX_AGE_MS) { forgetVoice(); return ""; }
+    return String(v.token);
+  } catch { return ""; }
+}
+
 export default function ApplyPage() {
   const [lang, setLang] = useState<Lang>("en");
   const t = T[lang];
@@ -231,6 +273,21 @@ export default function ApplyPage() {
   // never held back for it -- losing the applicant's number to a failed upload
   // would cost more than the CV.
   const [cvLate, setCvLate] = useState(false);
+  // True only when the screen was rebuilt from storage, so the note about
+  // picking up again is not shown to somebody who just pressed Send.
+  const [resumed, setResumed] = useState(false);
+
+  // ⚠️ Read in an effect, never in useState(() => ...). This page is
+  // prerendered and served from the edge, where there is no localStorage, so
+  // deciding the first render from it makes the server's HTML and the
+  // browser's first paint disagree (lesson 42).
+  useEffect(() => {
+    const token = rememberedVoice();
+    if (!token) return;
+    setVoiceToken(token);
+    setResumed(true);
+    setDone(true);
+  }, []);
 
   function pickCv(file: File | null) {
     // Backing out of the picker must not clear a file that is already chosen.
@@ -324,6 +381,7 @@ export default function ApplyPage() {
       try { token = JSON.parse(await res.text())?.voice?.token || ""; }
       catch { token = ""; }
       setVoiceToken(token);
+      rememberVoice(token);
       // The application is saved by this point. The CV goes up on the same
       // press so nobody has to be asked twice, but a failure here only sets a
       // note -- it must never turn a saved application into an error screen.
@@ -346,13 +404,38 @@ export default function ApplyPage() {
             {t.cvLate}
           </p>
         )}
-        {voiceToken && <VoiceScreening token={voiceToken} lang={lang} cvIn={!cvLate && !!cv} />}
+        {resumed && (
+          <p className="mx-auto mt-4 max-w-md rounded-xl border border-violet-400/30 bg-violet-400/10 p-3 text-sm text-violet-100">
+            {t.resumeNote}
+          </p>
+        )}
+        {voiceToken && (
+          <VoiceScreening
+            token={voiceToken}
+            lang={lang}
+            cvIn={!cvLate && !!cv}
+            onUnavailable={() => {
+              // The stored link is spent. Forget it rather than leaving the
+              // page permanently parked on an interview that cannot open --
+              // that is worse than the empty form it replaced.
+              if (!resumed) return;
+              forgetVoice();
+              setResumed(false);
+              setVoiceToken("");
+              setDone(false);
+            }}
+          />
+        )}
 
         <button
           type="button"
           onClick={() => {
+            // Somebody else is about to use this handset. Holding on to the
+            // last person's link would drop them into a stranger's interview.
+            forgetVoice();
             setDone(false);
             setVoiceToken("");
+            setResumed(false);
             setForm({
               full_name: "", phone: "", position_group: "", branch: "",
               experience_level: "", available_from: "", referrer_name: "",
