@@ -24391,3 +24391,59 @@ Approved By / Due Date / VAT が**8月以降の全請求書で空**になる。
 
 ⚠️ **Dubai は8月以降 399件中0件で PO番号が取れていない**（Manila は 2/182）。
 手順書の「Purchase Order Match」は Dubai では実行不能。
+
+## 2026-09-13 — 請求書チェックの続き: 修正の実証・summary の原因特定・ドバイPO
+
+### ① 写真の修正を実HTTP経路で実証
+
+`TestClient` + Yuri の実ロール（HQ）で `/api/admin/procurement/invoices/PO029435/photo` を往復。
+- supplier_name 無し（修正前）→ `photo: なし` / `no invoice was photographed...`
+- supplier_name あり（修正後）→ **396,467バイトの写真**、`photo_vendor=Chef Middle East`、
+  `photo_date=2026-09-08`、`photo_store=MC`、候補6件
+
+### ② invoice_summary が7月で止まっていた原因＝**ワークブックのタブ**
+
+Google Sheets のタブを実際に列挙して判明。パーサは月別タブ（`invoice_summary Jul` 等）を読む。
+
+| | 最新の line_items タブ | 最新の invoice_summary タブ |
+|---|---|---|
+| **Manila** | **September** | **Jul**（August / September が存在しない） |
+| **Dubai** | **May 2026** | May 2026（ワークブック全体が5月で停止） |
+
+- Manila: 毎月 `line_items <月>` は作られているが、**`invoice_summary <月>` を作るのを7月でやめている**
+- Dubai: ワークブック自体が5月以降更新されていない。**9月の明細は OCR 経由**
+  （`rebuild_dubai_invoice_lines_from_ocr`）で入っており、そちらは summary を作らない
+
+→ **コードの不具合ではなく、シート運用の欠落。** 8月・9月の `invoice_summary` タブを作れば
+Payment Terms / Prepared By / Approved By / Due Date / VAT が埋まる。
+
+### ③ ドバイのPO番号 — 2つの問題があった
+
+**(a) 紐づけ処理が走っていなかった（修正済み）**
+
+`link_invoice_lines_to_pos` は**2つの早期 return より後ろ**に置かれていた。ワークブックは
+ほとんどの日で変化しないため sync は「already imported」で帰り、**紐づけに到達しない**。
+自身の docstring は「run every sync」と書いてあるのに。
+
+→ 早期 return の前へ移動。実行すると **Dubai 66行 / Manila 3行**が即座に紐づいた。
+8月以降で PO番号を持つ請求書: **Dubai 0件 → 29件**（画面で17件確認）。
+skip 時の結果にも `po_link` を載せ、「skipped」が実際の作業を隠さないようにした。
+
+**(b) 本丸は「入力待ち304件」**
+
+`proc_po_invoice_checks` は**店舗が受領を確定すると請求書番号が空で自動生成**される
+（注記: `awaiting Back Office price entry`）。BOが後から写真を見て番号と金額を入れる設計。
+
+- **Dubai 304件・Manila 287件が入力待ち（全件に写真が付いている）**
+- Dubai の最終入力は **2026-09-02 Caila Macararanga**（累計136件）。**11日間停止**
+- Manila は継続中（Richard / Reymar / James が 9/11）
+- 最古は41日前
+
+→ ここを埋めれば PO番号は 29件からさらに増える。**写真は既にあるので、必要なのは人手だけ。**
+
+**(c) キューの件数が嘘だった（修正済み）**
+
+Pending バッジは**取得した1ページの長さ**を出していたため、304件が「50」と表示されていた。
+`count_pending_po_invoice_checks` を追加し、実件数を表示。あわせて
+「Showing the 50 oldest of 304 waiting. 請求書番号を入れることが、請求書画面にPOを出す操作です」
+と、その入力が何に効くのかを画面に書いた。
