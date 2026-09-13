@@ -76,11 +76,11 @@ function FactLine({ fact }: { fact: Fact }) {
  *  writes what went wrong were the ones that did not work.
  */
 function Half({
-  title, owner, which, rows, doneAt, draft, setDraft, editing, setEditing,
+  title, owner, which, rows, doneAt, handover, draft, setDraft, editing, setEditing,
   onAnswer, onSaveOwner,
 }: {
   title: string; owner: string; which: "opening" | "closing";
-  rows: Item[]; doneAt: string | null;
+  rows: Item[]; doneAt: string | null; handover?: Fact | null;
   draft: Record<number, { note: string; outcome: string }>;
   setDraft: React.Dispatch<React.SetStateAction<Record<number, { note: string; outcome: string }>>>;
   editing: Set<number>;
@@ -121,6 +121,21 @@ function Half({
             sides, so this is normal rather than an exception. */}
       </div>
 
+      {/* What the opening half is handing over. It is the reason the 16:00
+          item exists, and it has to arrive where the closing manager reads —
+          not sit in the other column as a tick they never look at. */}
+      {which === "closing" && handover && handover.ok === false && (
+        <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-300">
+            Handed over to you
+          </p>
+          <p className="mt-1 text-sm text-amber-100">{handover.label}</p>
+          {handover.detail && (
+            <p className="mt-0.5 text-xs text-amber-200/80">{handover.detail}</p>
+          )}
+        </div>
+      )}
+
       <div className="mt-4 space-y-3">
         {rows.map((item) => {
           const d = draft[item.seq] || { note: item.note || "", outcome: item.issue_outcome || "" };
@@ -149,6 +164,22 @@ function Half({
                       rows={2}
                       placeholder={item.note_prompt}
                       aria-label={`Item ${item.seq} note`}
+                      value={d.note}
+                      onChange={(e) =>
+                        setDraft((p) => ({ ...p, [item.seq]: { ...d, note: e.target.value } }))}
+                    />
+                  )}
+
+                  {/* Above the buttons, because it is written before one of
+                      them is pressed. Below them it read as an afterthought
+                      and the save came back asking for words already typed
+                      nowhere. */}
+                  {item.allows_issue && !answered && (
+                    <textarea
+                      className={`${TEXTAREA_CLASS} mt-2`}
+                      rows={2}
+                      placeholder="What was the issue? (only needed if you report one)"
+                      aria-label={`Item ${item.seq} issue note`}
                       value={d.note}
                       onChange={(e) =>
                         setDraft((p) => ({ ...p, [item.seq]: { ...d, note: e.target.value } }))}
@@ -206,17 +237,6 @@ function Half({
                     </div>
                   )}
 
-                  {item.allows_issue && !answered && (
-                    <textarea
-                      className={`${TEXTAREA_CLASS} mt-2`}
-                      rows={2}
-                      placeholder="What was the issue?"
-                      aria-label={`Item ${item.seq} issue note`}
-                      value={d.note}
-                      onChange={(e) =>
-                        setDraft((p) => ({ ...p, [item.seq]: { ...d, note: e.target.value } }))}
-                    />
-                  )}
                 </div>
               </div>
             </div>
@@ -391,6 +411,7 @@ export default function ManagerChecklistPage() {
           <Half title="Closing" which="closing" rows={closing}
                 owner={day?.closing_owner || ""}
                 doneAt={day?.closing_done_at || null}
+                handover={items.find((i) => i.seq === 6)?.fact || null}
                 draft={draft} setDraft={setDraft}
                 editing={editing} setEditing={setEditing}
                 onAnswer={(i, r) => void answer(i, r)}
