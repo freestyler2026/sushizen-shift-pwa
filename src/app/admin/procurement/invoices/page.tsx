@@ -445,13 +445,28 @@ export default function ProcurementInvoicesPage() {
   // The photograph the store took of this invoice, where one was taken and
   // read. Fetched for the row that is open, never for the list — these are
   // whole images.
+  /** Whatever came back about the photograph.
+   *
+   *  These names used to be read_supplier / read_amount / read_invoice_no,
+   *  which the endpoint has never returned — so the line under the picture
+   *  read "invoice -" no matter what. What it does return is what the store
+   *  typed when it took the picture, which is a different claim and is
+   *  labelled as one. */
   const [invoicePhoto, setInvoicePhoto] = useState<{
     photo: string | null;
     reason?: string;
-    read_supplier?: string | null;
-    read_amount?: number | null;
-    read_invoice_no?: string | null;
+    photo_vendor?: string | null;
+    photo_date?: string | null;
+    photo_store?: string | null;
+    showing?: string | null;
+    candidates?: {
+      source: string; vendor_name?: string | null; photo_date?: string | null;
+      store_code?: string | null; supplier_matches?: boolean;
+    }[];
   } | null>(null);
+  /** Which of the day's photographs is on screen, when the first one was not
+   *  this supplier's. Empty means "whichever the server picks". */
+  const [photoSource, setPhotoSource] = useState<string>("");
   const [invoicePhotoBusy, setInvoicePhotoBusy] = useState(false);
   const [verifyBusy, setVerifyBusy] = useState<string | null>(null);
   const [verifyNote, setVerifyNote] = useState("");
@@ -952,10 +967,22 @@ export default function ProcurementInvoicesPage() {
     setInvoicePhotoBusy(true);
     const qs = new URLSearchParams({ city });
     if (openRow.invoice_date) qs.set("invoice_date", openRow.invoice_date);
+    // Without this the server has no supplier to match on, so every
+    // photograph fails the "is this the same supplier" test and the panel
+    // says none was taken. Measured 2026-09-13: 0 of 50 invoices showed a
+    // photograph in either city; with the name sent, 25 of 50 in Dubai and
+    // 43 of 50 in Manila do. Nobody had ever reached the buttons underneath,
+    // which is why invoice_verifications was empty.
+    if (openRow.supplier_name) qs.set("supplier_name", openRow.supplier_name);
+    if (photoSource) qs.set("source", photoSource);
     procurementJson<{
       photo?: string | null; reason?: string;
-      read_supplier?: string | null; read_amount?: number | null;
-      read_invoice_no?: string | null;
+      photo_vendor?: string | null; photo_date?: string | null;
+      photo_store?: string | null; showing?: string | null;
+      candidates?: {
+        source: string; vendor_name?: string | null; photo_date?: string | null;
+        store_code?: string | null; supplier_matches?: boolean;
+      }[];
     }>(
       `/api/admin/procurement/invoices/${encodeURIComponent(expandedInvoiceNo)}/photo?${qs.toString()}`,
       { method: "GET" },
@@ -967,15 +994,21 @@ export default function ProcurementInvoicesPage() {
         setInvoicePhoto({
           photo: d?.photo ?? null,
           reason: d?.reason,
-          read_supplier: d?.read_supplier ?? null,
-          read_amount: d?.read_amount ?? null,
-          read_invoice_no: d?.read_invoice_no ?? null,
+          photo_vendor: d?.photo_vendor ?? null,
+          photo_date: d?.photo_date ?? null,
+          photo_store: d?.photo_store ?? null,
+          showing: d?.showing ?? null,
+          candidates: d?.candidates ?? [],
         });
       })
       .catch(() => { if (alive) setInvoicePhoto({ photo: null, reason: "the photograph could not be loaded" }); })
       .finally(() => { if (alive) setInvoicePhotoBusy(false); });
     return () => { alive = false; };
-  }, [city, expandedInvoiceNo, pin, requestedBy, rows]);
+  }, [city, expandedInvoiceNo, photoSource, pin, requestedBy, rows]);
+
+  // Opening a different invoice starts from whichever photograph the server
+  // picks, not the one that was being stepped through on the last row.
+  useEffect(() => { setPhotoSource(""); }, [expandedInvoiceNo]);
 
   const exportQualityCsv = useCallback(() => {
     if (!qualityRows.length) return;
@@ -2122,13 +2155,32 @@ export default function ProcurementInvoicesPage() {
                             className="max-h-[26rem] w-auto rounded-xl border border-white/10"
                           />
                           <div className="text-xs text-zinc-500">
-                            Read off this photograph: invoice {invoicePhoto.read_invoice_no || "-"}
-                            {invoicePhoto.read_supplier ? ` · ${invoicePhoto.read_supplier}` : ""}
-                            {invoicePhoto.read_amount != null
-                              ? ` · ${formatMoney(invoicePhoto.read_amount, city === "dubai" ? "AED" : "PHP")}`
-                              : ""}
-                            <span className="text-zinc-600"> — compare with the figures below.</span>
+                            Recorded with this photograph:
+                            {invoicePhoto.photo_vendor ? ` ${invoicePhoto.photo_vendor}` : " supplier not noted"}
+                            {invoicePhoto.photo_date ? ` · ${invoicePhoto.photo_date}` : ""}
+                            {invoicePhoto.photo_store ? ` · ${invoicePhoto.photo_store}` : ""}
+                            <span className="text-zinc-600"> — this is what the store typed when it took the picture, not a reading. Compare the picture with the figures below.</span>
                           </div>
+                          {(invoicePhoto.candidates?.length || 0) > 1 ? (
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                              <span>{invoicePhoto.candidates?.length} photographs were taken around this date:</span>
+                              {invoicePhoto.candidates?.map((cand) => (
+                                <button
+                                  key={cand.source}
+                                  type="button"
+                                  onClick={() => setPhotoSource(cand.source)}
+                                  className={`rounded-lg border px-2 py-1 ${
+                                    invoicePhoto.showing === cand.source
+                                      ? "border-violet-400/40 bg-violet-500/15 text-violet-200"
+                                      : "border-white/10 bg-white/5 text-zinc-300"
+                                  }`}
+                                >
+                                  {cand.vendor_name || "unnamed"}
+                                  {cand.photo_date ? ` · ${String(cand.photo_date).slice(0, 10)}` : ""}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
                           <div className="flex flex-wrap items-center gap-2 pt-1">
                             <input
                               value={verifyNote}
@@ -2169,8 +2221,33 @@ export default function ProcurementInvoicesPage() {
                           ) : null}
                         </div>
                       ) : (
-                        <div className="text-sm text-zinc-500">
-                          No photograph — {invoicePhoto?.reason || "none has been linked to this invoice"}.
+                        <div className="space-y-2 text-sm text-zinc-500">
+                          <div>
+                            No photograph — {invoicePhoto?.reason || "none has been linked to this invoice"}.
+                          </div>
+                          {/* Not a dead end. Other invoices were photographed that
+                              day; one of them may still be this one under a name
+                              the store typed differently. */}
+                          {(invoicePhoto?.candidates?.length || 0) > 0 ? (
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              <span>
+                                {invoicePhoto?.candidates?.length} other photograph
+                                {(invoicePhoto?.candidates?.length || 0) === 1 ? " was" : "s were"} taken
+                                around this date — open one if it could be the same document:
+                              </span>
+                              {invoicePhoto?.candidates?.map((cand) => (
+                                <button
+                                  key={cand.source}
+                                  type="button"
+                                  onClick={() => setPhotoSource(cand.source)}
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-300"
+                                >
+                                  {cand.vendor_name || "unnamed"}
+                                  {cand.photo_date ? ` · ${String(cand.photo_date).slice(0, 10)}` : ""}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       )}
                     </div>
