@@ -406,6 +406,91 @@ function FarConfirmBanner({ city }: { city: string }) {
  * too-late are counted apart because closing a thing and doing it are not the
  * same, and a single "closed" number hid that for 277 tasks.
  */
+type MgrChecklistBranch = {
+  branch_code: string; started: boolean;
+  opening_owner: string; closing_owner: string;
+  opening_done: boolean; closing_done: boolean;
+  opening_answered: number; opening_total: number;
+  closing_answered: number; closing_total: number;
+  issues: { seq: number; note: string; outcome: string; by: string }[];
+};
+
+/** Today's Manager Checklist.
+ *
+ *  Two things the back office cannot see anywhere else: whether the manager on
+ *  duty actually worked the list, and what they found. The findings are here
+ *  rather than in the task queue below — that queue is seventeen
+ *  system-detected items a day and has never carried one a store raised, so a
+ *  manager's own finding would arrive as noise in their own inbox.
+ *
+ *  Renders nothing at all while no branch is live. A panel that says "0 of 0"
+ *  for a feature nobody has started is a row people learn to skip.
+ */
+function ManagerChecklistBar({ city }: { city: string }) {
+  const [d, setD] = useState<{ branches: MgrChecklistBranch[]; enabled: boolean } | null>(null);
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/management/checklist-summary?city=${encodeURIComponent(city === "all" ? "manila" : city)}`,
+          { headers: getAuthHeaders(getAuth()), cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!dead) setD(j);
+      } catch { /* a summary line must never break the page */ }
+    })();
+    return () => { dead = true; };
+  }, [city]);
+
+  if (!d || !d.enabled || !d.branches.length) return null;
+  const issues = d.branches.flatMap((b) => b.issues.map((i) => ({ ...i, branch: b.branch_code })));
+
+  const half = (done: boolean, got: number, total: number, who: string, label: string) => (
+    <span className={done ? "text-emerald-300/90" : got ? "text-amber-300/90" : "text-white/50"}>
+      {label} {done ? "done" : `${got}/${total}`}
+      {who && <span className="text-white/40"> · {who}</span>}
+    </span>
+  );
+
+  return (
+    <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-xs">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-semibold uppercase tracking-wider text-white/40">
+          Manager Checklist
+        </span>
+        {d.branches.map((b) => (
+          <span key={b.branch_code} className="flex items-center gap-2">
+            <b className="text-white">{b.branch_code}</b>
+            {b.started ? (
+              <>
+                {half(b.opening_done, b.opening_answered, b.opening_total, b.opening_owner, "Opening")}
+                <span className="text-white/20">/</span>
+                {half(b.closing_done, b.closing_answered, b.closing_total, b.closing_owner, "Closing")}
+              </>
+            ) : (
+              <span className="text-white/50">not opened yet</span>
+            )}
+          </span>
+        ))}
+      </div>
+      {issues.length > 0 && (
+        <div className="mt-2 space-y-1 border-t border-white/10 pt-2">
+          {issues.map((i, n) => (
+            <p key={`${i.branch}-${i.seq}-${n}`} className="text-amber-200/90">
+              <b className="text-white">{i.branch}</b>
+              <span className="text-white/40"> item {i.seq} · {i.outcome.replace("_", " ")}</span>
+              {" — "}{i.note}
+              {i.by && <span className="text-white/40"> ({i.by})</span>}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TodayLine({ city }: { city: string }) {
   const [d, setD] = useState<{ raised: number; sent: number; replied: number; handled: number; too_late: number } | null>(null);
   useEffect(() => {
@@ -2388,6 +2473,7 @@ export default function BODashboardPage() {
         <SentStampBanner city={cityFilter} />
         <FarConfirmBanner city={cityFilter} />
         <BreakBanner city={cityFilter} />
+        <ManagerChecklistBar city={cityFilter} />
         <TodayLine city={cityFilter} />
         <TooLateBar city={cityFilter} onDone={() => loadTasks(true)} />
         <AnswerRates city={cityFilter} />
