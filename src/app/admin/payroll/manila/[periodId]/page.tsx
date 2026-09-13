@@ -183,6 +183,19 @@ const ITEM_QTY_UNIT: Record<string, "hour" | "day" | "minute" | "fraction"> = {
   NIGHT_DIFF_REGULAR:            "hour",
   NIGHT_DIFF_OT:                 "hour",
   OT_PAY:                        "hour",
+  // Overtime and night differential are split by the kind of day the hours
+  // were worked on, so the DTR can be reconciled against the payslip without
+  // going back to the raw attendance. Keep in step with day_class_suffix()
+  // in manila_payroll_engine.py.
+  OT_PAY_REGULAR_HOLIDAY:              "hour",
+  OT_PAY_SPECIAL_HOLIDAY:              "hour",
+  OT_PAY_REST_DAY:                     "hour",
+  NIGHT_DIFF_REGULAR_REGULAR_HOLIDAY:  "hour",
+  NIGHT_DIFF_REGULAR_SPECIAL_HOLIDAY:  "hour",
+  NIGHT_DIFF_REGULAR_REST_DAY:         "hour",
+  NIGHT_DIFF_OT_REGULAR_HOLIDAY:       "hour",
+  NIGHT_DIFF_OT_SPECIAL_HOLIDAY:       "hour",
+  NIGHT_DIFF_OT_REST_DAY:              "hour",
   REST_DAY_PAY:                  "hour",
   SPECIAL_HOLIDAY_PREM:          "hour",
   SPECIAL_HOLIDAY_RESTDAY_PREM:  "hour",
@@ -1140,6 +1153,9 @@ function PayslipDetail({
   // displayed earnings so it doesn't inflate the visible Gross Pay figure.
   // ND items are always emitted (even ₱0) so they appear on payslip even with
   // incomplete DTR — include them regardless of amount.
+  // Only the ordinary-day lines are emitted at zero, so the category is
+  // visible on an incomplete DTR. A holiday line with no holiday in the
+  // period would be noise, not a missing figure.
   const ND_CODES = new Set(["NIGHT_DIFF_REGULAR", "NIGHT_DIFF_OT"]);
   const warnings      = items.filter(i => i.item_type === "warning");
   // A masked amount is null, and `null > 0` is false — without the null check every
