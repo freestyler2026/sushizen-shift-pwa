@@ -67,6 +67,166 @@ function FactLine({ fact }: { fact: Fact }) {
   );
 }
 
+/** One half of the day.
+ *
+ *  Defined at module scope on purpose. Declared inside the page component it
+ *  is a new function on every render, so React tears the subtree down and
+ *  rebuilds it each time — and since typing a note updates state, the note
+ *  box lost focus after every single character. The fields where a manager
+ *  writes what went wrong were the ones that did not work.
+ */
+function Half({
+  title, owner, which, rows, doneAt, draft, setDraft, editing, setEditing,
+  onAnswer, onSaveOwner,
+}: {
+  title: string; owner: string; which: "opening" | "closing";
+  rows: Item[]; doneAt: string | null;
+  draft: Record<number, { note: string; outcome: string }>;
+  setDraft: React.Dispatch<React.SetStateAction<Record<number, { note: string; outcome: string }>>>;
+  editing: Set<number>;
+  setEditing: React.Dispatch<React.SetStateAction<Set<number>>>;
+  onAnswer: (item: Item, result: string) => void;
+  onSaveOwner: (which: "opening" | "closing", name: string) => void;
+}) {
+  return (
+    <div className={`${GLASS_CARD} p-4`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className={T_LABEL}>{title}</p>
+          <p className={`${T_CAPTION} mt-0.5`}>
+            {rows.filter((r) => r.result).length} of {rows.length} answered
+          </p>
+        </div>
+        {doneAt && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+            <Check className="h-3 w-3" /> Complete
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3">
+        <p className={T_LABEL}>On duty</p>
+        <div className="mt-1 flex gap-2">
+          <input
+            className={INPUT_CLASS}
+            key={`${which}-${owner}`}
+            defaultValue={owner}
+            placeholder="Name"
+            aria-label={`${title} owner`}
+            onBlur={(e) => { if (e.target.value !== owner) onSaveOwner(which, e.target.value); }}
+          />
+        </div>
+        {/* One person may hold both halves. Cubao has no candidate and is
+            covered alone, and one Paranaque candidate is rostered on both
+            sides, so this is normal rather than an exception. */}
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {rows.map((item) => {
+          const d = draft[item.seq] || { note: item.note || "", outcome: item.issue_outcome || "" };
+          const answered = !!item.result && !editing.has(item.seq);
+          return (
+            <div
+              key={item.seq}
+              className={`rounded-xl border p-3 ${
+                answered ? "border-white/5 bg-white/3" : "border-white/10 bg-white/5"
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400 tabular-nums">
+                  {item.seq}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-300">
+                    {item.timing}
+                  </p>
+                  <p className={`${T_BODY} mt-0.5 text-zinc-200`}>{item.title}</p>
+                  {item.fact && <FactLine fact={item.fact} />}
+
+                  {item.note_prompt && !answered && (
+                    <textarea
+                      className={`${TEXTAREA_CLASS} mt-2`}
+                      rows={2}
+                      placeholder={item.note_prompt}
+                      aria-label={`Item ${item.seq} note`}
+                      value={d.note}
+                      onChange={(e) =>
+                        setDraft((p) => ({ ...p, [item.seq]: { ...d, note: e.target.value } }))}
+                    />
+                  )}
+
+                  {answered ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <span className={
+                        item.result === "done" ? "text-emerald-300"
+                        : item.result === "issue" ? "text-amber-300" : "text-zinc-400"}>
+                        {item.result === "done" ? "Done"
+                          : item.result === "issue"
+                            ? `Issue — ${OUTCOMES.find((o) => o.value === item.issue_outcome)?.label || ""}`
+                            : "Unable to complete"}
+                      </span>
+                      {item.answered_by && <span className="text-zinc-500">{item.answered_by}</span>}
+                      {item.note && <span className="text-zinc-400">“{item.note}”</span>}
+                      <button
+                        className="text-zinc-500 underline hover:text-zinc-300"
+                        onClick={() => {
+                          setDraft((p) => ({ ...p, [item.seq]: d }));
+                          setEditing((p) => new Set(p).add(item.seq));
+                        }}
+                      >
+                        change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button className={SMALL_BUTTON} onClick={() => onAnswer(item, "done")}>
+                        <Check className="mr-1 inline h-3 w-3" />Done
+                      </button>
+                      <button className={SMALL_BUTTON} onClick={() => onAnswer(item, "unable")}>
+                        <X className="mr-1 inline h-3 w-3" />Unable to complete
+                      </button>
+                      {item.allows_issue && (
+                        <>
+                          <SelectDark
+                            className="min-w-[190px]"
+                            value={d.outcome}
+                            onChange={(v) =>
+                              setDraft((p) => ({ ...p, [item.seq]: { ...d, outcome: v } }))}
+                            options={[{ value: "", label: "— If issue found —" }, ...OUTCOMES]}
+                            aria-label={`Item ${item.seq} issue outcome`}
+                          />
+                          <button
+                            className={SMALL_BUTTON}
+                            onClick={() => onAnswer(item, "issue")}
+                          >
+                            <AlertTriangle className="mr-1 inline h-3 w-3" />Issue found
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {item.allows_issue && !answered && (
+                    <textarea
+                      className={`${TEXTAREA_CLASS} mt-2`}
+                      rows={2}
+                      placeholder="What was the issue?"
+                      aria-label={`Item ${item.seq} issue note`}
+                      value={d.note}
+                      onChange={(e) =>
+                        setDraft((p) => ({ ...p, [item.seq]: { ...d, note: e.target.value } }))}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ManagerChecklistPage() {
   // Nothing is asserted until the client has mounted. The HTML is prerendered
   // and shared by everyone, so reading the session during the first render
@@ -173,145 +333,6 @@ export default function ManagerChecklistPage() {
   const closing = items.filter((i) => i.section === "closing");
   const day = data?.day;
 
-  const Half = ({ title, owner, which, rows, doneAt }: {
-    title: string; owner: string; which: "opening" | "closing";
-    rows: Item[]; doneAt: string | null;
-  }) => (
-    <div className={`${GLASS_CARD} p-4`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className={T_LABEL}>{title}</p>
-          <p className={`${T_CAPTION} mt-0.5`}>
-            {rows.filter((r) => r.result).length} of {rows.length} answered
-          </p>
-        </div>
-        {doneAt && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
-            <Check className="h-3 w-3" /> Complete
-          </span>
-        )}
-      </div>
-
-      <div className="mt-3">
-        <p className={T_LABEL}>On duty</p>
-        <div className="mt-1 flex gap-2">
-          <input
-            className={INPUT_CLASS}
-            defaultValue={owner}
-            placeholder="Name"
-            aria-label={`${title} owner`}
-            onBlur={(e) => { if (e.target.value !== owner) void saveOwner(which, e.target.value); }}
-          />
-        </div>
-        {/* One person may hold both halves. Cubao has no candidate and is
-            covered alone, and one Paranaque candidate is rostered on both
-            sides, so this is normal rather than an exception. */}
-      </div>
-
-      <div className="mt-4 space-y-3">
-        {rows.map((item) => {
-          const d = draft[item.seq] || { note: item.note || "", outcome: item.issue_outcome || "" };
-          const answered = !!item.result && !editing.has(item.seq);
-          return (
-            <div
-              key={item.seq}
-              className={`rounded-xl border p-3 ${
-                answered ? "border-white/5 bg-white/3" : "border-white/10 bg-white/5"
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <span className="mt-0.5 shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400 tabular-nums">
-                  {item.seq}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-300">
-                    {item.timing}
-                  </p>
-                  <p className={`${T_BODY} mt-0.5 text-zinc-200`}>{item.title}</p>
-                  {item.fact && <FactLine fact={item.fact} />}
-
-                  {item.note_prompt && !answered && (
-                    <textarea
-                      className={`${TEXTAREA_CLASS} mt-2`}
-                      rows={2}
-                      placeholder={item.note_prompt}
-                      aria-label={`Item ${item.seq} note`}
-                      value={d.note}
-                      onChange={(e) =>
-                        setDraft((p) => ({ ...p, [item.seq]: { ...d, note: e.target.value } }))}
-                    />
-                  )}
-
-                  {answered ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                      <span className={
-                        item.result === "done" ? "text-emerald-300"
-                        : item.result === "issue" ? "text-amber-300" : "text-zinc-400"}>
-                        {item.result === "done" ? "Done"
-                          : item.result === "issue"
-                            ? `Issue — ${OUTCOMES.find((o) => o.value === item.issue_outcome)?.label || ""}`
-                            : "Unable to complete"}
-                      </span>
-                      {item.answered_by && <span className="text-zinc-500">{item.answered_by}</span>}
-                      {item.note && <span className="text-zinc-400">“{item.note}”</span>}
-                      <button
-                        className="text-zinc-500 underline hover:text-zinc-300"
-                        onClick={() => {
-                          setDraft((p) => ({ ...p, [item.seq]: d }));
-                          setEditing((p) => new Set(p).add(item.seq));
-                        }}
-                      >
-                        change
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <button className={SMALL_BUTTON} onClick={() => void answer(item, "done")}>
-                        <Check className="mr-1 inline h-3 w-3" />Done
-                      </button>
-                      <button className={SMALL_BUTTON} onClick={() => void answer(item, "unable")}>
-                        <X className="mr-1 inline h-3 w-3" />Unable to complete
-                      </button>
-                      {item.allows_issue && (
-                        <>
-                          <SelectDark
-                            className="min-w-[190px]"
-                            value={d.outcome}
-                            onChange={(v) =>
-                              setDraft((p) => ({ ...p, [item.seq]: { ...d, outcome: v } }))}
-                            options={[{ value: "", label: "— If issue found —" }, ...OUTCOMES]}
-                            aria-label={`Item ${item.seq} issue outcome`}
-                          />
-                          <button
-                            className={SMALL_BUTTON}
-                            onClick={() => void answer(item, "issue")}
-                          >
-                            <AlertTriangle className="mr-1 inline h-3 w-3" />Issue found
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {item.allows_issue && !answered && (
-                    <textarea
-                      className={`${TEXTAREA_CLASS} mt-2`}
-                      rows={2}
-                      placeholder="What was the issue?"
-                      aria-label={`Item ${item.seq} issue note`}
-                      value={d.note}
-                      onChange={(e) =>
-                        setDraft((p) => ({ ...p, [item.seq]: { ...d, note: e.target.value } }))}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
@@ -361,11 +382,19 @@ export default function ManagerChecklistPage() {
       {data?.enabled && (
         <div className="grid gap-4 md:grid-cols-2">
           <Half title="Opening" which="opening" rows={opening}
-                owner={day?.opening_owner || data.suggested?.opening_owner || ""}
-                doneAt={day?.opening_done_at || null} />
+                owner={day?.opening_owner || ""}
+                doneAt={day?.opening_done_at || null}
+                draft={draft} setDraft={setDraft}
+                editing={editing} setEditing={setEditing}
+                onAnswer={(i, r) => void answer(i, r)}
+                onSaveOwner={(w, n) => void saveOwner(w, n)} />
           <Half title="Closing" which="closing" rows={closing}
-                owner={day?.closing_owner || data.suggested?.closing_owner || ""}
-                doneAt={day?.closing_done_at || null} />
+                owner={day?.closing_owner || ""}
+                doneAt={day?.closing_done_at || null}
+                draft={draft} setDraft={setDraft}
+                editing={editing} setEditing={setEditing}
+                onAnswer={(i, r) => void answer(i, r)}
+                onSaveOwner={(w, n) => void saveOwner(w, n)} />
         </div>
       )}
 
