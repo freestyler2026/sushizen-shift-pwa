@@ -693,6 +693,10 @@ export default function PayrollPage() {
             className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-400 hover:bg-amber-500/20 transition">
             Loans <ArrowRight size={13} />
           </Link>
+          <Link href="/admin/payroll/how-pay-is-computed"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-400/30 bg-slate-400/10 px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-slate-400/20 transition">
+            How Pay Is Computed <ArrowRight size={13} />
+          </Link>
           <Link href={`/admin/payroll/leave-salary?city=${city}`}
             className="flex items-center gap-1.5 rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1.5 text-sm font-medium text-teal-400 hover:bg-teal-500/20 transition">
             Leave Salary <ArrowRight size={13} />
