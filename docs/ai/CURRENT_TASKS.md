@@ -24552,3 +24552,53 @@ Manila は **39件が PENDING なのに請求書番号を持ち、26件が空な
 - **Incident Report 13件**のうち、#82（31件）・#97（28件）・#149（6件）など誤りを含むもの
 
 食品安全の記録を書き換える判断なので、件数を出して指示を仰ぐ。
+
+## 2026-09-13 — Incident Report チャンネル 全体調査（追加で4件見つけ、3件を修正）
+
+CK ラベルの3件に加えて、チャンネル全体を調べて出たもの。
+
+### ④ `incident_datetime` は TEXT で、意味が混在していた（修正済み）
+
+- 人が入れる値は `datetime-local` 由来＝**現地時刻**
+- 自動起票は `utcnow()`＝**UTC**
+- 画面は両方を `new Date()` で描画
+
+→ **同じ記録が上部で 17:34、Incident 欄で 09:34** と表示されていた（スクリーンショットで確認できる）。
+自動起票側を店舗の現地時刻で書くよう修正（`_local_stamp_for_city`）。
+⚠️ **既存13件は UTC のままなので、マニラでは8時間早く表示される。**
+
+### ⑤ 通知は `report_kind='urgent'` だけが対象。urgent は全期間0件（未修正・要判断）
+
+| report_kind | 件数 | 通知済み |
+|---|---:|---:|
+| record | **26** | **0** |
+| urgent | **0** | — |
+
+**critical 2件・high 14件を含めて、一度も通知されていない。** worker の `notify_urgent_reports` は
+毎回走って0件を返し、成功として終わる（教訓47・55と同型）。
+
+`urgent` を作るのは `/store/report`（Report Something）のみ。**この画面は一度も使われていない。**
+つまり「緊急なら別画面」という設計だが、**実際に起きた食品安全の事案はすべて記録側に入っている。**
+
+→ **判断が要る**: high/critical の record も通知対象にするか、運用で緊急ページに誘導するか。
+
+### ⑥ acknowledged に担当者が記録されていなかった（修正済み）
+
+`update_incident_status` は **`resolved` のときだけ** `resolved_by` を書いていた。
+`acknowledged` / `in_progress` は状態だけ変え、`acknowledged_by` / `acknowledged_at` は空のまま。
+
+その結果 **26件中24件が「担当者名なし」**で、`count_unowned_incidents`（Waiting for Someone）が
+**確認済みの報告まで「誰も見ていない」として数え続けていた**。列は存在し、別画面が既に読んでいたのに、
+書く側がいなかった。
+
+→ 確認時に名前と時刻を記録。**最初の確認者は後の状態変更で上書きしない。**
+検証: new → acknowledged(QA Reviewer 記録) → in_progress(上書きされない) → resolved(resolved_by 別記録)。
+
+### ⑦ 滞留（未修正・運用の問題）
+
+- 26件中 **解決 6件（23%）**
+- **acknowledged のまま最古 99日**（Stock Shortage / Central Kitchen）
+- new 5件・acknowledged 14件・in_progress 1件
+
+バッジ（`count_unprocessed_incidents`）は未解決20件を正しく数えており、**見えていないのではなく
+着手されていない。**
