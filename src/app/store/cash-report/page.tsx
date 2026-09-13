@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useUnsavedGuard } from "@/lib/unsavedGuard";
+import { usePersistedDraft } from "@/lib/draftStore";
 import { useRouter } from "next/navigation";
 import {
   DollarSign, Send, RefreshCw, CheckCircle2, XCircle,
@@ -631,6 +633,46 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
   // Cashier Log day totals (SC/PWD & QRPH) — auto-fills the fields below.
   const [logTotals, setLogTotals] = useState<{ SCPWD: { count: number; total: number }; QRPH: { count: number; total: number } } | null>(null);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
+
+  // ── Keep what has been typed ───────────────────────────────────────────────
+  // A closing report is twenty-odd figures counted off a till, and it was lost
+  // four times in one evening while deploys went out: the page reloaded under
+  // the person entering it, each time from the top. The reload now waits while
+  // somebody is typing, but waiting is not keeping -- a closed tab, a manual
+  // refresh, or simply a long enough pause still ends the same way.
+  //
+  // Photographs are deliberately not in here. They are base64 and would fill
+  // the browser's storage on the first receipt, and unlike the numbers they are
+  // still sitting in the phone's camera roll.
+  const draft = useMemo(() => ({
+    grossSales, cashSales, posCc, posDebit, posQrph, termCc, qrphAmt,
+    scpwdCount, scpwdDisc, denoms, sbDeposit, klickit, notes, staffName,
+  }), [grossSales, cashSales, posCc, posDebit, posQrph, termCc, qrphAmt,
+       scpwdCount, scpwdDisc, denoms, sbDeposit, klickit, notes, staffName]);
+
+  const draftIsEmpty = useCallback((d: typeof draft) =>
+    !d.grossSales && !d.cashSales && !d.posCc && !d.posDebit && !d.posQrph &&
+    !d.termCc && !d.qrphAmt && !d.scpwdCount && !d.scpwdDisc && !d.sbDeposit &&
+    !d.klickit && !d.notes && calcTotal(d.denoms || emptyDenoms()) === 0, []);
+
+  const applyDraft = useCallback((d: typeof draft) => {
+    setGross(d.grossSales || ""); setCash(d.cashSales || "");
+    setPosCc(d.posCc || ""); setPosDebit(d.posDebit || ""); setPosQrph(d.posQrph || "");
+    setTermCc(d.termCc || ""); setQrphAmt(d.qrphAmt || "");
+    setScpwdCnt(d.scpwdCount || ""); setScpwdDis(d.scpwdDisc || "");
+    setDenoms(d.denoms || emptyDenoms());
+    setSbDep(d.sbDeposit || ""); setKlickit(d.klickit || "");
+    setNotes(d.notes || ""); if (d.staffName) setStaffName(d.staffName);
+  }, []);
+
+  // The key has to carry the branch and the date: a Paranaque count restored
+  // onto Taft, or yesterday's onto today's, would be worse than losing it --
+  // nobody would know the figures came from somewhere else.
+  const { restored, savedAt, discard } = usePersistedDraft(
+    `cash-report:closing:${branch}:${reportDate}`, draft, applyDraft, draftIsEmpty);
+
+  // Hold the reload while any of it is filled in.
+  useUnsavedGuard("cash-report-closing", !draftIsEmpty(draft));
   const logPrefilled = useRef(false);
 
   useEffect(() => {
@@ -772,6 +814,7 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
       if (scpwdReceipts.length > 0) await uploadScpwdReceipts();
       if (scpwdIdCards.length > 0)  await uploadScpwdIdCards();
       setMsg({ ok: true, text: "Closing report submitted successfully." });
+      discard();   // it is on the server now; keeping a copy only risks restoring it over tomorrow's
     } catch (e: any) { setMsg({ ok: false, text: e.message }); }
     finally { setSubmitting(false); }
   };
@@ -808,6 +851,27 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
           Opening Balance (from morning report): <strong>{fmtPHP(openingBalance)}</strong>
         </div>
       )}
+
+      {/* Auto-save that says nothing is indistinguishable from no auto-save
+          until the evening you need it — and the person who just lost a count
+          four times has no reason to take it on trust. */}
+      {restored ? (
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-2.5 text-sm text-emerald-300">
+          <span className="min-w-0 flex-1">
+            Your unfinished report was brought back. Check the figures before submitting.
+          </span>
+          <button
+            onClick={() => { if (confirm("Clear the restored figures and start this report again?")) { applyDraft({} as never); discard(); } }}
+            className="shrink-0 rounded-lg border border-white/10 px-2 py-1 text-xs text-emerald-200/80 hover:bg-white/10"
+          >
+            Start over
+          </button>
+        </div>
+      ) : savedAt ? (
+        <p className="px-1 text-xs text-zinc-500">
+          Saved on this phone at {savedAt.toLocaleTimeString()} — it will still be here if the page reloads.
+        </p>
+      ) : null}
 
       {/* Section 1: POS Figures */}
       <div className={`${GLASS_CARD} p-4 space-y-3`}>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { hasUnsavedEdits, UNSAVED_EVENT } from "@/lib/unsavedGuard";
+import { hasUnsavedEdits, watchTypingGlobally, UNSAVED_EVENT } from "@/lib/unsavedGuard";
 import { ACCESS_CHANGED_EVENT } from "@/lib/auth";
 
 const POLL_INTERVAL_MS = 30 * 1000;
@@ -83,6 +83,11 @@ export default function AutoReload() {
   }
 
   useEffect(() => {
+    // Watch for typing anywhere, so a page that never registered its dirty
+    // state is still protected. AutoReload is mounted for the whole app, which
+    // makes it the one place this has to be switched on.
+    watchTypingGlobally();
+
     function triggerReload() {
       if (reloading.current) return;
       if (hasUnsavedEdits()) {
