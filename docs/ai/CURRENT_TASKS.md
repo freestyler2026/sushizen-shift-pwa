@@ -24253,3 +24253,58 @@ inventory 相当**とした。ロール名リストは HQ・management 用に残
 CK Inventory / CK Dispatch / CK Ingredient Receiving / Spot Purchase / Emergency Requests(管理)。
 実測で Spot Purchase 生涯2件（最終 7/27）・CK Delivery 1件（7/16）・直近30日は0件。
 6名は TAFT/PAR 所属なので CK 系は本来不要。
+
+## 2026-09-13 — Manager Checklist（マネージャー用 Travel Path）第1版・デプロイ済み（消灯状態）
+
+`/store/management/travel-path`。植嶋の xlsx（10項目）とトレーニング資料が仕様。
+
+**設計の芯**（スライド6）: STAFF「自分がやった」 → MANAGER「担当者はやったか／正しくできたか」。
+したがって**OSが既に持っている情報は聞かない。** 各項目に該当レポートの状態を並べて表示し、
+マネージャーは事実を確認するだけにする。
+
+### 3つの判断（すべて実測で決定）
+
+| 論点 | 決定 | 根拠（実測） |
+|---|---|---|
+| Issue Found の報告先 | **Management Inbox に流さない。**チェックリスト内に保持し、翌朝の項目3が読む | Inbox は直近30日マニラ508件＝1日17件、**全件 `self_reported=False`（システム検知）**。`self_reported=TRUE` は全期間0件。マネージャーの所見を入れると方向が逆で、自動検知の中に埋もれる |
+| 項目6（16:00引き継ぎ）の担当 | **Opening 担当。**未解決分を Closing 側の先頭に「引き継ぎ事項」として運ぶ | 16:00 は交代点ではなく**両者が居る時間**。公開シフト14日で早番は 08-17/09-18/10-19、遅番は 13-22/15-24。TAFT の16時退勤は0件 |
+| 項目5・8のメモ欄 | **付ける。ただし Product Quality / Backup Level 限定** | Rush Check は既に queue/prep/staffing/cleanliness を聞いており、`issues` は固定カテゴリの jsonb。**Product Quality と Backup Level だけが未カバー** |
+
+### 実装
+
+- `app/db_mgr_checklist.py` — テンプレート10項目・日レコード・回答・事実解決
+- `POST/GET /api/store/management/checklist*` — **回答者はトークンから取る**（聞かない）
+- チャンネル `store.management_travel_path` を `ACCESS_CHANNELS` に追加＋`access-channels.ts` 再生成済み。
+  カスタムロール（MANILA_MANAGER_CANDIDATE / MANILA_MANAGER / CK_MANILA）へは手動付与済み
+
+### 落とし穴（実装済みの対策）
+
+- ⚠️ **`travel_path_reports` の Cubao は `CUBAO`、他は `CUB`。** `_TP_BRANCH` で正規化。
+  これを忘れると CUB だけ毎日「Travel Path 未提出」と出る
+- ⚠️ **`backup_reports.shift` の対応は実測で決めた** — `morning` 平均10.8時＝項目4（11:00）、
+  `closing` 平均16.2時＝項目7（17:00）
+- ⚠️ **提出時刻は店舗のタイムゾーンで表示**。UTCのままだと 08:35 が 00:35 と出る
+- ⚠️ **ブロックしない。** Inbox に他人待ちが残っていても「Unable to Complete」で進める（教訓17）
+- ⚠️ `00:00-00:00` のシフト行（休み・未割当）は担当の自動提案から除外
+- ⚠️ 同一人物が Opening / Closing を兼務できる（CUB は Richard 1人、PAR の Joven は両番）
+
+### 点灯方法（現在は全店消灯）
+
+```bash
+heroku config:set MGR_CHECKLIST_BRANCHES=TAFT -a sushizen-shift-app   # 月曜
+heroku config:set MGR_CHECKLIST_BRANCHES=TAFT,PAR -a sushizen-shift-app  # 水曜
+```
+
+### 検証済み
+
+隔離した `city='qa-selftest'` で作成→同一人物の兼務→opening完了→issue記録→両方完了まで往復し、
+**テストデータは削除済み（本番の日レコード0件）**。ガード3種（issue不可項目・理由なしissue・
+不正なresult）が拒否することも確認。事実表示は TAFT/PAR/CUB の 9/12 実データで確認
+（TAFT の Disposal 未提出・PAR の Dinner Backup 未提出・CUB の Inbox 1件待ちが正しく出る）。
+
+### 残り
+
+- 点灯した店舗が出た時点で **Management Channel Manual を更新**（CLAUDE.md のテーブルに
+  Manager Checklist を追記済み）。消灯中に書くと、現場が見られない画面の説明になる
+- BO Dashboard への完了状況の表示は未実装
+- Tagalog の説明文は未作成
