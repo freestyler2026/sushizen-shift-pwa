@@ -574,6 +574,10 @@ function QuickEntryTab({
   const linkDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending Queue — store-confirmed POs awaiting Back Office price entry
   const [pendingChecks, setPendingChecks] = useState<PendingCheck[]>([]);
+  /** How many are actually waiting, not how many this page fetched. The badge
+   *  was the length of one page, so Dubai's 304 read as 50 and nothing said
+   *  there was more behind it. */
+  const [pendingTotal, setPendingTotal] = useState(0);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingCheckId, setPendingCheckId] = useState<string | null>(null); // null = new entry
   const [showStorePendingQueue, setShowStorePendingQueue] = useState(true);
@@ -601,6 +605,7 @@ function QuickEntryTab({
     setPendingLoading(true);
     try {
       const d = await apiFetch(`/procurement/po-match/pending?city=${city}&limit=50`);
+      setPendingTotal(Number(d?.total ?? 0));
       setPendingChecks(d.rows || []);
     } catch { /* best-effort */ }
     finally { setPendingLoading(false); }
@@ -995,9 +1000,9 @@ function QuickEntryTab({
               <ClipboardList className="h-4 w-4 text-violet-400" />
               <span className="text-sm font-semibold text-violet-300">
                 Pending Back Office Review
-                {pendingChecks.length > 0 && (
-                  <span className="ml-2 rounded-full bg-violet-500/30 px-2 py-0.5 text-xs font-bold text-violet-200">
-                    {pendingChecks.length}
+                {(pendingTotal || pendingChecks.length) > 0 && (
+                  <span className="ml-2 rounded-full bg-violet-500/30 px-2 py-0.5 text-xs font-bold text-violet-200 tabular-nums">
+                    {pendingTotal || pendingChecks.length}
                   </span>
                 )}
               </span>
@@ -1013,6 +1018,12 @@ function QuickEntryTab({
               )}
               {!pendingLoading && pendingChecks.length === 0 && (
                 <p className="text-xs text-zinc-500">No pending items.</p>
+              )}
+              {!pendingLoading && pendingTotal > pendingChecks.length && (
+                <p className="text-xs text-amber-300/80">
+                  Showing the {pendingChecks.length} oldest of {pendingTotal} waiting.
+                  Entering an invoice number here is what puts the PO on the invoice screen.
+                </p>
               )}
               {pendingChecks.map(pc => (
                 <button
