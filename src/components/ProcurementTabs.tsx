@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, hasAnyPermission, refreshAuthFromApi } from "@/lib/auth";
+import type { Auth } from "@/lib/auth";
 import { TAB_ACTIVE, TAB_INACTIVE } from "@/lib/ui-tokens";
 
 // ─── Access levels ────────────────────────────────────────────────────────────
@@ -13,11 +14,25 @@ const FULL_ROLES    = new Set(["HQ", "ADMIN", "DUBAI_MANAGEMENT", "MANILA_MANAGE
 const MANAGER_ROLES = new Set(["MANAGER", "DUBAI_MANAGER", "MANILA_MANAGER"]);
 const INVENTORY_ROLES = new Set(["INVENTORY_PURCHASING", "INVENTORY", "PURCHASING"]);
 
-function roleToAccessLevel(role: string): AccessLevel {
-  const r = (role || "STAFF").toUpperCase().trim();
+/** What this person may see, from what they are allowed to do.
+ *
+ *  The role-name sets below are kept because HQ and the management roles are
+ *  not expressed as procurement permissions. But a name list alone silently
+ *  demotes every role created after it was written: MANILA_MANAGER_CANDIDATE
+ *  was given channel.admin.procurement.manage and still landed on "staff",
+ *  which took the PO Match tab away from two people entering supplier invoices
+ *  on it every week — one of them the same day the role was applied. The
+ *  permission is what the work actually needs, so it is checked first.
+ */
+function accessLevelFor(auth: Auth | null | undefined): AccessLevel {
+  const r = String(auth?.role || "STAFF").toUpperCase().trim();
   if (FULL_ROLES.has(r)) return "full";
   if (MANAGER_ROLES.has(r)) return "manager";
   if (INVENTORY_ROLES.has(r)) return "inventory";
+  // Whoever can act on procurement records needs the tabs that hold them.
+  if (hasAnyPermission(["channel.admin.procurement.manage"], auth ?? undefined)) {
+    return "inventory";
+  }
   return "staff";
 }
 
@@ -139,8 +154,7 @@ export default function ProcurementTabs() {
   // Initialise synchronously from cached auth so tabs render with correct access
   // from the very first paint (avoids a "full" flash before loadBadge resolves).
   const [accessLevel, setAccessLevel] = useState<AccessLevel>(() => {
-    const auth = getAuth();
-    return roleToAccessLevel(String(auth?.role || "STAFF"));
+    return accessLevelFor(getAuth());
   });
 
   // Exactly one group is open at a time — default to active group or "operations"
@@ -160,12 +174,11 @@ export default function ProcurementTabs() {
       const auth = getAuth();
       if (!auth?.hasSession && !auth?.accessToken) return;
       const refreshed = await refreshAuthFromApi(auth);
-      const role = String(refreshed?.role || auth?.role || "STAFF");
       const city =
         String(refreshed?.city || auth?.city || "manila").toLowerCase() === "dubai"
           ? "dubai"
           : "manila";
-      setAccessLevel(roleToAccessLevel(role));
+      setAccessLevel(accessLevelFor(refreshed || auth));
       const res = await fetch(
         `/api/admin/procurement/badge-summary?city=${encodeURIComponent(city)}`,
         {
