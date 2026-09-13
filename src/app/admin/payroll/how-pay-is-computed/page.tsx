@@ -153,15 +153,22 @@ This cut-off's share of any monthly amount:
       </Section>
 
       <Section id="mnl-skip" title="When nothing is collected">
-        <Formula>{`no pay this cut-off   G <= 0
-first cut-off after hire, and days worked < half the days in the cut-off
-    -> SSS, PhilHealth and Pag-IBIG are not collected here
+        <Formula>{`Nothing is collected when:
+  G <= 0                                 no pay this cut-off
+  it is the FIRST HALF, it is the person's first cut-off after hire,
+  and days worked < half the days in the cut-off
 
-Not waived. The whole month is collected from the next cut-off, which is
-where the pay is. The payslip says so.
+Not waived. The whole month is collected from the second half, which is
+where the pay is, and the payslip says so.
 
-A separation is the exception: the last cut-off has no next one, so it
-settles itself and collects the month in full.`}</Formula>
+Only the first half can defer. The second half's next cut-off belongs to
+the following month and collects its own, so deferring there would lose
+the month's contribution rather than move it — the second half collects,
+and the cap below is what protects a thin pay packet.
+
+A separation settles itself: the last cut-off has no next one, so the
+month is that cut-off alone (M = G, not 2G) and the whole month's
+contributions are collected from it.`}</Formula>
         <Note>
           Half a month&rsquo;s contributions out of two days&rsquo; pay is not a
           proportional deduction. It is also capped: the employee&rsquo;s share
