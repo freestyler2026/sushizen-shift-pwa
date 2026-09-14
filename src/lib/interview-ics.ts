@@ -16,8 +16,10 @@ export type IcsInterview = {
   position_applied?: string | null;
   starts_at: string;
   ends_at?: string | null;
-  /** How the interviewer reaches them: "office phone", "viber on the PC", … */
+  /** How the interviewer reaches them: "Office phone", "Viber on the PC", … */
   reach_with?: string | null;
+  /** Where the interviewer sits that day: "BO" or "Cubao". */
+  location?: string | null;
   interviewer?: string | null;
 };
 
@@ -35,7 +37,11 @@ export function icsFor(row: IcsInterview): string {
   const end = row.ends_at
     ? new Date(row.ends_at)
     : new Date(start.getTime() + 45 * 60000);
-  const where = row.reach_with || "";
+  // LOCATION is where the interviewer has to be. It used to carry the reach
+  // label, so an entry saved to a phone said "Office phone" and lost the only
+  // thing the calendar is asked for — BO or Cubao.
+  const reach = row.reach_with || "";
+  const where = row.location || "";
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -52,7 +58,8 @@ export function icsFor(row: IcsInterview): string {
       [
         `${row.full_name}${row.position_applied ? ` — ${row.position_applied}` : ""}`,
         row.phone ? `Phone: ${row.phone}` : "",
-        where ? `Reach them with: ${where}` : "",
+        reach ? `Reach them with: ${reach}` : "",
+        where ? `At: ${where}` : "",
         row.interviewer ? `Interviewer: ${row.interviewer}` : "",
       ].filter(Boolean).join("\n"),
     )}`,

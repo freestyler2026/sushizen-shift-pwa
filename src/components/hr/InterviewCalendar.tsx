@@ -38,6 +38,7 @@ type Interview = {
   interviewer: string;
   contact_via: string;
   reach_with: string;
+  location: string;
   attended: boolean | null;
   recorded: boolean;
 };
@@ -286,6 +287,7 @@ export default function InterviewCalendar() {
                       starts_at: iv.starts_at,
                       ends_at: iv.ends_at,
                       reach_with: iv.reach_with,
+                      location: iv.location,
                       interviewer: iv.interviewer,
                     })}
                   >

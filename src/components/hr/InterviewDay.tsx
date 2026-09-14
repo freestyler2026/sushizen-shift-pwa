@@ -41,6 +41,7 @@ type Row = {
   interviewer_staff: string;
   contact_via: string | null;
   reach_with: string;
+  location?: string | null;
   voice_decision: string | null;
   voice_summary: string | null;
   attended: boolean | null;
