@@ -95,6 +95,9 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
   const [openId, setOpenId] = useState<string>("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  // ⚠️ 鍵は **applicant_id**。日程変更は新しい枠を作るので、枠のIDで持つと
+  //    再取得のあとに行のIDが変わり、「動かしました」が画面に出ない
+  //    （実機で押して発覚。保存は成功しているのに何も言わない画面になる）。
   const [done, setDone] = useState<Record<string, string>>({});
   // 動かす・取り消す。**応募者は自分で取り消せるのに HR は取り消せなかった。**
   const [moveId, setMoveId] = useState<string>("");
@@ -181,7 +184,7 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
       // 確かめる場所が画面から消える（教訓56）。
       setDone((p) => ({
         ...p,
-        [row.id]: `Cancelled. ${row.full_name} is back in “Waiting for a booking link” above — `
+        [row.applicant_id]: `Cancelled. ${row.full_name} is back in “Waiting for a booking link” above — `
           + "their link still works, so they can take another time themselves.",
       }));
       setRows((p) => p.map((r) => (r.id === row.id ? { ...r, cancelled: true } : r)));
@@ -214,7 +217,7 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
       }
       setDone((p) => ({
         ...p,
-        [row.id]: `Moved to ${dayOf(slot.starts_at)} at ${timeOf(slot.starts_at)} `
+        [row.applicant_id]: `Moved to ${dayOf(slot.starts_at)} at ${timeOf(slot.starts_at)} `
           + `with ${slot.interviewer}. They have been told.`,
       }));
       setMoveId("");
@@ -246,7 +249,7 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
         return;
       }
       const label = OUTCOMES.find((o) => o.key === outcome)?.label || outcome;
-      setDone((p) => ({ ...p, [row.id]: `Recorded — ${label}` }));
+      setDone((p) => ({ ...p, [row.applicant_id]: `Recorded — ${label}` }));
       setRows((p) => p.map((r) => (r.id === row.id ? { ...r, recorded: true } : r)));
       setOpenId("");
       setNote("");
@@ -326,9 +329,9 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
           </p>
         )}
 
-        {done[row.id] && (
+        {done[row.applicant_id] && (
           <p className="border-t border-white/8 bg-emerald-500/8 px-4 py-2 text-sm text-emerald-200">
-            {done[row.id]}
+            {done[row.applicant_id]}
           </p>
         )}
 
