@@ -34,6 +34,7 @@ import {
 import SelectDark from "@/components/SelectDark";
 import VoiceScreeningQueue from "@/components/hr/VoiceScreeningQueue";
 import InterviewDay from "@/components/hr/InterviewDay";
+import BookingLinksToSend from "@/components/hr/BookingLinksToSend";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -3462,7 +3463,12 @@ export default function HRRecruitmentPage() {
       </div>
 
       {view === "interviews" ? (
-        <InterviewDay />
+        <>
+          {/* Who still cannot book. Above the day, because an empty day with
+              fifteen people waiting for a link is the state this tab was in. */}
+          <BookingLinksToSend />
+          <InterviewDay />
+        </>
       ) : view === "voice" ? (
         <VoiceScreeningQueue />
       ) : view === "plans" ? (
