@@ -191,19 +191,28 @@ export default function BookingLinksToSend() {
    *  recorded nothing.
    */
   async function copy(text: string, what: string, applicantId: string) {
+    // The clipboard call goes first and is not awaited behind anything else:
+    // it only works while the browser still counts this as the user's click.
+    let clipboardWorked = true;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(what);
     } catch {
-      setErr("Could not copy. Select the text and copy it by hand.");
-      return;
+      // Blocked outside a secure context, or the permission was refused.
+      clipboardWorked = false;
+      setErr("Could not copy. Select the text above and copy it by hand.");
     }
-    // The copy already worked. A failure to log it must not undo that.
+
+    // Recorded either way. When the clipboard is refused the person selects the
+    // text and copies it themselves -- they have still taken it away, and that
+    // is the whole point of the marker. Only recording the successful path
+    // would leave exactly those people invisible, which is the failure this
+    // marker exists to prevent.
     try {
       await fetch(`/api/admin/hr/applicants/${applicantId}/booking-invite/copied`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ what, lang }),
+        body: JSON.stringify({ what: clipboardWorked ? what : `${what} (by hand)`, lang }),
       });
       setRows((rs) => rs.map((r) => r.id === applicantId
         ? { ...r, copied_at: new Date().toISOString(), copied_by: "you" }
