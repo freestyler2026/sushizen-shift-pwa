@@ -1052,7 +1052,9 @@ open one of these, then press send yourself.
           <strong>It does not send anything.</strong> Send it by SMS if that button is
           there, or copy the message and send it where the person asked &mdash; the badge
           beside their name says which app they chose.</li>
-        <li>They leave the list when they pick a time. Nobody has to chase them.</li>
+        <li>They leave the list when they pick a time. Nobody has to chase them.
+          On their phone the times are grouped by day and they scroll — the date is
+          written once, not on every row.</li>
         <li><span class="ui">New link</span> replaces the old one, and the old one stops
           opening. It asks first. Only use it if the link never reached them.</li>
       </ul>
@@ -1162,6 +1164,76 @@ open one of these, then press send yourself.
           表示は taken のままです。後から押す「送信しました」ボタンは<strong>意図的に作っていません</strong>。
           作業が終わった後の1タップは、誰も押さないからです。</p>
       </div>
+      <h3 lang="en">Changing or cancelling a booked interview</h3>
+      <h3 lang="ja" hidden>予約済みの面接を変更・取り消す</h3>
+      <p lang="en">Somebody rings to say they cannot make Wednesday. On the
+        <span class="ui">Interviews</span> tab, find them and press
+        <span class="ui">Move or cancel</span> on their line. You can also reach it from the
+        <span class="ui">Calendar</span> — click the day, then
+        <span class="ui">Move or cancel</span> on the interview; it takes you to the same
+        place with the panel already open.</p>
+      <p lang="ja" hidden>「水曜は行けません」と電話が来たときです。
+        <span class="ui">Interviews</span> タブでその人の行の
+        <span class="ui">Move or cancel</span> を押します。
+        <span class="ui">Calendar</span> からも行けます — 日を開いて面接の
+        <span class="ui">Move or cancel</span> を押すと、同じ画面がパネルを開いた状態で出ます。</p>
+      <ul lang="en">
+        <li><strong>Moving</strong> — press a time. The list only shows times that are
+          genuinely free, so you cannot double-book anybody. The old time is released and
+          the new one taken together; there is no moment where they have neither.</li>
+        <li><strong>The interviewer is told either way.</strong> If the new time belongs to
+          somebody else, the person losing the slot is told as well — otherwise their
+          calendar keeps a candidate who is not coming.</li>
+        <li><strong>Cancelling puts them back in <span class="ui">Waiting for a booking
+          link</span></strong> at the top of the same tab. <strong>Their link is not
+          cancelled</strong>, so they can still pick another time themselves. If the link has
+          expired, press <span class="ui">New link</span> there.</li>
+        <li><strong>A cancel cannot be undone.</strong> If it was a mistake, book them again
+          from the panel, or let them use their link.</li>
+        <li>The reason you type goes to the interviewer. It is optional.</li>
+      </ul>
+      <ul lang="ja" hidden>
+        <li><strong>変更</strong> ── 時刻を押すだけです。一覧に出るのは<strong>本当に空いている枠</strong>
+          だけなので、二重予約にはなりません。古い枠の解放と新しい枠の確保は同時に行われるので、
+          「どちらも無い」瞬間は作れません。</li>
+        <li><strong>面接官にはどちらの場合も伝わります。</strong>別の面接官の枠に移した場合は、
+          枠を失う側にも伝わります。伝えないと、その人の予定表に来ない人が残るためです。</li>
+        <li><strong>取り消すと、同じタブの上にある
+          <span class="ui">Waiting for a booking link</span> に戻ります。</strong>
+          <strong>本人のリンクは失効しません</strong>ので、別の時間を自分で取り直せます。
+          期限が切れていれば、そこで <span class="ui">New link</span> を押してください。</li>
+        <li><strong>取り消しは元に戻せません。</strong>誤って押した場合は、同じパネルから
+          取り直すか、本人のリンクで取ってもらってください。</li>
+        <li>入力した理由は面接官に伝わります。任意です。</li>
+      </ul>
+
+      <h3 lang="en">Booking a time for them yourself</h3>
+      <h3 lang="ja" hidden>こちらで日程を入れる</h3>
+      <p lang="en">Only when the time was agreed on the phone. Open the candidate,
+        <span class="ui">Interview</span> tab, <span class="ui">Book a time for them</span>,
+        and press one of the free times. Otherwise send the link and let them pick — that is
+        what the link is for, and it is the difference between 4 interview records and 63.</p>
+      <p lang="ja" hidden>電話で日程が決まったときだけ使ってください。候補者を開いて
+        <span class="ui">Interview</span> タブ →
+        <span class="ui">Book a time for them</span> → 空いている時刻を押します。
+        それ以外はリンクを送って本人に選んでもらってください。リンクはそのためにあります。</p>
+      <div class="note">
+        <p lang="en">This used to be a form with a date, a time, a location and an interviewer
+          typed by hand. It saved a record that <strong>nothing read</strong> — not this list,
+          not the calendar, not the reminder, and not the interviewer — while quietly taking
+          the person off <span class="ui">Waiting for a booking link</span>. So the only thing
+          scheduling somebody did was make it impossible to invite them. Four of those records
+          exist, from July to September; all four belong to people already rejected or
+          interviewed, so nobody is stuck.</p>
+        <p lang="ja" hidden>以前は日付・時刻・場所・面接官を手で打つフォームでした。保存される記録は
+          <strong>どこからも読まれず</strong>（この一覧にもカレンダーにもリマインダーにも出ず、
+          面接官にも伝わらず）、その一方で
+          <span class="ui">Waiting for a booking link</span> からはその人を消していました。
+          つまり「予定を入れる」と「招待できなくなる」だけが起きていました。
+          該当する記録は7〜9月の4件で、全員すでに不採用か面接済みなので、
+          いま困っている人はいません。</p>
+      </div>
+
       <h3 lang="en">Where the bookings land — the Calendar tab</h3>
       <h3 lang="ja" hidden>予約がどこに出るか ── Calendar タブ</h3>
       <p lang="en">You do not assign times. The applicant picks one and it appears on
