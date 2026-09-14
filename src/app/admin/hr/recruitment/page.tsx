@@ -408,100 +408,124 @@ function KanbanCard({
 // ─── Interview Schedule Form ──────────────────────────────────────────────────
 
 function InterviewForm({
-  onSave,
+  applicantId,
+  onBooked,
   onCancel,
-  saving,
 }: {
-  onSave: (data: Omit<InterviewSchedule, "id" | "applicant_id">) => void;
+  applicantId: string;
+  onBooked: () => void;
   onCancel: () => void;
-  saving: boolean;
 }) {
-  const [form, setForm] = useState({
-    interview_date: "",
-    interview_time: "",
-    location: "",
-    interviewer: "",
-    interview_type: "initial",
-    status: "scheduled",
-    notes: "",
-  });
-  const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  /* This used to be seven free-text boxes -- date, a time typed as text,
+     location, interviewer, type, status, notes -- and it wrote a row with no
+     start time. Nothing reads such a row: not the interviews list, not the
+     calendar, not the day-before reminder, not the interviewer. Its one real
+     effect was to take the person off "Waiting for a booking link", so the
+     only thing scheduling somebody did was make them uninvitable.
+
+     Booking on their behalf now picks from the times that are actually free,
+     the same list the applicant's own link offers. */
+  const [slots, setSlots] = useState<{ starts_at: string; interviewer: string; branch: string; assumed: boolean }[] | null>(null);
+  const [err, setErr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/hr/interviews/open-slots?days=21&limit=60",
+          { cache: "no-store" });
+        if (!alive) return;
+        if (!res.ok) { setErr("Could not load the open times."); return; }
+        const j = await res.json();
+        setSlots(j.rows || []);
+      } catch {
+        if (alive) setErr("Could not load the open times.");
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  async function take(s: { starts_at: string; interviewer: string }) {
+    if (saving) return;
+    setSaving(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/admin/hr/applicants/${applicantId}/book`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(s),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try { msg = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
+        setErr(String(msg).slice(0, 240));
+        return;
+      }
+      onBooked();
+    } catch {
+      setErr("Could not book it. Nothing changed — try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const byDay: [string, typeof slots extends null ? never : NonNullable<typeof slots>][] = [];
+  for (const s of slots || []) {
+    const d = new Date(s.starts_at).toLocaleDateString("en-GB", {
+      timeZone: "Asia/Manila", weekday: "long", day: "numeric", month: "long",
+    });
+    const last = byDay[byDay.length - 1];
+    if (last && last[0] === d) last[1].push(s);
+    else byDay.push([d, [s]]);
+  }
 
   return (
     <div className={`${GLASS_CARD} p-4 space-y-3`}>
-      <p className={T_SECTION}>Schedule Interview</p>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={T_LABEL}>Date</label>
-          <input
-            type="date"
-            className={`${INPUT_CLASS} mt-1`}
-            value={form.interview_date}
-            onChange={(e) => set("interview_date", e.target.value)}
-          />
+      <p className={T_SECTION}>Book a time for them</p>
+      <p className={T_CAPTION}>
+        Only for a time agreed on the phone. Otherwise send the booking link and let
+        them pick — that is the whole point of the link. The interviewer is told
+        either way, and it appears on the Interviews and Calendar tabs.
+      </p>
+      {err && <p className="text-sm text-amber-300">{err}</p>}
+      {slots === null && !err && <p className={T_CAPTION}>Loading the open times…</p>}
+      {slots !== null && slots.length === 0 && (
+        <p className={T_CAPTION}>
+          No open times in the next three weeks. Publish the roster further out first.
+        </p>
+      )}
+      {byDay.length > 0 && (
+        <div className="max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-2">
+          {byDay.map(([day, times]) => (
+            <div key={day} className="mb-2 last:mb-0">
+              <p className={`${T_CAPTION} mb-1`}>{day}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {times.map((s) => (
+                  <button
+                    key={`${s.starts_at}-${s.interviewer}`}
+                    disabled={saving}
+                    onClick={() => void take(s)}
+                    title={`${s.interviewer} · ${s.branch === "CUB" ? "Cubao" : s.branch}`}
+                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm tabular-nums text-zinc-200 hover:bg-violet-500/20 disabled:opacity-50"
+                  >
+                    {new Date(s.starts_at).toLocaleTimeString("en-GB", {
+                      timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit",
+                    })}
+                    <span className="ml-1.5 text-[11px] text-zinc-400">
+                      {s.interviewer.split(" ")[0]}{s.assumed ? "*" : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
-        <div>
-          <label className={T_LABEL}>Time</label>
-          <input
-            type="text"
-            placeholder="14:00"
-            className={`${INPUT_CLASS} mt-1`}
-            value={form.interview_time}
-            onChange={(e) => set("interview_time", e.target.value)}
-          />
-        </div>
-      </div>
-      <div>
-        <label className={T_LABEL}>Location</label>
-        <input
-          type="text"
-          placeholder="e.g. Head Office — Room 2"
-          className={`${INPUT_CLASS} mt-1`}
-          value={form.location}
-          onChange={(e) => set("location", e.target.value)}
-        />
-      </div>
-      <div>
-        <label className={T_LABEL}>Interviewer</label>
-        <input
-          type="text"
-          className={`${INPUT_CLASS} mt-1`}
-          value={form.interviewer}
-          onChange={(e) => set("interviewer", e.target.value)}
-        />
-      </div>
-      <div>
-        <label className={T_LABEL}>Interview Type</label>
-        <SelectDark
-          className={`${SELECT_CLASS} mt-1`}
-          value={form.interview_type}
-          onChange={v => set("interview_type", v)}
-          options={[
-            { value: "initial", label: "Initial" },
-            { value: "final", label: "Final" },
-            { value: "practical", label: "Practical" },
-          ]}
-        />
-      </div>
-      <div>
-        <label className={T_LABEL}>Notes</label>
-        <textarea
-          className={`${TEXTAREA_CLASS} mt-1`}
-          rows={2}
-          value={form.notes}
-          onChange={(e) => set("notes", e.target.value)}
-        />
-      </div>
+      )}
       <div className="flex gap-2 pt-1">
-        <button
-          className={PRIMARY_BUTTON}
-          disabled={saving}
-          onClick={() => onSave(form)}
-        >
-          {saving ? "Saving..." : "Save Schedule"}
-        </button>
         <button className={SECONDARY_BUTTON} onClick={onCancel}>
-          Cancel
+          Close
         </button>
       </div>
     </div>
@@ -847,25 +871,6 @@ function DetailPanel({
     await commitStatus(newStatus);
   };
 
-  const handleSaveInterview = async (data: Omit<InterviewSchedule, "id" | "applicant_id">) => {
-    setSaving(true);
-    setError("");
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/hr/interviews`, {
-        method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ applicant_id: applicant.id, ...data }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setShowInterviewForm(false);
-      void loadInterviews();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleSaveEvaluation = async (data: Partial<Evaluation>) => {
     setSaving(true);
     setError("");
@@ -1203,14 +1208,14 @@ function DetailPanel({
                 onClick={() => setShowInterviewForm(true)}
               >
                 <Plus className="h-4 w-4" />
-                Schedule Interview
+                Book a time for them
               </button>
             )}
             {showInterviewForm && (
               <InterviewForm
-                onSave={handleSaveInterview}
+                applicantId={applicant.id}
+                onBooked={() => { setShowInterviewForm(false); void loadInterviews(); onRefresh(); }}
                 onCancel={() => setShowInterviewForm(false)}
-                saving={saving}
               />
             )}
             {loadingInterviews ? (
