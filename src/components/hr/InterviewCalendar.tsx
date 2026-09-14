@@ -153,9 +153,11 @@ export default function InterviewCalendar() {
       <p className={`${T_CAPTION} -mt-1 px-4 pb-3`}>
         Free slots come from the interviewers&apos; published shifts, so a day with
         none means nobody is rostered to interview — not that it is fully booked.
-        Past the end of the published roster, weekdays fall back to the standard
-        back-office day (09:00–18:00) and are marked <span className="text-zinc-300">*</span>;
-        those can still be booked, and they firm up when the shifts go out.
+        Interviews are only offered Monday to Friday. Past the end of the published
+        roster, weekdays fall back to the standard back-office day (09:00–18:00);
+        a <span className="text-zinc-300">*</span> means some of that day&apos;s slots
+        are still that fallback. They can be booked, and they firm up when the
+        shifts go out.
       </p>
 
       {err && <p className="px-4 pb-2 text-sm text-amber-300">{err}</p>}
@@ -214,7 +216,9 @@ export default function InterviewCalendar() {
                   <div className="mt-0.5 text-[10px] text-zinc-500">
                     {day.open_slots > 0
                       ? `${day.open_slots} free${day.assumed ? "*" : ""}`
-                      : "—"}
+                      : day.is_today
+                      ? "from tomorrow"
+                      : "\u2014"}
                   </div>
                 )}
               </button>
@@ -244,6 +248,8 @@ export default function InterviewCalendar() {
                 ? "No interviews that day."
                 : selected.open_slots > 0
                 ? "Nothing booked. Applicants with a link can still take one of these slots."
+                : selected.is_today
+                ? "The earliest an applicant can book is tomorrow, so today shows no slots."
                 : "Nobody is rostered to interview that day, so no slots are offered."}
             </p>
           ) : (
