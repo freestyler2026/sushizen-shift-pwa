@@ -52,6 +52,11 @@ type StaffProfile = {
   mdr_notes: string;
   is_active: boolean;
   is_confidential: boolean;
+  /** Which company employs them. Anything but SUSHIZEN takes the person
+   *  out of this payroll — their employer computes it from the same
+   *  attendance. Not the same thing as is_confidential, which keeps the
+   *  salary in Manila's P&L as an overhead. */
+  payroll_entity: string;
   cola: string | null;
   is_minimum_wage_earner: boolean;
   rice_allowance: string | null;
@@ -89,6 +94,11 @@ type FormState = {
   mdr_notes: string;
   is_active: boolean;
   is_confidential: boolean;
+  /** Which company employs them. Anything but SUSHIZEN takes the person
+   *  out of this payroll — their employer computes it from the same
+   *  attendance. Not the same thing as is_confidential, which keeps the
+   *  salary in Manila's P&L as an overhead. */
+  payroll_entity: string;
   cola: string;
   is_minimum_wage_earner: boolean;
   rice_allowance: string;
@@ -110,6 +120,7 @@ function emptyForm(): FormState {
     civil_status: "", num_qualified_dependents: 0, mdr_submitted: false, mdr_submitted_date: "", mdr_notes: "",
     is_active: true,
     is_confidential: false,
+    payroll_entity: "SUSHIZEN",
     cola: "", is_minimum_wage_earner: false,
     rice_allowance: "", clothing_allowance: "", laundry_allowance: "", medical_allowance: "",
     pagibig_voluntary: "",
@@ -143,6 +154,7 @@ function profileToForm(p: StaffProfile): FormState {
     mdr_notes: p.mdr_notes,
     is_active: p.is_active,
     is_confidential: p.is_confidential ?? false,
+    payroll_entity: p.payroll_entity || "SUSHIZEN",
     cola: p.cola ?? "",
     is_minimum_wage_earner: p.is_minimum_wage_earner ?? false,
     rice_allowance:     p.rice_allowance ?? "",
@@ -614,6 +626,26 @@ function ProfileModal({
                 <p className="text-xs text-slate-500 mt-0.5">Salary hidden from non-HQ users. Not included in payroll runs — counts in P&amp;L only.</p>
               </div>
             </div>
+
+            {/* Employer. Separate from Confidential on purpose: that one keeps
+                the salary in Manila's P&L, this one says the cost is not ours. */}
+            <div className="pt-2">
+              <label className={L}>Employed by</label>
+              <SelectDark
+                className={S}
+                value={form.payroll_entity || "SUSHIZEN"}
+                onChange={v => set("payroll_entity", v)}
+                options={[
+                  { value: "SUSHIZEN", label: "Sushi ZEN — pay computed here" },
+                  { value: "7CZ", label: "7CZ — pay computed by 7CZ" },
+                ]}
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Anyone not employed by Sushi ZEN is left out of payroll runs and
+                of the 13th-month calculation. They still clock in, and their
+                attendance still syncs, so their employer can pay them from it.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -728,6 +760,7 @@ export default function StaffProfilesPage() {
         gcash_number: p.gcash_number || null,
         is_active: false,
         is_confidential: p.is_confidential,
+        payroll_entity: p.payroll_entity,
         civil_status: p.civil_status || null,
         num_qualified_dependents: p.num_qualified_dependents,
         mdr_submitted: p.mdr_submitted,
@@ -937,6 +970,11 @@ export default function StaffProfilesPage() {
                             <p className="font-semibold text-white">{p.staff_name}</p>
                             {p.is_confidential && (
                               <span className="rounded-full border border-rose-500/30 bg-rose-900/20 px-1.5 py-0.5 text-[10px] text-rose-400">Confidential</span>
+                            )}
+                            {p.payroll_entity && p.payroll_entity !== "SUSHIZEN" && (
+                              <span className="rounded-full border border-sky-500/30 bg-sky-900/20 px-1.5 py-0.5 text-[10px] text-sky-300">
+                                {p.payroll_entity} payroll
+                              </span>
                             )}
                           </div>
                           {p.department && <p className="text-xs text-slate-500">{p.department}</p>}
