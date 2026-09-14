@@ -53,7 +53,15 @@ function reachWord(via: string): string {
   return via === "call" ? "phone call" : via;
 }
 
-export default function BookingLinksToSend() {
+export default function BookingLinksToSend({
+  focusApplicantId = "",
+  onFocusHandled,
+}: {
+  /** Sent here by the board's "Send interview link" button. The row is pulled
+   *  to the top and marked, so nobody has to find the name again. */
+  focusApplicantId?: string;
+  onFocusHandled?: () => void;
+} = {}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -112,6 +120,15 @@ export default function BookingLinksToSend() {
     })();
     return () => { alive = false; };
   }, []);
+
+  // Let the highlight go after a while, so a later Refresh does not keep
+  // marking somebody who was dealt with ten minutes ago.
+  useEffect(() => {
+    if (!focusApplicantId || loading) return;
+    if (!rows.some((r) => r.id === focusApplicantId)) return;
+    const t = setTimeout(() => onFocusHandled?.(), 20000);
+    return () => clearTimeout(t);
+  }, [focusApplicantId, loading, rows, onFocusHandled]);
 
   async function createLink(row: Row) {
     if (busy) return;
@@ -220,8 +237,17 @@ export default function BookingLinksToSend() {
     } catch { /* the trace is a convenience, the copy is the job */ }
   }
 
-  const needLink = rows.filter((r) => !r.link_live && !justIssued.has(r.id));
-  const waiting = rows.filter((r) => r.link_live || justIssued.has(r.id));
+  // The board sends somebody here by name. Put them first and mark the row --
+  // arriving at a list of fifteen and having to find the name again is the
+  // reason the board grew its own (wrong) button in the first place.
+  const focusFirst = (list: Row[]) =>
+    focusApplicantId
+      ? [...list].sort((a, b) =>
+          (b.id === focusApplicantId ? 1 : 0) - (a.id === focusApplicantId ? 1 : 0))
+      : list;
+
+  const needLink = focusFirst(rows.filter((r) => !r.link_live && !justIssued.has(r.id)));
+  const waiting = focusFirst(rows.filter((r) => r.link_live || justIssued.has(r.id)));
 
   /** One candidate.
    *
@@ -235,7 +261,12 @@ export default function BookingLinksToSend() {
   function line(row: Row, sent: boolean) {
     const open = openFor === row.id && invite;
     return (
-      <div key={row.id} className="border-t border-white/8 first:border-t-0">
+      <div
+        key={row.id}
+        className={`border-t border-white/8 first:border-t-0 ${
+          row.id === focusApplicantId ? "bg-violet-500/10 ring-1 ring-inset ring-violet-400/40" : ""
+        }`}
+      >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
           <span className="text-sm font-medium text-zinc-100">{row.full_name}</span>
           {row.position_applied && (

@@ -3,7 +3,7 @@
 import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2 } from "lucide-react";
+import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2 } from "lucide-react";
 import { getAuth, refreshAuthFromApi, getAuthHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -301,12 +301,14 @@ function KanbanCard({
   onSelect,
   onQuickStatus,
   onRecordOutcome,
+  onSendLink,
   nextStatus,
 }: {
   applicant: Applicant;
   onSelect: () => void;
   onQuickStatus: (id: string, status: KanbanStatus) => void;
   onRecordOutcome: (a: Applicant) => void;
+  onSendLink: (a: Applicant) => void;
   nextStatus: KanbanStatus | null;
 }) {
   return (
@@ -360,6 +362,28 @@ function KanbanCard({
           </button>
         </div>
       ) : (
+        applicant.status === "screened" ? (
+          /* An interview is not something this button can declare.
+             It used to write status='scheduled', which put the card under
+             Interview Sched. with no date, no schedule row and no link -- and
+             worse, 'scheduled' drops the person out of the booking-link list
+             and makes issue_invite refuse them, so pressing it took away the
+             only route to an interview. The applicant picks their own time;
+             this hands over the link that lets them, and the card moves by
+             itself when they book. */
+          <div className="mt-2">
+            <button
+              className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSendLink(applicant);
+              }}
+            >
+              <Link2 className="h-3 w-3" />
+              Send interview link
+            </button>
+          </div>
+        ) : (
         nextStatus && (
           <div className="mt-2">
             <button
@@ -373,6 +397,7 @@ function KanbanCard({
               {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
             </button>
           </div>
+        )
         )
       )}
     </div>
@@ -2879,6 +2904,9 @@ export default function HRRecruitmentPage() {
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
   const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews">("pipeline");
+  // Which candidate the board sent us here for, so the Interviews tab opens on
+  // them instead of making somebody find the name again in a list of fifteen.
+  const [focusBooking, setFocusBooking] = useState<string>("");
   const [lane, setLane] = useState<Lane>("active");
   const [closedSearch, setClosedSearch] = useState("");
   // Rows decided during this sitting. On the board a decision moved a card to
@@ -3466,7 +3494,10 @@ export default function HRRecruitmentPage() {
         <>
           {/* Who still cannot book. Above the day, because an empty day with
               fifteen people waiting for a link is the state this tab was in. */}
-          <BookingLinksToSend />
+          <BookingLinksToSend
+            focusApplicantId={focusBooking}
+            onFocusHandled={() => setFocusBooking("")}
+          />
           <InterviewDay />
         </>
       ) : view === "voice" ? (
@@ -3596,6 +3627,7 @@ export default function HRRecruitmentPage() {
                               onSelect={() => setSelectedApplicant(applicant)}
                               onQuickStatus={handleQuickStatus}
                               onRecordOutcome={setOutcomeFor}
+                              onSendLink={(a) => { setFocusBooking(a.id); setView("interviews"); }}
                               nextStatus={getNextStatus(applicant.status)}
                             />
                           ))
