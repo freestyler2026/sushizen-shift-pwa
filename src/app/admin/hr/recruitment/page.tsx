@@ -2920,6 +2920,11 @@ export default function HRRecruitmentPage() {
   // the recordings would leave the badge at zero while twenty people sit
   // uninvited, and a badge at zero is a tab nobody opens.
   const [voiceToDo, setVoiceToDo] = useState<{ review: number; invite: number } | null>(null);
+  // The Interviews tab carried no number at all, so an interviewer had nothing
+  // telling them to open it -- and nothing else tells them either: a booking
+  // sends no message to anybody. Two counts, because "today" is the one that
+  // cannot wait and "this week" is the one worth knowing about.
+  const [interviewsToDo, setInterviewsToDo] = useState<{ today: number; week: number } | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [showNewPlan, setShowNewPlan] = useState(false);
@@ -3009,6 +3014,19 @@ export default function HRRecruitmentPage() {
           });
         }
       } catch { /* the badge is not worth breaking the page for */ }
+
+      try {
+        const iRes = await fetch(
+          `${API_BASE}/api/admin/hr/interviews/upcoming?days=7`,
+          { headers, cache: "no-store" });
+        if (iRes.ok) {
+          const iv = await iRes.json();
+          setInterviewsToDo({
+            today: Number(iv?.today || 0),
+            week: Number(iv?.count || 0),
+          });
+        }
+      } catch { /* same: a missing badge must not take the page down */ }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -3379,6 +3397,20 @@ export default function HRRecruitmentPage() {
                       title={`${voiceToDo.review} to review, ${voiceToDo.invite} to invite`}
                     >
                       {voiceToDo.review + voiceToDo.invite}
+                    </span>
+                  ) : null}
+                  {k === "interviews" && interviewsToDo && interviewsToDo.week > 0 ? (
+                    <span
+                      className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
+                        interviewsToDo.today > 0
+                          ? "bg-amber-500/25 text-amber-200"
+                          : "bg-violet-500/25 text-violet-200"
+                      }`}
+                      title={interviewsToDo.today > 0
+                        ? `${interviewsToDo.today} today, ${interviewsToDo.week} in the next 7 days`
+                        : `${interviewsToDo.week} in the next 7 days`}
+                    >
+                      {interviewsToDo.today > 0 ? interviewsToDo.today : interviewsToDo.week}
                     </span>
                   ) : null}
                 </button>

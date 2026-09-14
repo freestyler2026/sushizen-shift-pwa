@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, Phone, MonitorSmartphone, Check, PauseCircle, X, UserX } from "lucide-react";
+import { CalendarClock, CalendarPlus, Phone, MonitorSmartphone, Check, PauseCircle, X, UserX } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS,
   BADGE_WARNING, T_CAPTION, T_LABEL, T_SECTION,
@@ -34,6 +34,7 @@ type Row = {
   position_group: string | null;
   experience_level: string | null;
   starts_at: string;
+  ends_at: string | null;
   day: string;
   is_today: boolean;
   interviewer_staff: string;
@@ -44,6 +45,66 @@ type Row = {
   attended: boolean | null;
   recorded: boolean;
 };
+
+/** A calendar entry the interviewer can keep.
+ *
+ *  Nothing about a booking reaches anybody today: no message, no calendar, and
+ *  this list was the only place it existed. The OS cannot write into somebody's
+ *  Google or phone calendar without an integration to build and maintain, but a
+ *  .ics file is that same thing without any of it -- one tap and it is in
+ *  whatever calendar they already use, with an alarm.
+ *
+ *  Times go out in UTC (the trailing Z) so the phone converts them itself. A
+ *  local time written without a VTIMEZONE block is the one thing every calendar
+ *  app reads differently.
+ */
+function icsFor(row: Row): string {
+  const start = new Date(row.starts_at);
+  // The real end, not a repeated 45. HR_INTERVIEW_MINUTES is a server setting;
+  // copying its value here would make every calendar entry wrong the day it
+  // changes, and nobody would connect the two.
+  const end = row.ends_at ? new Date(row.ends_at) : new Date(start.getTime() + 45 * 60000);
+  const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const esc = (t: string) => String(t || "").replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+  const where = row.reach_with || "";
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Sushi ZEN//Workforce OS//EN",
+    "BEGIN:VEVENT",
+    `UID:interview-${row.id}@sushizen`,
+    `DTSTAMP:${stamp(new Date())}`,
+    `DTSTART:${stamp(start)}`,
+    `DTEND:${stamp(end)}`,
+    `SUMMARY:${esc(`Interview — ${row.full_name}`)}`,
+    `DESCRIPTION:${esc(
+      [`${row.full_name}${row.position_applied ? ` — ${row.position_applied}` : ""}`,
+       row.phone ? `Phone: ${row.phone}` : "",
+       where ? `Reach them with: ${where}` : "",
+       row.interviewer_staff ? `Interviewer: ${row.interviewer_staff}` : ""]
+        .filter(Boolean).join("\n"))}`,
+    where ? `LOCATION:${esc(where)}` : "",
+    "BEGIN:VALARM",
+    "TRIGGER:-PT15M",
+    "ACTION:DISPLAY",
+    "DESCRIPTION:Interview in 15 minutes",
+    "END:VALARM",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].filter(Boolean).join("\r\n");
+}
+
+function downloadIcs(row: Row) {
+  const blob = new Blob([icsFor(row)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `interview-${row.full_name.replace(/[^\w]+/g, "-").toLowerCase()}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 const MNL = "Asia/Manila";
 const timeOf = (iso: string) =>
@@ -143,11 +204,21 @@ export default function InterviewDay() {
           {row.interviewer_staff && (
             <span className={T_CAPTION}>with {row.interviewer_staff}</span>
           )}
+          <button
+            className={`${SMALL_BUTTON} ml-auto`}
+            title="Puts it in your own phone or Google calendar, with a reminder 15 minutes before."
+            onClick={() => downloadIcs(row)}
+          >
+            <span className="flex items-center gap-1.5">
+              <CalendarPlus className="h-4 w-4" />
+              Add to my calendar
+            </span>
+          </button>
           {row.recorded ? (
-            <span className={`${BADGE_SUCCESS} ml-auto`}>Recorded</span>
+            <span className={BADGE_SUCCESS}>Recorded</span>
           ) : (
             <button
-              className={`${SMALL_BUTTON} ml-auto`}
+              className={SMALL_BUTTON}
               onClick={() => { setOpenId(openId === row.id ? "" : row.id); setNote(""); }}
             >
               {openId === row.id ? "Close" : "How did it go?"}
