@@ -35,6 +35,7 @@ import SelectDark from "@/components/SelectDark";
 import VoiceScreeningQueue from "@/components/hr/VoiceScreeningQueue";
 import InterviewDay from "@/components/hr/InterviewDay";
 import BookingLinksToSend from "@/components/hr/BookingLinksToSend";
+import InterviewCalendar from "@/components/hr/InterviewCalendar";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -3524,8 +3525,12 @@ export default function HRRecruitmentPage() {
 
       {view === "interviews" ? (
         <>
-          {/* Who still cannot book. Above the day, because an empty day with
-              fifteen people waiting for a link is the state this tab was in. */}
+          {/* When the interviews are. First, because "what does next week look
+              like" is the question a list of the next seven days cannot answer,
+              and booking a time you cannot then see is what made this unusable. */}
+          <InterviewCalendar />
+          {/* Who still cannot book. An empty calendar with fifteen people
+              waiting for a link is the state this tab was in. */}
           <BookingLinksToSend
             focusApplicantId={focusBooking}
             onFocusHandled={() => setFocusBooking("")}
