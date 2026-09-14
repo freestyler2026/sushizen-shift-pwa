@@ -2904,7 +2904,7 @@ export default function HRRecruitmentPage() {
   const [outcomeFor, setOutcomeFor] = useState<Applicant | null>(null);
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
-  const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews">("pipeline");
+  const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews" | "calendar">("pipeline");
   // Which candidate the board sent us here for, so the Interviews tab opens on
   // them instead of making somebody find the name again in a list of fifteen.
   const [focusBooking, setFocusBooking] = useState<string>("");
@@ -3385,7 +3385,7 @@ export default function HRRecruitmentPage() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className={T_PAGE_TITLE}>HR Recruitment Pipeline</h1>
             <div className={TAB_CONTAINER}>
-              {([["pipeline", "Pipeline"], ["plans", "Plans"], ["voice", "Voice screening"], ["interviews", "Interviews"]] as const).map(([k, label]) => (
+              {([["pipeline", "Pipeline"], ["plans", "Plans"], ["voice", "Voice screening"], ["interviews", "Interviews"], ["calendar", "Calendar"]] as const).map(([k, label]) => (
                 <button
                   key={k}
                   className={view === k ? TAB_ACTIVE : TAB_INACTIVE}
@@ -3523,14 +3523,15 @@ export default function HRRecruitmentPage() {
         )}
       </div>
 
-      {view === "interviews" ? (
+      {view === "calendar" ? (
+        /* Its own tab. Sitting above the Interviews list, it was something you
+           found by scrolling on a tab named after something else -- "where is
+           the calendar" is not a question a calendar should provoke. */
+        <InterviewCalendar />
+      ) : view === "interviews" ? (
         <>
-          {/* When the interviews are. First, because "what does next week look
-              like" is the question a list of the next seven days cannot answer,
-              and booking a time you cannot then see is what made this unusable. */}
-          <InterviewCalendar />
-          {/* Who still cannot book. An empty calendar with fifteen people
-              waiting for a link is the state this tab was in. */}
+          {/* Who still cannot book. An empty day with fifteen people waiting
+              for a link is the state this tab was in. */}
           <BookingLinksToSend
             focusApplicantId={focusBooking}
             onFocusHandled={() => setFocusBooking("")}
