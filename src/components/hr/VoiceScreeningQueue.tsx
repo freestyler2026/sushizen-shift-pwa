@@ -308,6 +308,20 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
   // The invite panel for one applicant. Held open until it is dismissed: the
   // link is shown once and re-issuing kills the previous one, so it must not
   // disappear behind a re-render before it has been sent.
+  /** Shortlist hands back the next thing to do, not just a record of a choice.
+   *
+   *  Recruitment carries 63 interview evaluations against 4 schedules. The
+   *  evaluation decides whether to hire; the schedule returned nothing for the
+   *  typing, and could be done on the phone instead, so it was. Pressing
+   *  Shortlist now produces a booking link the applicant opens to pick their
+   *  own time — the copy is the record.
+   */
+  const [booking, setBooking] = useState<{
+    url: string; full_name: string; phone: string; contact_via: string;
+    language: string; messages: Record<string, string>; expires_days: number;
+  } | null>(null);
+  const [bookingFor, setBookingFor] = useState<string>("");
+  const [bookingLang, setBookingLang] = useState<"en" | "tl">("en");
   const [invite, setInvite] = useState<Invite | null>(null);
   const [inviteFor, setInviteFor] = useState<string>("");
   const [inviteLang, setInviteLang] = useState<"en" | "tl">("en");
@@ -474,6 +488,30 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       setNote("");
       setOpenId(null);
       setDetail(null);
+      if (decision === "shortlist") {
+        // The link is fetched here rather than behind another button: a second
+        // press is a second chance to not press it.
+        try {
+          const b = await fetch(
+            `/api/admin/hr/applicants/${row.applicant_id}/booking-invite`,
+            { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" },
+          );
+          if (b.ok) {
+            const bj = await b.json();
+            setBooking(bj);
+            setBookingFor(row.applicant_id);
+            setBookingLang(bj.language === "tl" ? "tl" : "en");
+          } else {
+            const bt = await b.text();
+            let bm = bt;
+            try { bm = JSON.parse(bt)?.detail || bt; } catch { /* text/plain */ }
+            // Shortlisting worked; only the link did not. Say which.
+            setErr(`Shortlisted, but no booking link: ${String(bm).slice(0, 200)}`);
+          }
+        } catch {
+          setErr("Shortlisted, but the booking link could not be created.");
+        }
+      }
     } catch {
       setErr("Could not save. Nothing was recorded — try again.");
     } finally {
@@ -672,6 +710,56 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                   )}
                 </span>
               </div>
+
+              {bookingFor === row.applicant_id && booking && (
+                <div className="border-t border-white/8 bg-emerald-500/8 px-4 py-3">
+                  <p className="text-sm text-emerald-200">
+                    Shortlisted. Send {booking.full_name.split(" ")[0]} this link and
+                    they pick their own interview time — you do not set a date.
+                  </p>
+                  <p className={`${T_CAPTION} mt-1`}>
+                    Works for {booking.expires_days} days.{" "}
+                    {booking.contact_via === "call"
+                      ? "They did not name an app, so the interview will be a phone call."
+                      : `They asked to be reached on ${booking.contact_via}, and the interviewer will see that.`}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    {(["en", "tl"] as const).map((l) => (
+                      <button
+                        key={l}
+                        className={bookingLang === l ? BADGE_INFO : SMALL_BUTTON}
+                        onClick={() => setBookingLang(l)}
+                      >
+                        {l === "en" ? "English" : "Tagalog"}
+                      </button>
+                    ))}
+                    {booking.phone && <span className={T_CAPTION}>{booking.phone}</span>}
+                  </div>
+                  <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-black/30 p-3 text-xs text-zinc-200">
+{booking.messages[bookingLang]}
+                  </pre>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      className={PRIMARY_BUTTON}
+                      onClick={() => void copy(booking.messages[bookingLang], "booking-msg")}
+                    >
+                      {copied === "booking-msg" ? "Copied" : "Copy message"}
+                    </button>
+                    <button
+                      className={SMALL_BUTTON}
+                      onClick={() => void copy(booking.url, "booking-link")}
+                    >
+                      {copied === "booking-link" ? "Copied" : "Copy link only"}
+                    </button>
+                    <button
+                      className={SMALL_BUTTON}
+                      onClick={() => { setBooking(null); setBookingFor(""); }}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {showingInvite && invite && (
                 <div className="border-t border-white/8 bg-violet-500/8 px-4 py-3">
