@@ -75,6 +75,11 @@ export default function BookingLinksToSend({
   // Which person's link panel is open, and the link itself.
   const [openFor, setOpenFor] = useState<string>("");
   const [invite, setInvite] = useState<Invite | null>(null);
+  // 発行済みの文面。**再発行すると相手の手元のリンクが死ぬ**ので、一度受け取った
+  // ものは持っておき、開き直すだけなら作り直さない。
+  const [issued, setIssued] = useState<Record<string, Invite>>({});
+  const [bulking, setBulking] = useState(false);
+  const [bulkNote, setBulkNote] = useState("");
   const [lang, setLang] = useState<"en" | "tl">("en");
   const [copied, setCopied] = useState("");
   const [smsNote, setSmsNote] = useState("");
@@ -137,6 +142,17 @@ export default function BookingLinksToSend({
 
   async function createLink(row: Row) {
     if (busy) return;
+    // 既に受け取っている文面があるなら、そのまま開く。ここで作り直すと、
+    // さっき一括で配ったリンクが本人の手元で死ぬ。
+    const have = issued[row.id];
+    if (have) {
+      setInvite(have);
+      setOpenFor(row.id);
+      setLang(have.language === "tl" ? "tl" : "en");
+      setSmsNote("");
+      setCopied("");
+      return;
+    }
     // Re-issuing replaces the token, so a link already in somebody's hands
     // stops working. Say that before it happens, not after.
     if (row.link_live && !justIssued.has(row.id)) {
@@ -167,11 +183,60 @@ export default function BookingLinksToSend({
       setInvite(inv);
       setOpenFor(row.id);
       setLang(inv.language === "tl" ? "tl" : "en");
+      setIssued((m) => ({ ...m, [row.id]: inv }));
       setJustIssued((s) => new Set(s).add(row.id));
     } catch {
       setErr("The link could not be created.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Every waiting link at once.
+   *
+   *  The messages come back with them and are kept here, so working through the
+   *  list afterwards is Copy, Copy, Copy -- no second round of presses, and no
+   *  re-issue, which would kill the links just handed out.
+   */
+  async function issueAll() {
+    if (bulking || busy) return;
+    const n = needLink.length;
+    if (!n) return;
+    if (!window.confirm(
+      `Create a booking link for all ${n}? Nothing is sent — you still copy each ` +
+      `message and send it yourself. Anyone who already has a live link is left alone.`)) return;
+    setBulking(true);
+    setBulkNote("");
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/hr/booking-invites/issue-all", { method: "POST" });
+      const text = await res.text();
+      let j: Record<string, unknown> = {};
+      try { j = JSON.parse(text); } catch { /* text/plain */ }
+      if (!res.ok) {
+        setErr(String(j.detail || text).slice(0, 240));
+        return;
+      }
+      const list = (j.issued as (Invite & { id?: string })[]) || [];
+      const failed = (j.failed as { full_name?: string }[]) || [];
+      const map: Record<string, Invite> = {};
+      const done = new Set(justIssued);
+      // **id で対応づける。** 順番で割り当てると、画面が並び替えられている
+      // ときに別人のリンクを渡すことになる。
+      list.forEach((inv) => {
+        if (inv.id) { map[inv.id] = inv; done.add(inv.id); }
+      });
+      setIssued((m) => ({ ...m, ...map }));
+      setJustIssued(done);
+      setBulkNote(
+        `${list.length} link${list.length === 1 ? "" : "s"} made. Open each row to copy` +
+        ` its message — nothing has been sent.` +
+        (failed.length ? ` ${failed.length} failed: ${failed.map((f) => f.full_name).join(", ")}.` : ""));
+      await load();
+    } catch {
+      setErr("Could not create the links.");
+    } finally {
+      setBulking(false);
     }
   }
 
@@ -301,8 +366,10 @@ export default function BookingLinksToSend({
               onClick={() => void createLink(row)}
             >
               <span className="flex items-center gap-1.5">
-                {sent ? <RefreshCw className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
-                {sent ? "New link" : "Create link"}
+                {issued[row.id]
+                  ? <Copy className="h-4 w-4" />
+                  : sent ? <RefreshCw className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+                {issued[row.id] ? "Open message" : sent ? "New link" : "Create link"}
               </span>
             </button>
           </span>
@@ -424,10 +491,30 @@ export default function BookingLinksToSend({
             {waiting.length} with a link, not booked yet
           </span>
         )}
-        <button className={`${SMALL_BUTTON} ml-auto`} onClick={() => void load()} disabled={loading}>
+        {needLink.length > 1 && (
+          <button
+            className={`${PRIMARY_BUTTON} ml-auto`}
+            onClick={() => void issueAll()}
+            disabled={bulking || busy || loading}
+          >
+            <span className="flex items-center gap-1.5">
+              <Link2 className="h-4 w-4" />
+              {bulking ? "Making links…" : `Create all ${needLink.length} links`}
+            </span>
+          </button>
+        )}
+        <button
+          className={`${SMALL_BUTTON} ${needLink.length > 1 ? "" : "ml-auto"}`}
+          onClick={() => void load()}
+          disabled={loading}
+        >
           {loading ? "Loading…" : "Refresh"}
         </button>
       </div>
+
+      {bulkNote && (
+        <p className="px-4 pb-2 text-sm text-emerald-300">{bulkNote}</p>
+      )}
 
       <p className={`${T_CAPTION} -mt-1 px-4 pb-3`}>
         Everyone who has been screened — by the voice round or by a person — and has
