@@ -317,11 +317,13 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
    *  own time — the copy is the record.
    */
   const [booking, setBooking] = useState<{
-    url: string; full_name: string; phone: string; contact_via: string;
-    language: string; messages: Record<string, string>; expires_days: number;
+    url: string; token: string; full_name: string; phone: string;
+    contact_via: string; language: string;
+    messages: Record<string, string>; expires_days: number;
   } | null>(null);
   const [bookingFor, setBookingFor] = useState<string>("");
   const [bookingLang, setBookingLang] = useState<"en" | "tl">("en");
+  const [bookingSms, setBookingSms] = useState<string>("");
   const [invite, setInvite] = useState<Invite | null>(null);
   const [inviteFor, setInviteFor] = useState<string>("");
   const [inviteLang, setInviteLang] = useState<"en" | "tl">("en");
@@ -435,6 +437,38 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       setInviteLang(row.form_language === "tl" ? "tl" : "en");
     } catch {
       setErr("Could not create the link. Nothing was sent — try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Send the booking link from here, so nobody has to open another app.
+   *
+   *  Copy message still exists beside it: SMS costs money per send, and the
+   *  applicant may have asked to be reached on Viber instead.
+   */
+  async function sendBookingSms(applicantId: string, token: string) {
+    if (saving) return;
+    setSaving(true);
+    setBookingSms("");
+    setErr("");
+    try {
+      const res = await fetch(
+        `/api/admin/hr/applicants/${applicantId}/booking-invite/sms`,
+        { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, lang: bookingLang }) },
+      );
+      const text = await res.text();
+      let j: Record<string, unknown> = {};
+      try { j = JSON.parse(text); } catch { /* text/plain */ }
+      if (!res.ok) {
+        // A send that failed must never read as a send that worked.
+        setBookingSms(`Not sent — ${String(j.detail || text).slice(0, 160)}`);
+        return;
+      }
+      setBookingSms(`Sent to ${String(j.sent_to || "")}.`);
+    } catch {
+      setBookingSms("Not sent — could not reach the server.");
     } finally {
       setSaving(false);
     }
@@ -739,8 +773,17 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
 {booking.messages[bookingLang]}
                   </pre>
                   <div className="mt-2 flex flex-wrap gap-2">
+                    {smsGate?.enabled ? (
+                      <button
+                        className={PRIMARY_BUTTON}
+                        disabled={saving}
+                        onClick={() => void sendBookingSms(row.applicant_id, booking.token)}
+                      >
+                        Send by SMS{booking.phone ? ` to ${booking.phone}` : ""}
+                      </button>
+                    ) : null}
                     <button
-                      className={PRIMARY_BUTTON}
+                      className={smsGate?.enabled ? SMALL_BUTTON : PRIMARY_BUTTON}
                       onClick={() => void copy(booking.messages[bookingLang], "booking-msg")}
                     >
                       {copied === "booking-msg" ? "Copied" : "Copy message"}
@@ -753,11 +796,22 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                     </button>
                     <button
                       className={SMALL_BUTTON}
-                      onClick={() => { setBooking(null); setBookingFor(""); }}
+                      onClick={() => { setBooking(null); setBookingFor(""); setBookingSms(""); }}
                     >
                       Done
                     </button>
                   </div>
+                  {bookingSms && (
+                    <p className={`${T_CAPTION} mt-2 ${bookingSms.startsWith("Sent") ? "text-emerald-300" : "text-amber-300"}`}>
+                      {bookingSms}
+                    </p>
+                  )}
+                  {smsGate && !smsGate.enabled && smsGate.blocked_by && (
+                    <p className={`${T_CAPTION} mt-2`}>
+                      The OS cannot text this itself yet — {smsGate.blocked_by}.
+                      Until then, copy the message and send it where they asked.
+                    </p>
+                  )}
                 </div>
               )}
 
