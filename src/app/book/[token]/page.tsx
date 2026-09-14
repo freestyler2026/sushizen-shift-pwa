@@ -62,7 +62,7 @@ const T = {
       telegram: "We will call you on Telegram",
       call: "We will call your phone",
     } as Record<string, string>,
-    note: "It takes about 30 minutes. No need to install anything.",
+    note: "About 30 minutes, voice only — no video, so it uses very little data. Wi-Fi is best if you have it. Nothing to install.",
   },
   tl: {
     hi: "Hi",
@@ -96,7 +96,7 @@ const T = {
       telegram: "Tatawagan ka namin sa Telegram",
       call: "Tatawagan namin ang phone mo",
     } as Record<string, string>,
-    note: "Mga 30 minuto po. Walang kailangang i-install.",
+    note: "Mga 30 minuto po, boses lang — walang video, kaya kaunti lang ang data. Mas maganda po kung may Wi-Fi. Walang kailangang i-install.",
   },
 };
 

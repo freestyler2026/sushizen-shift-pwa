@@ -33,6 +33,7 @@ import {
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
 import VoiceScreeningQueue from "@/components/hr/VoiceScreeningQueue";
+import InterviewDay from "@/components/hr/InterviewDay";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -2876,7 +2877,7 @@ export default function HRRecruitmentPage() {
   const [outcomeFor, setOutcomeFor] = useState<Applicant | null>(null);
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
-  const [view, setView] = useState<"pipeline" | "plans" | "voice">("pipeline");
+  const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews">("pipeline");
   const [lane, setLane] = useState<Lane>("active");
   const [closedSearch, setClosedSearch] = useState("");
   // Rows decided during this sitting. On the board a decision moved a card to
@@ -3336,7 +3337,7 @@ export default function HRRecruitmentPage() {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className={T_PAGE_TITLE}>HR Recruitment Pipeline</h1>
             <div className={TAB_CONTAINER}>
-              {([["pipeline", "Pipeline"], ["plans", "Plans"], ["voice", "Voice screening"]] as const).map(([k, label]) => (
+              {([["pipeline", "Pipeline"], ["plans", "Plans"], ["voice", "Voice screening"], ["interviews", "Interviews"]] as const).map(([k, label]) => (
                 <button
                   key={k}
                   className={view === k ? TAB_ACTIVE : TAB_INACTIVE}
@@ -3460,7 +3461,9 @@ export default function HRRecruitmentPage() {
         )}
       </div>
 
-      {view === "voice" ? (
+      {view === "interviews" ? (
+        <InterviewDay />
+      ) : view === "voice" ? (
         <VoiceScreeningQueue />
       ) : view === "plans" ? (
         <PlansView
