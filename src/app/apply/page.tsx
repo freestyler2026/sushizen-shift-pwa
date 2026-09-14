@@ -80,7 +80,8 @@ const T = {
       none: "None", under_1y: "Less than 1 year",
       "1_3y": "1 to 3 years", over_3y: "More than 3 years",
     } as Record<string, string>,
-    appNames: { viber: "Viber", whatsapp: "WhatsApp", sms: "SMS only" } as Record<string, string>,
+    appNames: { viber: "Viber", whatsapp: "WhatsApp", messenger: "Messenger", sms: "SMS only" } as Record<string, string>,
+    fbNeeded: "Messenger needs your Facebook — a link or the name on your profile.",
   },
   tl: {
     title: "Magtrabaho sa Sushi ZEN",
@@ -139,7 +140,8 @@ const T = {
       none: "Wala", under_1y: "Wala pang 1 taon",
       "1_3y": "1 hanggang 3 taon", over_3y: "Higit 3 taon",
     } as Record<string, string>,
-    appNames: { viber: "Viber", whatsapp: "WhatsApp", sms: "SMS lang" } as Record<string, string>,
+    appNames: { viber: "Viber", whatsapp: "WhatsApp", messenger: "Messenger", sms: "SMS lang" } as Record<string, string>,
+    fbNeeded: "Para sa Messenger, kailangan ang Facebook mo — link o ang pangalan sa profile.",
   },
 };
 
@@ -180,7 +182,9 @@ const BRANCHES = [
 const EXPERIENCE = ["none", "under_1y", "1_3y", "over_3y"];
 // Viber first: it is the common one in the Philippines, and an app nobody uses
 // sitting at the top is an app somebody taps by mistake.
-const CONTACT_APPS = ["viber", "whatsapp", "sms"];
+// Messenger が無いのに、応募の126件が Facebook 経由で来ていた。連絡手段として
+// 一番使われている道を、聞いてすらいなかった。
+const CONTACT_APPS = ["viber", "whatsapp", "messenger", "sms"];
 
 const FIELD =
   "w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-base text-white " +
@@ -344,6 +348,11 @@ export default function ApplyPage() {
     // seeker for a former employer just puts "N/A" in the field, and then
     // "no experience" and "could not be bothered" look the same.
     if (!form.experience_level) missing.push("experience_level");
+    // Messenger は電話番号では届かない。選んだのに Facebook が空なら、
+    // 「Messenger で連絡します」と書いておいて連絡できない状態になる。
+    if (apps.includes("messenger") && !form.facebook_url.trim()) {
+      missing.push("facebook_url");
+    }
     if (needsLastJob) {
       if (!form.last_employer.trim()) missing.push("last_employer");
       if (!form.last_position.trim()) missing.push("last_position");
@@ -634,8 +643,12 @@ export default function ApplyPage() {
           <label className="mb-1.5 block text-sm text-zinc-300">{t.fb}</label>
           <input
             value={form.facebook_url} onChange={(e) => set("facebook_url", e.target.value)}
-            placeholder={t.fbPh} inputMode="url" autoComplete="off" className={FIELD}
+            placeholder={t.fbPh} inputMode="url" autoComplete="off"
+            className={`${FIELD} ${bad.includes("facebook_url") ? "border-red-500/60" : ""}`}
           />
+          {apps.includes("messenger") && (
+            <p className="mt-1.5 text-xs text-amber-300">{t.fbNeeded}</p>
+          )}
         </div>
 
         <div>
