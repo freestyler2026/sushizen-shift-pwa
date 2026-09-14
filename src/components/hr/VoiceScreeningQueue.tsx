@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   RefreshCw, Play, Check, PauseCircle, X, Undo2, AlertTriangle, Mic, Send,
 } from "lucide-react";
@@ -68,6 +68,8 @@ type Row = {
   decided_by: string | null;
   decided_at: string | null;
   consent_at: string | null;
+  client_seen_at: string | null;
+  later_at: string | null;
   completed_at: string | null;
   last_answer_at: string | null;
   token_expires_at: string | null;
@@ -159,7 +161,7 @@ type Invite = {
 // under a verb has to be the count you can perform that verb on.
 const TABS: { key: State; label: string; hint: string }[] = [
   { key: "to_invite", label: "To invite",      hint: "Applied, no screening sent yet — oldest application first" },
-  { key: "waiting",   label: "Waiting on them", hint: "Link sent, nothing recorded yet" },
+  { key: "waiting",   label: "Waiting on them", hint: "Has the link, nothing recorded yet — the ones we blocked are first" },
   { key: "to_review", label: "To review",      hint: "Recordings in, waiting on you — longest wait first" },
   { key: "done",      label: "Done",           hint: "Decided, or already interviewed in person" },
 ];
@@ -182,6 +184,37 @@ function waitedLabel(row: Row): string {
   if (d <= 0) return "today";
   if (d === 1) return "1 day";
   return `${d} days`;
+}
+
+/** How far somebody with no recording actually got.
+ *
+ *  "Waiting on them" was one bucket of sixty-two and the screen said you did not
+ *  have to do anything about any of it. Twenty-four of those sixty-two were not
+ *  waiting on the applicant at all: five pressed "remind me later" and nobody
+ *  ever did, and nineteen agreed to be recorded and got zero answers out, which
+ *  is a microphone or in-app-browser failure at our end. Lumping them in with
+ *  the seven who never opened the link makes all four unreadable.
+ *
+ *  Ordered by who we owe something to, not by how far they got.
+ */
+type Stall = "asked_later" | "stuck" | "read_and_left" | "never_opened";
+
+const STALL: Record<Stall, { label: string; rank: number; ours: boolean; note: string }> = {
+  asked_later:   { label: "asked to be reminded", rank: 0, ours: true,
+                   note: "They pressed “remind me later”. Send the link again." },
+  stuck:         { label: "agreed, could not record", rank: 1, ours: true,
+                   note: "They consented and no answer arrived — usually the microphone is blocked, often because the link opened inside Messenger or Viber. Send it again and ask them to open it in Chrome or Safari." },
+  read_and_left: { label: "opened, did not start", rank: 2, ours: false,
+                   note: "They read the consent screen and stopped there." },
+  never_opened:  { label: "never opened the link", rank: 3, ours: false,
+                   note: "The link has not been opened once. It may not have reached them." },
+};
+
+function stallOf(row: Row): Stall {
+  if (row.later_at) return "asked_later";
+  if (row.consent_at) return "stuck";
+  if (row.client_seen_at) return "read_and_left";
+  return "never_opened";
 }
 
 /** Where a row belongs once it has no decision on it. Mirrors the server so an
@@ -258,6 +291,29 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
   const [state, setState] = useState<State>("to_review");
   const [rows, setRows] = useState<Row[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
+
+  // The four situations inside "Waiting on them", and how many of them are
+  // ours. Only computed for that tab -- everywhere else the server's order is
+  // already the right one (longest wait first).
+  const stallCounts = useMemo(() => {
+    const by = { asked_later: 0, stuck: 0, read_and_left: 0, never_opened: 0 } as Record<Stall, number>;
+    if (state !== "waiting") return { by, total: 0, ours: 0 };
+    rows.forEach((r) => { by[stallOf(r)] += 1; });
+    return {
+      by,
+      total: rows.length,
+      ours: by.asked_later + by.stuck,
+    };
+  }, [rows, state]);
+
+  const orderedRows = useMemo(() => {
+    if (state !== "waiting") return rows;
+    // Stable: same rank keeps the server's longest-wait-first order.
+    return rows
+      .map((r, i) => ({ r, i, rank: STALL[stallOf(r)].rank }))
+      .sort((a, b) => (a.rank - b.rank) || (a.i - b.i))
+      .map((x) => x.r);
+  }, [rows, state]);
   const [reasons, setReasons] = useState<Reason[]>([]);
   const [storageOk, setStorageOk] = useState(true);
   const [canDecide, setCanDecide] = useState(true);
@@ -651,6 +707,33 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
         {TABS.find((t) => t.key === state)?.hint}
       </p>
 
+      {/* What the one number was hiding. Server order is kept everywhere else;
+          only here is it re-sorted, because two of these four groups are
+          waiting on us and the other two are not. */}
+      {state === "waiting" && stallCounts.total > 0 && (
+        <div className={`${GLASS_CARD} mb-3 px-4 py-3`}>
+          <p className={T_LABEL}>Where they stopped</p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            {(Object.keys(STALL) as Stall[])
+              .filter((k) => stallCounts.by[k] > 0)
+              .map((k) => (
+                <span key={k} className={`${T_CAPTION} flex items-center gap-1.5`}>
+                  <b className={STALL[k].ours ? "text-amber-300" : "text-zinc-300"}>
+                    {stallCounts.by[k]}
+                  </b>
+                  {STALL[k].label}
+                </span>
+              ))}
+          </div>
+          {stallCounts.ours > 0 && (
+            <p className={`${T_CAPTION} mt-2 text-amber-300`}>
+              {stallCounts.ours} of these {stallCounts.total} are waiting on us, not on
+              them — send those the link again. They are listed first.
+            </p>
+          )}
+        </div>
+      )}
+
       {err && (
         <p className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
           {err}
@@ -675,7 +758,7 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       )}
 
       <div className="flex flex-col gap-2">
-        {rows.map((row) => {
+        {orderedRows.map((row) => {
           const isOpen = row.id !== null && openId === row.id;
           const done = row.id !== null ? justDecided[row.id] : undefined;
           const noScreening = row.id === null;
@@ -705,10 +788,23 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                   <span className={T_CAPTION}>waiting {waitedLabel(row)}</span>
                 )}
                 {row.bucket === "waiting" && (
-                  <span className={T_CAPTION}>
-                    {row.consent_at ? "opened it, not finished" : "not opened yet"}
-                    {row.invite_count > 1 ? ` · sent ${row.invite_count}×` : ""}
-                  </span>
+                  <>
+                    {/* Was `consent_at ? "opened it, not finished" : "not opened
+                        yet"`, which called thirty-one people who had opened the
+                        link and read the consent screen "not opened yet" -- they
+                        simply had not consented. client_seen_at is what says
+                        whether it was ever opened. */}
+                    <span
+                      className={STALL[stallOf(row)].ours ? BADGE_WARNING : T_CAPTION}
+                      title={STALL[stallOf(row)].note}
+                    >
+                      {STALL[stallOf(row)].label}
+                    </span>
+                    <span className={T_CAPTION}>
+                      waiting {waitedLabel(row)}
+                      {row.invite_count > 1 ? ` · sent ${row.invite_count}×` : ""}
+                    </span>
+                  </>
                 )}
                 {row.superseded && (
                   <span className={T_CAPTION}>
