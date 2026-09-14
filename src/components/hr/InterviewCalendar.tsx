@@ -47,6 +47,10 @@ type Day = {
   is_past: boolean;
   interviews: Interview[];
   open_slots: number;
+  /** The roster does not reach this day yet, so the standard back-office
+   *  weekday is being used. Bookable, but it can change when shifts are
+   *  published. Saying so beats presenting a guess as a roster. */
+  assumed: boolean;
   unrecorded: number;
 };
 
@@ -148,6 +152,9 @@ export default function InterviewCalendar() {
       <p className={`${T_CAPTION} -mt-1 px-4 pb-3`}>
         Free slots come from the interviewers&apos; published shifts, so a day with
         none means nobody is rostered to interview — not that it is fully booked.
+        Past the end of the published roster, weekdays fall back to the standard
+        back-office day (09:00–18:00) and are marked <span className="text-zinc-300">*</span>;
+        those can still be booked, and they firm up when the shifts go out.
       </p>
 
       {err && <p className="px-4 pb-2 text-sm text-amber-300">{err}</p>}
@@ -204,7 +211,9 @@ export default function InterviewCalendar() {
 
                 {!has && !day.is_past && (
                   <div className="mt-0.5 text-[10px] text-zinc-500">
-                    {day.open_slots > 0 ? `${day.open_slots} free` : "—"}
+                    {day.open_slots > 0
+                      ? `${day.open_slots} free${day.assumed ? "*" : ""}`
+                      : "—"}
                   </div>
                 )}
               </button>
@@ -218,7 +227,10 @@ export default function InterviewCalendar() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-sm font-medium text-zinc-100">{longDate(selected.date)}</span>
             {selected.open_slots > 0 && !selected.is_past && (
-              <span className={T_CAPTION}>{selected.open_slots} slots still free</span>
+              <span className={T_CAPTION}>
+                {selected.open_slots} slots still free
+                {selected.assumed ? " — standard back-office day, the roster does not reach here yet" : ""}
+              </span>
             )}
             <button className={`${SMALL_BUTTON} ml-auto`} onClick={() => setOpenDay("")}>
               Close
