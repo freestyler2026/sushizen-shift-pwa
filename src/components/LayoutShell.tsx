@@ -13,7 +13,15 @@ import ImpersonationBanner from "@/components/ImpersonationBanner";
 const HIDE_NAV_PATHS = new Set(["/", "/login", "/signup", "/setup-pin", "/apply"]);
 // Pages an applicant reaches from a message. They have no account, so the admin
 // navigation would offer them nothing but a way to get lost.
-const HIDE_NAV_PREFIXES = ["/voice/"];
+/** Pages an applicant opens from a message. No login, so no staff chrome.
+ *
+ *  ⚠️ Add every new applicant-facing route here. /book/ was missed on the day
+ *  it shipped, and the page rendered inside the staff shell: a candidate would
+ *  have seen a logged-in avatar, a log-out button and a Time-in tab on a page
+ *  that asks nothing of them. It only showed up on opening the page -- the API
+ *  round trip passed clean.
+ */
+const HIDE_NAV_PREFIXES = ["/voice/", "/book/"];
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
