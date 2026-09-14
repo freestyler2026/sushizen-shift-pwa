@@ -20,9 +20,9 @@ import {
  * The endpoint behind this list was written for exactly this and then never
  * called from anywhere.
  *
- * Two groups, not one. "Needs a link" is the work; "sent, not booked" is what
- * you are waiting on. Keeping them in one count means the number never falls
- * and stops meaning anything.
+ * Two groups, not one. "Needs a link" is the work; "has a link, not booked" is
+ * what you are waiting on. Keeping them in one count means the number never
+ * falls and stops meaning anything.
  */
 
 type Row = {
@@ -68,7 +68,7 @@ export default function BookingLinksToSend() {
   // disabled button with no reason reads as the screen being broken.
   const [smsGate, setSmsGate] = useState<{ enabled: boolean; blocked_by: string } | null>(null);
 
-  // Issued in this session. The server still lists them (it reports link_live
+  // Made in this session. The server still lists them (it reports link_live
   // rather than hiding them), but the person working the list needs to see the
   // queue shrink as they go.
   const [justIssued, setJustIssued] = useState<Set<string>>(new Set());
@@ -189,6 +189,15 @@ export default function BookingLinksToSend() {
   const needLink = rows.filter((r) => !r.link_live && !justIssued.has(r.id));
   const waiting = rows.filter((r) => r.link_live || justIssued.has(r.id));
 
+  /** One candidate.
+   *
+   *  `sent` means a link exists, and the badge says "link made" rather than
+   *  "link sent" on purpose: issue_invite writes the token and sends nothing.
+   *  Whether it reached the candidate depends on somebody pressing send, and
+   *  over Viber it leaves no record at all. Calling it "sent" would repeat the
+   *  voice queue's "Invited" bucket, where sixty of sixty-one rows were never
+   *  invited by anyone.
+   */
   function line(row: Row, sent: boolean) {
     const open = openFor === row.id && invite;
     return (
@@ -206,7 +215,7 @@ export default function BookingLinksToSend() {
           <span className={BADGE_INFO}>{reachWord(row.contact_via)}</span>
           {sent && (
             <span className={BADGE_SUCCESS}>
-              link sent{row.booking_invited_at ? ` ${row.booking_invited_at.slice(0, 10)}` : ""}
+              link made{row.booking_invited_at ? ` ${row.booking_invited_at.slice(0, 10)}` : ""}
             </span>
           )}
           <span className="ml-auto">
@@ -309,7 +318,7 @@ export default function BookingLinksToSend() {
         {waiting.length > 0 && (
           <span className={`${T_CAPTION} flex items-center gap-1`}>
             <Clock className="h-3 w-3" />
-            {waiting.length} sent, not booked yet
+            {waiting.length} with a link, not booked yet
           </span>
         )}
         <button className={`${SMALL_BUTTON} ml-auto`} onClick={() => void load()} disabled={loading}>
@@ -338,7 +347,7 @@ export default function BookingLinksToSend() {
       {waiting.length > 0 && (
         <>
           <p className={`${T_LABEL} border-t border-white/8 px-4 pt-3`}>
-            Sent — waiting for them to pick a time
+            Link made — waiting for them to pick a time
           </p>
           <div>{waiting.map((r) => line(r, true))}</div>
         </>
