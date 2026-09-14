@@ -3,7 +3,7 @@
 import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2 } from "lucide-react";
+import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
 import { getAuth, refreshAuthFromApi, getAuthHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -2905,6 +2905,8 @@ export default function HRRecruitmentPage() {
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
   const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews" | "calendar">("pipeline");
+  // カレンダーから「この面接を動かす」で飛んできたときの行き先。
+  const [focusInterview, setFocusInterview] = useState("");
   // Which candidate the board sent us here for, so the Interviews tab opens on
   // them instead of making somebody find the name again in a list of fifteen.
   const [focusBooking, setFocusBooking] = useState<string>("");
@@ -3527,16 +3529,36 @@ export default function HRRecruitmentPage() {
         /* Its own tab. Sitting above the Interviews list, it was something you
            found by scrolling on a tab named after something else -- "where is
            the calendar" is not a question a calendar should provoke. */
-        <InterviewCalendar />
+        <InterviewCalendar
+          onOpenInterview={(id) => { setFocusInterview(id); setView("interviews"); }}
+        />
       ) : view === "interviews" ? (
         <>
-          {/* Who still cannot book. An empty day with fifteen people waiting
-              for a link is the state this tab was in. */}
+          {/* Two panels sit on this tab and nothing said how they relate.
+              One line, no counts -- the counts are on the panels themselves and
+              a second copy of a number is a second chance to disagree with it. */}
+          <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-zinc-400">
+            <span className="text-zinc-300">Screened</span>
+            <ArrowRight className="mx-2 inline h-3.5 w-3.5 text-zinc-600" />
+            <span className="text-zinc-300">you send them a link</span>
+            <span className="text-zinc-600"> (first panel — nothing is sent for you)</span>
+            <ArrowRight className="mx-2 inline h-3.5 w-3.5 text-zinc-600" />
+            <span className="text-zinc-300">they pick their own time</span>
+            <ArrowRight className="mx-2 inline h-3.5 w-3.5 text-zinc-600" />
+            <span className="text-zinc-300">it appears below</span>
+            <span className="text-zinc-600">
+              {" "}and on the <span className="text-zinc-400">Calendar</span> tab. Moving,
+              cancelling and recording the outcome all happen on the interview itself, below.
+            </span>
+          </div>
           <BookingLinksToSend
             focusApplicantId={focusBooking}
             onFocusHandled={() => setFocusBooking("")}
           />
-          <InterviewDay />
+          <InterviewDay
+            focusId={focusInterview}
+            onFocusHandled={() => setFocusInterview("")}
+          />
         </>
       ) : view === "voice" ? (
         <VoiceScreeningQueue />

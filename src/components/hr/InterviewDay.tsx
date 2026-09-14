@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, CalendarPlus, Phone, MonitorSmartphone, Check, PauseCircle, X, UserX } from "lucide-react";
+import { CalendarClock, CalendarPlus, Phone, MonitorSmartphone, Check, PauseCircle, X, UserX, CalendarSync, Trash2 } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS,
-  BADGE_WARNING, T_CAPTION, T_LABEL, T_SECTION,
+  BADGE_WARNING, DANGER_BUTTON, T_CAPTION, T_LABEL, T_SECTION,
 } from "@/lib/ui-tokens";
 import { downloadIcs } from "@/lib/interview-ics";
 
@@ -46,6 +46,15 @@ type Row = {
   voice_summary: string | null;
   attended: boolean | null;
   recorded: boolean;
+  /** Set locally after HR cancels, so the row stays visible saying what happened. */
+  cancelled?: boolean;
+};
+
+type FreeSlot = {
+  starts_at: string;
+  interviewer: string;
+  branch: string;
+  assumed: boolean;
 };
 
 const MNL = "Asia/Manila";
@@ -53,6 +62,18 @@ const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { timeZone: MNL, hour: "2-digit", minute: "2-digit" });
 const dayOf = (iso: string) =>
   new Date(iso).toLocaleDateString("en-GB", { timeZone: MNL, weekday: "long", day: "numeric", month: "long" });
+
+/** Free slots grouped by day, in the order the server returned them. */
+function groupByDay(slots: FreeSlot[]): [string, FreeSlot[]][] {
+  const out: [string, FreeSlot[]][] = [];
+  for (const s of slots) {
+    const d = dayOf(s.starts_at);
+    const last = out[out.length - 1];
+    if (last && last[0] === d) last[1].push(s);
+    else out.push([d, [s]]);
+  }
+  return out;
+}
 
 /** Written the way the interviewer will act, not the way it is stored. */
 const OUTCOMES = [
@@ -62,7 +83,11 @@ const OUTCOMES = [
   { key: "no_show", label: "Did not turn up", icon: UserX },
 ] as const;
 
-export default function InterviewDay() {
+export default function InterviewDay({ focusId = "", onFocusHandled }: {
+  /** Interview to open straight away — set when arriving from the calendar. */
+  focusId?: string;
+  onFocusHandled?: () => void;
+} = {}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [mine, setMine] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -71,12 +96,20 @@ export default function InterviewDay() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState<Record<string, string>>({});
+  // 動かす・取り消す。**応募者は自分で取り消せるのに HR は取り消せなかった。**
+  const [moveId, setMoveId] = useState<string>("");
+  const [reason, setReason] = useState("");
+  const [freeSlots, setFreeSlots] = useState<FreeSlot[] | null>(null);
+  const [slotsErr, setSlotsErr] = useState("");
+  const [moving, setMoving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setErr("");
     try {
-      const res = await fetch(`/api/admin/hr/interviews/upcoming?days=7&mine=${mine ? 1 : 0}`,
+      // 30日。応募者は14日先まで自分で取れるので、7日で切ると
+      // **8〜14日先に入った予約がこのタブのどこにも出ない。**
+      const res = await fetch(`/api/admin/hr/interviews/upcoming?days=30&mine=${mine ? 1 : 0}`,
         { cache: "no-store" });
       if (!res.ok) { setErr("Could not load the interviews."); return; }
       const j = await res.json();
@@ -89,6 +122,110 @@ export default function InterviewDay() {
   }, [mine]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // カレンダーで選んだ面接を開いた状態で見せる。**そこへ着いたのに探させない。**
+  useEffect(() => {
+    if (!focusId || loading) return;
+    if (!rows.some((r) => r.id === focusId)) return;
+    setMoveId(focusId);
+    if (freeSlots === null) void loadSlots();
+    const el = document.getElementById(`iv-${focusId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    onFocusHandled?.();
+    // freeSlots/loadSlots は初回だけ見れば足りる。依存に入れると開き直すたびに走る。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, loading, rows]);
+
+  // 空き枠は開いたときに1回だけ取る。行ごとに取ると、開き直すたびに
+  // 同じ問い合わせが走る。
+  const loadSlots = useCallback(async () => {
+    setSlotsErr("");
+    try {
+      const res = await fetch("/api/admin/hr/interviews/open-slots?days=21&limit=60",
+        { cache: "no-store" });
+      if (!res.ok) { setSlotsErr("Could not load the open times."); return; }
+      const j = await res.json();
+      setFreeSlots(j.rows || []);
+    } catch {
+      setSlotsErr("Could not load the open times.");
+    }
+  }, []);
+
+  function openMove(row: Row) {
+    const next = moveId === row.id ? "" : row.id;
+    setMoveId(next);
+    setOpenId("");
+    setReason("");
+    setErr("");
+    if (next && freeSlots === null) void loadSlots();
+  }
+
+  async function doCancel(row: Row) {
+    if (moving) return;
+    setMoving(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/admin/hr/interviews/${row.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try { msg = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
+        setErr(String(msg).slice(0, 240));
+        return;
+      }
+      // 行は消さずに、消えた事実をその場に残す。消すと「取り消せたのか」を
+      // 確かめる場所が画面から消える（教訓56）。
+      setDone((p) => ({
+        ...p,
+        [row.id]: `Cancelled. ${row.full_name} is back in “Waiting for a booking link” above — `
+          + "their link still works, so they can take another time themselves.",
+      }));
+      setRows((p) => p.map((r) => (r.id === row.id ? { ...r, cancelled: true } : r)));
+      setMoveId("");
+      setReason("");
+      void loadSlots();
+    } catch {
+      setErr("Could not cancel. Nothing changed — try again.");
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  async function doMove(row: Row, slot: FreeSlot) {
+    if (moving) return;
+    setMoving(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/admin/hr/interviews/${row.id}/reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ starts_at: slot.starts_at, interviewer: slot.interviewer }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try { msg = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
+        setErr(String(msg).slice(0, 240));
+        return;
+      }
+      setDone((p) => ({
+        ...p,
+        [row.id]: `Moved to ${dayOf(slot.starts_at)} at ${timeOf(slot.starts_at)} `
+          + `with ${slot.interviewer}. They have been told.`,
+      }));
+      setMoveId("");
+      await load();
+      void loadSlots();
+    } catch {
+      setErr("Could not move it. Nothing changed — try again.");
+    } finally {
+      setMoving(false);
+    }
+  }
 
   async function record(row: Row, outcome: string) {
     if (saving) return;
@@ -121,12 +258,14 @@ export default function InterviewDay() {
   }
 
   const today = rows.filter((r) => r.is_today);
-  const later = rows.filter((r) => !r.is_today);
+  const weekEnd = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const week = rows.filter((r) => !r.is_today && r.day <= weekEnd);
+  const later = rows.filter((r) => !r.is_today && r.day > weekEnd);
 
   const Line = ({ row }: { row: Row }) => {
     const byPhone = !row.contact_via || row.contact_via === "call";
     return (
-      <div className={`${GLASS_CARD} overflow-hidden`}>
+      <div id={`iv-${row.id}`} className={`${GLASS_CARD} overflow-hidden`}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
           <span className="text-lg font-bold tabular-nums text-violet-200">
             {timeOf(row.starts_at)}
@@ -140,7 +279,7 @@ export default function InterviewDay() {
           <span className={byPhone ? BADGE_WARNING : BADGE_INFO}>
             {byPhone ? <Phone className="mr-1 inline h-3 w-3" />
                      : <MonitorSmartphone className="mr-1 inline h-3 w-3" />}
-            {byPhone ? "Office phone" : `${row.contact_via} on the PC`}
+            {row.reach_with}
           </span>
           <span className="font-mono text-sm text-zinc-300">{row.phone}</span>
           {row.interviewer_staff && (
@@ -158,13 +297,26 @@ export default function InterviewDay() {
           </button>
           {row.recorded ? (
             <span className={BADGE_SUCCESS}>Recorded</span>
+          ) : row.cancelled ? (
+            <span className={BADGE_WARNING}>Cancelled</span>
           ) : (
-            <button
-              className={SMALL_BUTTON}
-              onClick={() => { setOpenId(openId === row.id ? "" : row.id); setNote(""); }}
-            >
-              {openId === row.id ? "Close" : "How did it go?"}
-            </button>
+            <>
+              <button
+                className={SMALL_BUTTON}
+                onClick={() => { setOpenId(openId === row.id ? "" : row.id); setNote(""); setMoveId(""); }}
+              >
+                {openId === row.id ? "Close" : "How did it go?"}
+              </button>
+              {/* Somebody rings to say they cannot make it. Before this there was
+                  nothing to press: the applicant could cancel their own slot,
+                  HR could not. */}
+              <button className={SMALL_BUTTON} onClick={() => openMove(row)}>
+                <span className="flex items-center gap-1.5">
+                  <CalendarSync className="h-4 w-4" />
+                  {moveId === row.id ? "Close" : "Move or cancel"}
+                </span>
+              </button>
+            </>
           )}
         </div>
 
@@ -210,6 +362,80 @@ export default function InterviewDay() {
             </p>
           </div>
         )}
+
+        {moveId === row.id && !row.recorded && !row.cancelled && (
+          <div className="border-t border-white/8 bg-white/[0.03] px-4 py-3">
+            <p className={`${T_LABEL} mb-1`}>Move it — pick a new time</p>
+            <p className={`${T_CAPTION} mb-2`}>
+              {row.interviewer_staff || "The interviewer"} is told either way. Pick a
+              time with somebody else and the person losing the slot is told too, so
+              nobody keeps a candidate who is not coming.
+            </p>
+            {slotsErr && (
+              <p className="mb-2 text-sm text-amber-200">{slotsErr}</p>
+            )}
+            {freeSlots === null && !slotsErr && (
+              <p className={T_CAPTION}>Loading the open times…</p>
+            )}
+            {freeSlots !== null && freeSlots.length === 0 && (
+              <p className={T_CAPTION}>
+                No open times in the next three weeks. Publish the roster further
+                out, or cancel below and send a new link when it is up.
+              </p>
+            )}
+            {freeSlots !== null && freeSlots.length > 0 && (
+              <div className="max-h-64 overflow-y-auto rounded-lg border border-white/10 bg-black/20 p-2">
+                {groupByDay(freeSlots).map(([day, times]) => (
+                  <div key={day} className="mb-2 last:mb-0">
+                    <p className={`${T_CAPTION} mb-1`}>{day}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {times.map((sl) => (
+                        <button
+                          key={`${sl.starts_at}-${sl.interviewer}`}
+                          disabled={moving}
+                          onClick={() => void doMove(row, sl)}
+                          title={`${sl.interviewer} · ${sl.branch === "CUB" ? "Cubao" : sl.branch}`
+                            + (sl.assumed ? " · roster not published this far yet" : "")}
+                          className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm tabular-nums text-zinc-200 hover:bg-violet-500/20 disabled:opacity-50"
+                        >
+                          {timeOf(sl.starts_at)}
+                          <span className="ml-1.5 text-[11px] text-zinc-400">
+                            {sl.interviewer.split(" ")[0]}{sl.assumed ? "*" : ""}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className={`${T_LABEL} mb-1 mt-4`}>Or cancel it</p>
+            <p className={`${T_CAPTION} mb-2`}>
+              {row.full_name} goes back to <span className="text-zinc-300">Screened</span> and
+              reappears in <span className="text-zinc-300">Waiting for a booking link</span> above.
+              Their link is <strong>not</strong> cancelled, so they can still pick another time
+              themselves. <strong>This cannot be undone</strong> — if it was a mistake, use a time
+              above instead, or book them again from their link.
+            </p>
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why, in a few words. Goes to the interviewer. Optional."
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-zinc-200"
+            />
+            <button
+              className={`${DANGER_BUTTON} mt-2 text-sm`}
+              disabled={moving}
+              onClick={() => void doCancel(row)}
+            >
+              <span className="flex items-center gap-1.5">
+                <Trash2 className="h-4 w-4" />
+                Cancel this interview
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -219,7 +445,7 @@ export default function InterviewDay() {
       <div className="flex flex-wrap items-center gap-3">
         <p className={T_SECTION}>
           <CalendarClock className="mr-1.5 inline h-4 w-4" />
-          Interviews — today and the next 7 days
+          Interviews — everything booked from today
         </p>
         <button className={SMALL_BUTTON} onClick={() => setMine((m) => !m)}>
           {mine ? "Showing mine" : "Showing everyone"}
@@ -248,9 +474,20 @@ export default function InterviewDay() {
           {today.map((r) => <Line key={r.id} row={r} />)}
         </div>
       )}
+      {week.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className={T_LABEL}>Coming up — next 7 days</p>
+          {week.map((r) => (
+            <div key={r.id}>
+              <p className={`${T_CAPTION} mb-1 mt-2`}>{dayOf(r.starts_at)}</p>
+              <Line row={r} />
+            </div>
+          ))}
+        </div>
+      )}
       {later.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className={T_LABEL}>Coming up</p>
+          <p className={T_LABEL}>Later this month</p>
           {later.map((r) => (
             <div key={r.id}>
               <p className={`${T_CAPTION} mb-1 mt-2`}>{dayOf(r.starts_at)}</p>

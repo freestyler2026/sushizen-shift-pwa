@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone } from "lucide-react";
+import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight } from "lucide-react";
 import {
   GLASS_CARD, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
   T_CAPTION, T_LABEL, T_SECTION,
@@ -91,7 +91,10 @@ function longDate(iso: string): string {
   });
 }
 
-export default function InterviewCalendar() {
+export default function InterviewCalendar({ onOpenInterview }: {
+  /** Take the user to that interview on the Interviews tab, ready to act on it. */
+  onOpenInterview?: (id: string) => void;
+} = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -298,6 +301,20 @@ export default function InterviewCalendar() {
                       Add to my calendar
                     </span>
                   </button>
+                  {/* Finding the interview here and being unable to do anything
+                      with it is a dead end. Moving, cancelling and recording all
+                      live on the Interviews tab — go there, on this one. */}
+                  {onOpenInterview && !selected.is_past && !iv.recorded && (
+                    <button
+                      className={SMALL_BUTTON}
+                      onClick={() => onOpenInterview(iv.id)}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        Move or cancel
+                        <ArrowRight className="h-4 w-4" />
+                      </span>
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

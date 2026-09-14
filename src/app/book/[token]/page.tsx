@@ -34,7 +34,8 @@ const T = {
     hi: "Hi",
     lead: "You passed the first round. Pick a time that works for you.",
     pick: "Choose a time",
-    none: "None of these work — show me more",
+    scrollHint: "Scroll to see more days",
+    none: "Show me more times",
     noMore: "That is everything we have open. Reply to our message and we will find another time.",
     confirmQ: "Book this time?",
     confirm: "Yes, book it",
@@ -68,7 +69,8 @@ const T = {
     hi: "Hi",
     lead: "Pasado ka po sa unang round. Pumili ng oras na kaya mo.",
     pick: "Pumili ng oras",
-    none: "Walang bagay sa akin — magpakita pa",
+    scrollHint: "Mag-scroll para sa iba pang araw",
+    none: "Magpakita pa ng ibang oras",
     noMore: "Iyan na po ang lahat ng bukas. I-reply lang ang message namin at maghahanap kami ng ibang oras.",
     confirmQ: "I-book ang oras na ito?",
     confirm: "Oo, i-book",
@@ -143,7 +145,15 @@ export default function BookPage() {
         setName(String(d.full_name || "").split(" ")[0] || "");
         if (d.language === "tl" && !after) setLang("tl");
         setBooked(d.booked || null);
-        setSlots(d.slots || []);
+        // "more" APPENDS. It used to replace, so pressing it threw away every
+        // time the applicant had already seen and there was no way back to
+        // them -- on a phone that reads as the app losing your place.
+        setSlots((prev) => {
+          const next = after ? [...prev, ...(d.slots || [])] : (d.slots || []);
+          const seen = new Set<string>();
+          return next.filter((x: Slot) =>
+            seen.has(x.starts_at) ? false : (seen.add(x.starts_at), true));
+        });
         setHasMore(Boolean(d.has_more));
         setState("ok");
       } catch {
@@ -323,6 +333,15 @@ export default function BookPage() {
       </Shell>
     );
 
+  // 日ごとにまとめる。slots は既にサーバ側で時刻順なので順序はそのまま使える。
+  const byDay: [string, Slot[]][] = [];
+  for (const s of slots) {
+    const d = dayLabel(s.starts_at, lang);
+    const last = byDay[byDay.length - 1];
+    if (last && last[0] === d) last[1].push(s);
+    else byDay.push([d, [s]]);
+  }
+
   return (
     <Shell>
       <h1 className="text-2xl font-semibold">
@@ -334,29 +353,48 @@ export default function BookPage() {
           {flash}
         </p>
       )}
-      <h2 className="mt-7 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-        {t.pick}
+      <h2 className="mt-7 flex items-baseline justify-between text-xs font-semibold uppercase tracking-wider text-zinc-500">
+        <span>{t.pick}</span>
+        {byDay.length > 1 && (
+          <span className="font-normal normal-case tracking-normal text-zinc-600">
+            {t.scrollHint}
+          </span>
+        )}
       </h2>
-      <div className="mt-3 space-y-2">
-        {slots.map((s) => (
-          <button
-            key={`${s.starts_at}-${s.interviewer}`}
-            onClick={() => setConfirming(s)}
-            className="flex w-full items-baseline justify-between rounded-2xl border border-zinc-800 bg-zinc-900 px-5 py-4 text-left active:bg-zinc-800"
-          >
-            <span className="text-sm text-zinc-300">{dayLabel(s.starts_at, lang)}</span>
-            <span className="text-xl font-semibold tabular-nums">{timeLabel(s.starts_at)}</span>
-          </button>
+      {/* One heading per day, times as a grid under it.
+          Before this, every row repeated "Wednesday 16 September" and only the
+          time on the right differed -- six identical-looking rows that were
+          really two choices. The date belongs to the group, not to each time. */}
+      <div className="mt-3 space-y-5">
+        {byDay.map(([day, times]) => (
+          <div key={day}>
+            <p className="text-sm font-medium text-zinc-300">{day}</p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {times.map((s) => (
+                <button
+                  key={s.starts_at}
+                  onClick={() => setConfirming(s)}
+                  className="rounded-xl border border-zinc-800 bg-zinc-900 py-3 text-center text-lg font-semibold tabular-nums active:bg-zinc-800"
+                >
+                  {timeLabel(s.starts_at)}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
       {slots.length === 0 && <p className="mt-4 text-sm text-zinc-400">{t.noMore}</p>}
       {hasMore && (
         <button
+          disabled={busy}
           onClick={() => void load(slots[slots.length - 1]?.starts_at)}
-          className="mt-5 w-full rounded-2xl border border-zinc-800 px-5 py-3 text-sm text-zinc-400"
+          className="mt-5 w-full rounded-2xl border border-zinc-800 px-5 py-3 text-sm text-zinc-400 disabled:opacity-50"
         >
           {t.none}
         </button>
+      )}
+      {!hasMore && slots.length > 0 && (
+        <p className="mt-5 text-xs text-zinc-600">{t.noMore}</p>
       )}
       <p className="mt-8 text-xs text-zinc-500">{t.note}</p>
     </Shell>
