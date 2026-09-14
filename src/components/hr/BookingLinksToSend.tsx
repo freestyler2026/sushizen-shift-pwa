@@ -23,6 +23,11 @@ import {
  * Two groups, not one. "Needs a link" is the work; "has a link, not booked" is
  * what you are waiting on. Keeping them in one count means the number never
  * falls and stops meaning anything.
+ *
+ * It holds anyone at Screened, not only the voice round's shortlist. Being read
+ * by a person is the same qualification -- MICHAEL A. BRAGAT was screened by
+ * Peter on the day he applied and had no screening row, so an INNER JOIN on the
+ * voice table left him out of the one list that could reach him.
  */
 
 type Row = {
@@ -425,7 +430,7 @@ export default function BookingLinksToSend({
       </div>
 
       <p className={`${T_CAPTION} -mt-1 px-4 pb-3`}>
-        Everyone shortlisted in the voice round who has not been interviewed and has
+        Everyone who has been screened — by the voice round or by a person — and has
         no interview booked. They leave this list when they pick a time.
       </p>
 
@@ -433,8 +438,8 @@ export default function BookingLinksToSend({
 
       {!loading && rows.length === 0 && (
         <p className={`${T_CAPTION} border-t border-white/8 px-4 py-4`}>
-          Nobody is waiting. Shortlisting someone in the Voice screening tab puts
-          them here.
+          Nobody is waiting. Anyone you move to Screened — from the Voice screening
+          tab or from the board — appears here.
         </p>
       )}
 
