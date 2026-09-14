@@ -34,6 +34,8 @@ type Row = {
   booking_invited_at: string | null;
   link_live: boolean;
   contact_via: string;
+  copied_at: string | null;
+  copied_by: string | null;
 };
 
 type Invite = {
@@ -177,13 +179,36 @@ export default function BookingLinksToSend() {
     }
   }
 
-  async function copy(text: string, what: string) {
+  /** Copy, and leave a trace that it was taken.
+   *
+   *  There is no "Mark as sent" button on purpose. It would be one more tap
+   *  after the work is done, so it would not get pressed, and a record nobody
+   *  writes is no record. Copying is what the person actually does before
+   *  leaving for Viber, so that is the moment worth keeping.
+   *
+   *  It says "copied", never "sent" -- the two are not the same, and the
+   *  Runbook had to be corrected for claiming a button recorded a send when it
+   *  recorded nothing.
+   */
+  async function copy(text: string, what: string, applicantId: string) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(what);
     } catch {
       setErr("Could not copy. Select the text and copy it by hand.");
+      return;
     }
+    // The copy already worked. A failure to log it must not undo that.
+    try {
+      await fetch(`/api/admin/hr/applicants/${applicantId}/booking-invite/copied`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ what, lang }),
+      });
+      setRows((rs) => rs.map((r) => r.id === applicantId
+        ? { ...r, copied_at: new Date().toISOString(), copied_by: "you" }
+        : r));
+    } catch { /* the trace is a convenience, the copy is the job */ }
   }
 
   const needLink = rows.filter((r) => !r.link_live && !justIssued.has(r.id));
@@ -216,6 +241,12 @@ export default function BookingLinksToSend() {
           {sent && (
             <span className={BADGE_SUCCESS}>
               link made{row.booking_invited_at ? ` ${row.booking_invited_at.slice(0, 10)}` : ""}
+            </span>
+          )}
+          {row.copied_at && (
+            <span className={BADGE_INFO} title="Copying is not sending — it only means somebody took the wording away to send it.">
+              taken by {row.copied_by || "someone"}
+              {row.copied_at.length > 15 ? ` ${row.copied_at.slice(11, 16)}` : ""}
             </span>
           )}
           <span className="ml-auto">
@@ -274,14 +305,14 @@ export default function BookingLinksToSend() {
               )}
               <button
                 className={smsGate?.enabled ? SMALL_BUTTON : PRIMARY_BUTTON}
-                onClick={() => void copy(invite.messages[lang], "msg")}
+                onClick={() => void copy(invite.messages[lang], "message", row.id)}
               >
                 <span className="flex items-center gap-1.5">
-                  {copied === "msg" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied === "msg" ? "Copied" : "Copy message"}
+                  {copied === "message" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied === "message" ? "Copied" : "Copy message"}
                 </span>
               </button>
-              <button className={SMALL_BUTTON} onClick={() => void copy(invite.url, "link")}>
+              <button className={SMALL_BUTTON} onClick={() => void copy(invite.url, "link", row.id)}>
                 {copied === "link" ? "Copied" : "Copy link only"}
               </button>
               <button
@@ -297,10 +328,37 @@ export default function BookingLinksToSend() {
               </p>
             )}
             {smsGate && !smsGate.enabled && smsGate.blocked_by && (
-              <p className={`${T_CAPTION} mt-2`}>
-                The OS cannot text this itself yet — {smsGate.blocked_by}. Until then,
-                copy the message and send it where they asked.
-              </p>
+              <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
+                {/* The instructions live here rather than in the manual, because
+                    this is the moment somebody needs them: they have just
+                    copied the wording and are about to leave the OS. A button
+                    would not help -- on a desktop there is no Viber app behind
+                    a viber:// link to open. */}
+                <p className={`${T_CAPTION} text-amber-300`}>
+                  The OS cannot text this itself yet — {smsGate.blocked_by}. Send it
+                  yourself; it costs nothing.
+                </p>
+                <p className={`${T_LABEL} mt-2`}>From Viber on this PC</p>
+                <ol className={`${T_CAPTION} mt-1 list-decimal space-y-0.5 pl-4`}>
+                  <li>Press <b>Copy message</b> above — it copies the language showing now.</li>
+                  <li>Open Viber on this computer.</li>
+                  <li>
+                    Search{invite.phone ? ` ${invite.phone}` : " their number"} in the box at the top.
+                  </li>
+                  <li>Their chat opens → click the message box → <b>Ctrl+V</b> → <b>Enter</b>.</li>
+                  <li>
+                    No result? They are not on Viber — send it as a normal text from a phone.
+                  </li>
+                </ol>
+                <p className={`${T_LABEL} mt-2`}>From your own phone</p>
+                <p className={`${T_CAPTION} mt-1`}>
+                  Open this page on your phone, <b>Copy message</b>, then paste it into
+                  {invite.contact_via === "call" ? " a text message" : ` ${invite.contact_via}`}.
+                </p>
+                <p className={`${T_CAPTION} mt-2`}>
+                  Paste the link whole — retyping or shortening it stops it working.
+                </p>
+              </div>
             )}
           </div>
         )}
