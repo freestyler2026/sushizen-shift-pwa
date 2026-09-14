@@ -37,6 +37,7 @@ type Interview = {
   ends_at: string | null;
   interviewer: string;
   contact_via: string;
+  reach_with: string;
   attended: boolean | null;
   recorded: boolean;
 };
@@ -260,9 +261,7 @@ export default function InterviewCalendar() {
                       {iv.contact_via && iv.contact_via !== "call"
                         ? <MonitorSmartphone className="h-3 w-3" />
                         : <Phone className="h-3 w-3" />}
-                      {iv.contact_via && iv.contact_via !== "call"
-                        ? `${iv.contact_via} on the PC`
-                        : "Office phone"}
+                      {iv.reach_with}
                     </span>
                   </span>
                   {iv.interviewer && <span className={T_CAPTION}>with {iv.interviewer}</span>}
@@ -280,8 +279,7 @@ export default function InterviewCalendar() {
                       position_applied: iv.position_applied,
                       starts_at: iv.starts_at,
                       ends_at: iv.ends_at,
-                      reach_with: iv.contact_via && iv.contact_via !== "call"
-                        ? `${iv.contact_via} on the PC` : "Office phone",
+                      reach_with: iv.reach_with,
                       interviewer: iv.interviewer,
                     })}
                   >
