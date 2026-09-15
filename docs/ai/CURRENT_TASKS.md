@@ -1,5 +1,49 @@
 # CURRENT_TASKS.md
 
+## 2026-09-15（続き5） — フォームの回答が画面に出ていなかった／履歴が壊れていた
+
+**現場の言葉**:「音声がない人でもレジュメを見て判断しています。質問に入力してもらっていると
+思いますがそれが見れないので見れるようにしてください。」
+
+### 1. フォームの回答は全部届いていた。画面が出していなかった（教訓6）
+
+`list_applicants` は `SELECT a.*` なので**ブラウザまで全部届いている**。Pipeline の詳細パネルは
+Phone / Email / Source / Referrer / Applied / Days / Branch しか描いていなかった。
+
+フォーム応募84名の記入率:
+
+| 項目 | 記入率 |
+|---|---:|
+| last_employer / last_position | 100% |
+| experience_level | 100% |
+| available_from | 89% |
+| home_area | 86% |
+| last_duration | 78% |
+| facebook_url | 39% |
+
+**ラベルは応募者が見た質問文をそのまま使う。** 「2」は "How long were you there?" の下なら期間、
+"Experience" の下なら段階で、意味が変わる。新しい取得は1本も足していない。
+
+### 2. ⚠️ 履歴（`/events`）が 400 を返し、画面は「Nothing recorded yet」と出していた
+
+`JSONResponse({"events": ...})` を素で使っており、`created_at` の datetime で `json.dumps` が
+落ちる。**記録を1件でも持つ158名（全336名中）が全員 400。** 画面は空状態を描くので、
+失敗と「まだ何も無い」が同じ見た目になっていた（教訓46）。
+
+この関数の docstring 自身が「記録だけして誰も読めない場所に置くな（教訓6）」と警告している。
+**壊れていたのは読む側だった。**
+
+`jsonable_encoder` を通して修正。HR配下で同じ形の JSONResponse は他に3箇所
+（reviews/upcoming・reviews・separations）あるが、**実際に叩いて全部200を確認**したので
+この1本だけ。記録277件・2026-09-10〜09-15。
+
+### 3. ドロップダウンの改善（続き4）とあわせて実機確認
+
+- Ramiro Angeles De Joya III: フォーム回答7項目が表示、履歴に
+  `New → Screened / 2026/9/15 12:04:46 · Yukihiro Nishimura`
+- コンソールエラーなし（400は解消）
+
+
 ## 2026-09-15（続き4） — ドロップダウンの最後の項目が画面外だった
 
 **症状**: 「履歴書だけ見て Reject したいのに Rejected が選べない」（現場から）。
