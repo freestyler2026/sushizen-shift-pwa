@@ -481,6 +481,43 @@ h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8
   </div>
 
   <div class="card green-border">
+    <div class="card-title">Clock check <span class="ja" style="font-weight:400">— シフトと打刻が示す時間（マニラ）</span><span class="en" style="font-weight:400">— what the roster and the clock show (Manila)</span></div>
+    <p><span class="ja">申請された分数がそのまま給与に入ります（<code>ot_minutes</code> → <code>approved_ot_hours</code>）。打刻は使われていません。直近60日のマニラ143件を、公開シフトと打刻から計算した時間と突き合わせた結果:</span>
+      <span class="en">The typed minutes are what payroll pays; the clock was never consulted. Measured against the published shift and the punches over sixty days, across 143 Manila requests:</span></p>
+    <div class="tbl-wrap"><table>
+      <tr><th><span class="ja">申請の正しさ</span><span class="en">The claim</span></th>
+          <th><span class="ja">件数</span><span class="en">Count</span></th>
+          <th><span class="ja">承認者がしたこと</span><span class="en">What the reviewer did</span></th></tr>
+      <tr><td><span class="ja">15分以内で一致</span><span class="en">Within 15 minutes</span></td><td>55</td>
+          <td><span class="ja">うち11件は却下された</span><span class="en">11 of them were refused</span></td></tr>
+      <tr><td><span class="ja">実際より多い</span><span class="en">More than worked</span></td><td>30</td>
+          <td><span class="ja">15件が通過</span><span class="en">15 went through</span></td></tr>
+      <tr><td><span class="ja"><strong>実際より少ない</strong></span><span class="en"><strong>Less than worked</strong></span></td><td><strong>56</strong></td>
+          <td><span class="ja"><strong>50件が承認・支払い済み。上方修正は1件も無い</strong></span><span class="en"><strong>50 approved or paid; none was ever corrected upward</strong></span></td></tr>
+    </table></div>
+    <p><span class="ja"><strong>承認者を責める話ではありません。</strong>画面にシフトも打刻も出ていなかったので、比べる相手が無かっただけです。だから出すようにしました。</span>
+      <span class="en">This is not a failure of judgement. The screen carried the typed hours and nothing to compare them against, so the comparison is now on it.</span></p>
+    <div class="tbl-wrap"><table>
+      <tr><th><span class="ja">バッジ</span><span class="en">Badge</span></th>
+          <th><span class="ja">意味</span><span class="en">Means</span></th></tr>
+      <tr><td><span class="pill green">matches the clock</span></td>
+          <td><span class="ja">申請と打刻の差が15分以内。端末まで歩く時間があるので、ここは一致とみなす</span><span class="en">Within 15 minutes — people walk to the terminal, so this counts as agreeing</span></td></tr>
+      <tr><td><span class="pill amber">+0h45m vs clock</span></td>
+          <td><span class="ja">打刻より長く申請している</span><span class="en">More was asked for than the clock shows</span></td></tr>
+      <tr><td><span class="pill blue">&minus;0h25m — worked more</span></td>
+          <td><span class="ja"><strong>働いた分より少なく申請している。</strong>本人の取りこぼしなので、赤や琥珀では出しません</span><span class="en"><strong>They asked for less than they worked.</strong> That is work already done and not claimed, so it is never drawn as a fault</span></td></tr>
+      <tr><td><span class="pill">no clock-out recorded</span></td>
+          <td><span class="ja">比較できません。<strong>「働いていない」という意味ではありません</strong></span><span class="en">Cannot be compared. It does <strong>not</strong> mean the hours were not worked</span></td></tr>
+    </table></div>
+    <p><span class="ja"><strong>早出も残業です。</strong>給与エンジンは所定の勤務時間を「シフト開始から」数えるので、シフト前の時間は残業としてしか支払われません。したがってバッジは「シフト前 + シフト後」を合計します。</span>
+      <span class="en">An early clock-in is overtime. The payroll engine runs regular hours from the shift start, so time before it is payable only as overtime — the badge therefore adds the time before the shift to the time after it.</span></p>
+    <p><span class="ja"><strong>承認モーダルでは最初から開いています。</strong>判断するその瞬間に数字が要るからです。</span>
+      <span class="en">In the approval dialog the numbers are shown open, not behind a click — that is the moment the decision is made.</span></p>
+    <p style="margin-top:8px"><span class="ja"><strong>これは何もブロックしません。</strong>承認も却下も今までどおりできます。金額を書き換えることもしません ── 表示だけです。</span>
+      <span class="en">Nothing here blocks anything and nothing is rewritten. It only shows.</span></p>
+  </div>
+
+  <div class="card green-border">
     <div class="card-title">How busy <span class="ja" style="font-weight:400">— その夜が実際に忙しかったか</span><span class="en" style="font-weight:400">— was the night actually busy</span></div>
     <p><span class="ja">申請は「残業したから」出てきます。だからほとんど却下できません。問題は<strong>忙しかった夜と、そうでない夜を見分ける手段が無かった</strong>ことです。以前は夜間のモニタリングで各店の込み具合を把握していましたが、今は誰も見ていません。</span>
       <span class="en">Overtime is requested because someone already stayed, so it is almost never refused. The gap was telling a busy night from an ordinary one. Night monitoring used to give that feel; nobody watches it now.</span></p>
