@@ -68,12 +68,31 @@ export default function SelectDark({
     if (!open || !triggerRef.current) return;
     const update = () => {
       const rect = triggerRef.current!.getBoundingClientRect();
+      // Fit the list to the room that exists, and open upward when there is
+      // more of it above.
+      //
+      // Before this the box always hung below the trigger at a fixed height,
+      // so the seventh status ("Rejected") sat under the fold of a list whose
+      // scrollbar is nearly invisible on this background. It looked like a
+      // six-item list -- somebody trying to reject an applicant reported that
+      // the option did not exist.
+      const GAP = 4;
+      const MARGIN = 12;
+      const below = window.innerHeight - rect.bottom - GAP - MARGIN;
+      const above = rect.top - GAP - MARGIN;
+      const flip = below < 260 && above > below;
+      const space = Math.max(180, Math.floor(flip ? above : below));
       setDropdownStyle({
         position: "fixed",
-        top: rect.bottom + 4,
         left: rect.left,
         width: rect.width,
         zIndex: 9999,
+        maxHeight: space,
+        display: "flex",
+        flexDirection: "column",
+        ...(flip
+          ? { bottom: window.innerHeight - rect.top + GAP }
+          : { top: rect.bottom + GAP }),
       });
     };
     update();
@@ -202,7 +221,7 @@ export default function SelectDark({
       {open && typeof document !== "undefined" && createPortal(
         <div ref={portalRef} style={dropdownStyle} className="rounded-xl border border-violet-500/20 bg-slate-900 shadow-2xl shadow-black/60 overflow-hidden">
           {/* Search input */}
-          <div className="border-b border-white/8 p-2">
+          <div className="shrink-0 border-b border-white/8 p-2">
             <input
               ref={inputRef}
               type="text"
@@ -220,7 +239,9 @@ export default function SelectDark({
           {/* Options list */}
           <div ref={listRef} id={listId} role="listbox"
                aria-label={ariaLabel ?? placeholder}
-               className="max-h-56 overflow-y-auto">
+               // min-h-0 が要る。flex の子は既定で内容より縮まないので、
+               // これが無いと箱の高さを超えて伸び、下の項目が画面外に出る。
+               className="min-h-0 flex-1 overflow-y-auto">
             {filtered.length === 0 ? (
               <div className="px-4 py-3 text-sm text-zinc-500">No results</div>
             ) : (
@@ -255,7 +276,7 @@ export default function SelectDark({
           </div>
 
           {filtered.length > 0 && (
-            <div className="border-t border-white/5 px-4 py-1.5 text-[11px] text-zinc-600">
+            <div className="shrink-0 border-t border-white/5 px-4 py-1.5 text-[11px] text-zinc-600">
               {filtered.length} of {normalized.length}
             </div>
           )}
