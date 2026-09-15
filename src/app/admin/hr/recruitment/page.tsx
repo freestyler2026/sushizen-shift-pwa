@@ -327,13 +327,16 @@ function scoreDisplay(score?: number) {
 
 /** How far this person's booking link got. The three are different jobs, and
  *  they were all wearing the same button. */
-type LinkState = "none" | "made" | "sent" | "expired";
+type LinkState = "none" | "made" | "copied" | "sent" | "expired";
 
 function linkStateOf(a: Applicant): LinkState {
   if (!a.booking_token_expires_at) return "none";
   const t = Date.parse(a.booking_token_expires_at);
   if (Number.isFinite(t) && t <= Date.now()) return "expired";
-  return a.booking_sent_at ? "sent" : "made";
+  if (!a.booking_sent_at) return "made";
+  // Copy is "taken away"; Done is "sent". People do copy and then stop, so the
+  // two are not the same row of work.
+  return a.booking_sent_how === "booking_sent" ? "sent" : "copied";
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -354,7 +357,12 @@ function shortDate(iso?: string | null): string {
  *  the 22 people who already have one. */
 const LINK_ACTION: Record<LinkState, string> = {
   none: "Send interview link",
-  made: "Open message",
+  // Not "Open message". The wording cannot be shown again -- only the hash of
+  // the token is kept -- so the panel makes a fresh link. That is free here:
+  // nobody ever copied the old one, so there is nothing in anybody's hands to
+  // invalidate.
+  made: "Send it now",
+  copied: "Open message",
   sent: "Send again",
   expired: "New link",
 };
@@ -460,6 +468,14 @@ function KanbanCard({
                     title="A link exists but the message has never been copied or texted, so nothing has gone out to them yet."
                   >
                     link made {shortDate(applicant.booking_invited_at)} · not sent
+                  </p>
+                )}
+                {ls === "copied" && (
+                  <p
+                    className="mb-1.5 text-[10px] font-medium text-amber-400"
+                    title={`The message was copied${applicant.booking_sent_by ? ` by ${applicant.booking_sent_by}` : ""} but Done was never pressed, so it is not confirmed as sent. Open it and press Done once it has gone out.`}
+                  >
+                    copied {shortDate(applicant.booking_sent_at)} · not confirmed
                   </p>
                 )}
                 {ls === "sent" && (
@@ -3865,12 +3881,15 @@ export default function HRRecruitmentPage() {
                       {col.id === "screened" && cards.length > 0 && (() => {
                         const none = cards.filter((a) => linkStateOf(a) === "none").length;
                         const made = cards.filter((a) => linkStateOf(a) === "made").length;
-                        if (!none && !made) return null;
+                        const half = cards.filter((a) => linkStateOf(a) === "copied").length;
+                        if (!none && !made && !half) return null;
                         return (
                           <p className="shrink-0 px-3 py-1.5 text-[10px] text-amber-400 border-b border-white/8">
-                            {none > 0 && <>{none} need a link</>}
-                            {none > 0 && made > 0 && " · "}
-                            {made > 0 && <>{made} have one, not sent</>}
+                            {[
+                              none > 0 ? `${none} need a link` : "",
+                              made > 0 ? `${made} have one, not sent` : "",
+                              half > 0 ? `${half} copied, not confirmed` : "",
+                            ].filter(Boolean).join(" · ")}
                           </p>
                         );
                       })()}

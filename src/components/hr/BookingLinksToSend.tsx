@@ -96,6 +96,9 @@ export default function BookingLinksToSend({
   const [bulkNote, setBulkNote] = useState("");
   const [lang, setLang] = useState<"en" | "tl">("en");
   const [copied, setCopied] = useState("");
+  // Whether anything has been copied out of the panel that is open now. Reset
+  // every time a panel opens, so yesterday's copy cannot mark today's as sent.
+  const [copiedOnce, setCopiedOnce] = useState(false);
   const [smsNote, setSmsNote] = useState("");
 
   // Whether "Send by SMS" is offered at all, and when it is not, why -- a
@@ -185,6 +188,7 @@ export default function BookingLinksToSend({
       setLang(have.language === "tl" ? "tl" : "en");
       setSmsNote("");
       setCopied("");
+      setCopiedOnce(false);
       return;
     }
     // Re-issuing replaces the token, so a link already in somebody's hands
@@ -211,6 +215,7 @@ export default function BookingLinksToSend({
     setErr("");
     setSmsNote("");
     setCopied("");
+    setCopiedOnce(false);
     try {
       const res = await fetch(`/api/admin/hr/applicants/${row.id}/booking-invite`, {
         method: "POST",
@@ -351,7 +356,41 @@ export default function BookingLinksToSend({
       setRows((rs) => rs.map((r) => r.id === applicantId
         ? { ...r, copied_at: new Date().toISOString(), copied_by: "you" }
         : r));
+      setCopiedOnce(true);
     } catch { /* the trace is a convenience, the copy is the job */ }
+  }
+
+  /** Close the panel, and when the wording was copied out of it first, record
+   *  that it went out. Nothing is sent from here -- this is the person telling
+   *  the OS that they have sent it. */
+  async function finishSend(applicantId: string) {
+    const close = () => {
+      setInvite(null); setOpenFor(""); setSmsNote(""); setCopied(""); setCopiedOnce(false);
+    };
+    if (!copiedOnce) { close(); return; }
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/hr/applicants/${applicantId}/booking-invite/sent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ how: "copied the message and sent it" }),
+      });
+      // ⚠️ Do not close on a failure. The first version swallowed it, and the
+      // panel closing looked exactly like it had worked -- a mark that did not
+      // land, on a row that then reads "not sent", with nobody any the wiser
+      // (lesson 46). Caught in testing when a deploy restart 500'd this call
+      // and the screen said nothing at all.
+      if (!res.ok) {
+        setErr("Marked nothing — the send was not recorded. Press Done again.");
+        return;
+      }
+      close();
+      await load();
+    } catch {
+      setErr("Marked nothing — could not reach the server. Press Done again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   // The board sends somebody here by name. Put them first and mark the row --
@@ -417,7 +456,14 @@ export default function BookingLinksToSend({
                 {issued[row.id]
                   ? <Copy className="h-4 w-4" />
                   : sent ? <RefreshCw className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
-                {issued[row.id] ? "Open message" : sent ? "New link" : "Create link"}
+                {issued[row.id]
+                  ? "Open message"
+                  /* "New link" only when there is a link somebody could be
+                     holding. A live link nobody ever copied is in no one's
+                     hands, so making the wording costs nothing and should not
+                     be dressed up as a replacement. */
+                  : sent ? (row.copied_at ? "New link" : "Make the message")
+                  : "Create link"}
               </span>
             </button>
           </span>
@@ -475,11 +521,22 @@ export default function BookingLinksToSend({
               <button className={SMALL_BUTTON} onClick={() => void copy(invite.url, "link", row.id)}>
                 {copied === "link" ? "Copied" : "Copy link only"}
               </button>
+              {/* Done is the end of the job, not just a way to close a panel:
+                  copy the wording, leave, send it, come back, press Done. That
+                  press already happens, so the record costs no extra tap --
+                  and a button that exists only to log something is a button
+                  nobody presses (design note 1).
+
+                  It only counts as sent when something was copied first.
+                  Opening the panel and closing it again has sent nothing, and
+                  marking that as sent would put people out of the queue who
+                  never heard from us. */}
               <button
-                className={SMALL_BUTTON}
-                onClick={() => { setInvite(null); setOpenFor(""); setSmsNote(""); setCopied(""); }}
+                className={copiedOnce ? PRIMARY_BUTTON : SMALL_BUTTON}
+                disabled={busy}
+                onClick={() => void finishSend(row.id)}
               >
-                Done
+                {copiedOnce ? "Done — sent" : "Close"}
               </button>
             </div>
             {smsNote && (
