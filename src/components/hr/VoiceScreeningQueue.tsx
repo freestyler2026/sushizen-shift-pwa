@@ -152,7 +152,7 @@ type Detail = Row & {
   home_area?: string | null;
 };
 
-type State = "to_invite" | "waiting" | "to_review" | "done";
+type State = "to_invite" | "waiting" | "to_review" | "done" | "all";
 
 type Invite = {
   url: string;
@@ -295,8 +295,17 @@ function mmss(sec: number | null): string {
   return m ? `${m}:${String(s).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`;
 }
 
-export default function VoiceScreeningQueue({ city = "manila" }: { city?: string }) {
-  const [state, setState] = useState<State>("to_review");
+export default function VoiceScreeningQueue({ city = "manila", focusScreeningId = 0, onFocusHandled }: {
+  city?: string;
+  /** Open this screening on arrival, whichever bucket it is in. Set when the
+   *  calendar sends somebody here from a booked interview. */
+  focusScreeningId?: number;
+  onFocusHandled?: () => void;
+} = {}) {
+  // Arriving with a specific person means the bucket is not known -- and
+  // guessing it ("anyone booked has a decision, so Done") bakes a rule into
+  // navigation that lives somewhere else. Load every bucket for that one trip.
+  const [state, setState] = useState<State>(focusScreeningId ? "all" : "to_review");
   const [rows, setRows] = useState<Row[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
 
@@ -430,6 +439,20 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
   }, [city, state]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Open the one the calendar sent us to, once the list holding it is in.
+  useEffect(() => {
+    if (!focusScreeningId || loading) return;
+    const row = rows.find((r) => r.id === focusScreeningId);
+    if (!row) return;
+    void open(row);
+    const el = document.getElementById(`vs-${row.id}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    onFocusHandled?.();
+    // open/loadSlots are stable enough for a one-shot arrival; adding them
+    // re-runs this every time the panel is closed and re-opens it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusScreeningId, loading, rows]);
 
   async function open(row: Row) {
     if (openId === row.id) { setOpenId(null); setDetail(null); return; }
@@ -719,7 +742,9 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       <p className={`${T_CAPTION} mb-3`}>
         {/* The hint already ends with it; appending a second copy read
             "longest wait first — longest wait first." on screen. */}
-        {TABS.find((t) => t.key === state)?.hint}
+        {state === "all"
+          ? "Everyone, so the person you came here for is in the list. Pick a tab above to go back to a queue."
+          : TABS.find((t) => t.key === state)?.hint}
       </p>
 
       {/* What the one number was hiding. Server order is kept everywhere else;
@@ -789,7 +814,8 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
           const noScreening = row.id === null;
           const showingInvite = inviteFor === row.applicant_id && invite !== null;
           return (
-            <div key={row.id ?? `a-${row.applicant_id}`} className={`${GLASS_CARD} overflow-hidden`}>
+            <div key={row.id ?? `a-${row.applicant_id}`} id={row.id ? `vs-${row.id}` : undefined}
+                 className={`${GLASS_CARD} overflow-hidden`}>
               <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
                 <Mic className="h-4 w-4 shrink-0 text-violet-400" />
                 <span className="font-semibold text-white">{row.full_name}</span>

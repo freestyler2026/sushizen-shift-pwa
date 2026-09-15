@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight } from "lucide-react";
+import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight, FileText, Mic } from "lucide-react";
 import {
   GLASS_CARD, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
   T_CAPTION, T_LABEL, T_SECTION,
@@ -40,6 +40,20 @@ type Interview = {
   reach_with: string;
   location: string;
   phone: string;
+  /** Which screening holds the CV and the recording. Files never travel in
+   *  this payload -- only the name, the size and the count (lesson 29). */
+  screening_id: number | null;
+  resume_filename: string;
+  resume_bytes: number;
+  voice_answers: number;
+  /** What they typed on the form. The three a transcript gets wrong most
+   *  often -- employer, position, how long -- in their own spelling. */
+  last_employer: string;
+  last_position: string;
+  last_duration: string;
+  home_area: string;
+  experience_level: string;
+  available_from: string;
   attended: boolean | null;
   recorded: boolean;
 };
@@ -91,9 +105,19 @@ function longDate(iso: string): string {
   });
 }
 
-export default function InterviewCalendar({ onOpenInterview }: {
+const EXPERIENCE_LABEL: Record<string, string> = {
+  none: "No experience", under_1y: "Under 1 year",
+  "1_3y": "1–3 years", over_3y: "Over 3 years",
+};
+
+const fileSize = (b: number) =>
+  !b ? "" : b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`;
+
+export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
   /** Take the user to that interview on the Interviews tab, ready to act on it. */
   onOpenInterview?: (id: string) => void;
+  /** Take them to the recording and transcripts for that screening. */
+  onOpenVoice?: (screeningId: number) => void;
 } = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -275,7 +299,44 @@ export default function InterviewCalendar({ onOpenInterview }: {
                       {iv.reach_with}
                     </span>
                   </span>
+                  {/* The number, on the row somebody is about to dial from.
+                      tel: so a phone dials it and a desktop can still copy it. */}
+                  {iv.phone && (
+                    <a href={`tel:${iv.phone.replace(/[^\d+]/g, "")}`}
+                       className="font-mono text-sm text-zinc-300 hover:text-violet-200">
+                      {iv.phone}
+                    </a>
+                  )}
                   {iv.interviewer && <span className={T_CAPTION}>with {iv.interviewer}</span>}
+                  {/* The CV opens straight from here. The recording lives on
+                      the Voice screening tab and is one press away rather than
+                      a hunt through a hundred and sixty rows. */}
+                  {iv.screening_id && iv.resume_filename && (
+                    <a
+                      href={`/api/admin/hr/voice-screenings/${iv.screening_id}/resume`}
+                      target="_blank" rel="noreferrer"
+                      title={iv.resume_filename}
+                      className="inline-flex items-center gap-1 rounded-md border border-violet-400/25 bg-violet-400/10 px-2 py-0.5 text-[11px] font-medium text-violet-200 hover:bg-violet-400/20"
+                    >
+                      <FileText className="h-3 w-3" />
+                      CV
+                      {iv.resume_bytes ? (
+                        <span className="tabular-nums text-violet-300/60">
+                          {fileSize(iv.resume_bytes)}
+                        </span>
+                      ) : null}
+                    </a>
+                  )}
+                  {onOpenVoice && iv.screening_id && iv.voice_answers > 0 && (
+                    <button
+                      onClick={() => onOpenVoice(iv.screening_id as number)}
+                      className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-zinc-300 hover:bg-white/10"
+                    >
+                      <Mic className="h-3 w-3" />
+                      {iv.voice_answers} answers
+                      <ArrowRight className="h-3 w-3" />
+                    </button>
+                  )}
                   {iv.recorded ? (
                     <span className={BADGE_SUCCESS}>Recorded</span>
                   ) : selected.is_past ? (
@@ -314,6 +375,24 @@ export default function InterviewCalendar({ onOpenInterview }: {
                         <ArrowRight className="h-4 w-4" />
                       </span>
                     </button>
+                  )}
+
+                  {/* What they typed on the form. The interviewer is about to
+                      ask about exactly this, and the alternative is opening
+                      another screen while the call connects. Employer, position
+                      and how long are in their own spelling -- a transcript
+                      turned one employer into "Donuts" when it was McDonald's. */}
+                  {(iv.last_employer || iv.last_position || iv.home_area
+                    || iv.experience_level || iv.available_from) && (
+                    <p className={`${T_CAPTION} basis-full`}>
+                      {[
+                        [iv.last_employer, iv.last_position].filter(Boolean).join(" · "),
+                        iv.last_duration && `for ${iv.last_duration}`,
+                        EXPERIENCE_LABEL[iv.experience_level] || iv.experience_level,
+                        iv.home_area && `lives in ${iv.home_area}`,
+                        iv.available_from && `can start ${iv.available_from}`,
+                      ].filter(Boolean).join(" · ")}
+                    </p>
                   )}
                 </div>
               ))}

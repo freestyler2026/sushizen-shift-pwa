@@ -2993,6 +2993,8 @@ export default function HRRecruitmentPage() {
   const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews" | "calendar">("pipeline");
   // カレンダーから「この面接を動かす」で飛んできたときの行き先。
   const [focusInterview, setFocusInterview] = useState("");
+  // カレンダーの「N answers →」で録音を見に行くときの行き先。
+  const [focusVoice, setFocusVoice] = useState(0);
   // Which candidate the board sent us here for, so the Interviews tab opens on
   // them instead of making somebody find the name again in a list of fifteen.
   const [focusBooking, setFocusBooking] = useState<string>("");
@@ -3617,6 +3619,7 @@ export default function HRRecruitmentPage() {
            the calendar" is not a question a calendar should provoke. */
         <InterviewCalendar
           onOpenInterview={(id) => { setFocusInterview(id); setView("interviews"); }}
+          onOpenVoice={(sid) => { setFocusVoice(sid); setView("voice"); }}
         />
       ) : view === "interviews" ? (
         <>
@@ -3647,7 +3650,10 @@ export default function HRRecruitmentPage() {
           />
         </>
       ) : view === "voice" ? (
-        <VoiceScreeningQueue />
+        <VoiceScreeningQueue
+          focusScreeningId={focusVoice}
+          onFocusHandled={() => setFocusVoice(0)}
+        />
       ) : view === "plans" ? (
         <PlansView
           data={overview}
