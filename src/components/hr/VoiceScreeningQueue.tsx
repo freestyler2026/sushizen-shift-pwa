@@ -237,6 +237,21 @@ function linkExpired(row: Row): boolean {
   return Number.isFinite(t) && t <= Date.now();
 }
 
+/** Days left on their link, or null when there is no deadline to show.
+ *
+ *  The countdown only appears close to the end. A link with eleven days on it
+ *  needs no attention, and a number on every row is a number nobody reads
+ *  (lesson 39) -- the point is to be told before somebody is locked out, not
+ *  to watch a clock.
+ */
+function daysLeft(row: Row): number | null {
+  if (!row.token_expires_at) return null;
+  const t = Date.parse(row.token_expires_at);
+  if (!Number.isFinite(t)) return null;
+  const d = Math.ceil((t - Date.now()) / 86400000);
+  return d > 0 && d <= 3 ? d : null;
+}
+
 function stallOf(row: Row): Stall {
   // First, because it outranks the rest: whatever else they did or did not do,
   // they cannot do anything now.
@@ -887,6 +902,17 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
                       waiting {waitedLabel(row)}
                       {row.invite_count > 1 ? ` · sent ${row.invite_count}×` : ""}
                     </span>
+                    {/* Before, not after. Ten people were locked out on
+                        2026-09-15 and the first anyone knew of it was an
+                        applicant writing back. */}
+                    {daysLeft(row) !== null && (
+                      <span
+                        className={BADGE_WARNING}
+                        title="Once it expires the link cannot be revived — a new one has to be issued and sent again."
+                      >
+                        link expires in {daysLeft(row)}{daysLeft(row) === 1 ? " day" : " days"}
+                      </span>
+                    )}
                   </>
                 )}
                 {row.superseded && (
