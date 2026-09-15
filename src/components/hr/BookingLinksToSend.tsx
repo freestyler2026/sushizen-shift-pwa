@@ -318,9 +318,11 @@ export default function BookingLinksToSend({
    *  writes is no record. Copying is what the person actually does before
    *  leaving for Viber, so that is the moment worth keeping.
    *
-   *  It says "copied", never "sent" -- the two are not the same, and the
-   *  Runbook had to be corrected for claiming a button recorded a send when it
-   *  recorded nothing.
+   *  2026-09-15, the owner's call: copying the message is sending, and every
+   *  screen says so. Strictly the two differ, but the OS has no way to check
+   *  and a third state ("we are not sure") leaves both piles unworked. Do not
+   *  put the old wording back on one screen only -- the board reads the same
+   *  event and would then disagree with this one about the same person.
    */
   async function copy(text: string, what: string, applicantId: string) {
     // The clipboard call goes first and is not awaited behind anything else:
@@ -400,8 +402,8 @@ export default function BookingLinksToSend({
             </span>
           )}
           {row.copied_at && (
-            <span className={BADGE_INFO} title="Copying is not sending — it only means somebody took the wording away to send it.">
-              taken by {row.copied_by || "someone"}
+            <span className={BADGE_SUCCESS} title="The message was taken away to be sent. The board counts this as sent.">
+              ✓ sent by {row.copied_by || "someone"}
               {row.copied_at.length > 15 ? ` ${row.copied_at.slice(11, 16)}` : ""}
             </span>
           )}

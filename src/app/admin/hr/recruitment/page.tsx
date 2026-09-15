@@ -90,8 +90,11 @@ type Applicant = {
    *  moment it can see, and it is not the same as sending. */
   booking_invited_at?: string | null;
   booking_token_expires_at?: string | null;
-  booking_copied_at?: string | null;
-  booking_copied_by?: string | null;
+  booking_sent_at?: string | null;
+  booking_sent_by?: string | null;
+  /** 'booking_copied' when a person took the wording away, 'booking_sent' when
+   *  the OS itself got a text out. Both count as sent. */
+  booking_sent_how?: string | null;
   /** Where the resume is. The file itself is never in this payload -- only
    *  which screening holds it, so the panel can offer to open that one
    *  (lesson 29). Null means none on file. */
@@ -324,13 +327,13 @@ function scoreDisplay(score?: number) {
 
 /** How far this person's booking link got. The three are different jobs, and
  *  they were all wearing the same button. */
-type LinkState = "none" | "made" | "taken" | "expired";
+type LinkState = "none" | "made" | "sent" | "expired";
 
 function linkStateOf(a: Applicant): LinkState {
   if (!a.booking_token_expires_at) return "none";
   const t = Date.parse(a.booking_token_expires_at);
   if (Number.isFinite(t) && t <= Date.now()) return "expired";
-  return a.booking_copied_at ? "taken" : "made";
+  return a.booking_sent_at ? "sent" : "made";
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -352,7 +355,7 @@ function shortDate(iso?: string | null): string {
 const LINK_ACTION: Record<LinkState, string> = {
   none: "Send interview link",
   made: "Open message",
-  taken: "Send again",
+  sent: "Send again",
   expired: "New link",
 };
 
@@ -454,17 +457,23 @@ function KanbanCard({
                 {ls === "made" && (
                   <p
                     className="mb-1.5 text-[10px] font-medium text-amber-400"
-                    title="A link exists, but nobody has copied the message — so as far as the OS can tell, nothing has reached them."
+                    title="A link exists but the message has never been copied or texted, so nothing has gone out to them yet."
                   >
                     link made {shortDate(applicant.booking_invited_at)} · not sent
                   </p>
                 )}
-                {ls === "taken" && (
+                {ls === "sent" && (
                   <p
-                    className="mb-1.5 text-[10px] font-medium text-emerald-400"
-                    title={`Message copied${applicant.booking_copied_by ? ` by ${applicant.booking_copied_by}` : ""}. Copying is not sending, but it is the moment somebody took the wording away to send it.`}
+                    className="mb-1.5 flex items-center gap-1 text-[10px] font-medium text-emerald-400"
+                    title={
+                      (applicant.booking_sent_how === "booking_sent"
+                        ? "The OS texted this one."
+                        : "The message was copied to be sent by hand.")
+                      + (applicant.booking_sent_by ? ` By ${applicant.booking_sent_by}.` : "")
+                    }
                   >
-                    message copied {shortDate(applicant.booking_copied_at)}
+                    ✓ sent {shortDate(applicant.booking_sent_at)}
+                    {applicant.booking_sent_by ? ` · ${applicant.booking_sent_by.split(" ")[0]}` : ""}
                   </p>
                 )}
                 {ls === "expired" && (
