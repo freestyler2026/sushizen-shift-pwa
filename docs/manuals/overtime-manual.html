@@ -487,6 +487,27 @@ Outside your shift: 3h5m   (0h25m more than you asked for)</pre>
       <span class="en">So <strong>there is no need to wait for a cut-off.</strong> Deal with requests the day they arrive, while you still remember the shift.</span></p>
   </div>
 
+  <div class="card blue-border">
+    <div class="card-title"><span class="ja">打刻で確定するか、申請どおりにするか</span><span class="en">Approve the clock, or approve the claim</span></div>
+    <p><span class="ja">申請と打刻が15分を超えて食い違うとき、承認ボタンが<strong>2つ</strong>出ます。どちらにも<strong>実際に承認される分数が書かれています。</strong></span>
+      <span class="en">When the claim and the clock differ by more than a quarter of an hour, the dialog offers <strong>two</strong> buttons, and each carries the number it will approve.</span></p>
+    <pre>Approve 1h49m — what the clock shows
+Approve 0h40m as asked</pre>
+    <p><span class="ja"><strong>自動では何も変わりません。</strong>1件ずつ押します。押さなければ申請どおりです。</span>
+      <span class="en"><strong>Nothing changes on its own.</strong> It is one press per request; leave it and the claim stands.</span></p>
+    <p><span class="ja">打刻で確定した場合、<strong>本人が入力した分数は残ります</strong>（<code>ot_minutes_original</code>）。行にも本人の画面にも「打刻で確定・申請は◯◯だった」と出ます。</span>
+      <span class="en">Settling on the clock <strong>keeps what the employee typed</strong>. The row and their own screen both say it was settled that way, and what was originally asked for.</span></p>
+    <p><span class="ja">現在マニラの未処理53件の内訳: 打刻と一致20件 / <strong>本人が損をしている21件（+13.3時間）</strong> / 多すぎる11件（−77.5時間） / 読めない1件。</span>
+      <span class="en">The Manila queue today: 20 agree with the clock, <strong>21 where the employee is short (+13.3h)</strong>, 11 above the clock (−77.5h), 1 unreadable.</span></p>
+    <div class="tip info">
+      <span class="tip-icon">🔒</span>
+      <div>
+        <span class="ja">分数はサーバーが公開シフトと打刻から計算します。<strong>画面から金額は送りません</strong> ── ブラウザが送った数字は証拠になりません。</span>
+        <span class="en">The minutes are computed on the server from the roster and the punches. <strong>The page sends a choice, never an amount</strong> — a number posted from a browser is not evidence of anything.</span>
+      </div>
+    </div>
+  </div>
+
   <div class="card red-border">
     <div class="card-title">Reject <span class="ja" style="font-weight:400">— 理由の選択が必須になりました</span><span class="en" style="font-weight:400">— a ground is now required</span></div>
     <p><span class="ja">マニラの却下25件のうち<strong>18件は理由が空欄</strong>でした。1名は10回却下されて、10回とも何も伝わっていません。同じ申請が翌週また出るのはこれが原因です。<strong>理由を選ばないと保存できません。</strong></span>
