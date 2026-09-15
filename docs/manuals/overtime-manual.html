@@ -433,6 +433,21 @@ h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8
     </div>
   </div>
 
+  <div class="card blue-border">
+    <div class="card-title"><span class="ja">履歴に出るようになったもの（マニラ）</span><span class="en">What your history now shows (Manila)</span></div>
+    <p><span class="ja">各申請の下に、<strong>マネージャーが見ているのと同じ数字</strong>が出ます。</span>
+      <span class="en">Under each request, <strong>the same numbers your manager is looking at</strong>.</span></p>
+    <pre>Your shift:        09:00–18:00
+You clocked:       08:41 → 20:46
+Outside your shift: 3h5m   (0h25m more than you asked for)</pre>
+    <p><span class="ja">直近60日のマニラ141件のうち、<strong>56件は実際より少なく申請</strong>されていました。合計36.8時間です。承認する側にも打刻が見えていなかったので、そのまま通っていました。</span>
+      <span class="en">Of 141 Manila requests over sixty days, <strong>56 asked for less than was worked</strong> — 36.8 hours in total. The clock was not on the reviewer's screen either, so they went through as submitted.</span></p>
+    <p><span class="ja">却下された場合は<strong>理由が出ます。</strong>何も書かれない却下はできなくなりました。</span>
+      <span class="en">A refusal now <strong>names its ground</strong>. A rejection with nothing written is no longer possible.</span></p>
+    <p><span class="ja"><strong>打刻が違うときは「The clock is wrong」を押してください。</strong>端末が退勤を受け付けなかった、押し忘れた ── 一文書けばマネージャーに届きます。給与に入ったあとは使えません（給与側で直します）。</span>
+      <span class="en"><strong>If the clock is wrong, press "The clock is wrong".</strong> The terminal refused your clock-out, you forgot to press it — one sentence reaches your manager. Not available once it is in payroll; that is corrected through payroll.</span></p>
+  </div>
+
   <div class="tip success">
     <span class="tip-icon">🧾</span>
     <div>
@@ -473,11 +488,37 @@ h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8
   </div>
 
   <div class="card red-border">
-    <div class="card-title">Reject</div>
-    <p><span class="ja">認められない場合は Reject し、<strong>理由を必ず書いてください。</strong>本人の履歴と通知にそのまま表示されます。理由の無い却下は、同じ申請が繰り返される原因になります。</span>
-      <span class="en">Reject what you cannot accept, and <strong>always write the reason</strong> — it appears in the employee's history and notification. A rejection with no reason produces the same request again next week.</span></p>
+    <div class="card-title">Reject <span class="ja" style="font-weight:400">— 理由の選択が必須になりました</span><span class="en" style="font-weight:400">— a ground is now required</span></div>
+    <p><span class="ja">マニラの却下25件のうち<strong>18件は理由が空欄</strong>でした。1名は10回却下されて、10回とも何も伝わっていません。同じ申請が翌週また出るのはこれが原因です。<strong>理由を選ばないと保存できません。</strong></span>
+      <span class="en">Eighteen of the twenty-five Manila rejections on record carried no note. One person was refused ten times and told nothing each time. <strong>A rejection will not save without a ground.</strong></span></p>
+    <div class="tbl-wrap"><table>
+      <tr><th><span class="ja">理由</span><span class="en">Ground</span></th>
+          <th><span class="ja">使う場面</span><span class="en">When</span></th></tr>
+      <tr><td><span class="ja">事前の申請・許可がない</span><span class="en">No request or approval before it started</span></td>
+          <td><span class="ja">働く前に何も出ていない・合意が無い</span><span class="en">Nothing was sent or agreed before the hours were worked</span></td></tr>
+      <tr><td><span class="ja">打刻と一致しない</span><span class="en">The hours do not match the clock</span></td>
+          <td><span class="ja">シフトと打刻は画面に出ています。<strong>本人にも同じものが見えます</strong></span><span class="en">The shift and the punches are on the screen — and on theirs</span></td></tr>
+      <tr><td><span class="ja">シフト時間内</span><span class="en">The hours are inside the rostered shift</span></td>
+          <td><span class="ja">その時間は通常の勤務として既に支払われます</span><span class="en">Those hours are already paid as the ordinary day</span></td></tr>
+      <tr><td><span class="ja"><strong>シフト内で終えられた</strong></span><span class="en"><strong>Could have been finished within the shift</strong></span></td>
+          <td><span class="ja"><strong>一文の記入が必須。</strong>これは事実ではなく判断なので、何をどうすべきだったかを書きます</span><span class="en"><strong>A sentence is required.</strong> This is a judgement, not a fact — say what should have been done differently</span></td></tr>
+      <tr><td><span class="ja">その他</span><span class="en">Something else</span></td>
+          <td><span class="ja"><strong>一文の記入が必須</strong></span><span class="en"><strong>A sentence is required</strong></span></td></tr>
+    </table></div>
+    <p><span class="ja">選んだ理由と書いた一文は、<strong>本人の画面にシフト・打刻と並べて表示されます。</strong>本人が確かめられない理由は、理由になりません。</span>
+      <span class="en">The ground and the sentence appear on the employee's own screen, beside the shift and their punches. A ground they cannot check is not a ground.</span></p>
     <p><span class="ja">既に給与に入ったものは Reject できません。給与担当が Remove from Payroll で戻したあとに却下します。</span>
       <span class="en">Overtime already in payroll cannot be rejected. Payroll takes it back out first with Remove from Payroll.</span></p>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title"><span class="ja">「打刻が違う」と言われたとき</span><span class="en">When they say the clock is wrong</span></div>
+    <p><span class="ja">承認の判断が打刻に基づく以上、<strong>打刻が壊れた日の逃げ道</strong>が要ります。端末が退勤を受け付けなかった日に何も言えないと、最初の1件で画面が信用されなくなります。</span>
+      <span class="en">Decisions now rest on the punches, so a terminal that refused a clock-out has to have somewhere to go. Without it, the first broken punch costs somebody their hours and the screen stops being believed.</span></p>
+    <p><span class="ja">本人が「The clock is wrong」を押すと、一文が行に琥珀色で出ます。読んだら <strong>Mark as read</strong> を押してください。<strong>申請そのものの状態は変わりません</strong> ── 返事をすることと、残業を判断することは別の行為です。</span>
+      <span class="en">Their sentence appears in amber on the row. Press <strong>Mark as read</strong> once you have seen it. <strong>It never changes the request's own status</strong> — answering someone and deciding their overtime are separate acts.</span></p>
+    <p><span class="ja">給与に入ったものには出せません。動いたお金は給与側で直します。</span>
+      <span class="en">Not available once it is in payroll — money that has moved is corrected through payroll.</span></p>
   </div>
 
   <div class="card green-border">

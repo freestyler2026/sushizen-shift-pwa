@@ -1,5 +1,56 @@
 # CURRENT_TASKS.md
 
+## 2026-09-15（続き9） — 残業3/6: 却下に理由コード必須・スタッフ側に同じ事実・異議申立
+
+### なぜ
+
+**マニラの却下25件のうち18件が理由空欄。** Caila Macararanga は10回却下されて10回とも無言。
+理由が書かれた3件は `There was no request in advance.` /
+`There is no post on Discord and preapproval form the manager` /
+`The OT hours is wrongly submitted (10h33m.)` ── **事前許可は既に運用ルールで、OSに無かっただけ。**
+理由コードはこの実際の文言から作った（発明していない）。
+
+### 入れたもの
+
+| | |
+|---|---|
+| `review_reason_code` 列 | 却下時のみ。`review_note` の散文は数えられない・絞れない（教訓74） |
+| `disputed_at` / `dispute_note` / `dispute_closed_at` / `dispute_closed_by` | 異議申立 |
+| `OT_REJECT_REASONS`（`app/db.py`） | 5つ。うち `avoidable` / `other` は一文必須 |
+| `POST /api/store/overtime/{id}/dispute` | 本人のみ・`paid` は不可 |
+| `PATCH /api/admin/overtime/{id}/close-dispute` | **申請の status は変えない** |
+| 承認画面 | 却下モーダルに理由ピッカー・行に理由と異議申立バッジ |
+| スタッフ画面 | シフト/打刻/計算値・却下理由・「The clock is wrong」ボタン |
+
+⚠️ **`ensure_overtime_tables()` の ALTER にカタログ事前確認を追加（教訓85）。**
+既存列でも ACCESS EXCLUSIVE を取り、これはリクエスト経路から走る。
+
+### 設計上の判断
+
+- **異議申立は申請の status を変えない。** 返事をすることと残業を判断することは別の行為
+- **`paid` は異議申立不可。** 動いたお金は給与側で直す
+- 却下理由の上3つ（事前申請なし・打刻不一致・シフト内）は**画面に出ている事実**なので一文不要。
+  下2つは**判断**なので必須。判断に根拠が無いのが、10回の無言却下を生んだ形
+- スタッフ画面に承認者と**同じ数字**を出す。本人が確かめられない理由は理由にならない
+
+### 検証
+
+- ブラウザ: 理由未選択で Reject → `Pick a reason — the employee is shown it.` /
+  `avoidable` を選んで一文なし → `"Could have been finished within the shift" needs a sentence`。
+  **どちらもネットワークリクエスト0件**（クライアント側で停止）。本物の却下はしていない
+- 隔離行（`city='qa-selftest'`）で往復7件すべて通過 → **id指定で削除**（残0件／教訓54）
+  - 却下に理由が載る / 承認では理由が消える / 本人以外は異議申立不可 /
+    `paid` は不可 / dispute close で status 不変 / 二重 close 不可
+
+### 残り
+
+4. 申請フォームを確定値方式に ← **金額が動く。ここから先は慎重に**
+5. 3点セット（注文・人員・仕込み）を店舗別に
+6. 事前許可と原因チップ
+
+Overtime マニュアル更新・republish 済み。
+
+
 ## 2026-09-15（続き8） — 残業: シフトと打刻が示す時間を承認画面に出した（マニラ・1/6）
 
 **代表の要件**: 不適正な残業（手抜き・仕込み不足）を認めない体制。マニラ先行。納得感が無いと反発が出るので、却下の根拠を示せること。
