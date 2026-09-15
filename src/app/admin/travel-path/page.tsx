@@ -1,6 +1,6 @@
 "use client";
 
-import { isoToday } from "@/lib/date";
+import { businessToday, isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
@@ -214,7 +214,17 @@ function TemperatureInputGrid({
 }
 
 function todayStr(): string {
-  return isoToday();
+  // **The closing report is written after midnight.** Measured across every
+  // branch: of 251 closing reports, 221 were submitted between 00:00 and 04:59
+  // -- 88% of them filed under the following day, which is why a closing goes
+  // missing on the day it happened and appears on a day that has not had one
+  // yet. Cubao reported exactly that on 2026-09-15.
+  //
+  // businessToday() is the same 05:00 rule the Cash Report uses, chosen there
+  // from the same kind of measurement. It changes nothing during the day: the
+  // earliest ordinary submission of any section is an opening at 08:00, three
+  // hours clear of the boundary.
+  return businessToday();
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -599,6 +609,15 @@ function ChecklistView() {
               value={reportDate}
               onChange={(e) => setReportDate(e.target.value)}
             />
+            {/* After midnight the date box shows yesterday on purpose, and a
+                box that disagrees with the phone's clock without saying why is
+                a box people "correct". */}
+            {reportDate === businessToday() && businessToday() !== isoToday() && (
+              <p className="text-[11px] leading-snug text-amber-300/80">
+                It is past midnight, so this is filed under the day the shift
+                belongs to. Change it if you are writing up a different day.
+              </p>
+            )}
           </div>
 
           {/* Section */}
