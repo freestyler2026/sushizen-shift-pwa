@@ -497,6 +497,11 @@ export default function ProcurementInvoicesPage() {
   const [vendorAlertData, setVendorAlertData] = useState<VendorAlertData>(EMPTY_VENDOR_DATA);
   const [vendorOptions, setVendorOptions] = useState<string[]>([]);
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
+  // Whether invoices arrive in that Drive on their own. Only Dubai's do: the
+  // capture is a Discord bot watching five Dubai store channels. An empty
+  // Manila inbox is the design, and a screen that does not say so reads as
+  // broken.
+  const [driveFolderAuto, setDriveFolderAuto] = useState(true);
   const [noticeLink, setNoticeLink] = useState("");
   const [alertBannerOpen, setAlertBannerOpen] = useState(false);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
@@ -1160,6 +1165,15 @@ export default function ProcurementInvoicesPage() {
 
   useEffect(() => {
     const auth = getAuth();
+    // Clear first. The old code only wrote the link when one came back, so
+    // switching Dubai → Manila left Dubai's folder on the button and the
+    // Manila tab opened Dubai's Drive (reported from Manila 2026-09-15).
+    // Half of that was the server ignoring the city; keeping the previous
+    // city's answer on screen is the other half, and it would come back the
+    // next time any city has no folder.
+    setDriveFolderUrl("");
+    setDriveFolderAuto(true);
+    let alive = true;
     // The inbox's own drive, not PO Match's. PO Match holds invoices that have
     // already been through detailed matching; the people checking an SOA need
     // the originals the inbox captured.
@@ -1167,8 +1181,13 @@ export default function ProcurementInvoicesPage() {
       headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
     })
       .then((r) => r.json())
-      .then((d: { web_view_link?: string }) => { if (d?.web_view_link) setDriveFolderUrl(d.web_view_link); })
+      .then((d: { web_view_link?: string; captured_automatically?: boolean }) => {
+        if (!alive) return;
+        if (d?.web_view_link) setDriveFolderUrl(d.web_view_link);
+        setDriveFolderAuto(d?.captured_automatically !== false);
+      })
       .catch(() => { /* non-critical */ });
+    return () => { alive = false; };
   }, [city]);
 
   useEffect(() => {
@@ -1339,6 +1358,9 @@ export default function ProcurementInvoicesPage() {
                     href={driveFolderUrl}
                     target="_blank"
                     rel="noreferrer"
+                    title={driveFolderAuto
+                      ? "Invoices captured from the store Discord channels, by store and date."
+                      : "Manila supplier invoices, put here by Receiving and PO Match. Nothing arrives on its own."}
                     className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30"
                   >
                     <ExternalLink className="h-4 w-4" />
@@ -1368,6 +1390,18 @@ export default function ProcurementInvoicesPage() {
                   {syncBusy ? "Syncing..." : "Sync Spreadsheet"}
                 </button>
               </div>
+              {driveFolderUrl && !driveFolderAuto && (
+                /* Say it here rather than leave people to work it out. Manila
+                   asked for the Dubai auto-capture on 2026-09-15; the capture
+                   is a Discord bot on five Dubai store channels, so there is
+                   nothing to point at Manila until Manila invoices arrive
+                   somewhere the OS can read. */
+                <p className="xl:col-span-2 text-xs text-white/45">
+                  Invoice Drive holds Manila supplier invoices put there by Receiving and
+                  PO Match. Manila has no automatic capture — invoices only appear once
+                  somebody uploads them.
+                </p>
+              )}
             </div>
             <input
               ref={uploadInputRef}
