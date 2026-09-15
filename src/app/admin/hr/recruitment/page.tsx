@@ -78,6 +78,20 @@ type Applicant = {
    *  over -- the rows still exist, they are just out of the queue. Shown so
    *  the undo sits in the same place as the thing it undoes (lesson 22). */
   merged_count?: number;
+  /** The booking link, and how far it actually got.
+   *
+   *  Three different situations wore one button. Measured 2026-09-15 across the
+   *  43 on Screened: 19 had no link, 24 had a live one, and the message had been
+   *  copied for 1. Those 22 in the middle looked exactly like the ones that had
+   *  been sent, and nothing had reached them.
+   *
+   *  `booking_copied_at` is the honest end of it. The OS never sends the
+   *  message -- somebody copies it into Viber or SMS -- so copying is the last
+   *  moment it can see, and it is not the same as sending. */
+  booking_invited_at?: string | null;
+  booking_token_expires_at?: string | null;
+  booking_copied_at?: string | null;
+  booking_copied_by?: string | null;
   /** Where the resume is. The file itself is never in this payload -- only
    *  which screening holds it, so the panel can offer to open that one
    *  (lesson 29). Null means none on file. */
@@ -308,6 +322,40 @@ function scoreDisplay(score?: number) {
 
 // ─── Days badge helper ───────────────────────────────────────────────────────
 
+/** How far this person's booking link got. The three are different jobs, and
+ *  they were all wearing the same button. */
+type LinkState = "none" | "made" | "taken" | "expired";
+
+function linkStateOf(a: Applicant): LinkState {
+  if (!a.booking_token_expires_at) return "none";
+  const t = Date.parse(a.booking_token_expires_at);
+  if (Number.isFinite(t) && t <= Date.now()) return "expired";
+  return a.booking_copied_at ? "taken" : "made";
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "15 Sep". Built by hand on purpose: toLocaleDateString follows the reader's
+ *  browser, so the same card read "9月15日" on a Japanese device and something
+ *  else again on a Filipino one. Every screen in this OS is English. */
+function shortDate(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+/** What the button on a Screened card should say, given where the link got to.
+ *  "Send interview link" on all three reads as "nothing has happened yet" for
+ *  the 22 people who already have one. */
+const LINK_ACTION: Record<LinkState, string> = {
+  none: "Send interview link",
+  made: "Open message",
+  taken: "Send again",
+  expired: "New link",
+};
+
 function daysBadge(days: number) {
   const cls =
     days > 30
@@ -395,18 +443,51 @@ function KanbanCard({
              only route to an interview. The applicant picks their own time;
              this hands over the link that lets them, and the card moves by
              itself when they book. */
-          <div className="mt-2">
-            <button
-              className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSendLink(applicant);
-              }}
-            >
-              <Link2 className="h-3 w-3" />
-              Send interview link
-            </button>
-          </div>
+          (() => {
+            const ls = linkStateOf(applicant);
+            return (
+              <div className="mt-2">
+                {/* Say where it got to. Without this the card cannot tell
+                    "nobody has done anything" from "a link exists but nobody
+                    has taken the message away to send it" -- and the second is
+                    the one that quietly goes nowhere. */}
+                {ls === "made" && (
+                  <p
+                    className="mb-1.5 text-[10px] font-medium text-amber-400"
+                    title="A link exists, but nobody has copied the message — so as far as the OS can tell, nothing has reached them."
+                  >
+                    link made {shortDate(applicant.booking_invited_at)} · not sent
+                  </p>
+                )}
+                {ls === "taken" && (
+                  <p
+                    className="mb-1.5 text-[10px] font-medium text-emerald-400"
+                    title={`Message copied${applicant.booking_copied_by ? ` by ${applicant.booking_copied_by}` : ""}. Copying is not sending, but it is the moment somebody took the wording away to send it.`}
+                  >
+                    message copied {shortDate(applicant.booking_copied_at)}
+                  </p>
+                )}
+                {ls === "expired" && (
+                  <p
+                    className="mb-1.5 text-[10px] font-medium text-amber-400"
+                    title="Their link no longer opens. It cannot be revived — a new one has to be issued."
+                  >
+                    link expired
+                  </p>
+                )}
+                <button
+                  className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSendLink(applicant);
+                  }}
+                >
+                  <Link2 className="h-3 w-3" />
+                  {LINK_ACTION[ls]}
+                </button>
+              </div>
+            );
+          })()
         ) : (
         nextStatus && (
           <div className="mt-2">
@@ -3768,6 +3849,22 @@ export default function HRRecruitmentPage() {
                           {cards.length}
                         </span>
                       </div>
+
+                      {/* Screened only, and only the two numbers worth acting
+                          on. Forty-three cards is too many to read one by one
+                          to find out who still needs sending. */}
+                      {col.id === "screened" && cards.length > 0 && (() => {
+                        const none = cards.filter((a) => linkStateOf(a) === "none").length;
+                        const made = cards.filter((a) => linkStateOf(a) === "made").length;
+                        if (!none && !made) return null;
+                        return (
+                          <p className="shrink-0 px-3 py-1.5 text-[10px] text-amber-400 border-b border-white/8">
+                            {none > 0 && <>{none} need a link</>}
+                            {none > 0 && made > 0 && " · "}
+                            {made > 0 && <>{made} have one, not sent</>}
+                          </p>
+                        );
+                      })()}
 
                       <div className="space-y-2 p-2">
                         {cards.length === 0 ? (
