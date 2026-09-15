@@ -84,6 +84,29 @@ type Applicant = {
   resume_screening_id?: number | null;
   resume_filename?: string;
   resume_bytes?: number;
+  /** What they typed on the application form. All of it has been stored since
+   *  the form went up and all of it reaches this payload -- none of it was on
+   *  the screen where somebody decides. Fill rates across the 84 form
+   *  applications on 2026-09-15: employer and position 100%, experience 100%,
+   *  start date 89%, home area 86%, how long 78%, Facebook 39%. */
+  last_employer?: string | null;
+  last_position?: string | null;
+  last_duration?: string | null;
+  home_area?: string | null;
+  experience_level?: string | null;
+  available_from?: string | null;
+  contact_apps?: string[] | null;
+  facebook_url?: string | null;
+  form_language?: string | null;
+};
+
+/** The wording the applicant saw, so the answer is read against the question
+ *  that produced it rather than a label invented here. */
+const EXPERIENCE_LABEL: Record<string, string> = {
+  none: "None",
+  under_1y: "Less than 1 year",
+  "1_3y": "1 to 3 years",
+  over_3y: "More than 3 years",
 };
 
 /** After this long with nothing happening, an open application is not being
@@ -947,6 +970,64 @@ function DetailPanel({
                 </div>
               ))}
             </div>
+
+            {/* What they wrote on the form.
+                Every one of these has been collected since the form went up and
+                every one of them reaches this payload -- none of them were on
+                this screen, the one where somebody decides. For an applicant
+                with no recording, this and the CV are the whole case.
+
+                Labelled with the questions the applicant actually saw. An
+                answer read against a label invented here is a different answer:
+                "2" under "How long were you there?" is a period, under
+                "Experience" it would be a level. */}
+            {(applicant.last_employer || applicant.last_position
+              || applicant.last_duration || applicant.home_area
+              || applicant.experience_level || applicant.available_from
+              || applicant.facebook_url
+              || (applicant.contact_apps?.length ?? 0) > 0) && (
+              <div className={`${GLASS_CARD} p-4`}>
+                <p className={`${T_LABEL} mb-2`}>What they wrote on the form</p>
+                <div className="space-y-2">
+                  {([
+                    ["Where did you work last?", applicant.last_employer],
+                    ["What was your position there?", applicant.last_position],
+                    ["How long were you there?", applicant.last_duration],
+                    ["Experience in food service",
+                      applicant.experience_level
+                        ? EXPERIENCE_LABEL[applicant.experience_level] || applicant.experience_level
+                        : ""],
+                    ["Which area do you live in?", applicant.home_area],
+                    ["When can you start?", applicant.available_from],
+                    ["Which apps do you use on this number?",
+                      (applicant.contact_apps || []).join(", ")],
+                  ] as [string, string | null | undefined][]).map(([q, val]) => (
+                    <div key={q} className="flex gap-2 text-sm">
+                      <span className="w-52 shrink-0 text-zinc-500">{q}</span>
+                      <span className="break-all text-zinc-200">{val || "—"}</span>
+                    </div>
+                  ))}
+                  {applicant.facebook_url && (
+                    <div className="flex gap-2 text-sm">
+                      <span className="w-52 shrink-0 text-zinc-500">Facebook</span>
+                      <a
+                        href={applicant.facebook_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all text-violet-300 underline underline-offset-2"
+                      >
+                        {applicant.facebook_url}
+                      </a>
+                    </div>
+                  )}
+                </div>
+                {applicant.form_language === "tl" && (
+                  <p className="mt-2 text-xs text-zinc-500">
+                    They filled the form in Tagalog — send them the Tagalog message.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Same phone, same application done over. The duplicates are out
                 of the queue but not gone, and the way back is here rather than
