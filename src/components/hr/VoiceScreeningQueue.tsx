@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  RefreshCw, Play, Check, PauseCircle, X, Undo2, AlertTriangle, Mic, Send,
+  RefreshCw, Play, Check, PauseCircle, X, Undo2, AlertTriangle, Mic, Send, FileText,
 } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, TEXTAREA_CLASS,
@@ -75,6 +75,14 @@ type Row = {
   token_expires_at: string | null;
   retain_until: string | null;
   created_at: string;
+  /** The CV. The file itself is never in this payload -- only whether there is
+   *  one, so the row can offer it. 120 of 149 screenings have one and 66 of
+   *  those have no recording at all, which is exactly the group this screen
+   *  could not judge while the CV sat behind the audio player. */
+  has_resume?: boolean;
+  resume_filename?: string | null;
+  resume_bytes?: number;
+  resume_skipped?: boolean;
 };
 
 type Reason = { key: string; label: string };
@@ -305,6 +313,13 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
       ours: by.asked_later + by.stuck,
     };
   }, [rows, state]);
+
+  /** How many on this tab sent a CV. Counted from the rows on screen so it
+   *  cannot disagree with what is listed (lesson 73). */
+  const withCv = useMemo(
+    () => rows.filter((r) => r.has_resume).length,
+    [rows],
+  );
 
   const orderedRows = useMemo(() => {
     if (state !== "waiting") return rows;
@@ -731,6 +746,16 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
               them — send those the link again. They are listed first.
             </p>
           )}
+          {/* Otherwise nobody finds out the CV is there: it used to open only
+              from the audio player, which these rows do not have. */}
+          {withCv > 0 && (
+            <p className={`${T_CAPTION} mt-1`}>
+              {withCv} of them sent a CV. You do not have to wait for a recording —
+              open <span className="text-zinc-300">CV</span> on the row, or
+              <span className="text-zinc-300"> Read CV — decide</span> to shortlist
+              from it.
+            </p>
+          )}
         </div>
       )}
 
@@ -818,6 +843,30 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                   </span>
                 )}
 
+                {/* The CV, on the row. It arrives before any recording does,
+                    so holding it behind the player hid it from everybody who
+                    had not recorded -- the one group with nothing else to
+                    judge on. Opens in a new tab; the bytes are fetched then,
+                    never in this list. */}
+                {row.has_resume && row.id !== null && (
+                  <a
+                    href={`/api/admin/hr/voice-screenings/${row.id}/resume`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={row.resume_filename || "CV"}
+                    className="inline-flex items-center gap-1 rounded-md border border-violet-400/25 bg-violet-400/10 px-2 py-0.5 text-[11px] font-medium text-violet-200 hover:bg-violet-400/20"
+                  >
+                    <FileText className="h-3 w-3" />
+                    CV
+                    {row.resume_bytes ? (
+                      <span className="tabular-nums text-violet-300/60">
+                        {Math.max(1, Math.round(row.resume_bytes / 1024))}KB
+                      </span>
+                    ) : null}
+                  </a>
+                )}
+
                 <span className="ml-auto flex items-center gap-2">
                   {(noScreening || row.bucket === "waiting") && canDecide && (
                     <button
@@ -829,13 +878,19 @@ export default function VoiceScreeningQueue({ city = "manila" }: { city?: string
                       {row.invite_count > 0 ? "New link" : "Get invite link"}
                     </button>
                   )}
-                  {!noScreening && row.answered > 0 && (
+                  {/* Was `answered > 0`, so the only way to reach the decision
+                      buttons was to have something to play. Sixty-six people
+                      have a CV and no audio; for them this button did not
+                      exist, and neither did any way to act on what they sent. */}
+                  {!noScreening && (row.answered > 0 || row.has_resume) && (
                     <button
                       className="flex items-center gap-1 text-xs text-violet-300 hover:text-violet-200"
                       onClick={() => void open(row)}
                     >
-                      <Play className="h-3.5 w-3.5" />
-                      {isOpen ? "Close" : "Listen"}
+                      {row.answered > 0
+                        ? <Play className="h-3.5 w-3.5" />
+                        : <FileText className="h-3.5 w-3.5" />}
+                      {isOpen ? "Close" : row.answered > 0 ? "Listen" : "Read CV — decide"}
                     </button>
                   )}
                 </span>
