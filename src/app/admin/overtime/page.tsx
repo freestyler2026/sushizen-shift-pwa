@@ -48,6 +48,7 @@ type OTRequest = {
   paid_at: string | null;
   submitted_at: string;
   workload?: Workload;
+  ot_facts?: OtFacts;
 };
 
 /** Whether the night was actually busy — advisory, never blocks an approval. */
@@ -61,7 +62,119 @@ type Workload = {
   basis?: string;
 };
 
+/**
+ * What the roster and the clock say, for Manila. Read-only: nothing here
+ * blocks or changes an approval, it just puts the two numbers the reviewer
+ * never had on the screen beside the one they were given.
+ */
+type OtFacts = {
+  shift_segments: number[][];
+  punch_in: number | null;
+  punch_out: number | null;
+  before_minutes: number | null;
+  after_minutes: number | null;
+  gap_minutes: number | null;
+  computed_minutes: number | null;
+  claimed_minutes: number | null;
+  delta_minutes: number | null;
+  unavailable: string | null;
+};
+
 type ModalAction = "manager_approve" | "mark_paid" | "remove_from_payroll" | "reject";
+
+/** Quarter of an hour. Below this the typed time and the clock agree well
+ *  enough that saying so would be noise -- people walk to the terminal. */
+const CLOCK_TOLERANCE_MIN = 15;
+
+function signedMinutes(m: number): string {
+  return `${m > 0 ? "+" : "−"}${formatMinutes(Math.abs(m))}`;
+}
+
+/**
+ * The claim against the clock.
+ *
+ * Short claims are not drawn as a fault. Over sixty days 56 Manila requests
+ * were below what the roster and the punches show and 50 of them were
+ * approved or paid unchanged, because no way to correct one upward exists --
+ * that is work already done and not asked for, and colouring it like an
+ * overclaim would tell the wrong story to the person who lost the hours.
+ */
+function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!f) return null;
+
+  if (f.unavailable || f.computed_minutes === null || f.delta_minutes === null) {
+    return (
+      <span className="mt-1 block text-[11px] text-white/35">
+        {f.unavailable || "clock not available"}
+      </span>
+    );
+  }
+
+  const d = f.delta_minutes;
+  const agrees = Math.abs(d) <= CLOCK_TOLERANCE_MIN;
+  const style = agrees
+    ? "border-emerald-500/40 bg-emerald-900/25 text-emerald-300"
+    : d > 0
+    ? "border-amber-500/40 bg-amber-900/25 text-amber-300"
+    : "border-sky-500/40 bg-sky-900/25 text-sky-300";
+  const label = agrees
+    ? "matches the clock"
+    : d > 0
+    ? `${signedMinutes(d)} vs clock`
+    : `${signedMinutes(d)} — worked more`;
+
+  return (
+    <div className={compact ? "" : "mt-1"}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-opacity hover:opacity-80 ${style}`}
+      >
+        {label}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-1 rounded-lg border border-white/10 bg-black/30 p-2 text-[11px] leading-relaxed text-white/70">
+          <p>
+            Rostered:{" "}
+            <span className="text-white">
+              {f.shift_segments.length
+                ? f.shift_segments.map((g) => `${formatHour(g[0])}–${formatHour(g[1])}`).join(" · ")
+                : "—"}
+            </span>
+          </p>
+          <p>
+            Clocked:{" "}
+            <span className="text-white">
+              {f.punch_in !== null ? formatHour(f.punch_in) : "—"} →{" "}
+              {f.punch_out !== null ? formatHour(f.punch_out) : "—"}
+            </span>
+          </p>
+          <p>
+            Outside the shift:{" "}
+            <span className="text-white">{formatMinutes(f.before_minutes ?? 0)}</span> before +{" "}
+            <span className="text-white">{formatMinutes(f.after_minutes ?? 0)}</span> after ={" "}
+            <span className="text-white">{formatMinutes(f.computed_minutes)}</span>
+          </p>
+          <p>
+            Asked for: <span className="text-white">{formatMinutes(f.claimed_minutes ?? 0)}</span>
+          </p>
+          {f.gap_minutes ? (
+            <p className="text-amber-300/80">
+              Split shift — {formatMinutes(f.gap_minutes)} worked through the unpaid gap. Not counted
+              above; decide whether it is overtime.
+            </p>
+          ) : null}
+          <p className="text-white/40">
+            An early clock-in counts: payroll runs regular hours from the shift start, so time
+            before it is payable only as overtime. Within {CLOCK_TOLERANCE_MIN} minutes counts as
+            agreeing. This never blocks an approval.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const REVIEWER_ROLES = new Set(["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER", "HR_MANAGER"]);
 const STAGE1_ROLES   = new Set(["ADMIN", "HQ", "MANILA_MANAGEMENT", "HR_MANAGER"]);
@@ -490,6 +603,7 @@ export default function AdminOvertimePage() {
                       </span>
                       <span className="text-white">{formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}</span>
                       <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
+                      <ClockCheck f={r.ot_facts} compact />
                     </div>
                     <p className="text-sm text-white/70">{r.reason}</p>
                     <WorkloadCell w={r.workload} />
@@ -570,6 +684,7 @@ export default function AdminOvertimePage() {
                         <td className={TABLE_CELL}>
                           {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
                           <br /><span className="text-white/50">{formatMinutes(r.ot_minutes)}</span>
+                          <ClockCheck f={r.ot_facts} />
                         </td>
                         <td className={TABLE_CELL}>
                           <span className="max-w-[260px] break-words whitespace-pre-wrap">{r.reason}</span>
@@ -640,6 +755,42 @@ export default function AdminOvertimePage() {
               <p><span className="text-white/50">Staff:</span> <strong className="text-white">{reviewing.staff_name}</strong></p>
               <p><span className="text-white/50">Date:</span> {reviewing.work_date} ({reviewing.branch_code})</p>
               <p><span className="text-white/50">OT:</span> {formatHour(reviewing.ot_start_hour)}–{formatHour(reviewing.ot_end_hour)} ({formatMinutes(reviewing.ot_minutes)})</p>
+              {/* Open, not behind a click. This is the moment the decision is
+                  made, and the reason 50 short claims were approved unchanged
+                  is that nobody deciding had these two numbers in front of
+                  them. */}
+              {reviewing.ot_facts && !reviewing.ot_facts.unavailable
+                && reviewing.ot_facts.computed_minutes !== null && (
+                <div className="rounded-lg border border-white/10 bg-black/30 p-2 space-y-0.5 text-xs">
+                  <p>
+                    <span className="text-white/50">Rostered:</span>{" "}
+                    {reviewing.ot_facts.shift_segments
+                      .map((g) => `${formatHour(g[0])}–${formatHour(g[1])}`).join(" · ") || "—"}
+                  </p>
+                  <p>
+                    <span className="text-white/50">Clocked:</span>{" "}
+                    {reviewing.ot_facts.punch_in !== null ? formatHour(reviewing.ot_facts.punch_in) : "—"}
+                    {" → "}
+                    {reviewing.ot_facts.punch_out !== null ? formatHour(reviewing.ot_facts.punch_out) : "—"}
+                  </p>
+                  <p>
+                    <span className="text-white/50">Outside the shift:</span>{" "}
+                    <span className="text-white">{formatMinutes(reviewing.ot_facts.computed_minutes)}</span>
+                    {reviewing.ot_facts.delta_minutes !== null
+                      && Math.abs(reviewing.ot_facts.delta_minutes) > CLOCK_TOLERANCE_MIN && (
+                      <span className={reviewing.ot_facts.delta_minutes > 0
+                        ? "ml-2 text-amber-300" : "ml-2 text-sky-300"}>
+                        {reviewing.ot_facts.delta_minutes > 0
+                          ? `asked for ${formatMinutes(reviewing.ot_facts.delta_minutes)} more`
+                          : `worked ${formatMinutes(-reviewing.ot_facts.delta_minutes)} more than asked for`}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+              {reviewing.ot_facts?.unavailable && (
+                <p className="text-xs text-white/40">Clock: {reviewing.ot_facts.unavailable}</p>
+              )}
               <p><span className="text-white/50">Reason:</span> {reviewing.reason}</p>
               {reviewing.manager_approved_by && (
                 <p><span className="text-white/50">Stage 1 by:</span> <span className="text-blue-300">{reviewing.manager_approved_by}</span></p>
