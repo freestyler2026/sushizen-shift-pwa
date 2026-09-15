@@ -574,6 +574,37 @@ export default function AdminOvertimePage() {
     }
   }
 
+  /** Correct an approved-but-not-paid request to the clock.
+   *
+   *  The approve dialog only reaches pending rows, and that is not where the
+   *  short claims are: of 56 below the clock, four are pending and seventeen
+   *  sit here. The server recomputes the minutes — the page never sends them.
+   */
+  async function settleToClock(r: OTRequest) {
+    const f = r.ot_facts;
+    if (!f || f.computed_minutes === null) return;
+    if (!window.confirm(
+      `Set ${r.staff_name}'s hours for ${r.work_date} to ${formatMinutes(f.computed_minutes)}`
+      + ` — what the roster and the clock show?\n\nThey asked for ${formatMinutes(r.ot_minutes)}.`
+      + ` They will be told.`)) return;
+    setError("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/admin/overtime/${r.id}/settle-to-clock`, {
+        method: "PATCH",
+        headers: new Headers(headers),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.detail || "Nothing was changed.");
+        return;
+      }
+      await load();
+    } catch {
+      setError("Could not reach the server — nothing was changed.");
+    }
+  }
+
   function openModal(r: OTRequest, action: ModalAction) {
     setReviewing(r);
     setModalAction(action);
@@ -877,6 +908,19 @@ export default function AdminOvertimePage() {
                           Approve
                         </button>
                       )}
+                      {r.status === "manager_approved" && canStage1 && r.ot_facts
+                        && !r.ot_facts.unavailable
+                        && r.ot_facts.computed_minutes !== null
+                        && r.ot_facts.delta_minutes !== null
+                        && Math.abs(r.ot_facts.delta_minutes) > CLOCK_TOLERANCE_MIN && (
+                        <button
+                          onClick={() => settleToClock(r)}
+                          title="Approved, but the hours do not match the roster and the clock."
+                          className="rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-900/40 transition whitespace-nowrap"
+                        >
+                          Set to {formatMinutes(r.ot_facts.computed_minutes)}
+                        </button>
+                      )}
                       {r.status === "manager_approved" && canStage2 && (
                         <button
                           onClick={() => openModal(r, "mark_paid")}
@@ -965,6 +1009,19 @@ export default function AdminOvertimePage() {
                                 className="rounded-lg border border-blue-500/30 bg-blue-900/20 px-2 py-1 text-xs text-blue-300 hover:bg-blue-900/40 transition whitespace-nowrap"
                               >
                                 Approve
+                              </button>
+                            )}
+                            {r.status === "manager_approved" && canStage1 && r.ot_facts
+                              && !r.ot_facts.unavailable
+                              && r.ot_facts.computed_minutes !== null
+                              && r.ot_facts.delta_minutes !== null
+                              && Math.abs(r.ot_facts.delta_minutes) > CLOCK_TOLERANCE_MIN && (
+                              <button
+                                onClick={() => settleToClock(r)}
+                                title="Approved, but the hours do not match the roster and the clock."
+                                className="rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-900/40 transition whitespace-nowrap"
+                              >
+                                Set to {formatMinutes(r.ot_facts.computed_minutes)}
                               </button>
                             )}
                             {r.status === "manager_approved" && canStage2 && (
