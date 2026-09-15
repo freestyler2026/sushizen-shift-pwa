@@ -155,10 +155,21 @@ export default function BookingLinksToSend({
     }
     // Re-issuing replaces the token, so a link already in somebody's hands
     // stops working. Say that before it happens, not after.
-    if (row.link_live && !justIssued.has(row.id)) {
+    //
+    // **Only when it could actually be in their hands.** The link is not sent by
+    // the OS; it reaches an applicant because somebody copied the message. If
+    // nobody has, the old link exists only in the database and replacing it
+    // costs nothing. Asking anyway is how a warning gets clicked through: on
+    // 2026-09-15 all 18 live links had been copied zero times, so every single
+    // person saw a warning that was not true of their case.
+    if (row.link_live && row.copied_at && !justIssued.has(row.id)) {
+      const when = row.copied_at.length > 15
+        ? `${row.copied_at.slice(0, 10)} ${row.copied_at.slice(11, 16)}`
+        : row.copied_at.slice(0, 10);
       const ok = window.confirm(
-        `${row.full_name} already has a working link. Making a new one stops the ` +
-        `old one from opening — if they have it on their phone, it will fail. Continue?`,
+        `${row.copied_by || "Somebody"} copied ${row.full_name}'s message on ${when}. ` +
+        `If it was sent, a new link stops the old one from opening and they will ` +
+        `get an error. Continue?`,
       );
       if (!ok) return;
     }
