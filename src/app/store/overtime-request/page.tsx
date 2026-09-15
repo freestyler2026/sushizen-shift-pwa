@@ -45,6 +45,9 @@ type OTRequest = {
   manager_approved_by: string;
   submitted_at: string;
   review_reason_code?: string;
+  ot_minutes_original?: number | null;
+  ot_minutes_source?: string;
+  ot_minutes_set_by?: string;
   disputed_at?: string | null;
   dispute_note?: string;
   dispute_closed_at?: string | null;
@@ -98,10 +101,20 @@ function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) 
     : "";
   const openDispute = r.disputed_at && !r.dispute_closed_at;
   const canDispute = r.status !== "paid";
-  if (!f && !ground && !r.review_note) return null;
+  if (!f && !ground && !r.review_note && r.ot_minutes_source !== "clock") return null;
 
   return (
     <div className="border-t border-white/10 pt-2 space-y-1.5">
+      {/* When the hours were settled on the clock, say so and say which way.
+          Hearing it here beats noticing it on a payslip. */}
+      {r.ot_minutes_source === "clock" && r.ot_minutes_original != null && (
+        <p className={`text-xs ${r.ot_minutes > r.ot_minutes_original ? "text-sky-300" : "text-amber-300"}`}>
+          {r.ot_minutes > r.ot_minutes_original
+            ? `Set to ${mins(r.ot_minutes)} from the clock — you had worked longer than you asked for (${mins(r.ot_minutes_original)}).`
+            : `Set to ${mins(r.ot_minutes)} from the clock — you asked for ${mins(r.ot_minutes_original)}.`}
+          {r.ot_minutes_set_by ? ` By ${r.ot_minutes_set_by}.` : ""}
+        </p>
+      )}
       {ground && (
         <p className="text-xs text-red-300">
           <span className="font-medium">Not approved:</span> {ground}

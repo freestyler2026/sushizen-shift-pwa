@@ -50,6 +50,9 @@ type OTRequest = {
   workload?: Workload;
   ot_facts?: OtFacts;
   review_reason_code?: string;
+  ot_minutes_original?: number | null;
+  ot_minutes_source?: string;
+  ot_minutes_set_by?: string;
   disputed_at?: string | null;
   dispute_note?: string;
   dispute_closed_at?: string | null;
@@ -304,6 +307,12 @@ function DecisionNotes({ r, onCloseDispute }: {
   const open = r.disputed_at && !r.dispute_closed_at;
   return (
     <>
+      {r.ot_minutes_source === "clock" && r.ot_minutes_original != null && (
+        <span className="mt-1 block text-[11px] text-sky-300/90">
+          Settled on the clock by {r.ot_minutes_set_by} — asked for{" "}
+          {formatMinutes(r.ot_minutes_original)}
+        </span>
+      )}
       {r.status === "rejected" && (
         <span className="mt-1 block text-[11px] text-red-300/80">
           {ground ? ground.label : "No reason was recorded"}
@@ -429,7 +438,7 @@ export default function AdminOvertimePage() {
     setRejectCode("");
   }
 
-  async function submitAction() {
+  async function submitAction(useClock = false) {
     if (!reviewing) return;
     setActionBusy(true);
     setActionError("");
@@ -437,9 +446,12 @@ export default function AdminOvertimePage() {
       const headers = await tokenHeaders();
       let endpoint = "";
       let body: Record<string, string> = {};
+      let bodyJson: Record<string, string | boolean> | null = null;
       if (modalAction === "manager_approve") {
         endpoint = `/api/admin/overtime/${reviewing.id}/manager-approve`;
-        body = { note: actionNote };
+        // A flag, not a number. The server recomputes the minutes from the
+        // roster and the punches — money posted from a browser is not evidence.
+        bodyJson = { note: actionNote, use_clock: useClock };
       } else if (modalAction === "remove_from_payroll") {
         endpoint = `/api/admin/overtime/${reviewing.id}/remove-from-payroll`;
         body = { note: actionNote };
@@ -466,7 +478,7 @@ export default function AdminOvertimePage() {
       const res = await fetch(`${apiBase}${endpoint}`, {
         method: "PATCH",
         headers: new Headers(headers),
-        body: JSON.stringify(body),
+        body: JSON.stringify(bodyJson ?? body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Action failed");
@@ -973,14 +985,50 @@ export default function AdminOvertimePage() {
               />
             </div>
             {actionError && <p className="text-sm text-red-400">{actionError}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => setReviewing(null)} className={`${SECONDARY_BUTTON} flex-1`} disabled={actionBusy}>
-                Cancel
-              </button>
-              <button onClick={submitAction} disabled={actionBusy} className={modalConfirmClass}>
-                {actionBusy ? "Saving…" : modalConfirmLabel}
-              </button>
-            </div>
+            {/* Two buttons only when the clock and the claim actually differ,
+                and each says the number it will approve. A single "Approve"
+                with a silent basis is how 56 short claims went through. */}
+            {modalAction === "manager_approve"
+              && reviewing.ot_facts
+              && !reviewing.ot_facts.unavailable
+              && reviewing.ot_facts.computed_minutes !== null
+              && reviewing.ot_facts.delta_minutes !== null
+              && Math.abs(reviewing.ot_facts.delta_minutes) > CLOCK_TOLERANCE_MIN ? (
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => submitAction(true)}
+                  disabled={actionBusy}
+                  className={PRIMARY_BUTTON}
+                >
+                  {actionBusy
+                    ? "Saving…"
+                    : `Approve ${formatMinutes(reviewing.ot_facts.computed_minutes)} — what the clock shows`}
+                </button>
+                <button
+                  onClick={() => submitAction(false)}
+                  disabled={actionBusy}
+                  className={SECONDARY_BUTTON}
+                >
+                  Approve {formatMinutes(reviewing.ot_minutes)} as asked
+                </button>
+                <button
+                  onClick={() => setReviewing(null)}
+                  className="text-sm text-white/45 hover:text-white/80"
+                  disabled={actionBusy}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <button onClick={() => setReviewing(null)} className={`${SECONDARY_BUTTON} flex-1`} disabled={actionBusy}>
+                  Cancel
+                </button>
+                <button onClick={() => submitAction(false)} disabled={actionBusy} className={modalConfirmClass}>
+                  {actionBusy ? "Saving…" : modalConfirmLabel}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
