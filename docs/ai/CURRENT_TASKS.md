@@ -1,5 +1,49 @@
 # CURRENT_TASKS.md
 
+## 2026-09-15（続き11） — 残業6/6の一部: 原因チップと提出タイミング。**事前許可は権限の決裁待ち**
+
+### 事前許可を作る前に測って、作れないことが分かった
+
+| 調べたこと | 結果 |
+|---|---|
+| 申請は事前に出ているか | **事前 10%** のみ。64%は当夜1〜6時間後（＝退勤時）、16%は翌日以降 |
+| `request_type='pre'` は事実か | **22件中5件だけ**が実際に事前。13件は1〜6時間後、4件は翌日 |
+| 夜に店舗で承認できる人はいるか | **TAFT・PAR はゼロ。** Richard S. Gante（CUB）以外は全員BO |
+| 実際に誰が承認しているか | **108件中107件が Yusuke(37)・Yuri(36)・Ayako(34)** ＝日本側 |
+| 却下は誰が | Cyrine Fernandez 50・Yuri 32・Ayako 5・Yusuke 2 |
+
+⚠️ **夜の店舗上位者（`MANILA_MANAGER_CAN`）は Reymar Contillo・Rachelle Ann Caubat・
+James Ray Pata・Cherish Galarosa ── 全員がOT申請の上位者本人。**
+「現場の責任者が承認」は自己承認になる。**これは権限の決裁なので代表待ち。**
+Francis Ibana（`MANILA_MANAGER`）だけが3店舗を巡回（CUB 8・PAR 11・TAFT 12夜）。
+
+### 入れたもの
+
+- **原因チップ8種・複数選択・1つ以上必須**（`OT_CAUSES` / `cause_codes` 列）。
+  文章欄は残す（「I could not make the backup」が実態を教えた）。205件中69件が複数原因
+- うち2つ（`prep_unfinished` / `carry_over`）に `avoidable` 印。**琥珀色で出すだけで何も決めない。**
+  人別・店舗別に積み上がって初めてパターンを示せる（または示せないと分かる）
+- **`asked_after_start_minutes`** を両都市の一覧に追加（SQLで計算）。
+  `asked in advance` / `asked 2h12m after it started` / `asked the next day or later`
+  → 却下理由「事前申請なし」の根拠。**今はDiscord投稿が根拠でOSからは見えない**
+
+⚠️ **`create_overtime_request` に列を足したらパラメータも足す。** 一度忘れた。`compile()` は通る
+
+### 検証
+
+- 本番で読み取り3関数を実行（admin/manila・admin/dubai・staff）── 全部に新フィールドあり
+- 隔離行で `cause_codes` 往復 → id指定で削除・残0件
+- 実機: チップ8個表示・**実クリックでトグル**（プログラム的 `.click()` を同一tickで2回読んだ
+  私の最初の判定は誤り。Reactの再レンダリング前だった）
+- Submit が無反応に見えたのは**ブラウザのネイティブ検証**（branch が required）。不具合ではない
+- React #418 は既知の既存事象（教訓42）。今回の変更とは無関係
+
+### 残り
+
+5. 3点セット（注文・人員・仕込み）を店舗別に ← 次
+6b. **事前許可の承認者を誰にするか = 代表の決裁**
+
+
 ## 2026-09-15（続き10） — 残業4/6: 打刻で確定できるようにした（金額が動く最初の変更）
 
 ### 方針 — 既存分は書き換えない
