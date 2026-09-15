@@ -68,6 +68,25 @@ type OtFacts = {
   unavailable: string | null;
 };
 
+/**
+ * Why it happened. Mirrors OT_CAUSES on the server, which validates them.
+ *
+ * These are the buckets the reasons people already write fall into — measured
+ * across 205 requests, not invented. The sentence box stays: "Due to continuous
+ * orders, I could not make the backup" is what told anyone what was happening.
+ * The chips are so the same cause can be counted, which prose never could.
+ */
+const CAUSES: { code: string; label: string }[] = [
+  { code: "orders", label: "More orders than expected" },
+  { code: "short_staffed", label: "Someone was absent or we were short" },
+  { code: "equipment", label: "Equipment or system problem" },
+  { code: "delivery", label: "A delivery, stock count or transfer" },
+  { code: "closing", label: "Closing or cleaning ran long" },
+  { code: "deadline", label: "A deadline — payroll, orders, reports" },
+  { code: "prep_unfinished", label: "The prep was not finished in time" },
+  { code: "carry_over", label: "Finishing what the earlier shift left" },
+];
+
 /** Mirrors OT_REJECT_REASONS on the server. */
 const REJECT_LABELS: Record<string, string> = {
   no_advance_request: "No request or approval before it started",
@@ -216,6 +235,7 @@ export default function OvertimeRequestPage() {
 
   // History
   const [requests, setRequests] = useState<OTRequest[]>([]);
+  const [causes, setCauses] = useState<string[]>([]);
   const [disputeFor, setDisputeFor] = useState<OTRequest | null>(null);
   const [disputeNote, setDisputeNote] = useState("");
   const [disputeBusy, setDisputeBusy] = useState(false);
@@ -309,6 +329,7 @@ export default function OvertimeRequestPage() {
     if (requestType === "post" && workDate < minPostDate) { setSubmitError("Post-report OT must be submitted within 48 hours of the work date."); return; }
     if (otMinutes <= 0) { setSubmitError("OT end time must be after start time."); return; }
     if (reason.trim().length < 5) { setSubmitError("Please enter a reason (at least 5 characters)."); return; }
+    if (causes.length === 0) { setSubmitError("Pick at least one reason it happened."); return; }
     setSubmitting(true);
     try {
       const headers = await tokenHeaders();
@@ -322,12 +343,14 @@ export default function OvertimeRequestPage() {
           ot_start_hour: hourFromTime(otStart),
           ot_end_hour: hourFromTime(otEnd),
           reason: reason.trim(),
+          causes,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Submission failed");
       setSubmitSuccess("Overtime request submitted successfully.");
       setReason("");
+      setCauses([]);
       await loadHistory();
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Submission failed");
@@ -455,6 +478,36 @@ export default function OvertimeRequestPage() {
             {otMinutes <= 0 && otStart && otEnd && (
               <p className="text-xs text-amber-400">End time must be after start time (midnight-crossing is supported).</p>
             )}
+
+            {/* Why it happened. Above the sentence box on purpose: picking the
+                cause first is what makes the sentence specific. */}
+            <div>
+              <label className={T_LABEL}>Why did it happen? (pick all that apply)</label>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {CAUSES.map((c) => {
+                  const on = causes.includes(c.code);
+                  return (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() =>
+                        setCauses((prev) =>
+                          prev.includes(c.code)
+                            ? prev.filter((x) => x !== c.code)
+                            : [...prev, c.code])
+                      }
+                      className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                        on
+                          ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
+                          : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Reason */}
             <div>

@@ -50,6 +50,8 @@ type OTRequest = {
   workload?: Workload;
   ot_facts?: OtFacts;
   review_reason_code?: string;
+  cause_codes?: string;
+  asked_after_start_minutes?: number | null;
   ot_minutes_original?: number | null;
   ot_minutes_source?: string;
   ot_minutes_set_by?: string;
@@ -109,6 +111,45 @@ const REJECT_REASONS: { code: string; label: string; needsNote: boolean; hint: s
     needsNote: true, hint: "Say what should have been done differently. This is a judgement, so it needs a sentence." },
   { code: "other", label: "Something else", needsNote: true, hint: "" },
 ];
+
+const CAUSE_LABELS: Record<string, string> = {
+  orders: "More orders",
+  short_staffed: "Short-staffed",
+  equipment: "Equipment",
+  delivery: "Delivery / stock",
+  closing: "Closing ran long",
+  deadline: "A deadline",
+  prep_unfinished: "Prep not finished",
+  carry_over: "Earlier shift's work",
+};
+/** The two that point at how the shift was run, not at what happened to it.
+ *  Marked so the pattern is visible; it decides nothing by itself. */
+const AVOIDABLE_CAUSES = new Set(["prep_unfinished", "carry_over"]);
+
+/**
+ * When the request actually arrived, relative to the overtime starting.
+ *
+ * The Pre/Post badge is self-declared and wrong more often than not: of 22
+ * Manila requests marked "pre", five were sent before the hours began. This is
+ * computed from submitted_at, and it is what the ground "no request or approval
+ * before it started" has to rest on.
+ */
+function AskedWhen({ minutes }: { minutes?: number | null }) {
+  if (minutes === null || minutes === undefined) return null;
+  if (minutes < 0) {
+    return (
+      <span className="mt-0.5 block text-[11px] text-emerald-300">
+        asked in advance
+      </span>
+    );
+  }
+  const label = minutes < 60
+    ? `asked ${Math.round(minutes)}m after it started`
+    : minutes < 60 * 12
+    ? `asked ${formatMinutes(Math.round(minutes))} after it started`
+    : "asked the next day or later";
+  return <span className="mt-0.5 block text-[11px] text-amber-300/80">{label}</span>;
+}
 
 /** Quarter of an hour. Below this the typed time and the clock agree well
  *  enough that saying so would be noise -- people walk to the terminal. */
@@ -305,8 +346,25 @@ function DecisionNotes({ r, onCloseDispute }: {
 }) {
   const ground = REJECT_REASONS.find((x) => x.code === r.review_reason_code);
   const open = r.disputed_at && !r.dispute_closed_at;
+  const causes = (r.cause_codes || "").split(",").filter(Boolean);
   return (
     <>
+      {causes.length > 0 && (
+        <span className="mt-1 flex flex-wrap gap-1">
+          {causes.map((c) => (
+            <span
+              key={c}
+              className={`rounded-full border px-1.5 py-0.5 text-[10px] ${
+                AVOIDABLE_CAUSES.has(c)
+                  ? "border-amber-500/40 bg-amber-900/20 text-amber-200"
+                  : "border-white/10 bg-white/5 text-zinc-400"
+              }`}
+            >
+              {CAUSE_LABELS[c] || c}
+            </span>
+          ))}
+        </span>
+      )}
       {r.ot_minutes_source === "clock" && r.ot_minutes_original != null && (
         <span className="mt-1 block text-[11px] text-sky-300/90">
           Settled on the clock by {r.ot_minutes_set_by} — asked for{" "}
@@ -712,6 +770,7 @@ export default function AdminOvertimePage() {
                       <span className="text-white">{formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}</span>
                       <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
                       <ClockCheck f={r.ot_facts} compact />
+                      <AskedWhen minutes={r.asked_after_start_minutes} />
                     </div>
                     <p className="text-sm text-white/70">{r.reason}</p>
                     <DecisionNotes r={r} onCloseDispute={closeDispute} />
@@ -789,6 +848,7 @@ export default function AdminOvertimePage() {
                           <span className={r.request_type === "pre" ? BADGE_INFO : "text-white/50 text-xs"}>
                             {r.request_type === "pre" ? "Pre" : "Post"}
                           </span>
+                          <AskedWhen minutes={r.asked_after_start_minutes} />
                         </td>
                         <td className={TABLE_CELL}>
                           {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
