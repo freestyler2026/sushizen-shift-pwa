@@ -31,6 +31,10 @@ interface Loaded {
   /** Whether a CV is already in, or the applicant said no. Both mean the step
    *  is not shown again to somebody who comes back on a dropped connection. */
   resume?: { uploaded: boolean; skipped: boolean; filename: string; bytes: number };
+  /** A link that asks for a CV and nothing else -- there are no questions on
+   *  it. Sent to applicants HR entered from a posting, who otherwise have no
+   *  way to hand one over. */
+  resume_only?: boolean;
 }
 
 type Lang = "en" | "tl";
@@ -59,6 +63,9 @@ const T = {
     // something we can act on, instead of being a silent exit.
     later: "Not now — send me the link",
     laterNote: "Noted. We will message the link to the number you gave, so you can do this whenever you like.",
+    cvOnlyTitle: "Please send your CV",
+    cvOnlyBody: "Sushi ZEN has your application. All that is missing is your CV — a PDF, a Word file, or a clear photo of a printed one taken with this phone. Nothing else to fill in.",
+    cvOnlyDone: "Thank you — we have your CV. Someone from Sushi ZEN will message you.",
     cvTitle: "One last thing — your CV",
     cvBody: "Your answers are saved. A PDF, a Word file, or a clear photo of a printed CV — a photo taken with this phone is fine. We need it to review your application.",
     cvPick: "Choose a file",
@@ -186,6 +193,9 @@ const T = {
     introNext: "Magpatuloy",
     later: "Mamaya na lang — ipadala ang link",
     laterNote: "Naitala na. Ipapadala namin ang link sa numerong ibinigay mo, para magawa mo ito kahit anong oras.",
+    cvOnlyTitle: "Paki-send po ang CV mo",
+    cvOnlyBody: "Nasa amin na po ang application mo. Ang kulang na lang ay ang CV — pwedeng PDF, Word, o malinaw na litrato ng naka-print na CV gamit ang telepono mo. Wala nang ibang sasagutan.",
+    cvOnlyDone: "Salamat — natanggap na po namin ang CV mo. May mag-me-message sa iyo mula sa Sushi ZEN.",
     cvTitle: "Huling bagay — ang CV mo",
     cvBody: "Nai-save na ang mga sagot mo. Pwedeng PDF, Word, o malinaw na litrato ng naka-print na CV — okay ang litratong kuha sa telepono mo. Kailangan namin ito para masuri ang aplikasyon mo.",
     cvPick: "Pumili ng file",
@@ -470,6 +480,10 @@ export default function VoiceScreening({
 
   const [data, setData] = useState<Loaded | null>(null);
   const [stage, setStage] = useState<"offer" | "intro" | "consent" | "resume" | "miccheck" | "record" | "later" | "done">(startAt);
+  /** A link that asks for the CV and nothing else. There are no questions on
+   *  it, so consent, the mic check and the recorder never apply -- somebody
+   *  HR entered from a Facebook post has no other way to send one. */
+  const [cvOnly, setCvOnly] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [idx, setIdx] = useState(0);
   const [recording, setRecording] = useState(false);
@@ -588,6 +602,13 @@ export default function VoiceScreening({
       // front of unanswered questions -- only after the last one, and only
       // when they still owe us one. Getting this wrong is the same defect as
       // sending them there from consent: the wall just moves to the reload.
+      if (d.resume_only) {
+        // 質問が無いので、同意もマイクも通さない。出す物が1つしかない画面に
+        // 手順を足さない。
+        setCvOnly(true);
+        setStage(cvSettled ? "done" : "resume");
+        return;
+      }
       if (d.consent_given && first >= 0) setStage("record");
       else if (d.consent_given && !cvSettled) setStage("resume");
       // An invite link opens at the consent screen, so somebody who arrived
@@ -1305,8 +1326,12 @@ export default function VoiceScreening({
     return (
       <div className={`${card} mt-8`}>
         {langBar}
-        <h2 className="mb-2 text-lg font-semibold text-white">{t.cvTitle}</h2>
-        <p className="mb-4 text-sm leading-relaxed text-zinc-300">{t.cvBody}</p>
+        <h2 className="mb-2 text-lg font-semibold text-white">
+          {cvOnly ? t.cvOnlyTitle : t.cvTitle}
+        </h2>
+        <p className="mb-4 text-sm leading-relaxed text-zinc-300">
+          {cvOnly ? t.cvOnlyBody : t.cvBody}
+        </p>
 
         <input
           ref={cvInput}
@@ -1439,7 +1464,7 @@ export default function VoiceScreening({
       <div className={`${card} mt-8 text-center`}>
         {langBar}
         <h2 className="text-lg font-semibold text-white">{t.doneTitle}</h2>
-        <p className="mt-2 text-sm text-zinc-300">{t.doneBody}</p>
+        <p className="mt-2 text-sm text-zinc-300">{cvOnly ? t.cvOnlyDone : t.doneBody}</p>
       </div>
     );
   }

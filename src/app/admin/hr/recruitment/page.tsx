@@ -411,6 +411,7 @@ function KanbanCard({
   onRecordOutcome,
   onSendLink,
   onCloseStale,
+  onAskForCv,
   nextStatus,
 }: {
   applicant: Applicant;
@@ -419,6 +420,7 @@ function KanbanCard({
   onRecordOutcome: (a: Applicant) => void;
   onSendLink: (a: Applicant) => void;
   onCloseStale: (a: Applicant) => void;
+  onAskForCv: (a: Applicant) => void;
   nextStatus: KanbanStatus | null;
 }) {
   return (
@@ -569,10 +571,134 @@ function KanbanCard({
               <ChevronRight className="h-3 w-3" />
               {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
             </button>
+            {/* No CV, so there is nothing to screen on. The form requires one,
+                but that only covers people who applied themselves: measured
+                2026-09-15, every one of the 132 from Facebook and 9 from
+                JobStreet has none, because HR typed them in and there was no
+                way for them to send one. */}
+            {applicant.status === "new" && !applicant.resume_screening_id && (
+              <button
+                className="mt-1 w-full rounded-lg px-2 py-1 text-[10px] text-amber-400/80 hover:bg-white/5 hover:text-amber-300 transition-colors"
+                title="No CV on file. Makes a link that asks for one and nothing else — they upload it and it lands on this applicant."
+                onClick={(e) => { e.stopPropagation(); onAskForCv(applicant); }}
+              >
+                No CV — ask for one
+              </button>
+            )}
           </div>
         )
         )
       )}
+    </div>
+  );
+}
+
+/** Ask one applicant for their CV.
+ *
+ *  The same shape as the interview link: the OS makes the wording, somebody
+ *  copies it and sends it from Viber or SMS themselves. Nothing is sent from
+ *  here -- there is no gateway, and a button that claims to send would be the
+ *  third screen this month to say "sent" about something that was not.
+ */
+function CvRequestModal({
+  applicant,
+  onClose,
+}: {
+  applicant: Applicant;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(true);
+  const [err, setErr] = useState("");
+  const [lang, setLang] = useState<"en" | "tl">("en");
+  const [copied, setCopied] = useState("");
+  const [out, setOut] = useState<{
+    url: string; phone: string; expires_days: number;
+    already_has_resume?: boolean; resume_filename?: string;
+    messages: { en: string; tl: string };
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/hr/applicants/${applicant.id}/resume-request`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        const text = await res.text();
+        let j: Record<string, unknown> = {};
+        try { j = JSON.parse(text); } catch { /* text/plain */ }
+        if (!alive) return;
+        if (!res.ok) { setErr(String(j.detail || text).slice(0, 240)); return; }
+        const o = j as unknown as NonNullable<typeof out>;
+        setOut(o);
+        if (applicant.form_language === "tl") setLang("tl");
+      } catch {
+        if (alive) setErr("The link could not be created.");
+      } finally {
+        if (alive) setBusy(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [applicant.id, applicant.form_language]);
+
+  async function copy(text: string, what: string) {
+    try { await navigator.clipboard.writeText(text); setCopied(what); }
+    catch { setErr("Could not copy. Select the text above and copy it by hand."); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto overscroll-contain p-6 space-y-3`}>
+        <div className="flex items-center justify-between">
+          <p className={T_SECTION}>Ask for a CV — {applicant.full_name}</p>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {busy && <p className={T_CAPTION}>Making the link…</p>}
+        {err && <p className="text-sm text-amber-300">{err}</p>}
+
+        {out && (
+          <>
+            {out.already_has_resume && (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                They already sent one{out.resume_filename ? `: ${out.resume_filename}` : ""}.
+                Sending this asks for it again.
+              </p>
+            )}
+            <p className={T_CAPTION}>
+              Opens a page with one thing on it — send your CV. No questions, no
+              recording. Works for {out.expires_days} days, and what they upload
+              lands on this applicant.
+            </p>
+            <div className="flex items-center gap-2">
+              {(["en", "tl"] as const).map((l) => (
+                <button key={l} className={lang === l ? BADGE_INFO : SMALL_BUTTON}
+                  onClick={() => setLang(l)}>
+                  {l === "en" ? "English" : "Tagalog"}
+                </button>
+              ))}
+              {out.phone && <span className={T_CAPTION}>{out.phone}</span>}
+            </div>
+            <pre className="whitespace-pre-wrap rounded-lg bg-black/30 p-3 text-xs text-zinc-200">
+{out.messages[lang]}
+            </pre>
+            <div className="flex flex-wrap gap-2">
+              <button className={PRIMARY_BUTTON} onClick={() => void copy(out.messages[lang], "message")}>
+                {copied === "message" ? "Copied" : "Copy message"}
+              </button>
+              <button className={SMALL_BUTTON} onClick={() => void copy(out.url, "link")}>
+                {copied === "link" ? "Copied" : "Copy link only"}
+              </button>
+              <button className={SMALL_BUTTON} onClick={onClose}>Done</button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -3151,6 +3277,8 @@ export default function HRRecruitmentPage() {
   // again in a list of fifteen -- the link was two screens away from the
   // moment somebody decided to send it.
   const [linkFor, setLinkFor] = useState<Applicant | null>(null);
+  /** The applicant we are asking for a CV, and the message once it is made. */
+  const [cvFor, setCvFor] = useState<Applicant | null>(null);
   const [lane, setLane] = useState<Lane>("active");
   const [closedSearch, setClosedSearch] = useState("");
   // Rows decided during this sitting. On the board a decision moved a card to
@@ -4020,6 +4148,7 @@ export default function HRRecruitmentPage() {
                               onRecordOutcome={setOutcomeFor}
                               onSendLink={(a) => setLinkFor(a)}
                               onCloseStale={handleCloseStale}
+                              onAskForCv={setCvFor}
                               nextStatus={getNextStatus(applicant.status)}
                             />
                           ))
@@ -4088,6 +4217,12 @@ export default function HRRecruitmentPage() {
           onSave={handleCreatePlan}
           onClose={() => setShowNewPlan(false)}
           saving={savingPlan}
+        />
+      )}
+      {cvFor && (
+        <CvRequestModal
+          applicant={cvFor}
+          onClose={() => { setCvFor(null); void loadData(); }}
         />
       )}
       {linkFor && (

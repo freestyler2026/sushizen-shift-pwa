@@ -58,6 +58,11 @@ type Row = {
   complete: boolean;
   bucket: State;
   superseded: boolean;
+  /** Why the first round no longer applies: "interviewed" (they were seen in
+   *  person first) or "interview_link_sent" (the board handed them a booking
+   *  link, so what we are waiting for is a time, not a recording). Both mean
+   *  the same thing here; the sentence on the row must not. */
+  moved_on?: string;
   invited_at: string | null;
   invite_count: number;
   invited_by: string | null;
@@ -171,7 +176,7 @@ const TABS: { key: State; label: string; hint: string }[] = [
   { key: "to_invite", label: "To invite",      hint: "Applied, no screening sent yet — oldest application first" },
   { key: "waiting",   label: "Waiting on them", hint: "Has the link, nothing recorded yet — the ones we blocked are first" },
   { key: "to_review", label: "To review",      hint: "Recordings in, waiting on you — longest wait first" },
-  { key: "done",      label: "Done",           hint: "Decided, or already interviewed in person" },
+  { key: "done",      label: "Done",           hint: "Decided, or moved on — interviewed in person, or already sent an interview link" },
 ];
 
 const EXPERIENCE_LABEL: Record<string, string> = {
@@ -917,7 +922,9 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
                 )}
                 {row.superseded && (
                   <span className={T_CAPTION}>
-                    interviewed in person — no screening decision needed
+                    {row.moved_on === "interview_link_sent"
+                      ? "interview link sent — waiting on them to pick a time, not on a recording"
+                      : "interviewed in person — no screening decision needed"}
                   </span>
                 )}
                 {row.decision && (
