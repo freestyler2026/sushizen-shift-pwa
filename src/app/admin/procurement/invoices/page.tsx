@@ -1289,13 +1289,16 @@ export default function ProcurementInvoicesPage() {
         </div>
       ) : null}
 
-      {city === "dubai" && (
-        <DriveInvoiceInbox
-          city="dubai"
-          authHeaders={{ Authorization: `Bearer ${defaultAuth?.accessToken || ""}` }}
-          driveFolderUrl={driveFolderUrl || undefined}
-        />
-      )}
+      {/* Both cities now. The inbox was hard-coded to Dubai because only Dubai
+          had a capture; Manila's stores post to their own Discord server and
+          those invoices land in drive_invoices the same way. The component and
+          the API were city-aware all along -- this gate was the only thing
+          holding Manila's rows out of the screen that exists to show them. */}
+      <DriveInvoiceInbox
+        city={city}
+        authHeaders={{ Authorization: `Bearer ${defaultAuth?.accessToken || ""}` }}
+        driveFolderUrl={driveFolderUrl || undefined}
+      />
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="space-y-4">
@@ -1398,8 +1401,8 @@ export default function ProcurementInvoicesPage() {
                    somewhere the OS can read. */
                 <p className="xl:col-span-2 text-xs text-white/45">
                   Invoice Drive holds Manila supplier invoices put there by Receiving and
-                  PO Match. Manila has no automatic capture — invoices only appear once
-                  somebody uploads them.
+                  PO Match. Automatic capture from the store Discord channels is switched
+                  off, so nothing arrives here on its own.
                 </p>
               )}
             </div>
