@@ -290,7 +290,10 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                 Ordered by the interviewer list, so the first column is the one
                 who takes a slot first. */}
             <div className="mt-2 overflow-x-auto rounded-lg border border-white/8 bg-black/20 p-2">
-              <table className="w-full border-separate border-spacing-y-0.5 text-sm">
+              {/* Width follows the content, so the two columns sit next to each
+                    other. Stretched to the full width the pair reads as two
+                    separate lists rather than one time running across. */}
+              <table className="w-auto border-separate border-spacing-y-0.5 text-sm">
                 <tbody>
                   {(() => {
                     const rank = (n: string) => {
