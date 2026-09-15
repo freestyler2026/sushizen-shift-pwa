@@ -508,6 +508,15 @@ function PayslipModal({
   const [manilaItems, setManilaItems] = useState<ManilaPayslipItem[]>([]);
   const [manilaDetailLoading, setManilaDetailLoading] = useState(false);
 
+  // Freeze the list behind the slip. Without it the drag runs on into the page
+  // underneath, which is half of why reaching the top of a long slip turned
+  // into leaving the slip.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   // Dubai payslip detail
   useEffect(() => {
     if (!slip.cycle_id || slip.city?.toLowerCase() === "manila") {
@@ -575,8 +584,20 @@ function PayslipModal({
         }
       `}} />
 
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-        <div className="w-full max-w-lg my-4">
+      {/* **Not a centring flex.** `items-center` on the element that also does
+          the scrolling puts the overflow above the scroll origin: measured on a
+          375x812 phone with a full Manila payslip, scrollTop 0 still left the
+          top 794px of the slip off-screen with no scroll range to reach it.
+          Staff could read the bottom, never the header, and kept dragging --
+          which lands on the browser's pull-to-refresh, reloads the page and
+          drops them back on the list. Reported from Paranaque 2026-09-15.
+
+          Block flow with mx-auto centres horizontally and always starts at the
+          top, so every line is reachable however long the slip is.
+          overscroll-contain stops a drag past the end from becoming a refresh,
+          and the body is frozen underneath so the list does not slide about. */}
+      <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/70 backdrop-blur-sm p-4">
+        <div className="w-full max-w-lg mx-auto my-4">
           <div id="payslip-print" className="bg-white rounded-2xl overflow-hidden shadow-2xl">
 
             {/* ── Document Header ── */}
