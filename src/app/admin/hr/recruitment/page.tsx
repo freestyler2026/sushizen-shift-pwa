@@ -365,6 +365,21 @@ const LINK_RANK: Record<LinkState, number> = {
   sent: 4,
 };
 
+/** Past this, sending is not worth the message. **Not the same thing as
+ *  STALE_DAYS above**, which counts days since anything last happened and
+ *  decides which lane somebody lands in. This counts days since they applied,
+ *  which is the number printed on the card.
+ *
+ *  Measured on the 48 people sitting at Screened: 46 applied within a week,
+ *  then nothing at all until 53 and 64 days. Anywhere between 7 and 50 would
+ *  pick out the same two, so the line can sit at 30 without flapping as new
+ *  people arrive.
+ *
+ *  It only reveals an action -- nothing closes itself. Somebody looks at the
+ *  name and decides.
+ */
+const TOO_OLD_TO_SEND_DAYS = 30;
+
 const LINK_ACTION: Record<LinkState, string> = {
   none: "Send interview link",
   // Not "Open message". The wording cannot be shown again -- only the hash of
@@ -395,6 +410,7 @@ function KanbanCard({
   onQuickStatus,
   onRecordOutcome,
   onSendLink,
+  onCloseStale,
   nextStatus,
 }: {
   applicant: Applicant;
@@ -402,6 +418,7 @@ function KanbanCard({
   onQuickStatus: (id: string, status: KanbanStatus) => void;
   onRecordOutcome: (a: Applicant) => void;
   onSendLink: (a: Applicant) => void;
+  onCloseStale: (a: Applicant) => void;
   nextStatus: KanbanStatus | null;
 }) {
   return (
@@ -520,6 +537,22 @@ function KanbanCard({
                   <Link2 className="h-3 w-3" />
                   {LINK_ACTION[ls]}
                 </button>
+                {/* Only on the ones old enough that a message is not worth
+                    sending. Kept quiet and second: closing somebody is the
+                    rarer action, and the undo bar at the top of the board
+                    covers it (lesson 22 -- the way back has to be on screen). */}
+                {(applicant.days_in_pipeline ?? 0) >= TOO_OLD_TO_SEND_DAYS && (
+                  <button
+                    className="mt-1 w-full rounded-lg px-2 py-1 text-[10px] text-zinc-500 hover:bg-white/5 hover:text-zinc-300 transition-colors"
+                    title={`Applied ${applicant.days_in_pipeline} days ago. Closes them as "We did not get back to them in time" and takes the card off this column. Nothing is deleted — the record stays on Closed, and Undo is at the top of the board.`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseStale(applicant);
+                    }}
+                  >
+                    Too old — close as late
+                  </button>
+                )}
               </div>
             );
           })()
@@ -3530,6 +3563,55 @@ export default function HRRecruitmentPage() {
     [patchStatus]
   );
 
+  /** Close somebody nobody is going to message now.
+   *
+   *  Not a delete. The row is what tells us they already applied -- the board
+   *  matches on phone to catch the same person applying twice, and Closed is
+   *  where the history is read from. Deleting cannot be undone and takes that
+   *  with it; this only moves them out of the working column, and the reason
+   *  is recorded so the record says why rather than just going quiet.
+   */
+  const handleCloseStale = useCallback(
+    async (a: Applicant) => {
+      const auth = authRef.current;
+      if (!auth) return;
+      if (!window.confirm(
+        `Close ${a.full_name}? They applied ${a.days_in_pipeline} days ago and will `
+        + `move to Closed as "no answer". Undo is at the top of the board.`)) return;
+      setLastMove({ id: a.id, name: a.full_name, from: a.status, to: "rejected" });
+      handleStatusChange(a.id, "rejected");
+      setError("");
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/hr/applicants/${a.id}`, {
+          method: "PATCH",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({
+            status: "rejected",
+            // `lapsed` -- "We did not get back to them in time". That is what
+            // happened: they applied two months ago and the first message went
+            // out today. It has to be one of the keys the server knows, and a
+            // count of this one is the number the hiring process should be
+            // judged on, so it is worth being honest about.
+            rejection_reason: "lapsed",
+            origin_screen: "board_stale_close",
+          }),
+        });
+        if (!res.ok) {
+          // Never close the card on a failure. The optimistic move already put
+          // it in Closed; without this the person reads as closed and the
+          // server still has them open.
+          const text = await res.text().catch(() => "");
+          setError(`${a.full_name} was not closed — ${text.slice(0, 160) || res.status}`);
+          void loadData();
+        }
+      } catch {
+        setError(`${a.full_name} was not closed — could not reach the server.`);
+        void loadData();
+      }
+    },
+    [handleStatusChange, loadData],
+  );
+
   const handleUndoMove = useCallback(async () => {
     if (!lastMove) return;
     const m = lastMove;
@@ -3560,8 +3642,11 @@ export default function HRRecruitmentPage() {
             .map((a, i) => ({ a, i, rank: LINK_RANK[linkStateOf(a)] }))
             .sort((x, y) =>
               (x.rank - y.rank)
-              || ((y.a.days_since_move ?? y.a.days_in_pipeline ?? 0)
-                  - (x.a.days_since_move ?? x.a.days_in_pipeline ?? 0))
+              // The badge on the card shows days_in_pipeline, so the order
+              // uses the same number. days_since_move is 0 for everybody here
+              // -- sending the link touched the row today -- so sorting on it
+              // did nothing at all.
+              || ((y.a.days_in_pipeline ?? 0) - (x.a.days_in_pipeline ?? 0))
               || (x.i - y.i))
             .map((x) => x.a)
         : cards;
@@ -3934,6 +4019,7 @@ export default function HRRecruitmentPage() {
                               onQuickStatus={handleQuickStatus}
                               onRecordOutcome={setOutcomeFor}
                               onSendLink={(a) => setLinkFor(a)}
+                              onCloseStale={handleCloseStale}
                               nextStatus={getNextStatus(applicant.status)}
                             />
                           ))
