@@ -4,7 +4,8 @@ import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
-import { getAuth, refreshAuthFromApi, getAuthHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi, getAuthHeaders, getUploadHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
+import { prepareIfImage } from "@/lib/image-compress";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD,
@@ -2471,11 +2472,14 @@ function AddApplicantModal({
   saving,
 }: {
   requisitions: Requisition[];
-  onSave: (data: AddApplicantForm) => Promise<string | null>;
+  onSave: (data: AddApplicantForm, cv: File) => Promise<string | null>;
   onClose: () => void;
   saving: boolean;
 }) {
   const today = isoToday();
+  /** Required, like the public form. Everyone who applied themselves sends one;
+   *  the only applicants arriving without a CV are the ones typed in here. */
+  const [cv, setCv] = useState<File | null>(null);
   const [form, setForm] = useState<AddApplicantForm>({
     full_name: "",
     position_applied: "",
@@ -2494,6 +2498,12 @@ function AddApplicantModal({
     setForm((p) => ({ ...p, [k]: v }));
   const handleSubmit = async () => {
     setSubmitError("");
+    if (!cv) {
+      setSubmitError("Attach their CV. It is required on the form applicants "
+        + "fill in themselves, and an applicant with no CV cannot be screened "
+        + "— nine arrived that way today and every one was typed in here.");
+      return;
+    }
     if (!form.position_group) {
       setSubmitError("Pick which kind of role this is — it is what makes this "
         + "applicant countable alongside the ones who used the form.");
@@ -2505,7 +2515,7 @@ function AddApplicantModal({
     const err = await onSave({
       ...form,
       position_applied: form.position_applied || label,
-    });
+    }, cv);
     if (err) setSubmitError(err);
   };
 
@@ -2618,6 +2628,25 @@ function AddApplicantModal({
               onChange={(e) => set("applied_date", e.target.value)}
             />
           </div>
+          {/* Required, and placed before Notes so it is not the thing scrolled
+              past. The public form has asked for a CV since 2026-09-10 and
+              every applicant who used it has one; this is where the ones
+              without arrive. */}
+          <div className="col-span-2">
+            <label className={T_LABEL}>CV *</label>
+            <input
+              type="file"
+              className={`${INPUT_CLASS} mt-1 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-3 file:py-1 file:text-violet-200`}
+              accept="application/pdf,image/*,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(e) => setCv(e.target.files?.[0] ?? null)}
+            />
+            <p className={`${T_CAPTION} mt-1`}>
+              PDF, Word, or a clear photo of a printed CV. If you do not have it
+              yet, add them without one from{" "}
+              <span className="text-zinc-400">Add Several</span> and the card
+              will offer <span className="text-zinc-400">No CV — ask for one</span>.
+            </p>
+          </div>
           <div className="col-span-2">
             <label className={T_LABEL}>Notes</label>
             <textarea
@@ -2638,7 +2667,11 @@ function AddApplicantModal({
         <div className="flex gap-2 pt-1">
           <button
             className={PRIMARY_BUTTON}
-            disabled={saving || !form.full_name.trim() || !form.position_applied.trim()}
+            /* The CV is in here too, so "required" is visible before the
+               press rather than only after it. The message in handleSubmit
+               stays -- a disabled button says nothing about why. */
+            disabled={saving || !form.full_name.trim()
+                      || !form.position_applied.trim() || !cv}
             onClick={handleSubmit}
           >
             {saving ? "Saving..." : "Add Applicant"}
@@ -3462,7 +3495,8 @@ export default function HRRecruitmentPage() {
   // Both Add modals share the same contract: return null on success (modal
   // closes), or an error string to show inside the still-open modal.
   const handleAddApplicant = async (
-    form: AddApplicantForm
+    form: AddApplicantForm,
+    cv: File,
   ): Promise<string | null> => {
     const auth = authRef.current;
     if (!auth) return "Not signed in.";
@@ -3478,6 +3512,31 @@ export default function HRRecruitmentPage() {
         return "Your session has expired. Redirecting to login…";
       }
       if (!res.ok) return `Failed to save applicant: ${await errorDetail(res)}`;
+      const created = (await res.json().catch(() => ({}))) as { id?: string };
+
+      // The applicant exists now, so a failed CV must not read as a failed
+      // save -- it says which half worked and what is left to do (lesson 46).
+      if (created?.id) {
+        const fd = new FormData();
+        // prepareIfImage shrinks a photo and leaves a PDF alone; a phone photo
+        // of a printed CV is several MB and Vercel rejects the request at
+        // about 4.3MB before it reaches us (lesson 24).
+        const small = await prepareIfImage(cv);
+        fd.append("resume", small, small.name);
+        // ⚠️ getUploadHeaders, never getAuthHeaders -- the latter pins
+        // Content-Type: application/json and the multipart boundary is lost,
+        // so the server sees no file at all (lesson 23).
+        const up = await fetch(
+          `${API_BASE}/api/admin/hr/applicants/${created.id}/resume`,
+          { method: "POST", headers: getUploadHeaders(auth), body: fd });
+        if (!up.ok) {
+          setShowAddApplicant(false);
+          void loadData();
+          return `${form.full_name} was added, but the CV did not upload `
+            + `(${await errorDetail(up)}). Open their card and use `
+            + `"No CV — ask for one", or try attaching it again.`;
+        }
+      }
       setShowAddApplicant(false);
       void loadData();
       return null;
