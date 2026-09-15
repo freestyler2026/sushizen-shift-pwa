@@ -1,5 +1,47 @@
 # CURRENT_TASKS.md
 
+## 2026-09-15（続き2） — 履歴書を Voice Screening の行に出した
+
+### 実測（作る前に数えた）
+
+| 段 | 人数 | 履歴書あり |
+|---|---:|---:|
+| Waiting on them（録音なし） | 90 | **68** |
+| To review（録音あり） | 20 | 20 |
+| Done | 41 | 34 |
+| 合計 | 151 | **120** |
+
+**149件中120件が履歴書を持っており、うち68件は録音がゼロ。** 履歴書は同意の直後、
+録音より前に受け取るので、録音していない人も持っている。
+
+### 直したこと
+
+1. **一覧が履歴書の有無を返していなかった** — 表示は `detail`（Listen で開くパネル）の中だけ。
+   `Listen` は `answered > 0` のときしか出ないので、**68名は「判断材料が既にあるのに、
+   それを開くボタンが行に無い」**状態だった。
+2. 一覧に `has_resume` / `resume_filename` / `resume_bytes` / `resume_skipped` を追加。
+   **ファイル本体は載せない**（開いた1件を `/resume` が取る／教訓29）。実測 0.09秒・
+   2000文字超の文字列フィールドはゼロ。
+3. 行に `CV 62KB` のチップ。**どのタブでも出る**ので、To review では聴きながら読める。
+4. 録音が無くても `Read CV — decide` でパネルが開く。中身は履歴書・本人がフォームに
+   書いた前職/在籍期間/居住地・判断3ボタン。**Shortlist に録音は要らない。**
+5. `Waiting on them` の見出しに「68 of them sent a CV」を追加。
+   **書かなければ誰も新しくできるようになったことに気づかない**（教訓9）。
+6. `ensure_resume_columns()` に在庫確認を追加。一覧の読み取りから呼ぶようになったので、
+   初回の `ALTER TABLE` が `hr_voice_screenings` の排他ロックを取る形になっていた（教訓85）。
+7. `db_voice_screening.py` に `logger` が無く、追加した except 節が NameError になる
+   ところだった（教訓84の型）。
+
+### 実機確認
+
+- 行のチップ・`Read CV — decide`・判断3ボタン（Shortlist / Hold / Reject）すべて表示
+- CVの取得: 200 / `application/pdf` / `inline`（ブラウザで開く）/ バイト数一致
+- 録音ゼロの3名でDriveから実際にダウンロードし、PDF・JPEG のシグネチャとサイズを確認
+- コンソールエラー 0
+
+マニュアル2本（Recruitment Guide / Voice Interview Runbook）を更新して republish 済み。
+
+
 ## 2026-09-15（続き） — HR側の取り消し・変更を実装。動線の行き止まりを3つ潰した
 
 ### 実装
