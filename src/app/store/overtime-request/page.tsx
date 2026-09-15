@@ -7,6 +7,7 @@ import { BRANCHES } from "@/lib/branches";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
   INPUT_CLASS,
   SELECT_CLASS,
   TEXTAREA_CLASS,
@@ -43,7 +44,39 @@ type OTRequest = {
   review_note: string;
   manager_approved_by: string;
   submitted_at: string;
+  review_reason_code?: string;
+  disputed_at?: string | null;
+  dispute_note?: string;
+  dispute_closed_at?: string | null;
+  ot_facts?: OtFacts;
 };
+
+/** The shift and the punches the manager is looking at. Same numbers, same
+ *  screen — a reason you cannot check is not a reason. */
+type OtFacts = {
+  shift_segments: number[][];
+  punch_in: number | null;
+  punch_out: number | null;
+  before_minutes: number | null;
+  after_minutes: number | null;
+  computed_minutes: number | null;
+  claimed_minutes: number | null;
+  delta_minutes: number | null;
+  unavailable: string | null;
+};
+
+/** Mirrors OT_REJECT_REASONS on the server. */
+const REJECT_LABELS: Record<string, string> = {
+  no_advance_request: "No request or approval before it started",
+  clock_mismatch: "The hours did not match the clock",
+  inside_shift: "The hours were inside your rostered shift",
+  avoidable: "It could have been finished within the shift",
+  other: "Something else",
+};
+
+function mins(m: number): string {
+  return `${Math.floor(m / 60)}h${m % 60 > 0 ? `${m % 60}m` : ""}`;
+}
 
 function statusBadge(status: string) {
   if (status === "paid")             return <span className={BADGE_SUCCESS}><CheckCircle className="h-3 w-3" />In payroll</span>;
@@ -51,6 +84,78 @@ function statusBadge(status: string) {
   if (status === "manager_approved") return <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-300"><Clock className="h-3 w-3" />Approved</span>;
   if (status === "rejected")         return <span className={BADGE_ERROR}><XCircle className="h-3 w-3" />Rejected</span>;
   return <span className={BADGE_WARNING}><Clock className="h-3 w-3" />Pending</span>;
+}
+
+/**
+ * What the OS has on this request: the shift, your punches, and — if it was
+ * refused — why. All three in the place you already look, because the whole
+ * point of naming a ground is that the person it is given to can check it.
+ */
+function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) => void }) {
+  const f = r.ot_facts;
+  const ground = r.status === "rejected"
+    ? (REJECT_LABELS[r.review_reason_code || ""] || "No reason was recorded")
+    : "";
+  const openDispute = r.disputed_at && !r.dispute_closed_at;
+  const canDispute = r.status !== "paid";
+  if (!f && !ground && !r.review_note) return null;
+
+  return (
+    <div className="border-t border-white/10 pt-2 space-y-1.5">
+      {ground && (
+        <p className="text-xs text-red-300">
+          <span className="font-medium">Not approved:</span> {ground}
+        </p>
+      )}
+      {r.review_note && (
+        <p className="text-xs text-white/60">{r.review_note}</p>
+      )}
+      {f && !f.unavailable && f.computed_minutes !== null && (
+        <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] leading-relaxed text-white/60">
+          <p>
+            Your shift:{" "}
+            <span className="text-white/90">
+              {f.shift_segments.map((g) => `${formatHour(g[0])}–${formatHour(g[1])}`).join(" · ") || "—"}
+            </span>
+          </p>
+          <p>
+            You clocked:{" "}
+            <span className="text-white/90">
+              {f.punch_in !== null ? formatHour(f.punch_in) : "—"} →{" "}
+              {f.punch_out !== null ? formatHour(f.punch_out) : "—"}
+            </span>
+          </p>
+          <p>
+            Outside your shift:{" "}
+            <span className="text-white/90">{mins(f.computed_minutes)}</span>
+            {f.delta_minutes !== null && f.delta_minutes < -15 && (
+              <span className="ml-2 text-sky-300">
+                {mins(-f.delta_minutes)} more than you asked for
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+      {f?.unavailable && (
+        <p className="text-[11px] text-white/35">The clock: {f.unavailable}</p>
+      )}
+      {openDispute ? (
+        <p className="text-[11px] text-amber-300">
+          Sent to your manager: &ldquo;{r.dispute_note}&rdquo;
+        </p>
+      ) : r.dispute_closed_at ? (
+        <p className="text-[11px] text-white/40">Your note about the clock has been read.</p>
+      ) : canDispute ? (
+        <button
+          type="button"
+          onClick={() => onDispute(r)}
+          className="text-[11px] text-white/45 underline underline-offset-2 hover:text-white/80"
+        >
+          The clock is wrong
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function formatHour(h: number): string {
@@ -98,6 +203,10 @@ export default function OvertimeRequestPage() {
 
   // History
   const [requests, setRequests] = useState<OTRequest[]>([]);
+  const [disputeFor, setDisputeFor] = useState<OTRequest | null>(null);
+  const [disputeNote, setDisputeNote] = useState("");
+  const [disputeBusy, setDisputeBusy] = useState(false);
+  const [disputeError, setDisputeError] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState("");
 
@@ -141,6 +250,42 @@ export default function OvertimeRequestPage() {
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+
+  /** Tell the manager the clock is wrong on this one.
+   *
+   *  The reviewer now decides on the punches, so a terminal that failed or a
+   *  clock-out nobody pressed has to have somewhere to go. A failure here must
+   *  not look like a send (lesson 46) — the panel stays open and says so.
+   */
+  async function submitDispute() {
+    if (!disputeFor) return;
+    if (disputeNote.trim().length < 5) {
+      setDisputeError("Say what the clock got wrong.");
+      return;
+    }
+    setDisputeBusy(true);
+    setDisputeError("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/store/overtime/${disputeFor.id}/dispute`, {
+        method: "POST",
+        headers: new Headers({ ...headers, "Content-Type": "application/json" }),
+        body: JSON.stringify({ note: disputeNote.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDisputeError(data?.detail || "Nothing was sent. Try again.");
+        return;
+      }
+      setDisputeFor(null);
+      setDisputeNote("");
+      await loadHistory();
+    } catch {
+      setDisputeError("Could not reach the server — nothing was sent.");
+    } finally {
+      setDisputeBusy(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -377,9 +522,7 @@ export default function OvertimeRequestPage() {
                           : ""}.
                       </p>
                     )}
-                    {r.review_note && (
-                      <p className="text-xs text-white/50 border-t border-white/10 pt-2">Note: {r.review_note}</p>
-                    )}
+                    <WhatWeHave r={r} onDispute={(x) => { setDisputeFor(x); setDisputeNote(""); setDisputeError(""); }} />
                   </div>
                 ))}
               </div>
@@ -426,6 +569,46 @@ export default function OvertimeRequestPage() {
           )}
         </div>
       </div>
+
+      {/* Saying the clock is wrong. One sentence: the manager reads it next to
+          the shift and the punches, so what matters is what the clock missed,
+          not a restatement of the hours. */}
+      {disputeFor && (
+        <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/70 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-md mx-auto my-8 p-5 space-y-3`}>
+            <h3 className="text-base font-semibold text-white">The clock is wrong</h3>
+            <p className={T_CAPTION}>
+              {disputeFor.work_date} · {formatHour(disputeFor.ot_start_hour)}–{formatHour(disputeFor.ot_end_hour)}
+            </p>
+            {disputeFor.ot_facts && disputeFor.ot_facts.punch_out !== null && (
+              <p className="text-xs text-white/50">
+                The OS has you clocking out at{" "}
+                <span className="text-white/90">{formatHour(disputeFor.ot_facts.punch_out)}</span>.
+              </p>
+            )}
+            <textarea
+              value={disputeNote}
+              onChange={(e) => setDisputeNote(e.target.value)}
+              rows={3}
+              placeholder="What happened? e.g. the terminal would not take my clock-out at 22:30"
+              className={TEXTAREA_CLASS}
+            />
+            {disputeError && <p className="text-sm text-red-400">{disputeError}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDisputeFor(null)}
+                disabled={disputeBusy}
+                className={`${SECONDARY_BUTTON} flex-1`}
+              >
+                Cancel
+              </button>
+              <button onClick={submitDispute} disabled={disputeBusy} className={`${PRIMARY_BUTTON} flex-1`}>
+                {disputeBusy ? "Sending…" : "Send to my manager"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

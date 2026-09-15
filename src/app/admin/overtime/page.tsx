@@ -49,6 +49,10 @@ type OTRequest = {
   submitted_at: string;
   workload?: Workload;
   ot_facts?: OtFacts;
+  review_reason_code?: string;
+  disputed_at?: string | null;
+  dispute_note?: string;
+  dispute_closed_at?: string | null;
 };
 
 /** Whether the night was actually busy — advisory, never blocks an approval. */
@@ -81,6 +85,27 @@ type OtFacts = {
 };
 
 type ModalAction = "manager_approve" | "mark_paid" | "remove_from_payroll" | "reject";
+
+/**
+ * The grounds a refusal can stand on. Mirrors OT_REJECT_REASONS on the server,
+ * which validates them — this list only builds the picker.
+ *
+ * These are not invented: they are what reviewers actually wrote in the free
+ * text ("There was no request in advance.", "There is no post on Discord and
+ * preapproval form the manager", "The OT hours is wrongly submitted"). The
+ * other 18 of 25 rejections said nothing at all.
+ */
+const REJECT_REASONS: { code: string; label: string; needsNote: boolean; hint: string }[] = [
+  { code: "no_advance_request", label: "No request or approval before it started",
+    needsNote: false, hint: "Nothing was sent or agreed before the hours were worked." },
+  { code: "clock_mismatch", label: "The hours do not match the clock",
+    needsNote: false, hint: "The shift and the punches are shown above, and the employee sees them too." },
+  { code: "inside_shift", label: "The hours are inside the rostered shift",
+    needsNote: false, hint: "Those hours are already paid as the ordinary day." },
+  { code: "avoidable", label: "Could have been finished within the shift",
+    needsNote: true, hint: "Say what should have been done differently. This is a judgement, so it needs a sentence." },
+  { code: "other", label: "Something else", needsNote: true, hint: "" },
+];
 
 /** Quarter of an hour. Below this the typed time and the clock agree well
  *  enough that saying so would be noise -- people walk to the terminal. */
@@ -266,6 +291,41 @@ function WorkloadCell({ w }: { w?: Workload }) {
   );
 }
 
+/**
+ * What was decided and what the employee said back. Both belong next to the
+ * reason, because that is where a reviewer looking at the row is already
+ * reading.
+ */
+function DecisionNotes({ r, onCloseDispute }: {
+  r: OTRequest;
+  onCloseDispute: (id: string) => void;
+}) {
+  const ground = REJECT_REASONS.find((x) => x.code === r.review_reason_code);
+  const open = r.disputed_at && !r.dispute_closed_at;
+  return (
+    <>
+      {r.status === "rejected" && (
+        <span className="mt-1 block text-[11px] text-red-300/80">
+          {ground ? ground.label : "No reason was recorded"}
+        </span>
+      )}
+      {open && (
+        <span className="mt-1 block rounded-md border border-amber-500/40 bg-amber-900/25 px-2 py-1 text-[11px] text-amber-200">
+          <span className="font-medium">They say the clock is wrong:</span>{" "}
+          {r.dispute_note}
+          <button
+            type="button"
+            onClick={() => onCloseDispute(r.id)}
+            className="ml-2 underline underline-offset-2 hover:text-amber-100"
+          >
+            Mark as read
+          </button>
+        </span>
+      )}
+    </>
+  );
+}
+
 export default function AdminOvertimePage() {
   const [auth] = useState(getAuth);
   // getAuth() reads localStorage, which the server does not have, so the first
@@ -309,6 +369,7 @@ export default function AdminOvertimePage() {
   const [reviewing, setReviewing] = useState<OTRequest | null>(null);
   const [modalAction, setModalAction] = useState<ModalAction>("manager_approve");
   const [actionNote, setActionNote] = useState("");
+  const [rejectCode, setRejectCode] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -339,11 +400,33 @@ export default function AdminOvertimePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  /** Say the note was read. A save that fails must not look like one that
+   *  worked — the badge stays and the reason is on the screen (lesson 46). */
+  async function closeDispute(id: string) {
+    setActionError("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/admin/overtime/${id}/close-dispute`, {
+        method: "PATCH",
+        headers: new Headers(headers),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.detail || "Could not mark it read — nothing was saved.");
+        return;
+      }
+      await load();
+    } catch {
+      setError("Could not reach the server — nothing was saved.");
+    }
+  }
+
   function openModal(r: OTRequest, action: ModalAction) {
     setReviewing(r);
     setModalAction(action);
     setActionNote("");
     setActionError("");
+    setRejectCode("");
   }
 
   async function submitAction() {
@@ -364,8 +447,21 @@ export default function AdminOvertimePage() {
         endpoint = `/api/admin/overtime/${reviewing.id}/mark-paid`;
         body = { note: actionNote };
       } else {
+        // The server refuses a rejection with no ground; catching it here
+        // means the reviewer is told before the round trip, not after.
+        const ground = REJECT_REASONS.find((x) => x.code === rejectCode);
+        if (!ground) {
+          setActionError("Pick a reason — the employee is shown it.");
+          setActionBusy(false);
+          return;
+        }
+        if (ground.needsNote && !actionNote.trim()) {
+          setActionError(`"${ground.label}" needs a sentence saying what happened.`);
+          setActionBusy(false);
+          return;
+        }
         endpoint = `/api/admin/overtime/${reviewing.id}/review`;
-        body = { status: "rejected", review_note: actionNote };
+        body = { status: "rejected", review_note: actionNote, reason_code: rejectCode };
       }
       const res = await fetch(`${apiBase}${endpoint}`, {
         method: "PATCH",
@@ -606,6 +702,7 @@ export default function AdminOvertimePage() {
                       <ClockCheck f={r.ot_facts} compact />
                     </div>
                     <p className="text-sm text-white/70">{r.reason}</p>
+                    <DecisionNotes r={r} onCloseDispute={closeDispute} />
                     <WorkloadCell w={r.workload} />
                     {r.manager_approved_by && (
                       <p className="text-xs text-blue-400">Stage 1: {r.manager_approved_by}</p>
@@ -694,6 +791,7 @@ export default function AdminOvertimePage() {
                           {r.paid_by && (
                             <span className="block text-green-400 text-xs mt-0.5">💳 {r.paid_by}</span>
                           )}
+                          <DecisionNotes r={r} onCloseDispute={closeDispute} />
                         </td>
                         <td className={TABLE_CELL}><WorkloadCell w={r.workload} /></td>
                         <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
@@ -825,13 +923,52 @@ export default function AdminOvertimePage() {
                 approved, so it can be added to a later period. The staff member is told.
               </div>
             )}
+            {modalAction === "reject" && (
+              <div>
+                <label className={T_LABEL}>Why not?</label>
+                <div className="mt-1 flex flex-col gap-1">
+                  {REJECT_REASONS.map((x) => (
+                    <button
+                      key={x.code}
+                      type="button"
+                      onClick={() => { setRejectCode(x.code); setActionError(""); }}
+                      className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                        rejectCode === x.code
+                          ? "border-red-500/50 bg-red-900/25 text-red-200"
+                          : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                      }`}
+                    >
+                      {x.label}
+                      {x.needsNote && (
+                        <span className="ml-2 text-[11px] text-amber-300/80">needs a sentence</span>
+                      )}
+                      {rejectCode === x.code && x.hint && (
+                        <span className="mt-1 block text-[11px] text-white/50">{x.hint}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {/* The employee is shown the ground and the sentence, on the
+                    same screen that shows them the shift and their punches.
+                    A ground they cannot check is not a ground. */}
+                <p className="mt-2 text-[11px] text-white/40">
+                  {reviewing.staff_name} sees this, with the shift and the clock beside it.
+                </p>
+              </div>
+            )}
             <div>
-              <label className={T_LABEL}>Comment (optional)</label>
+              <label className={T_LABEL}>
+                {modalAction === "reject"
+                  ? (REJECT_REASONS.find((x) => x.code === rejectCode)?.needsNote
+                      ? "What happened (required)"
+                      : "Anything to add (optional)")
+                  : "Comment (optional)"}
+              </label>
               <textarea
                 value={actionNote}
                 onChange={(e) => setActionNote(e.target.value)}
                 rows={2}
-                placeholder="Add a comment…"
+                placeholder={modalAction === "reject" ? "The employee reads this…" : "Add a comment…"}
                 className={`${TEXTAREA_CLASS} mt-1`}
               />
             </div>
