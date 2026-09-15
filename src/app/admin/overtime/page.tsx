@@ -51,6 +51,7 @@ type OTRequest = {
   ot_facts?: OtFacts;
   review_reason_code?: string;
   cause_codes?: string;
+  ot_context?: OtContext;
   asked_after_start_minutes?: number | null;
   ot_minutes_original?: number | null;
   ot_minutes_source?: string;
@@ -111,6 +112,91 @@ const REJECT_REASONS: { code: string; label: string; needsNote: boolean; hint: s
     needsNote: true, hint: "Say what should have been done differently. This is a judgement, so it needs a sentence." },
   { code: "other", label: "Something else", needsNote: true, hint: "" },
 ];
+
+/** What the branch was like that night — Manila stores. See
+ *  app/db_manila_ot_context.py for why it is these three and why nothing is
+ *  pooled across branches. */
+type OtContext = {
+  level: "explained" | "ordinary" | "unknown";
+  headline: string;
+  orders: { count: number; usual: number; pct: number; sample_days: number } | null;
+  crew: { on: number; usual: number; incomplete?: boolean } | null;
+  backup: { items: number; below: number; pct: number } | null;
+  crew_note: string | null;
+  basis?: string;
+  unavailable: string | null;
+};
+
+/**
+ * The three facts, on the row.
+ *
+ * "Ordinary" is deliberately neutral, never red. It is the absence of an
+ * automatic explanation, not evidence of anything — a row marked as a fault
+ * for being unremarkable is how a queue fills with noise and the cases that
+ * matter get lost in it.
+ */
+function ContextCell({ c }: { c?: OtContext }) {
+  const [open, setOpen] = useState(false);
+  if (!c) return null;
+  if (c.unavailable) {
+    return <span className="block text-[11px] text-white/30">{c.unavailable}</span>;
+  }
+  const style =
+    c.level === "explained"
+      ? "border-emerald-500/40 bg-emerald-900/25 text-emerald-300"
+      : "border-white/15 bg-white/5 text-zinc-400";
+  const label = c.level === "explained" ? "the night accounts for it" : "nothing unusual";
+  return (
+    <div className="min-w-[160px]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-opacity hover:opacity-80 ${style}`}
+      >
+        {label}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-1 rounded-lg border border-white/10 bg-black/30 p-2 text-[11px] leading-relaxed text-white/70">
+          <p className="font-medium text-white/90">{c.headline}</p>
+          {c.orders && (
+            <p>
+              Orders: <span className="text-white">{c.orders.count}</span> · usual{" "}
+              <span className="text-white">{c.orders.usual}</span>{" "}
+              ({c.orders.pct >= 0 ? "+" : ""}{c.orders.pct}%)
+            </p>
+          )}
+          {c.crew ? (
+            <p>
+              On across these hours: <span className="text-white">{c.crew.on}</span> · usual{" "}
+              <span className="text-white">{c.crew.usual}</span>
+              {c.crew.incomplete && (
+                <span className="ml-2 text-amber-300/80">
+                  — that evening&apos;s roster looks incomplete, not thin
+                </span>
+              )}
+            </p>
+          ) : c.crew_note ? (
+            <p className="text-white/40">{c.crew_note}</p>
+          ) : null}
+          {c.backup ? (
+            <p>
+              Morning prep: <span className="text-white">{c.backup.below}</span> of{" "}
+              <span className="text-white">{c.backup.items}</span> items under par
+              ({c.backup.pct}%)
+            </p>
+          ) : (
+            <p className="text-white/40">No morning backup report that day</p>
+          )}
+          {c.basis && <p className="text-white/40">Compared against the {c.basis}.</p>}
+          <p className="text-white/40">
+            Facts about that night, not a prediction — the pattern behind them holds at one
+            branch and not the others. This never blocks an approval.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const CAUSE_LABELS: Record<string, string> = {
   orders: "More orders",
@@ -775,6 +861,7 @@ export default function AdminOvertimePage() {
                     <p className="text-sm text-white/70">{r.reason}</p>
                     <DecisionNotes r={r} onCloseDispute={closeDispute} />
                     <WorkloadCell w={r.workload} />
+                    <ContextCell c={r.ot_context} />
                     {r.manager_approved_by && (
                       <p className="text-xs text-blue-400">Stage 1: {r.manager_approved_by}</p>
                     )}
@@ -865,7 +952,10 @@ export default function AdminOvertimePage() {
                           )}
                           <DecisionNotes r={r} onCloseDispute={closeDispute} />
                         </td>
-                        <td className={TABLE_CELL}><WorkloadCell w={r.workload} /></td>
+                        <td className={TABLE_CELL}>
+                          <WorkloadCell w={r.workload} />
+                          <ContextCell c={r.ot_context} />
+                        </td>
                         <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
                         <td className={TABLE_CELL}>
                           <div className="flex flex-col gap-1">
