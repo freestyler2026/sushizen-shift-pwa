@@ -205,9 +205,11 @@ function waitedLabel(row: Row): string {
  *
  *  Ordered by who we owe something to, not by how far they got.
  */
-type Stall = "asked_later" | "stuck" | "read_and_left" | "never_opened";
+type Stall = "link_dead" | "asked_later" | "stuck" | "read_and_left" | "never_opened";
 
 const STALL: Record<Stall, { label: string; rank: number; ours: boolean; note: string }> = {
+  link_dead:     { label: "their link has expired", rank: -1, ours: true,
+                   note: "Their link no longer opens — it says “This link has expired”. Sending the same message again cannot work: the link in it is the dead one, and the old link cannot be revived (only its hash is kept). Press Send the link here to make a live one, then send that." },
   asked_later:   { label: "asked to be reminded", rank: 0, ours: true,
                    note: "They pressed “remind me later”. Send the link again." },
   stuck:         { label: "agreed, could not record", rank: 1, ours: true,
@@ -218,7 +220,27 @@ const STALL: Record<Stall, { label: string; rank: number; ours: boolean; note: s
                    note: "The link has not been opened once. It may not have reached them." },
 };
 
+/** Is the link in their hands still able to open?
+ *
+ *  This was the one thing the tab could not say, and it is the thing that
+ *  decides what to do. On 2026-09-15 ten links issued on the 8th ran out
+ *  through the afternoon, one every half hour; the rows kept reading "never
+ *  opened the link", which puts the delay on the applicant when the link had
+ *  simply died. Somebody resent the old message and the applicant wrote back
+ *  that it had expired.
+ *
+ *  token_expires_at was already in this payload and nothing looked at it.
+ */
+function linkExpired(row: Row): boolean {
+  if (!row.token_expires_at) return false;
+  const t = Date.parse(row.token_expires_at);
+  return Number.isFinite(t) && t <= Date.now();
+}
+
 function stallOf(row: Row): Stall {
+  // First, because it outranks the rest: whatever else they did or did not do,
+  // they cannot do anything now.
+  if (linkExpired(row)) return "link_dead";
   if (row.later_at) return "asked_later";
   if (row.consent_at) return "stuck";
   if (row.client_seen_at) return "read_and_left";
@@ -313,13 +335,13 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
   // ours. Only computed for that tab -- everywhere else the server's order is
   // already the right one (longest wait first).
   const stallCounts = useMemo(() => {
-    const by = { asked_later: 0, stuck: 0, read_and_left: 0, never_opened: 0 } as Record<Stall, number>;
+    const by = { link_dead: 0, asked_later: 0, stuck: 0, read_and_left: 0, never_opened: 0 } as Record<Stall, number>;
     if (state !== "waiting") return { by, total: 0, ours: 0 };
     rows.forEach((r) => { by[stallOf(r)] += 1; });
     return {
       by,
       total: rows.length,
-      ours: by.asked_later + by.stuck,
+      ours: by.link_dead + by.asked_later + by.stuck,
     };
   }, [rows, state]);
 
@@ -769,6 +791,16 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
             <p className={`${T_CAPTION} mt-2 text-amber-300`}>
               {stallCounts.ours} of these {stallCounts.total} are waiting on us, not on
               them — send those the link again. They are listed first.
+            </p>
+          )}
+          {/* Said separately and in plain words. "Send the link again" reads as
+              "forward the message you already sent", and for these rows that is
+              the one thing that cannot work. */}
+          {stallCounts.by.link_dead > 0 && (
+            <p className={`${T_CAPTION} mt-1 text-amber-300`}>
+              {stallCounts.by.link_dead} of them have a link that no longer opens.
+              Do not forward the old message — open the row and press{" "}
+              <b>Send the link</b> to make a new one.
             </p>
           )}
           {/* Otherwise nobody finds out the CV is there: it used to open only
