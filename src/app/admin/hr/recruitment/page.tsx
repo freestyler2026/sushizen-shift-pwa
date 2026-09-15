@@ -355,6 +355,16 @@ function shortDate(iso?: string | null): string {
 /** What the button on a Screened card should say, given where the link got to.
  *  "Send interview link" on all three reads as "nothing has happened yet" for
  *  the 22 people who already have one. */
+/** What still needs doing, most first. Expired sits with the untouched ones:
+ *  that person cannot act either, and somebody has to issue them a new link. */
+const LINK_RANK: Record<LinkState, number> = {
+  none: 0,
+  expired: 1,
+  made: 2,
+  copied: 3,
+  sent: 4,
+};
+
 const LINK_ACTION: Record<LinkState, string> = {
   none: "Send interview link",
   // Not "Open message". The wording cannot be shown again -- only the hash of
@@ -3536,7 +3546,25 @@ export default function HRRecruitmentPage() {
 
   const grouped = OPEN_COLUMNS.reduce(
     (acc, col) => {
-      acc[col.id] = lanes.active.filter((a) => a.status === col.id);
+      const cards = lanes.active.filter((a) => a.status === col.id);
+      // Screened is a worklist, so it is ordered by what is left to do: the
+      // people with no link, then the ones holding one nobody sent, then the
+      // ones only copied, and the finished ones last. It used to come back in
+      // the server's order, which mixed them -- with 43 cards the ones needing
+      // a message sat below ones already done and were simply missed.
+      //
+      // Longest wait first inside each group, so the person who has been
+      // waiting 53 days is above the one who applied on Tuesday.
+      acc[col.id] = col.id === "screened"
+        ? cards
+            .map((a, i) => ({ a, i, rank: LINK_RANK[linkStateOf(a)] }))
+            .sort((x, y) =>
+              (x.rank - y.rank)
+              || ((y.a.days_since_move ?? y.a.days_in_pipeline ?? 0)
+                  - (x.a.days_since_move ?? x.a.days_in_pipeline ?? 0))
+              || (x.i - y.i))
+            .map((x) => x.a)
+        : cards;
       return acc;
     },
     {} as Record<KanbanStatus, Applicant[]>
