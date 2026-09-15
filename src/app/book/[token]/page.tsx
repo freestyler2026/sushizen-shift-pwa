@@ -49,6 +49,8 @@ const T = {
     cancelYes: "Yes, cancel",
     cancelled: "Cancelled. Open this link again to pick a new time.",
     taken: "Sorry, someone just took that time. Here are the next ones.",
+    tooLate: "That time has already gone by. Here are the next ones.",
+    tooSoon: "We need at least a day's notice, so the earliest is tomorrow. Here are the next ones.",
     expired: "This link has expired",
     expiredBody:
       "Booking links stop working after 7 days. Reply to the message Sushi ZEN sent you and ask for a new one — your application is still on file.",
@@ -84,6 +86,8 @@ const T = {
     cancelYes: "Oo, kanselahin",
     cancelled: "Nakansela po. Buksan ulit ang link para pumili ng bagong oras.",
     taken: "Pasensya po, may kumuha lang ng oras na iyon. Eto po ang susunod.",
+    tooLate: "Lumipas na po ang oras na iyon. Eto po ang susunod.",
+    tooSoon: "Kailangan po ng kahit isang araw na abiso, kaya bukas na po ang pinakamaaga. Eto po ang susunod.",
     expired: "Expired na po ang link na ito",
     expiredBody:
       "Ang mga booking link ay tumitigil pagkatapos ng 7 araw. I-reply lang po ang message ng Sushi ZEN at humingi ng bago — nasa amin pa rin ang application mo.",
@@ -177,7 +181,14 @@ export default function BookPage() {
         body: JSON.stringify({ starts_at: slot.starts_at, interviewer: slot.interviewer }),
       });
       if (res.status === 409) {
-        setFlash(t.taken);
+        // A clash and "that day has gone" are different things to be told.
+        // Saying "somebody just took it" about a time that has simply passed
+        // sends them looking for a culprit instead of picking again.
+        let code = "taken";
+        try { code = String((await res.clone().json())?.code || "taken"); } catch { /* text */ }
+        setFlash(code === "too_late" ? t.tooLate
+               : code === "too_soon" ? t.tooSoon
+               : t.taken);
         setConfirming(null);
         await load();
         return;
