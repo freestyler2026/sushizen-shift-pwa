@@ -2997,7 +2997,11 @@ export default function HRRecruitmentPage() {
   const [focusVoice, setFocusVoice] = useState(0);
   // Which candidate the board sent us here for, so the Interviews tab opens on
   // them instead of making somebody find the name again in a list of fifteen.
-  const [focusBooking, setFocusBooking] = useState<string>("");
+  // The board's own "Send interview link" opens the wording over the card.
+  // It used to jump to the Interviews tab, where the name had to be found
+  // again in a list of fifteen -- the link was two screens away from the
+  // moment somebody decided to send it.
+  const [linkFor, setLinkFor] = useState<Applicant | null>(null);
   const [lane, setLane] = useState<Lane>("active");
   const [closedSearch, setClosedSearch] = useState("");
   // Rows decided during this sitting. On the board a decision moved a card to
@@ -3640,10 +3644,7 @@ export default function HRRecruitmentPage() {
               cancelling and recording the outcome all happen on the interview itself, below.
             </span>
           </div>
-          <BookingLinksToSend
-            focusApplicantId={focusBooking}
-            onFocusHandled={() => setFocusBooking("")}
-          />
+          <BookingLinksToSend />
           <InterviewDay
             focusId={focusInterview}
             onFocusHandled={() => setFocusInterview("")}
@@ -3779,7 +3780,7 @@ export default function HRRecruitmentPage() {
                               onSelect={() => setSelectedApplicant(applicant)}
                               onQuickStatus={handleQuickStatus}
                               onRecordOutcome={setOutcomeFor}
-                              onSendLink={(a) => { setFocusBooking(a.id); setView("interviews"); }}
+                              onSendLink={(a) => setLinkFor(a)}
                               nextStatus={getNextStatus(applicant.status)}
                             />
                           ))
@@ -3849,6 +3850,31 @@ export default function HRRecruitmentPage() {
           onClose={() => setShowNewPlan(false)}
           saving={savingPlan}
         />
+      )}
+      {linkFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className={`${GLASS_CARD} w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-3`}>
+            <div className="flex items-center justify-between">
+              <p className={T_SECTION}>Interview link — {linkFor.full_name}</p>
+              <button
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+                onClick={() => { setLinkFor(null); void loadData(); }}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className={T_CAPTION}>
+              Copy the wording below and send it from SMS or Viber yourself — the OS
+              does not send it. They pick their own time, and the card moves to
+              Interview Sched. by itself once they book.
+            </p>
+            {/* The same component the Interviews tab uses, filtered to this one
+                person. Writing a second copy of the issue-and-copy path here
+                would put the re-issue warning, the copy trace and the SMS gate
+                in one of them only. */}
+            <BookingLinksToSend onlyApplicantId={linkFor.id} autoOpen compact />
+          </div>
+        </div>
       )}
       {outcomeFor && (
         <InterviewOutcomeModal

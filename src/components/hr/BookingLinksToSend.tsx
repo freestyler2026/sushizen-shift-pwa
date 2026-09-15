@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link2, Send, Copy, Check, Clock, RefreshCw, Phone } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS,
@@ -61,11 +61,25 @@ function reachWord(via: string): string {
 export default function BookingLinksToSend({
   focusApplicantId = "",
   onFocusHandled,
+  onlyApplicantId = "",
+  autoOpen = false,
+  compact = false,
 }: {
   /** Sent here by the board's "Send interview link" button. The row is pulled
    *  to the top and marked, so nobody has to find the name again. */
   focusApplicantId?: string;
   onFocusHandled?: () => void;
+  /** Show this one person only. The board opens the same panel over the card
+   *  instead of sending somebody to another tab to find the name again — and
+   *  it is this component, not a second copy of it, so the re-issue warning,
+   *  the copy trace and the SMS gate all come with it. */
+  onlyApplicantId?: string;
+  /** Make the link straight away so the wording is on screen in one press.
+   *  Only ever fires for somebody who has no live link: issuing replaces the
+   *  token, and doing that unasked would kill a link already in their hands. */
+  autoOpen?: boolean;
+  /** Drop the list's own heading and bulk button when it is inside a dialog. */
+  compact?: boolean;
 } = {}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +113,9 @@ export default function BookingLinksToSend({
     try {
       const res = await fetch("/api/admin/hr/booking-invites/pending");
       if (!res.ok) {
-        setErr(`Could not load the list (${res.status}).`);
+        setErr(res.status === 401
+          ? "Your session has expired — reload the page and log in again."
+          : `Could not load the list (${res.status}).`);
         return;
       }
       const j = await res.json();
@@ -139,6 +155,24 @@ export default function BookingLinksToSend({
     const t = setTimeout(() => onFocusHandled?.(), 20000);
     return () => clearTimeout(t);
   }, [focusApplicantId, loading, rows, onFocusHandled]);
+
+  // Open the wording without a second press, but only for somebody with no
+  // live link. createLink would otherwise POST a new token for a link that may
+  // already be in the applicant's hands, and the warning that guards that is a
+  // confirm() -- firing one at a dialog the person just opened is how warnings
+  // get clicked through (2026-09-15: all 18 live links had been copied zero
+  // times and everyone saw a warning that was untrue of their case).
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || !onlyApplicantId || loading || busy || autoTried.current) return;
+    const row = rows.find((r) => r.id === onlyApplicantId);
+    if (!row || row.link_live) return;
+    autoTried.current = true;
+    void createLink(row);
+    // createLink is stable for this purpose -- it only reads state the guard
+    // above has already settled, and the ref stops a second run either way.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen, onlyApplicantId, loading, busy, rows]);
 
   async function createLink(row: Row) {
     if (busy) return;
@@ -327,8 +361,9 @@ export default function BookingLinksToSend({
           (b.id === focusApplicantId ? 1 : 0) - (a.id === focusApplicantId ? 1 : 0))
       : list;
 
-  const needLink = focusFirst(rows.filter((r) => !r.link_live && !justIssued.has(r.id)));
-  const waiting = focusFirst(rows.filter((r) => r.link_live || justIssued.has(r.id)));
+  const visible = onlyApplicantId ? rows.filter((r) => r.id === onlyApplicantId) : rows;
+  const needLink = focusFirst(visible.filter((r) => !r.link_live && !justIssued.has(r.id)));
+  const waiting = focusFirst(visible.filter((r) => r.link_live || justIssued.has(r.id)));
 
   /** One candidate.
    *
@@ -490,7 +525,8 @@ export default function BookingLinksToSend({
   }
 
   return (
-    <div className={`${GLASS_CARD} mb-6 overflow-hidden`}>
+    <div className={compact ? "overflow-hidden" : `${GLASS_CARD} mb-6 overflow-hidden`}>
+      {!compact && (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
         <h3 className={T_SECTION}>Waiting for a booking link</h3>
         <span className={needLink.length ? BADGE_WARNING : BADGE_SUCCESS}>
@@ -522,22 +558,34 @@ export default function BookingLinksToSend({
           {loading ? "Loading…" : "Refresh"}
         </button>
       </div>
+      )}
 
-      {bulkNote && (
+      {bulkNote && !compact && (
         <p className="px-4 pb-2 text-sm text-emerald-300">{bulkNote}</p>
       )}
 
+      {!compact && (
       <p className={`${T_CAPTION} -mt-1 px-4 pb-3`}>
         Everyone who has been screened — by the voice round or by a person — and has
         no interview booked. They leave this list when they pick a time.
       </p>
+      )}
 
       {err && <p className="px-4 pb-3 text-sm text-amber-300">{err}</p>}
 
-      {!loading && rows.length === 0 && (
-        <p className={`${T_CAPTION} border-t border-white/8 px-4 py-4`}>
-          Nobody is waiting. Anyone you move to Screened — from the Voice screening
-          tab or from the board — appears here.
+      {loading && compact && (
+        <p className={`${T_CAPTION} px-4 py-4`}>Making the link…</p>
+      )}
+
+      {/* Only when the list actually loaded. A failed fetch leaves rows empty
+          too, and saying "nobody is waiting" because the server did not answer
+          is the worst thing this panel can say -- it reports work as done when
+          it could not see the work at all. */}
+      {!loading && !err && visible.length === 0 && (
+        <p className={`${T_CAPTION} ${compact ? "" : "border-t border-white/8"} px-4 py-4`}>
+          {onlyApplicantId
+            ? "This person is no longer waiting for a link — they have booked a time, or their status moved off Screened."
+            : "Nobody is waiting. Anyone you move to Screened — from the Voice screening tab or from the board — appears here."}
         </p>
       )}
 
