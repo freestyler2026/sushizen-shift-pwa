@@ -135,7 +135,9 @@ export default function BookPage() {
   const [confirming, setConfirming] = useState<Slot | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [flash, setFlash] = useState("");
+  // **訳した文字列ではなく鍵を持つ。** 文字列を入れると、メッセージが出た後に
+  // 言語を切り替えても前の言語のまま残る（このページは二言語が前提）。
+  const [flash, setFlash] = useState<"" | "taken" | "tooLate" | "tooSoon" | "cancelled" | "errBody">("");
   const t = T[lang];
 
   const load = useCallback(
@@ -186,9 +188,9 @@ export default function BookPage() {
         // sends them looking for a culprit instead of picking again.
         let code = "taken";
         try { code = String((await res.clone().json())?.code || "taken"); } catch { /* text */ }
-        setFlash(code === "too_late" ? t.tooLate
-               : code === "too_soon" ? t.tooSoon
-               : t.taken);
+        setFlash(code === "too_late" ? "tooLate"
+               : code === "too_soon" ? "tooSoon"
+               : "taken");
         setConfirming(null);
         await load();
         return;
@@ -202,7 +204,7 @@ export default function BookPage() {
       });
       setConfirming(null);
     } catch {
-      setFlash(t.errBody);
+      setFlash("errBody");
     } finally {
       setBusy(false);
     }
@@ -214,7 +216,7 @@ export default function BookPage() {
       await fetch(`/api/book/${token}/cancel`, { method: "POST" });
       setBooked(null);
       setCancelling(false);
-      setFlash(t.cancelled);
+      setFlash("cancelled");
       await load();
     } finally {
       setBusy(false);
@@ -361,7 +363,7 @@ export default function BookPage() {
       <p className="mt-2 text-sm leading-relaxed text-zinc-400">{t.lead}</p>
       {flash && (
         <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-          {flash}
+          {t[flash]}
         </p>
       )}
       <h2 className="mt-7 flex items-baseline justify-between text-xs font-semibold uppercase tracking-wider text-zinc-500">
