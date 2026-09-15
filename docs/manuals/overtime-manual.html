@@ -139,6 +139,8 @@ ul.plain { list-style: none; margin-top: 8px; }
 ul.plain li { font-size: 12.5px; color: var(--muted); padding: 5px 0 5px 18px; position: relative; }
 ul.plain li::before { content: "—"; position: absolute; left: 0; color: var(--accent); }
 h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8px; }
+/* A label as it appears on the screen, so a sentence can quote a button. */
+.ui { font-weight: 700; color: var(--text); background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: 12px; white-space: nowrap; }
 </style>
 
 <div class="topbar">
@@ -153,6 +155,9 @@ h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8
   <div class="sidebar-label"><span class="ja">まず読む</span><span class="en">Start here</span></div>
   <div class="nav-item active" onclick="show('changed')">
     <span class="nav-icon">🔄</span><span class="ja">何が変わったか</span><span class="en">What changed</span>
+  </div>
+  <div class="nav-item" onclick="show('judgement')">
+    <span class="nav-icon">⚖️</span><span class="ja">判断はどう組み立てるか</span><span class="en">How a decision is reached</span>
   </div>
   <div class="nav-item" onclick="show('flow')">
     <span class="nav-icon">🔁</span><span class="ja">OT が給与に届くまで</span><span class="en">How overtime reaches payroll</span>
@@ -260,6 +265,214 @@ h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8
       <li><span class="ja"><strong>給与に入れた後、取り消す方法がありませんでした。</strong>勤怠を手で直しても次の同期で書き戻されていました。</span>
           <span class="en"><strong>There was no way back once overtime was in payroll.</strong> Correcting the attendance record by hand was undone by the next sync.</span></li>
     </ul>
+  </div>
+</div>
+
+<!-- ═══════════ HOW A DECISION IS REACHED ═══════════ -->
+<div class="section" id="section-judgement">
+  <div class="hero-header">
+    <div class="hero-icon">⚖️</div>
+    <div>
+      <div class="section-title"><span class="ja">判断はどう組み立てるか</span><span class="en">How a decision is reached</span></div>
+      <div class="section-path">Manila</div>
+      <div class="section-desc">
+        <span class="ja">スタッフと承認者の両方に向けた章です。<strong>同じ理屈を両方が読めることが、この仕組みの前提</strong>です。</span>
+        <span class="en">For the person asking and the person deciding. <strong>Both reading the same reasoning is the point</strong>, not a courtesy.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="headline">
+    <div class="headline-quote">
+      <span class="ja">何分だったかはシステムが出す。やってよかったかは人が決める。</span>
+      <span class="en">The system settles how many minutes. A person settles whether it should have happened.</span>
+    </div>
+    <div class="headline-sub">
+      <span class="ja">この2つは別の問いです。混ぜると、どちらも正しく答えられません。</span>
+      <span class="en">Two different questions. Mixed together, neither gets answered properly.</span>
+    </div>
+  </div>
+
+  <h3 class="sub"><span class="ja">なぜ分けるのか ── 測った結果</span><span class="en">Why they are split — what the record showed</span></h3>
+
+  <div class="card red-border">
+    <div class="card-title"><span class="ja">量を人に判断させると当たらない</span><span class="en">People cannot settle the amount</span></div>
+    <p><span class="ja">マニラの141件を、公開シフトと打刻から計算した正解と突き合わせ、<strong>承認者が実際に何をしたか</strong>を見ました。</span>
+      <span class="en">141 Manila requests, matched against what the published roster and the punches actually show, next to what the reviewer did with each.</span></p>
+    <div class="tbl-wrap"><table>
+      <tr><th><span class="ja">申請の正しさ</span><span class="en">The claim</span></th>
+          <th><span class="ja">件数</span><span class="en">Count</span></th>
+          <th><span class="ja">結果</span><span class="en">What happened</span></th></tr>
+      <tr><td><span class="ja">15分以内で正しい</span><span class="en">Right within 15 minutes</span></td><td>55</td>
+          <td><span class="ja">うち<strong>11件が却下</strong>された</span><span class="en"><strong>11 were refused</strong></span></td></tr>
+      <tr><td><span class="ja">実際より多い</span><span class="en">More than was worked</span></td><td>30</td>
+          <td><span class="ja">15件が通過</span><span class="en">15 went through</span></td></tr>
+      <tr><td><span class="ja"><strong>実際より少ない</strong></span><span class="en"><strong>Less than was worked</strong></span></td><td><strong>56</strong></td>
+          <td><span class="ja"><strong>50件が承認・支払い済み。上方修正は0件</strong></span><span class="en"><strong>50 approved or paid; none ever corrected upward</strong></span></td></tr>
+    </table></div>
+    <p><span class="ja">正しいものが断られ、少なすぎるものが素通りし、多すぎるものの半分が通っています。<strong>数字の正しさと承認結果に関係がありません。</strong></span>
+      <span class="en">Correct claims refused, short ones waved through, half the inflated ones paid. <strong>There is no relationship between whether the number was right and what was decided.</strong></span></p>
+    <p><span class="ja"><strong>これは承認者を責める話ではありません。</strong>画面にシフトも打刻も出ていなかったので、比べる相手が物理的に無かっただけです。そして少なすぎる申請を上に直す仕組みは、そもそも存在しませんでした。</span>
+      <span class="en"><strong>This is not a failure of judgement.</strong> The screen showed a typed number and nothing to compare it against, and no mechanism to correct one upward existed at all.</span></p>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title"><span class="ja">「不適正だったか」はシステムには分からない</span><span class="en">The system cannot tell you whether it was improper</span></div>
+    <p><span class="ja">「手抜き」「仕込み不足が原因」を見分けられるか、3通りで検定しました。<strong>単独ではどれも当たりません。</strong></span>
+      <span class="en">Three separate tests for whether the data can pick out overtime caused by how the shift was run. <strong>None works on its own.</strong></span></p>
+    <div class="tbl-wrap"><table>
+      <tr><th><span class="ja">調べたこと</span><span class="en">Test</span></th><th><span class="ja">結果</span><span class="en">Result</span></th></tr>
+      <tr><td><span class="ja">仕込みのpar割れ</span><span class="en">Prep under par</span></td>
+          <td><span class="ja">残業の夜 10% / それ以外 13% ── 差がない</span><span class="en">10% on overtime nights, 13% on the rest — no difference</span></td></tr>
+      <tr><td><span class="ja">注文数</span><span class="en">Orders</span></td>
+          <td><span class="ja">忙しい 19% / 平常 20% / 静か 15% ── 差がない</span><span class="en">busy 19%, ordinary 20%, quiet 15% — no difference</span></td></tr>
+      <tr><td><span class="ja">1人だけ残っているか</span><span class="en">Was the person alone</span></td>
+          <td><span class="ja"><strong>残業の夜の93%で同僚も残っていた</strong></span><span class="en"><strong>on 93% of overtime nights a colleague stayed too</strong></span></td></tr>
+    </table></div>
+    <p><span class="ja">閉店作業はクルー全員で残っています。<strong>「1人がだらだらしている」形はデータに存在しません。</strong>だからシステムは「不適正だった」とは決して言いません ── 言えないからです。それを知っているのは、その夜その場にいた人だけです。</span>
+      <span class="en">Closing is done together; the lone straggler does not exist in the record. So the system never says overtime was improper — it cannot. Only the people who were there that night know.</span></p>
+  </div>
+
+  <h3 class="sub"><span class="ja">それぞれの持ち場</span><span class="en">Who settles what</span></h3>
+  <div class="tbl-wrap"><table>
+    <tr><th><span class="ja">問い</span><span class="en">Question</span></th>
+        <th><span class="ja">誰が</span><span class="en">Settled by</span></th>
+        <th><span class="ja">根拠</span><span class="en">On what</span></th></tr>
+    <tr><td><span class="ja"><strong>何分だったか</strong></span><span class="en"><strong>How many minutes</strong></span></td>
+        <td><span class="pill blue"><span class="ja">システム</span><span class="en">the system</span></span></td>
+        <td><span class="ja">公開シフト＋打刻。算術に判断は要らない</span><span class="en">The published roster and the punches. Arithmetic needs no opinion</span></td></tr>
+    <tr><td><span class="ja"><strong>その夜はどういう夜だったか</strong></span><span class="en"><strong>What the night was like</strong></span></td>
+        <td><span class="pill blue"><span class="ja">システム</span><span class="en">the system</span></span></td>
+        <td><span class="ja">注文数・人員・仕込み。<strong>事実であって判定ではない</strong></span><span class="en">Orders, crew, prep. <strong>Facts, not a verdict</strong></span></td></tr>
+    <tr><td><span class="ja"><strong>なぜ起きたか</strong></span><span class="en"><strong>Why it happened</strong></span></td>
+        <td><span class="pill amber"><span class="ja">申請したスタッフ</span><span class="en">the person</span></span></td>
+        <td><span class="ja">原因チップ＋一文。本人しか知らない</span><span class="en">The cause chips and a sentence. Only they know</span></td></tr>
+    <tr><td><span class="ja"><strong>認めるかどうか</strong></span><span class="en"><strong>Whether to accept it</strong></span></td>
+        <td><span class="pill green"><span class="ja">承認者</span><span class="en">the reviewer</span></span></td>
+        <td><span class="ja">上の3つを読んだうえでの判断</span><span class="en">A judgement, made after reading the three above</span></td></tr>
+  </table></div>
+
+  <h3 class="sub"><span class="ja">判断する瞬間に、画面に出ているもの</span><span class="en">What is on the screen at the moment of deciding</span></h3>
+  <div class="mock">
+    <div class="mock-head"><span class="ja">承認ダイアログ（実例）</span><span class="en">The approval dialog — a real row</span></div>
+    <div class="mock-body">
+<pre>Staff: Aliana Manuel
+Date:  2026-09-13 (BO)
+OT:    17:00-17:40 (0h40m)          <span style="color:var(--muted)">&lt;- <span class="ja">本人が申請した時間</span><span class="en">what was asked for</span></span>
+
+  Rostered: 08:00-17:00              <span style="color:var(--muted)">&lt;- <span class="ja">公開シフト</span><span class="en">the published shift</span></span>
+  Clocked:  07:50 -> 18:40           <span style="color:var(--muted)">&lt;- <span class="ja">打刻</span><span class="en">the punches</span></span>
+  Outside the shift: 1h49m
+     worked 1h9m more than asked for <span style="color:var(--blue)">&lt;- <span class="ja">本人が損をしている</span><span class="en">they are short</span></span>
+
+Reason: *Drafted the emergency orders for Taft and Parañaque...
+Causes: More orders                  <span style="color:var(--muted)">&lt;- <span class="ja">本人が選んだ原因</span><span class="en">what they picked</span></span>
+
+[ Approve 1h49m - what the clock shows ]
+[ Approve 0h40m as asked ]</pre>
+    </div>
+  </div>
+  <p><span class="ja"><strong>ボタンにはどちらも承認される分数が書いてあります。</strong>どちらを押すかは人が決めます。押さなければ何も起きません。</span>
+    <span class="en"><strong>Each button carries the number it will approve.</strong> Which one is a person's decision, and pressing neither leaves the claim standing.</span></p>
+
+  <h3 class="sub"><span class="ja">なぜこれが公平と言えるのか</span><span class="en">Why this is fair</span></h3>
+
+  <div class="card green-border">
+    <div class="card-title">1. <span class="ja">両方向に直す。実際は「取り戻す」方が多い</span><span class="en">It corrects both ways — and mostly upward</span></div>
+    <p><span class="ja">141件のうち<strong>56件は実際より少なく申請</strong>されていました。合計<strong>36.8時間</strong>、スタッフが働いたのに請求していない時間です。上に直す仕組みが無かったので、50件がそのまま承認・支払いされました。<strong>この仕組みが最初にすることは、その36.8時間を見えるようにすることです。</strong></span>
+      <span class="en">Of 141 requests, <strong>56 asked for less than was worked</strong> — <strong>36.8 hours</strong> done and never claimed. With no way to correct one upward, 50 of them were approved or paid as submitted. <strong>The first thing this changes is that those 36.8 hours are now visible.</strong></span></p>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">2. <span class="ja">両者が同じ数字を見る</span><span class="en">Both sides see the same numbers</span></div>
+    <p><span class="ja">シフト・打刻・計算結果は、承認画面と<strong>本人の申請履歴の両方に、同じ形で</strong>出ます。<strong>本人が確かめられない理由は、理由になりません。</strong></span>
+      <span class="en">The shift, the punches and the computed minutes appear on the reviewer's screen <strong>and on the employee's own history, identically</strong>. <strong>A ground the person cannot check is not a ground.</strong></span></p>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">3. <span class="ja">却下には必ず名前のついた理由がつく</span><span class="en">A refusal always names its ground</span></div>
+    <p><span class="ja">これまでマニラの却下25件のうち<strong>18件は理由が空欄</strong>でした。1名は10回却下されて、10回とも何も伝わっていません。<strong>理由を選ばないと保存できなくなりました。</strong>そして「シフト内で終えられた」「その他」の2つは<strong>一文の記入が必須</strong>です ── これは事実ではなく判断だからです。</span>
+      <span class="en">Eighteen of the twenty-five Manila refusals on record carried no note; one person was refused ten times and told nothing each time. <strong>A refusal no longer saves without a ground</strong>, and the two that are judgements rather than facts — &ldquo;could have been finished within the shift&rdquo; and &ldquo;something else&rdquo; — <strong>require a sentence</strong>.</span></p>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">4. <span class="ja">「異議あり」の出口がある</span><span class="en">There is a way to say it is wrong</span></div>
+    <p><span class="ja">判断が打刻に基づく以上、<strong>打刻が壊れた日の逃げ道</strong>が要ります。端末が退勤を受け付けなかった、押し忘れた ── 本人が「The clock is wrong」を押して一文書けば、承認者の行に出ます。<strong>これが無ければ、最初の1件で画面が信用されなくなります。</strong></span>
+      <span class="en">Decisions rest on the punches, so a punch that failed has to have somewhere to go. The terminal refused the clock-out, or nobody pressed it — one sentence from <span class="ui">The clock is wrong</span> and it appears on the reviewer's row. <strong>Without it, the first broken punch ends any trust in the screen.</strong></span></p>
+  </div>
+
+  <div class="card green-border">
+    <div class="card-title">5. <span class="ja">「平常の夜」は咎めではない</span><span class="en">An ordinary night is not an accusation</span></div>
+    <p><span class="ja"><span class="pill">nothing unusual</span> は<strong>赤ではありません。</strong>「自動的な説明がつかなかった」という意味で、<strong>それ自体は何の証拠でもありません。</strong>目立たないことを咎めとして色づけると、本当に見るべき件が埋もれます。逆に、忙しかった夜・人が足りなかった夜は<strong>システムが先に言います</strong> ── 本人が弁明する必要はありません。</span>
+      <span class="en"><span class="pill">nothing unusual</span> is neutral, never red. It means no automatic explanation was found, and <strong>that is not evidence of anything</strong>; marking a row as a fault for being unremarkable buries the cases that matter. On the other side, a busy or short-handed night <strong>is said by the system first</strong> — nobody has to argue for it.</span></p>
+  </div>
+
+  <div class="tip success">
+    <span class="tip-icon">🛡️</span>
+    <div>
+      <span class="ja"><strong>実測すると、この3つの事実は咎めるより庇う回数のほうが多いです。</strong>店舗夜の判定は <span class="pill green">the night accounts for it</span> が31件、<span class="pill">nothing unusual</span> が35件。<strong>半分近くは、押す前に説明がついています。</strong></span>
+      <span class="en"><strong>Measured, the three facts defend more often than they accuse.</strong> Across the store rows: 31 read <span class="pill green">the night accounts for it</span> against 35 <span class="pill">nothing unusual</span>. <strong>Close to half explain themselves before anyone presses anything.</strong></span>
+    </div>
+  </div>
+
+  <h3 class="sub"><span class="ja">システムが手を引く場面</span><span class="en">Where the system stands down</span></h3>
+  <div class="card">
+    <p><span class="ja">数字が信用できないときに黙って数字を出すのが、一番悪い形です。次の場合、システムは<strong>「使えません」と言って判断を人に返します。</strong></span>
+      <span class="en">The worst thing a number can do is appear when it cannot be trusted. In these cases the system <strong>says so and hands the decision back</strong>.</span></p>
+    <ul class="plain">
+      <li><span class="ja"><strong>出退勤が18時間以上離れている</strong> ── 退勤の押し忘れです。打刻を使わず、申請どおりで判断します</span>
+          <span class="en"><strong>Clock-in and clock-out more than 18 hours apart</strong> — a missed clock-out. The clock is not used; judge it on the claim</span></li>
+      <li><span class="ja"><strong>同じ人・同じ日に他の申請がある</strong> ── 打刻はその日の合計しか分かりません。2件それぞれに合計を入れると<strong>その日を二重に支払います</strong></span>
+          <span class="en"><strong>Another request for that person that day</strong> — the clock gives the day's total, not a split; settling both would pay the day twice</span></li>
+      <li><span class="ja"><strong>自分の申請</strong> ── 他の人が設定します</span>
+          <span class="en"><strong>Your own request</strong> — somebody else sets it</span></li>
+      <li><span class="ja"><strong>打刻がない・シフトが公開されていない</strong> ── 「比較できません」と出ます。<strong>「働いていない」という意味ではありません</strong></span>
+          <span class="en"><strong>No punch, or no published shift</strong> — it says it cannot compare. <strong>It does not mean the hours were not worked</strong></span></li>
+      <li><span class="ja"><strong>BO と CK</strong> ── 注文数もpar levelも存在しません。「この部署には当てはまりません」と書きます</span>
+          <span class="en"><strong>BO and CK</strong> — no order counts, no par levels. It says the measure does not apply here</span></li>
+    </ul>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠</span>
+    <div>
+      <span class="ja"><strong>システムは承認を止めません。</strong>どの表示も、却下ボタンを増やしたり承認をブロックしたりしません。<strong>判断の材料を出すだけ</strong>です。<br>
+      そして<strong>これは予測ではありません。</strong>「注文×人員」の関係は店舗別に割ると TAFT に集中しており（人員不足53% / 十分14%）、CUB は差がなく、PAR は逆です。だから<strong>閾値は店舗をまたいで共有せず</strong>、画面は判定ではなく数字を出します。「その夜がどうだったか」は1つの夜についての事実で、店舗差に関係なく真だからです。</span>
+      <span class="en"><strong>None of it blocks an approval.</strong> Nothing here adds a refusal or withholds a confirmation; it puts material in front of a person.<br>
+      And <strong>it is not a prediction.</strong> Split by branch, the orders-against-crew relationship lives at TAFT (53% short vs 14% full); CUB is flat and PAR runs the other way. So no threshold is shared between branches, and the screen reports numbers rather than verdicts — what a night was like is a fact about that night, true whatever the population does.</span>
+    </div>
+  </div>
+
+  <h3 class="sub"><span class="ja">一件を最後まで通すと</span><span class="en">One request, end to end</span></h3>
+  <ol class="steps">
+    <li class="step"><span class="step-num">1</span><div>
+      <div class="step-title"><span class="ja">スタッフが申請する</span><span class="en">The person files it</span></div>
+      <div class="step-desc"><span class="ja">原因を選び（複数可・1つ以上必須）、一文書きます。<strong>「Due to continuous orders, I could not make the backup」のような一文が、何が起きているかを教えてくれます。</strong>チップはそれを数えるためにあります。</span>
+        <span class="en">Picks the causes — as many as apply, at least one — and writes a sentence. <strong>A sentence like &ldquo;Due to continuous orders, I could not make the backup&rdquo; is what tells anyone what is happening.</strong> The chips exist so the same cause can be counted.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">2</span><div>
+      <div class="step-title"><span class="ja">システムが事実を並べる</span><span class="en">The system lays out the facts</span></div>
+      <div class="step-desc"><span class="ja">シフト・打刻・シフト外の分数。店舗なら注文数・人員・朝の仕込みも。<strong>いつ申請されたか</strong>（事前か、開始の何時間後か）も出ます。</span>
+        <span class="en">The shift, the punches, the minutes outside it — and for a store, the orders, the crew and the morning's prep. It also says <strong>when the request arrived</strong>: in advance, or how long after the overtime began.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">3</span><div>
+      <div class="step-title"><span class="ja">承認者が決める</span><span class="en">The reviewer decides</span></div>
+      <div class="step-desc"><span class="ja">打刻どおりで承認するか、申請どおりで承認するか、却下するか。<strong>却下するなら理由を選び、判断系なら一文を書きます。</strong></span>
+        <span class="en">Approve on the clock, approve as asked, or refuse. <strong>A refusal picks a ground, and a ground that is a judgement carries a sentence.</strong></span></div>
+    </div></li>
+    <li class="step"><span class="step-num">4</span><div>
+      <div class="step-title"><span class="ja">本人に届く</span><span class="en">The person is told</span></div>
+      <div class="step-desc"><span class="ja">結果・理由・分数が変わったならどちらに動いたか。<strong>自分の履歴画面に、承認者が見たのと同じシフトと打刻が並びます。</strong>納得できなければ「The clock is wrong」で戻せます。</span>
+        <span class="en">The outcome, the ground, and which way the minutes moved if they did. <strong>Their own history carries the same shift and punches the reviewer read.</strong> If it is wrong, <span class="ui">The clock is wrong</span> sends it back.</span></div>
+    </div></li>
+  </ol>
+
+  <div class="tip info">
+    <span class="tip-icon">📌</span>
+    <div>
+      <span class="ja"><strong>「シフト内で終えられた」という却下は、今日から数えられるようになった、というだけです。</strong>過去に遡って証明することはできません。原因チップが積み上がって初めて、人別・店舗別に「仕込みが終わらない状態が続いている」と示せる ── あるいは、示せないと分かります。<strong>どちらも、憶測で断るより良い結果です。</strong></span>
+      <span class="en"><strong>The ground &ldquo;could have been finished within the shift&rdquo; is something the record can now start counting — not something it can prove backwards.</strong> Once the causes accumulate, a pattern like &ldquo;the prep keeps not getting finished&rdquo; can be shown per person and per branch, or shown not to exist. <strong>Either is better than refusing on a hunch.</strong></span>
+    </div>
   </div>
 </div>
 
