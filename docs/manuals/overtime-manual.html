@@ -558,6 +558,19 @@ Approve 0h40m as asked</pre>
       <span class="en">Settling on the clock <strong>keeps what the employee typed</strong>. The row and their own screen both say it was settled that way, and what was originally asked for.</span></p>
     <p><span class="ja">現在マニラの未処理53件の内訳: 打刻と一致20件 / <strong>本人が損をしている21件（+13.3時間）</strong> / 多すぎる11件（−77.5時間） / 読めない1件。</span>
       <span class="en">The Manila queue today: 20 agree with the clock, <strong>21 where the employee is short (+13.3h)</strong>, 11 above the clock (−77.5h), 1 unreadable.</span></p>
+    <div class="tip danger">
+      <span class="tip-icon">🚫</span>
+      <div>
+        <span class="ja"><strong>打刻で確定できない場合が3つあります。</strong><br>
+        ① <strong>出退勤が18時間以上離れている日</strong> ── 退勤の押し忘れです。その日は打刻を使わず、申請どおりで判断してください（`OT_MAX_SPAN_HOURS` で変更可）。<br>
+        ② <strong>同じ人・同じ日に他の申請がある場合</strong> ── 打刻は「その日の合計」しか分かりません。2件それぞれに合計を入れると<strong>その日を二重に支払います</strong>。手で入れてください。<br>
+        ③ <strong>自分の申請</strong> ── 他の人が設定します。</span>
+        <span class="en"><strong>Three cases where the clock cannot settle it.</strong><br>
+        (1) <strong>Clock-in and clock-out more than 18 hours apart</strong> — a missed clock-out. Judge that one on the claim (`OT_MAX_SPAN_HOURS` moves the line).<br>
+        (2) <strong>Another request for the same person that day</strong> — the clock gives the day's total, not a split, so settling both pays the day twice. Set them by hand.<br>
+        (3) <strong>Your own request</strong> — somebody else sets it.</span>
+      </div>
+    </div>
     <div class="tip info">
       <span class="tip-icon">🔒</span>
       <div>
