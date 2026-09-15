@@ -3,6 +3,7 @@
 import { businessToday, isoToday } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -141,23 +142,65 @@ const SECTION_COLORS: Record<Section, string> = {
 
 // ─── Temperature helpers ─────────────────────────────────────────────────────
 
-type TempStatus = "ok" | "danger" | "empty";
+type TempStatus = "ok" | "danger" | "unreadable" | "empty";
+type TempKind = "chiller" | "freezer" | "other";
 
+function tempKind(unitLabel: string): TempKind {
+  const lbl = unitLabel.toLowerCase();
+  if (lbl.includes("chiller")) return "chiller";
+  if (lbl.includes("freezer")) return "freezer";
+  return "other";
+}
+
+/** A chiller below −2°C and a freezer above −2°C are not readings — they are
+ *  the same reading with the minus sign lost. Measured over 5,206 readings
+ *  since July: 677 (13%) are on the wrong side of zero, and the rate is set by
+ *  who is typing, not by which cabinet — 45% for one person, 0% for another.
+ *  A failing cabinet would be warm for everybody who opens it.
+ *
+ *  These must not be coloured red. Red says "the food was unsafe"; what is
+ *  actually true is "this reading cannot be used". Calling a typo an incident
+ *  buries the real ones. */
 function getTempStatus(unitLabel: string, value: string): TempStatus {
   const trimmed = value.trim();
   if (!trimmed) return "empty";
   const num = parseFloat(trimmed);
   if (isNaN(num)) return "empty";
-  const lbl = unitLabel.toLowerCase();
-  if (lbl.includes("chiller")) return num <= 5 ? "ok" : "danger";
-  if (lbl.includes("freezer")) return num <= -18 ? "ok" : "danger";
-  return "ok";
+  switch (tempKind(unitLabel)) {
+    case "chiller": return num < -2 ? "unreadable" : num <= 5 ? "ok" : "danger";
+    case "freezer": return num > -2 ? "unreadable" : num <= -18 ? "ok" : "danger";
+    default:        return "ok";
+  }
 }
 
 function tempStatusStyle(status: TempStatus): string {
-  if (status === "ok")     return "border-emerald-500/60 bg-emerald-500/10 text-emerald-200";
-  if (status === "danger") return "border-red-500/60 bg-red-500/10 text-red-200";
+  if (status === "ok")         return "border-emerald-500/60 bg-emerald-500/10 text-emerald-200";
+  if (status === "danger")     return "border-red-500/60 bg-red-500/10 text-red-200";
+  if (status === "unreadable") return "border-amber-500/60 bg-amber-500/10 text-amber-200";
   return "border-white/15 bg-white/5 text-white";
+}
+
+/** The sign is the whole problem, so the person no longer types it. They type
+ *  how many degrees; the button carries above or below zero, preset from the
+ *  cabinet. Nothing is changed silently — the sign is on screen and one tap
+ *  away, and the number field itself can no longer hold a minus. */
+function tempSign(raw: string, kind: TempKind): "+" | "-" {
+  const t = raw.trim();
+  if (t.startsWith("-")) return "-";
+  if (t === "") return kind === "freezer" ? "-" : "+";
+  return "+";
+}
+
+function tempMagnitude(raw: string): string {
+  const t = raw.trim();
+  return t.startsWith("-") ? t.slice(1) : t;
+}
+
+function withTempSign(sign: "+" | "-", magnitude: string): string {
+  const m = magnitude.trim();
+  if (!m) return "";
+  if (sign === "+") return m;
+  return parseFloat(m) === 0 ? m : `-${m}`;
 }
 
 function TempSuffix({ status }: { status: TempStatus }) {
@@ -180,6 +223,14 @@ function TemperatureInputGrid({
   disabled: boolean;
 }) {
   const units = item.unit_labels_json ?? [];
+  // The sign a person picked before typing a number. Until there are digits
+  // there is nothing to hang a minus on, so the choice is held here.
+  const [pendingSign, setPendingSign] = useState<Record<string, "+" | "-">>({});
+
+  const unreadable = units.filter(
+    (u) => getTempStatus(u, values[u] ?? "") === "unreadable",
+  );
+
   return (
     <div className="mt-2 space-y-1">
       <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">
@@ -188,19 +239,41 @@ function TemperatureInputGrid({
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
         {units.map((unit) => {
           const val = values[unit] ?? "";
+          const kind = tempKind(unit);
           const status = getTempStatus(unit, val);
+          const sign = pendingSign[unit] ?? tempSign(val, kind);
+          const magnitude = tempMagnitude(val);
+          const flip = () => {
+            const next: "+" | "-" = sign === "-" ? "+" : "-";
+            setPendingSign((s) => ({ ...s, [unit]: next }));
+            onChange(unit, withTempSign(next, magnitude));
+          };
           return (
             <div key={unit} className="space-y-0.5">
               <label className="text-[10px] text-zinc-500 block truncate">{unit}</label>
-              <div className={`flex items-center gap-1 rounded-lg border px-2 py-1.5 transition-colors ${tempStatusStyle(status)}`}>
+              <div className={`flex items-center gap-1 rounded-lg border px-1.5 py-1.5 transition-colors ${tempStatusStyle(status)}`}>
+                <button
+                  type="button"
+                  onClick={flip}
+                  disabled={disabled}
+                  aria-label={`${unit}: ${sign === "-" ? "below zero" : "above zero"} — tap to change`}
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-sm font-bold leading-none transition-colors disabled:opacity-40 ${
+                    sign === "-"
+                      ? "bg-sky-500/25 text-sky-200 hover:bg-sky-500/40"
+                      : "bg-white/10 text-zinc-300 hover:bg-white/20"
+                  }`}
+                >
+                  {sign === "-" ? "−" : "+"}
+                </button>
                 <input
                   type="number"
                   step="0.1"
+                  min="0"
                   className="w-full bg-transparent text-sm outline-none placeholder-zinc-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   placeholder="—"
-                  value={val}
+                  value={magnitude}
                   disabled={disabled}
-                  onChange={(e) => onChange(unit, e.target.value)}
+                  onChange={(e) => onChange(unit, withTempSign(sign, e.target.value))}
                 />
                 <span className="text-xs text-zinc-500 shrink-0">°C</span>
                 <TempSuffix status={status} />
@@ -209,6 +282,21 @@ function TemperatureInputGrid({
           );
         })}
       </div>
+
+      {unreadable.length > 0 && (
+        <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-200">
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+          <span>
+            Check the <span className="font-semibold">−</span> button on{" "}
+            <span className="font-semibold">{unreadable.join(", ")}</span>.{" "}
+            {unreadable.some((u) => tempKind(u) === "freezer")
+              ? "A freezer does not read above zero"
+              : "A chiller does not read below zero"}
+            , so this is the right number with the sign the wrong way round. Fix
+            it here — a reading on the wrong side of zero cannot be used later.
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -1534,13 +1622,20 @@ function ComplianceView() {
                                     <div key={unit} className="flex items-center gap-1.5">
                                       <span className="text-zinc-500 truncate max-w-[70px]">{unit}:</span>
                                       {raw ? (
-                                        <span className={
-                                          status === "ok"     ? "font-semibold text-emerald-400" :
-                                          status === "danger" ? "font-semibold text-red-400" :
-                                          "text-zinc-500"
-                                        }>
+                                        <span
+                                          title={status === "unreadable"
+                                            ? "On the wrong side of zero — the minus sign was lost on entry, so this reading cannot be used"
+                                            : undefined}
+                                          className={
+                                            status === "ok"         ? "font-semibold text-emerald-400" :
+                                            status === "danger"     ? "font-semibold text-red-400" :
+                                            status === "unreadable" ? "font-semibold text-amber-400" :
+                                            "text-zinc-500"
+                                          }
+                                        >
                                           {raw}°C
                                           {status === "danger" && <span className="ml-0.5 text-red-400">⚠</span>}
+                                          {status === "unreadable" && <span className="ml-0.5 text-amber-400">±?</span>}
                                         </span>
                                       ) : (
                                         <span className="text-zinc-600">—</span>
