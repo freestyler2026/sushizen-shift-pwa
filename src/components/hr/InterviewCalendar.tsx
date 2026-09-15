@@ -282,6 +282,59 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                 : "Nobody is rostered to interview that day, so no slots are offered."}
             </p>
           ) : (
+            <>
+            {/* Who is on at the same time, read across. The rows below carry
+                everything a call needs -- number, CV, what they wrote -- but
+                they are one long list, and the thing you cannot see in a list
+                is that two interviews start at once and who is taking each.
+                Ordered by the interviewer list, so the first column is the one
+                who takes a slot first. */}
+            <div className="mt-2 overflow-x-auto rounded-lg border border-white/8 bg-black/20 p-2">
+              <table className="w-full border-separate border-spacing-y-0.5 text-sm">
+                <tbody>
+                  {(() => {
+                    const rank = (n: string) => {
+                      const i = data.interviewers.indexOf(n);
+                      return i < 0 ? 99 : i;
+                    };
+                    const byTime = new Map<string, Interview[]>();
+                    for (const iv of selected.interviews) {
+                      const at = byTime.get(iv.time);
+                      if (at) at.push(iv);
+                      else byTime.set(iv.time, [iv]);
+                    }
+                    const rows = [...byTime.entries()]
+                      .sort((a, b) => a[0].localeCompare(b[0]))
+                      .map(([time, list]) => [
+                        time,
+                        [...list].sort((x, y) => rank(x.interviewer) - rank(y.interviewer)),
+                      ] as const);
+                    // Every row gets the same number of cells, so the columns
+                    // line up and the times read straight down. Without the
+                    // padding a row holding one interview stretches across the
+                    // width and the eye loses the column.
+                    const cols = Math.max(1, ...rows.map(([, list]) => list.length));
+                    return rows.map(([time, list]) => (
+                      <tr key={time} className="align-top">
+                        {list.map((iv) => (
+                          <td key={iv.id} className="whitespace-nowrap pr-6">
+                            <span className="font-mono text-violet-200">{time}</span>
+                            <span className="ml-3 font-medium text-zinc-300">
+                              {(iv.interviewer || "—").split(" ")[0]}
+                            </span>
+                            <span className="ml-3 text-zinc-100">{iv.full_name}</span>
+                          </td>
+                        ))}
+                        {Array.from({ length: cols - list.length }, (_, i) => (
+                          <td key={`pad-${i}`} />
+                        ))}
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+
             <div className="mt-2 flex flex-col gap-1.5">
               {selected.interviews.map((iv) => (
                 <div
@@ -397,6 +450,7 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                 </div>
               ))}
             </div>
+            </>
           )}
         </div>
       )}
