@@ -27,11 +27,32 @@
 
 本番の実エンドポイントで往復確認済み（1111→403 pin_is_default / 誤PIN→Invalid PIN / 自前PIN→200）。
 
+### 続き — パスキー必須にした（2026-09-16、オーナー判断）
+
+| | |
+|---|---|
+| 在籍スタッフ | 127 |
+| **パスキー登録済み** | **125** |
+| 未登録 | **2**（Hanako Yamada / Sanjeev Bahadur Malla・どちらもロック画面から自分で登録可） |
+
+- `_require_payroll_step_up` が `method == 'passkey'` を要求。**画面ではなくAPIで閉じている**
+  （ステップアップトークンに発行方法が残る。ボタンを隠すだけでは header を送れば通る）
+- My Pay のロック画面から **PIN 経路を完全撤去**（到達不能なコードも削除）
+- WebAuthn 非対応ブラウザには**何をすればよいか**を出す（Messenger内蔵ブラウザではなく Chrome/Safari で開く）
+- **登録はログインだけで可能**（既存パスキー不要）＝ 端末紛失・機種変更でも詰まない
+- 戻し道: `heroku config:set MY_PAY_ALLOW_PIN=1`（デプロイ不要）
+- 本番の実APIで確認: PIN由来トークン→403 `passkey_required` / パスキー由来→200 /
+  `MY_PAY_ALLOW_PIN=1` で200に戻り、unset で403に戻る
+- ⚠️ **My Pay のテスト69件がPIN経路でゲートを通っていた**ので、パスキー経路に書き換え
+  （jsdom に authenticator と `Authenticator*Response` を与える必要がある）
+
+**`/api/auth/step-up/pin` 自体は残す** — admin/security・finance・analytics の3画面が使っている。
+
 ### 残っている判断（オーナー）
 
 1. **157アカウントのログインPINをどうするか。** `staff_master.setup_required` を立てれば次回ログイン時に
    PIN再設定を強制できる。**109名が在籍中なので運用イベントになる**
-2. My Pay を**パスキー必須**にするか（現状はパスキー優先＋自前PINも可）。デバイス紛失時に詰むので既定は据え置き
+2. ~~My Pay をパスキー必須にするか~~ → **実施済み**（上記）
 
 
 ## 2026-09-16 — Incident Report の severity が誰にも変えられなかった（オーナー指摘・修正済み）
