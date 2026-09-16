@@ -1,10 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight, FileText, Mic } from "lucide-react";
+import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight, FileText, Mic, MessageSquare, Copy, Check } from "lucide-react";
 import {
-  GLASS_CARD, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
-  T_CAPTION, T_LABEL, T_SECTION,
+  BADGE_INFO,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SMALL_BUTTON,
+  T_CAPTION,
+  T_LABEL,
+  T_SECTION,
 } from "@/lib/ui-tokens";
 import { downloadIcs } from "@/lib/interview-ics";
 
@@ -123,6 +130,41 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [openDay, setOpenDay] = useState<string>("");
+
+  /** The reminder panel, per interview row. The wording is composed by the
+   *  server so this and the booking invite cannot drift apart, and so the GSM-7
+   *  rule lives in one place (one wide dash turns 160 characters into 67).
+   *  Nothing is sent from here: somebody copies it into Viber or WhatsApp. */
+  const [remindFor, setRemindFor] = useState<string>("");
+  const [remindMsg, setRemindMsg] = useState<{ en: string; tl: string } | null>(null);
+  const [remindLang, setRemindLang] = useState<"en" | "tl">("en");
+  const [remindErr, setRemindErr] = useState("");
+  const [remindBusy, setRemindBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const openReminder = async (id: string) => {
+    if (remindFor === id) { setRemindFor(""); return; }
+    setRemindFor(id); setRemindMsg(null); setRemindErr(""); setCopied(false);
+    setRemindLang("en"); setRemindBusy(true);
+    try {
+      const res = await fetch(`/api/admin/hr/interviews/${id}/reminder`, { cache: "no-store" });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try { msg = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
+        setRemindErr(String(msg).slice(0, 200));
+        return;
+      }
+      const d = JSON.parse(text) as { messages?: { en: string; tl: string }; language?: string };
+      setRemindMsg(d.messages ?? null);
+      // Their own choice on the application form decides which one opens.
+      if (String(d.language || "").toLowerCase() === "tl") setRemindLang("tl");
+    } catch {
+      setRemindErr("Could not build the message. Try again.");
+    } finally {
+      setRemindBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -418,6 +460,23 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                       Add to my calendar
                     </span>
                   </button>
+                  {/* The applicant hears nothing between booking and the call.
+                      Nothing is sent from here -- the OS has no gateway -- so
+                      this hands over the wording and somebody sends it, the same
+                      shape as the booking link. */}
+                  {!selected.is_past && !iv.recorded && (
+                    <button
+                      className={SMALL_BUTTON}
+                      title="Writes the reminder for this applicant. Nothing is sent: copy it and send it from Viber or WhatsApp."
+                      onClick={() => void openReminder(iv.id)}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <MessageSquare className="h-4 w-4" />
+                        {remindFor === iv.id ? "Close" : "Reminder"}
+                      </span>
+                    </button>
+                  )}
+
                   {/* Finding the interview here and being unable to do anything
                       with it is a dead end. Moving, cancelling and recording all
                       live on the Interviews tab — go there, on this one. */}
@@ -438,6 +497,67 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                       another screen while the call connects. Employer, position
                       and how long are in their own spelling -- a transcript
                       turned one employer into "Donuts" when it was McDonald's. */}
+                  {remindFor === iv.id && (
+                    <div className="basis-full rounded-xl border border-violet-400/25 bg-violet-500/5 p-3">
+                      {remindBusy && <p className={T_CAPTION}>Writing it…</p>}
+                      {remindErr && (
+                        <p className="text-sm text-amber-200">{remindErr}</p>
+                      )}
+                      {remindMsg && (
+                        <>
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            {(["en", "tl"] as const).map((l) => (
+                              <button
+                                key={l}
+                                className={l === remindLang
+                                  ? `${SMALL_BUTTON} border-violet-400/60 bg-violet-500/20 text-violet-100`
+                                  : SMALL_BUTTON}
+                                onClick={() => { setRemindLang(l); setCopied(false); }}
+                              >
+                                {l === "en" ? "English" : "Tagalog"}
+                              </button>
+                            ))}
+                            <span className={`${T_CAPTION} ml-auto`}>
+                              {iv.reach_with}
+                              {iv.phone ? ` · ${iv.phone}` : ""}
+                            </span>
+                          </div>
+                          <p className="whitespace-pre-wrap rounded-lg border border-white/10 bg-black/30 p-2 font-mono text-[13px] leading-relaxed text-zinc-200">
+                            {remindMsg[remindLang]}
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <button
+                              className={PRIMARY_BUTTON}
+                              onClick={() => {
+                                const text = remindMsg[remindLang];
+                                void navigator.clipboard.writeText(text)
+                                  .then(() => setCopied(true))
+                                  .catch(() => {
+                                    // Clipboard refused (an insecure context, or
+                                    // permission denied). Select it instead of
+                                    // saying nothing: a button that reports
+                                    // success it did not have is worse.
+                                    setRemindErr("Could not copy. Select the text above and copy it by hand.");
+                                  });
+                              }}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                {copied ? "Copied" : "Copy message"}
+                              </span>
+                            </button>
+                            <span className={T_CAPTION}>
+                              Nothing has been sent. Paste it into{" "}
+                              {iv.contact_via === "whatsapp" ? "WhatsApp"
+                                : iv.contact_via === "viber" ? "Viber" : "the chat"}
+                              {" "}and press send yourself.
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   {(iv.last_employer || iv.last_position || iv.home_area
                     || iv.experience_level || iv.available_from) && (
                     <p className={`${T_CAPTION} basis-full`}>
