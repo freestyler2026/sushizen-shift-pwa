@@ -26372,3 +26372,35 @@ View Salary Amounts; plus "Fill from the offer").
   interviewer; whether to force a PIN reset for the accounts still on 1111.
 - Dubai has no interview duty roster — reviews generated but addressed to nobody.
 - 66 files still carry the broken `fixed inset-0 flex items-center` modal pattern.
+
+## 2026-09-16 — Recording the offer from the board
+
+**Done.** The Offer tab was reachable only by clicking a card body and then a
+tab nobody had reason to open, so none of the five people in Offer Sent had any
+pay recorded. A card there now leads with **Record the offer** (amber) when
+nothing is on file and opens the panel straight on the Offer tab; one that has
+it shows `✓ offer on file <date> · change`. **Hired is not gated** — the card
+says what is missing, it does not decide the order of work.
+
+- `GET /api/admin/hr/applicants` carries `offer_recorded` / `offer_sent_at` via
+  `offers_for()` (which was dead until now). **A yes or no, never the amounts** —
+  this path is not behind the salary boundary, so the board has to be safe for
+  all thirteen people who can open the screen. Verified: `money keys on the
+  board = none` for HQ and for an ADMIN.
+- `DetailPanel` takes `initialTab`; the panel is keyed on it so the button
+  remounts it on Offer.
+
+**Verified in the browser** (element click — the pane reports a 0×0 viewport in
+this environment, so pixel clicks were not possible): all 5 cards show the
+button, pressing it opens the panel on Offer with the basic-salary and
+allowance inputs, and `/offer` is fetched. The recorded state was checked by
+intercepting the board response in the tab only — **nothing was written**.
+
+⚠️ **Deploy check was a false positive first time.** I polled the served chunk
+for `"Record the offer"`, which was *already* the Offer tab's save-button label,
+so the loop exited immediately and I read a stale bundle as the new one. The
+React fiber showed the card receiving the old 8 props. **Pick a marker that did
+not exist before the change** (`offer on file` here).
+
+- Observation, not fixed: both `DetailPanel`s mount (desktop + the `md:hidden`
+  bottom sheet), so every panel tab fetches twice. Pre-existing.
