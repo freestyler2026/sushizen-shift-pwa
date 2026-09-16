@@ -91,6 +91,11 @@ type Applicant = {
    *  `booking_copied_at` is the honest end of it. The OS never sends the
    *  message -- somebody copies it into Viber or SMS -- so copying is the last
    *  moment it can see, and it is not the same as sending. */
+  /** Whether the offer letter's figures are on file. A yes or no — the board
+   *  never carries the amounts, and this list is not behind the salary
+   *  boundary. */
+  offer_recorded?: boolean;
+  offer_sent_at?: string | null;
   booking_invited_at?: string | null;
   booking_token_expires_at?: string | null;
   booking_sent_at?: string | null;
@@ -500,6 +505,7 @@ function KanbanCard({
   onSendLink,
   onCloseStale,
   onAskForCv,
+  onRecordOffer,
   nextStatus,
 }: {
   applicant: Applicant;
@@ -509,6 +515,7 @@ function KanbanCard({
   onSendLink: (a: Applicant) => void;
   onCloseStale: (a: Applicant) => void;
   onAskForCv: (a: Applicant) => void;
+  onRecordOffer: (a: Applicant) => void;
   nextStatus: KanbanStatus | null;
 }) {
   return (
@@ -649,6 +656,31 @@ function KanbanCard({
         ) : (
         nextStatus && (
           <div className="mt-2">
+            {/* The letter has gone out, so this is the moment the agreed money
+                exists and the only moment somebody still remembers it. Once the
+                card moves to Hired it leaves the board, and payroll meets the
+                figure again at the staff profile with nothing to check it
+                against. So the gap is said on the card, not left to be found. */}
+            {applicant.status === "offer_sent" && (
+              applicant.offer_recorded ? (
+                <button
+                  className="mb-1.5 w-full rounded-lg px-2 py-1 text-left text-[10px] font-medium text-emerald-400 hover:bg-white/5 transition-colors"
+                  title="The offer letter's terms are on file. Payroll fills the staff profile from them. Open it to change what was agreed."
+                  onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
+                >
+                  ✓ offer on file{applicant.offer_sent_at ? ` ${shortDate(applicant.offer_sent_at)}` : ""} · change
+                </button>
+              ) : (
+                <button
+                  className={`${SMALL_BUTTON} mb-1.5 w-full text-center justify-center flex items-center gap-1 border-amber-500/40 text-amber-300`}
+                  title="Nothing about the pay has been recorded for this offer. Enter what the letter says and payroll fills the staff profile from it, so the salary is typed once."
+                  onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
+                >
+                  <ClipboardList className="h-3 w-3" />
+                  Record the offer
+                </button>
+              )
+            )}
             <button
               className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
               onClick={(e) => {
@@ -1089,6 +1121,8 @@ type ApplicantEvent = {
   reason: string; note: string; actor: string; origin: string; created_at: string;
 };
 
+type DetailTab = "info" | "interview" | "evaluation" | "offer";
+
 function DetailPanel({
   applicant,
   onClose,
@@ -1096,6 +1130,7 @@ function DetailPanel({
   onRecordOutcome,
   onRefresh,
   reasons,
+  initialTab = "info",
 }: {
   applicant: Applicant;
   onClose: () => void;
@@ -1103,8 +1138,11 @@ function DetailPanel({
   onRecordOutcome: (a: Applicant) => void;
   onRefresh: () => void;
   reasons: OutcomeReason[];
+  initialTab?: DetailTab;
 }) {
-  const [tab, setTab] = useState<"info" | "interview" | "evaluation" | "offer">("info");
+  // Only the opening tab. The panel is keyed on it, so pressing a card's
+  // "Record the offer" remounts here on Offer; the tabs then work as normal.
+  const [tab, setTab] = useState<DetailTab>(initialTab);
   const [offer, setOffer] = useState<Offer | null>(null);
   const [offerForm, setOfferForm] = useState<OfferForm>(BLANK_OFFER);
   const [offerBusy, setOfferBusy] = useState(false);
@@ -3555,6 +3593,7 @@ export default function HRRecruitmentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("info");
   /** The last one-tap stage move, kept so it can be taken back. It stays until
    *  it is used, dismissed, or replaced by the next move -- a bar that fades
    *  after a few seconds is the same as not having one, because the card has
@@ -4471,12 +4510,19 @@ export default function HRRecruitmentPage() {
                             <KanbanCard
                               key={applicant.id}
                               applicant={applicant}
-                              onSelect={() => setSelectedApplicant(applicant)}
+                              onSelect={() => {
+                                setDetailTab("info");
+                                setSelectedApplicant(applicant);
+                              }}
                               onQuickStatus={handleQuickStatus}
                               onRecordOutcome={setOutcomeFor}
                               onSendLink={(a) => setLinkFor(a)}
                               onCloseStale={handleCloseStale}
                               onAskForCv={setCvFor}
+                              onRecordOffer={(a) => {
+                                setDetailTab("offer");
+                                setSelectedApplicant(a);
+                              }}
                               nextStatus={getNextStatus(applicant.status)}
                             />
                           ))
@@ -4497,13 +4543,14 @@ export default function HRRecruitmentPage() {
             {selectedApplicant && (
               <div className="hidden md:flex w-[360px] shrink-0 border-l border-white/10 bg-[#0d1117]/95 p-4 flex-col sticky top-4 self-start h-[calc(100vh-5rem)]">
                 <DetailPanel
-                  key={selectedApplicant.id}
+                  key={`${selectedApplicant.id}:${detailTab}`}
                   applicant={selectedApplicant}
                   onClose={() => setSelectedApplicant(null)}
                   onStatusChange={handleStatusChange}
                   onRecordOutcome={setOutcomeFor}
                   onRefresh={() => void loadData()}
                   reasons={outcomeReasons}
+                  initialTab={detailTab}
                 />
               </div>
             )}
@@ -4517,13 +4564,14 @@ export default function HRRecruitmentPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <DetailPanel
-                  key={selectedApplicant.id}
+                  key={`${selectedApplicant.id}:${detailTab}`}
                   applicant={selectedApplicant}
                   onClose={() => setSelectedApplicant(null)}
                   onStatusChange={handleStatusChange}
                   onRecordOutcome={setOutcomeFor}
                   onRefresh={() => void loadData()}
                   reasons={outcomeReasons}
+                  initialTab={detailTab}
                 />
               </div>
             </div>
