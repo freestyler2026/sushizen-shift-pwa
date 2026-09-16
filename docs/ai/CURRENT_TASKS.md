@@ -26450,3 +26450,54 @@ carries the marker before polling on it.
   branch with 8 inactive rows. The empty one is worth a look.
 - `src/app/admin/branches.ts` is still a separate list (no BO/HQ). Not touched —
   it serves other screens and none of them were reported broken.
+
+## 2026-09-16 — The interview panel: three faults, reported twice
+
+Manila reported the same screen a second time. **My first fix (the modal scrim,
+lesson 116) did not touch this panel** — it is inline, not a modal. Three
+separate faults:
+
+**1. The note box lost focus after one character.** `Line` was declared inside
+`InterviewDay`'s render body, so it was a **new component type on every render**.
+Each keystroke re-rendered the parent → React unmounted the row and rebuilt it →
+the textarea was destroyed and recreated. With nothing focused, space scrolls the
+page: that is "it goes out of the typing box". Hoisted to module scope.
+**A re-render keeps the caret; a remount destroys it.**
+
+**2. Two of the four buttons could never succeed.** The save posted
+`{outcome, notes}` and never a `reason`. The server requires one for `hold`,
+`pass` and `lapse`, so **"Hold — decide later" and "Not for this role" returned
+400 every time** — and the refusal was drawn in the page-level banner far above
+the button, so it read as nothing happening. (`proceed` needs none, and the
+server supplies `no_show`'s own reason, so those two always worked.)
+Reason chips now come first, sharing `src/lib/hr-outcome.ts` with the board's
+dialog instead of a second copy; the refusal prints inside the panel; and `err`
+(list load) is no longer the same state as `outcomeErr` (save).
+
+**3. `Could not load the list (403)` — visible in their screenshot.**
+`/api/admin/hr/booking-invites/{pending,issue-all}`, `/hr/sms/status` and
+`/hr/applicant-events/coverage` were missing from `_HR_PATH_CHANNELS`. An
+unlisted path resolves to `channel=""`, which no permission can match, so
+**everyone but HQ/ADMIN/`*` got 403 and no grant in Role Management could have
+fixed it.** That is the first step of the whole interview flow, broken for
+exactly the two people whose job it is (Peter, Camilla) and working for the
+owner, who passes by role. Counted structurally: 4 of 80 `/api/admin/hr` routes
+were uncovered; now 0.
+
+### Verified
+- `tests/hr/interview-outcome.test.tsx` — **5 of its 6 cases fail against the
+  code the staff was using**: focus lands on `<body>` after the first character,
+  the textarea is a different DOM node between keystrokes, and "Not for this
+  role" posts a save with no reason. 6/6 pass on the fix.
+- **Real browser, real mouse, real keyboard** (local dev server, throwaway page
+  mounting the real component, no credential): typed "good fit for kitchen" with
+  spaces — caret stayed at 20, focus on the textarea, **space moved the page 0px**.
+  Pressed "Not for this role" → reason chips appeared, **nothing posted yet** →
+  pressed a chip → posted `{outcome:"pass", reason:"no_experience", notes:…}` and
+  the row read `Recorded — Not for this role`.
+- 403: production one-off, by name — Peter (HR_MANAGER) and Camilla (HR_STAFF)
+  now get 200 on all four paths.
+
+⚠️ **A component declared inside another component's body is a remount every
+render.** Grep for `const X = ({...}) => {` between a `function Component(` and
+its `return` — anything with an input in it will misbehave exactly this way.
