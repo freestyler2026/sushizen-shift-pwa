@@ -43,6 +43,7 @@ type EntryState = {
   checked: boolean;
   note: string;
   temp_values_json: Record<string, string>; // unit_label → numeric string
+  temp_flags_json: Record<string, TempFlag>;
 };
 
 type ReportSummary = {
@@ -64,6 +65,7 @@ type ReportEntry = {
   checked: boolean;
   note: string | null;
   temp_values_json: Record<string, string>; // unit_label → value
+  temp_flags_json?: Record<string, TempFlag>;
 };
 
 // Temp-log types
@@ -72,6 +74,7 @@ type TempLogItem = {
   item_text: string;
   unit_labels_json: string[];
   temp_values_json: Record<string, string>;
+  temp_flags_json?: Record<string, TempFlag>;
   checked: boolean;
 };
 
@@ -81,6 +84,7 @@ type TempLogRow = {
   section: string;
   staff_name: string;
   status: string;
+  submitted_time: string | null;   // HH:MM, Manila
   temp_items: TempLogItem[];
 };
 
@@ -142,7 +146,27 @@ const SECTION_COLORS: Record<Section, string> = {
 
 // ─── Temperature helpers ─────────────────────────────────────────────────────
 
-type TempStatus = "ok" | "danger" | "unreadable" | "empty";
+/**
+ * What the cabinet was doing, when the number alone does not say it.
+ *
+ * Asked for from Manila. A commercial freezer shows DEF while it defrosts
+ * rather than a temperature, and the thermometers fitted for exactly that case
+ * sometimes go missing. Both came out as a blank, which reads the same as
+ * nobody having looked — and blanks are 37 of 5,909 readings, so there was no
+ * way to tell the three apart.
+ *
+ * DEF does NOT replace the reading. The thermometers were put there so a
+ * number is still available while the display is unusable, and a state that
+ * excused the number would be a reason to stop reading them.
+ */
+type TempFlag = "DEF" | "NO_THERMOMETER";
+
+const FLAG_LABEL: Record<TempFlag, string> = {
+  DEF: "DEF",
+  NO_THERMOMETER: "no meter",
+};
+
+type TempStatus = "ok" | "danger" | "unreadable" | "defrost" | "no_meter" | "empty";
 type TempKind = "chiller" | "freezer" | "other";
 
 function tempKind(unitLabel: string): TempKind {
@@ -161,7 +185,13 @@ function tempKind(unitLabel: string): TempKind {
  *  These must not be coloured red. Red says "the food was unsafe"; what is
  *  actually true is "this reading cannot be used". Calling a typo an incident
  *  buries the real ones. */
-function getTempStatus(unitLabel: string, value: string): TempStatus {
+function getTempStatus(unitLabel: string, value: string, flag?: TempFlag): TempStatus {
+  // The state comes first, because it changes what the number means. A
+  // defrosting freezer really is warm, and calling that an incident buries the
+  // real ones the same way a lost minus sign did. Nothing is hidden: it is
+  // still drawn, still counted, just not counted as unsafe food.
+  if (flag === "NO_THERMOMETER") return "no_meter";
+  if (flag === "DEF") return "defrost";
   const trimmed = value.trim();
   if (!trimmed) return "empty";
   const num = parseFloat(trimmed);
@@ -177,6 +207,8 @@ function tempStatusStyle(status: TempStatus): string {
   if (status === "ok")         return "border-emerald-500/60 bg-emerald-500/10 text-emerald-200";
   if (status === "danger")     return "border-red-500/60 bg-red-500/10 text-red-200";
   if (status === "unreadable") return "border-amber-500/60 bg-amber-500/10 text-amber-200";
+  if (status === "defrost")    return "border-sky-500/60 bg-sky-500/10 text-sky-200";
+  if (status === "no_meter")   return "border-amber-500/40 bg-amber-500/5 text-amber-300/80";
   return "border-white/15 bg-white/5 text-white";
 }
 
@@ -204,8 +236,9 @@ function withTempSign(sign: "+" | "-", magnitude: string): string {
 }
 
 function TempSuffix({ status }: { status: TempStatus }) {
-  if (status === "ok")     return <span className="text-emerald-400 text-xs">✓</span>;
-  if (status === "danger") return <span className="text-red-400 text-xs">⚠</span>;
+  if (status === "ok")      return <span className="text-emerald-400 text-xs">✓</span>;
+  if (status === "danger")  return <span className="text-red-400 text-xs">⚠</span>;
+  if (status === "defrost") return <span className="text-sky-300 text-[9px] font-bold">DEF</span>;
   return null;
 }
 
@@ -214,12 +247,16 @@ function TempSuffix({ status }: { status: TempStatus }) {
 function TemperatureInputGrid({
   item,
   values,
+  flags,
   onChange,
+  onFlagChange,
   disabled,
 }: {
   item: TravelPathItem;
   values: Record<string, string>;
+  flags: Record<string, TempFlag>;
   onChange: (unit: string, val: string) => void;
+  onFlagChange: (unit: string, flag: TempFlag | null) => void;
   disabled: boolean;
 }) {
   const units = item.unit_labels_json ?? [];
@@ -227,8 +264,11 @@ function TemperatureInputGrid({
   // there is nothing to hang a minus on, so the choice is held here.
   const [pendingSign, setPendingSign] = useState<Record<string, "+" | "-">>({});
 
+  // A defrosting freezer really does read above zero, so the sign warning has
+  // to stand down for it — otherwise the one state that explains the reading
+  // gets told it is a typo.
   const unreadable = units.filter(
-    (u) => getTempStatus(u, values[u] ?? "") === "unreadable",
+    (u) => !flags[u] && getTempStatus(u, values[u] ?? "") === "unreadable",
   );
 
   return (
@@ -240,7 +280,7 @@ function TemperatureInputGrid({
         {units.map((unit) => {
           const val = values[unit] ?? "";
           const kind = tempKind(unit);
-          const status = getTempStatus(unit, val);
+          const status = getTempStatus(unit, val, flags[unit]);
           const sign = pendingSign[unit] ?? tempSign(val, kind);
           const magnitude = tempMagnitude(val);
           const flip = () => {
@@ -250,7 +290,31 @@ function TemperatureInputGrid({
           };
           return (
             <div key={unit} className="space-y-0.5">
-              <label className="text-[10px] text-zinc-500 block truncate">{unit}</label>
+              <div className="flex items-center gap-1">
+                <label className="text-[10px] text-zinc-500 truncate">{unit}</label>
+                <div className="ml-auto flex shrink-0 gap-0.5">
+                  {(["DEF", "NO_THERMOMETER"] as TempFlag[]).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onFlagChange(unit, flags[unit] === f ? null : f)}
+                      title={f === "DEF"
+                        ? "The display shows DEF — still read the thermometer"
+                        : "The thermometer for this unit is missing"}
+                      className={`rounded px-1 py-px text-[9px] font-semibold leading-tight transition-colors disabled:opacity-40 ${
+                        flags[unit] === f
+                          ? f === "DEF"
+                            ? "bg-sky-500/30 text-sky-100"
+                            : "bg-amber-500/30 text-amber-100"
+                          : "bg-white/5 text-zinc-500 hover:bg-white/15"
+                      }`}
+                    >
+                      {FLAG_LABEL[f]}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className={`flex items-center gap-1 rounded-lg border px-1.5 py-1.5 transition-colors ${tempStatusStyle(status)}`}>
                 <button
                   type="button"
@@ -270,9 +334,9 @@ function TemperatureInputGrid({
                   step="0.1"
                   min="0"
                   className="w-full bg-transparent text-sm outline-none placeholder-zinc-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  placeholder="—"
+                  placeholder={flags[unit] === "NO_THERMOMETER" ? "no meter" : "—"}
                   value={magnitude}
-                  disabled={disabled}
+                  disabled={disabled || flags[unit] === "NO_THERMOMETER"}
                   onChange={(e) => onChange(unit, withTempSign(sign, e.target.value))}
                 />
                 <span className="text-xs text-zinc-500 shrink-0">°C</span>
@@ -489,7 +553,7 @@ function ChecklistView() {
             item_code: item.item_code,
             checked: false,
             note: "",
-            temp_values_json: {},
+            temp_values_json: {}, temp_flags_json: {},
           };
         });
         setEntries(initial);
@@ -516,6 +580,7 @@ function ChecklistView() {
             entries: Array<{
               item_code: string; checked: boolean;
               note: string | null; temp_values_json: Record<string, string>;
+              temp_flags_json?: Record<string, TempFlag>;
             }>;
           };
           if (cancelled) return;
@@ -529,6 +594,7 @@ function ChecklistView() {
               checked: Boolean(e.checked),
               note: e.note ?? "",
               temp_values_json: e.temp_values_json ?? {},
+              temp_flags_json: (e.temp_flags_json ?? {}) as Record<string, TempFlag>,
             };
           }
           setEntries(loaded);
@@ -561,18 +627,51 @@ function ChecklistView() {
     }));
   }
 
+  /** A unit counts as done when it carries a number, or when the person has
+   *  said why there is none. "No thermometer" is an answer; a blank is not. */
+  function unitSettled(
+    unit: string,
+    vals: Record<string, string>,
+    flags: Record<string, TempFlag>,
+  ): boolean {
+    if (flags[unit] === "NO_THERMOMETER") return true;
+    const v = vals[unit];
+    return v !== undefined && v.trim() !== "" && !isNaN(parseFloat(v));
+  }
+
   function setTempValue(code: string, unit: string, val: string) {
     setEntries((prev) => {
-      const entry = prev[code] ?? { item_code: code, checked: false, note: "", temp_values_json: {} };
+      const entry = prev[code] ?? { item_code: code, checked: false, note: "", temp_values_json: {}, temp_flags_json: {} };
       const newVals = { ...entry.temp_values_json, [unit]: val };
-      // Auto-check when all units have a valid numeric value
       const item = items.find((i) => i.item_code === code);
       const allFilled = (item?.unit_labels_json ?? []).every(
-        (u) => newVals[u] !== undefined && newVals[u].trim() !== "" && !isNaN(parseFloat(newVals[u]))
+        (u) => unitSettled(u, newVals, entry.temp_flags_json),
       );
       return {
         ...prev,
         [code]: { ...entry, temp_values_json: newVals, checked: allFilled },
+      };
+    });
+  }
+
+  /** Mark what the cabinet was doing. Tapping the same chip again clears it. */
+  function setTempFlag(code: string, unit: string, flag: TempFlag | null) {
+    setEntries((prev) => {
+      const entry = prev[code] ?? { item_code: code, checked: false, note: "", temp_values_json: {}, temp_flags_json: {} };
+      const newFlags = { ...entry.temp_flags_json };
+      if (flag) newFlags[unit] = flag;
+      else delete newFlags[unit];
+      // No thermometer means no number. Clearing it stops a stale reading
+      // being carried under a state that says there is none.
+      const newVals = { ...entry.temp_values_json };
+      if (flag === "NO_THERMOMETER") newVals[unit] = "";
+      const item = items.find((i) => i.item_code === code);
+      const allFilled = (item?.unit_labels_json ?? []).every(
+        (u) => unitSettled(u, newVals, newFlags),
+      );
+      return {
+        ...prev,
+        [code]: { ...entry, temp_values_json: newVals, temp_flags_json: newFlags, checked: allFilled },
       };
     });
   }
@@ -818,7 +917,7 @@ function ChecklistView() {
         <div className={`${GLASS_CARD} divide-y divide-white/5`}>
           {items.map((item, idx) => {
             const entry = entries[item.item_code] ?? {
-              item_code: item.item_code, checked: false, note: "", temp_values_json: {},
+              item_code: item.item_code, checked: false, note: "", temp_values_json: {}, temp_flags_json: {},
             };
             const noteExpanded = expandedNotes[item.item_code] || false;
             const isTemp = item.item_type === "TEMPERATURE";
@@ -875,7 +974,9 @@ function ChecklistView() {
                       <TemperatureInputGrid
                         item={item}
                         values={entry.temp_values_json}
+                        flags={entry.temp_flags_json}
                         onChange={(unit, val) => setTempValue(item.item_code, unit, val)}
+                        onFlagChange={(unit, flag) => setTempFlag(item.item_code, unit, flag)}
                         disabled={isSubmitted}
                       />
                     )}
@@ -1124,7 +1225,8 @@ function ComplianceView() {
         const tempViolationCount = tempLog.filter((row) =>
           row.temp_items.some((item) =>
             item.unit_labels_json.some((unit) =>
-              getTempStatus(unit.toLowerCase(), String(item.temp_values_json[unit] ?? "")) === "danger"
+              getTempStatus(unit.toLowerCase(), String(item.temp_values_json[unit] ?? ""),
+                            item.temp_flags_json?.[unit]) === "danger"
             )
           )
         ).length;
@@ -1406,7 +1508,8 @@ function ComplianceView() {
                 return row.temp_items.some((item) =>
                   item.unit_labels_json.some((unit) => {
                     const val = item.temp_values_json[unit] ?? "";
-                    return getTempStatus(unit.toLowerCase(), String(val)) === "danger";
+                    return getTempStatus(unit.toLowerCase(), String(val),
+                      item.temp_flags_json?.[unit]) === "danger";
                   })
                 );
               });
@@ -1442,6 +1545,17 @@ function ComplianceView() {
                                 {row.status === "SUBMITTED" ? "✓ Submitted" : "Draft"}
                               </span>
                             )}
+                            {/* The hour the check was actually filed. The shifts
+                                are nominally 12:00, 18:00 and 24:00; measured,
+                                they land at 09-10h, 15-17h and midnight, and
+                                opening ranges 08:23 to 17:02. Without it, a
+                                reading does not say when the cabinet was that
+                                temperature. */}
+                            {row?.submitted_time && (
+                              <span className="ml-2 text-[10px] font-normal tabular-nums text-zinc-500">
+                                {row.submitted_time}
+                              </span>
+                            )}
                           </p>
                           {!row ? (
                             byDateCompliance[date]?.[sec] ? (
@@ -1459,18 +1573,29 @@ function ComplianceView() {
                                 <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
                                   {item.unit_labels_json.map((unit) => {
                                     const rawVal = String(item.temp_values_json[unit] ?? "");
-                                    const status  = getTempStatus(unit.toLowerCase(), rawVal);
+                                    const flag    = item.temp_flags_json?.[unit];
+                                    const status  = getTempStatus(unit.toLowerCase(), rawVal, flag);
                                     return (
                                       <div key={unit} className="flex items-center justify-between gap-1">
                                         <span className="text-zinc-500 truncate">{unit}</span>
-                                        {rawVal ? (
+                                        {/* A dash used to cover three different
+                                            things: nobody looked, the display
+                                            said DEF, and the thermometer was
+                                            gone. Only the first is a gap. */}
+                                        {status === "no_meter" ? (
+                                          <span className="text-amber-300/80 text-[10px] font-semibold">no meter</span>
+                                        ) : rawVal ? (
                                           <span className={`font-semibold ${
-                                            status === "ok"     ? "text-emerald-400" :
-                                            status === "danger" ? "text-red-400"     :
+                                            status === "ok"      ? "text-emerald-400" :
+                                            status === "danger"  ? "text-red-400"     :
+                                            status === "defrost" ? "text-sky-300"     :
                                             "text-zinc-400"
                                           }`}>
                                             {rawVal}°C{status === "danger" ? "⚠" : ""}
+                                            {status === "defrost" ? <span className="ml-0.5 text-[9px]">DEF</span> : null}
                                           </span>
+                                        ) : status === "defrost" ? (
+                                          <span className="text-sky-300 text-[10px] font-semibold">DEF</span>
                                         ) : (
                                           <span className="text-zinc-600">—</span>
                                         )}
@@ -1617,26 +1742,43 @@ function ComplianceView() {
                               <div className="mt-2 ml-5 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
                                 {(e.unit_labels_json ?? []).map((unit) => {
                                   const raw    = String(temps[unit] ?? "");
-                                  const status = getTempStatus(unit.toLowerCase(), raw);
+                                  const dflag  = (e.temp_flags_json ?? {})[unit];
+                                  const status = getTempStatus(unit.toLowerCase(), raw, dflag);
                                   return (
                                     <div key={unit} className="flex items-center gap-1.5">
                                       <span className="text-zinc-500 truncate max-w-[70px]">{unit}:</span>
-                                      {raw ? (
+                                      {status === "no_meter" ? (
                                         <span
-                                          title={status === "unreadable"
-                                            ? "On the wrong side of zero — the minus sign was lost on entry, so this reading cannot be used"
-                                            : undefined}
+                                          title="The thermometer for this unit was missing when the check was done"
+                                          className="font-semibold text-amber-300/80"
+                                        >no meter</span>
+                                      ) : raw ? (
+                                        <span
+                                          title={
+                                            status === "unreadable"
+                                              ? "On the wrong side of zero — the minus sign was lost on entry, so this reading cannot be used"
+                                              : status === "defrost"
+                                              ? "The cabinet was showing DEF; this is the thermometer reading. A defrosting freezer is warm on purpose, so it is not counted as unsafe"
+                                              : undefined
+                                          }
                                           className={
                                             status === "ok"         ? "font-semibold text-emerald-400" :
                                             status === "danger"     ? "font-semibold text-red-400" :
                                             status === "unreadable" ? "font-semibold text-amber-400" :
+                                            status === "defrost"    ? "font-semibold text-sky-300" :
                                             "text-zinc-500"
                                           }
                                         >
                                           {raw}°C
                                           {status === "danger" && <span className="ml-0.5 text-red-400">⚠</span>}
                                           {status === "unreadable" && <span className="ml-0.5 text-amber-400">±?</span>}
+                                          {status === "defrost" && <span className="ml-0.5 text-sky-300">DEF</span>}
                                         </span>
+                                      ) : status === "defrost" ? (
+                                        <span
+                                          title="The cabinet was showing DEF and no thermometer reading was entered"
+                                          className="font-semibold text-sky-300"
+                                        >DEF</span>
                                       ) : (
                                         <span className="text-zinc-600">—</span>
                                       )}
