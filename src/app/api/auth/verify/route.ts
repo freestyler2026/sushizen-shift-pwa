@@ -26,11 +26,18 @@ export async function POST(req: NextRequest) {
     ? `Bearer ${existingToken}`
     : clientAuth || "";
 
+  // The server-side session, so Heroku can tell a token refresh from a second
+  // person logging in. Without it a refresh looked like a new login and threw
+  // every other session this person had off the system -- the tab they were
+  // typing in, or the phone they were about to clock out on.
+  const priorSessionId = req.cookies.get("sz_session")?.value || "";
+
   const upstream = await fetch(`${apiBase}/api/auth/verify${search}`, {
     method: "POST",
     headers: {
       Accept: "application/json",
       ...(authHeader ? { Authorization: authHeader } : {}),
+      ...(priorSessionId ? { "X-Session-Id": priorSessionId } : {}),
       ...(req.headers.get("x-approver-pin") ? { "X-Approver-Pin": req.headers.get("x-approver-pin") as string } : {}),
       ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
       ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
