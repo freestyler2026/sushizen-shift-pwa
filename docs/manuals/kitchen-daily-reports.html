@@ -1,0 +1,370 @@
+<title>Kitchen Daily Reports</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap">
+
+<style>
+  :root {
+    --paper:#EFEDE7; --card:#FFFFFF; --sunken:#E3E0D8;
+    --ink:#1A1916; --ink-soft:#4B4941; --muted:#6E6B61;
+    --line:#D6D2C8; --line-soft:#E5E2DA;
+    --hot:#B4471F;  --hot-wash:#F7E7DF;
+    --cool:#2F5D50; --cool-wash:#E0EBE6;
+    --late:#8A6D1F; --late-wash:#F6EFDC;
+    --rule:2px solid var(--ink);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#15161A; --card:#1E2026; --sunken:#262930;
+      --ink:#EDECE8; --ink-soft:#C0BEB6; --muted:#918E86;
+      --line:#33363E; --line-soft:#2A2D34;
+      --hot:#E5825A;  --hot-wash:#2E211B;
+      --cool:#7FBBA6; --cool-wash:#1B2823;
+      --late:#D6B45C; --late-wash:#2A2519;
+      --rule:2px solid var(--ink);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#15161A; --card:#1E2026; --sunken:#262930;
+    --ink:#EDECE8; --ink-soft:#C0BEB6; --muted:#918E86;
+    --line:#33363E; --line-soft:#2A2D34;
+    --hot:#E5825A;  --hot-wash:#2E211B;
+    --cool:#7FBBA6; --cool-wash:#1B2823;
+    --late:#D6B45C; --late-wash:#2A2519;
+    --rule:2px solid var(--ink);
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:Inter,"Noto Sans JP",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:44rem; margin:0 auto; padding:0 1rem 5rem; }
+
+  .bar {
+    position:sticky; top:0; z-index:9; background:var(--paper);
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    padding:.55rem 0; margin-bottom:1.5rem;
+  }
+  .bar b {
+    font-family:"Barlow Condensed",Inter,sans-serif; font-weight:700;
+    font-size:1rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+  }
+  .langs { display:flex; gap:2px; background:var(--sunken); border-radius:7px; padding:2px; }
+  .langs button {
+    font:inherit; font-size:.8rem; font-weight:600; border:0; border-radius:5px;
+    padding:.25rem .7rem; background:transparent; color:var(--muted); cursor:pointer;
+  }
+  .langs button[aria-pressed="true"] { background:var(--card); color:var(--ink); }
+  .langs button:focus-visible { outline:2px solid var(--hot); outline-offset:2px; }
+
+  .ja { display:none; }
+  :root[data-lang="ja"] .ja { display:revert; }
+  :root[data-lang="ja"] .en { display:none; }
+
+  h1 {
+    font-family:"Barlow Condensed",Inter,sans-serif; font-weight:700;
+    font-size:clamp(2.2rem,8vw,3.2rem); line-height:1; letter-spacing:-.01em;
+    margin:0 0 .4rem; text-transform:uppercase;
+  }
+  h1[lang]:lang(ja), .ja h1 { font-family:"Noto Sans JP",sans-serif; }
+  .sub { color:var(--ink-soft); margin:0 0 1.5rem; max-width:32rem; }
+
+  .count {
+    display:flex; gap:0; border:var(--rule); border-radius:10px; overflow:hidden;
+    margin-bottom:2rem; background:var(--card);
+  }
+  .count div { flex:1; padding:.75rem .85rem; border-right:1px solid var(--line); }
+  .count div:last-child { border-right:0; }
+  .count b {
+    display:block; font-family:"Roboto Mono",monospace; font-size:1.5rem;
+    line-height:1.1; font-variant-numeric:tabular-nums;
+  }
+  .count span { font-size:.78rem; color:var(--muted); line-height:1.35; display:block; }
+
+  /* --- the day --- */
+  .slot {
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    margin-bottom:.7rem; overflow:hidden;
+  }
+  .slot > .head {
+    display:grid; grid-template-columns:5.4rem 1fr; align-items:baseline;
+    gap:.2rem .9rem; padding:.9rem 1rem .55rem;
+  }
+  .time {
+    font-family:"Roboto Mono",monospace; font-weight:500; font-size:1.35rem;
+    line-height:1; color:var(--hot); font-variant-numeric:tabular-nums;
+  }
+  .what { font-weight:700; font-size:1.05rem; line-height:1.3; }
+  .slot .where {
+    grid-column:2; font-size:.9rem; color:var(--ink-soft); margin-top:.15rem;
+  }
+  .path {
+    display:inline-flex; flex-wrap:wrap; align-items:center; gap:.3rem;
+    font-size:.86rem;
+  }
+  .path i {
+    font-style:normal; background:var(--sunken); border-radius:5px;
+    padding:.08em .45em; font-weight:600; color:var(--ink);
+  }
+  .path s { text-decoration:none; color:var(--muted); }
+  .slot .note {
+    grid-column:2; font-size:.86rem; color:var(--muted); margin-top:.35rem;
+  }
+  .slot .miss {
+    border-top:1px solid var(--line-soft); background:var(--hot-wash);
+    padding:.5rem 1rem; font-size:.82rem; color:var(--ink-soft);
+    display:flex; justify-content:space-between; gap:1rem; align-items:baseline;
+  }
+  .slot .miss b { font-family:"Roboto Mono",monospace; color:var(--hot); }
+  .slot.ok .miss { background:var(--cool-wash); }
+  .slot.ok .miss b { color:var(--cool); }
+
+  h2 {
+    font-family:"Barlow Condensed",Inter,sans-serif; font-weight:700;
+    font-size:1.55rem; letter-spacing:.01em; text-transform:uppercase;
+    margin:2.75rem 0 .5rem; padding-bottom:.35rem; border-bottom:var(--rule);
+  }
+  .ja h2 { font-family:"Noto Sans JP",sans-serif; text-transform:none; }
+  p { margin:0 0 .9rem; max-width:34rem; }
+
+  .why { background:var(--late-wash); border-radius:10px; padding:1rem 1.1rem; margin:1rem 0; }
+  .why p:last-child { margin-bottom:0; }
+
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  th,td { text-align:left; padding:.55rem .6rem; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  th { font-size:.7rem; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);
+       font-weight:600; border-bottom:1px solid var(--line); }
+  td.n { font-family:"Roboto Mono",monospace; text-align:right; font-variant-numeric:tabular-nums; }
+  .scroller { overflow-x:auto; }
+
+  footer { margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--line);
+           color:var(--muted); font-size:.85rem; }
+  footer p { max-width:none; }
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+
+<div class="wrap">
+
+<div class="bar">
+  <b><span class="en">Sushi ZEN &middot; Kitchen</span><span class="ja">Sushi ZEN・キッチン</span></b>
+  <div class="langs" role="group" aria-label="Language">
+    <button type="button" data-set="en" aria-pressed="true">English</button>
+    <button type="button" data-set="ja" aria-pressed="false">日本語</button>
+  </div>
+</div>
+
+<h1><span class="en">Your seven reports</span><span class="ja">出す7つの報告</span></h1>
+<p class="sub en">
+  Seven things leave the kitchen every day, each from one page in the menu. This
+  is the whole list, in the order the day runs.
+</p>
+<p class="sub ja">
+  毎日キッチンから出るものは7つ。それぞれメニューの決まったページから出します。
+  1日の流れの順に並べた、これが全部です。
+</p>
+
+<div class="count">
+  <div><b>7</b><span class="en">reports a day</span><span class="ja">1日の報告</span></div>
+  <div><b>4</b><span class="en">pages, that is all</span><span class="ja">使うページ</span></div>
+  <div><b>10:00</b><span class="en">first one due</span><span class="ja">最初の締切</span></div>
+  <div><b>22:30</b><span class="en">last one due</span><span class="ja">最後の締切</span></div>
+</div>
+
+<!-- 1 -->
+<div class="slot">
+  <div class="head">
+    <span class="time">10:30</span>
+    <span class="what"><span class="en">Opening Travel Path</span><span class="ja">Opening Travel Path（開店時の温度）</span></span>
+    <div class="where">
+      <span class="path"><i>Menu</i><s>&rsaquo;</s><i>Daily Checks</i><s>&rsaquo;</s><i>Travel Path</i><s>&rsaquo;</s><i>OPENING</i></span>
+    </div>
+    <p class="note en">This one submission also answers <strong>Opening Report</strong>. They are the same record — you do not file it twice.</p>
+    <p class="note ja">これ1回で <strong>Opening Report</strong> も同時に満たされます。同じ記録なので、2回出す必要はありません。</p>
+  </div>
+  <div class="miss">
+    <span class="en">Not filed in the last two weeks</span><span class="ja">直近2週間で未提出</span>
+    <b>16 / 56</b>
+  </div>
+</div>
+
+<!-- 2 -->
+<div class="slot">
+  <div class="head">
+    <span class="time">11:15</span>
+    <span class="what"><span class="en">AM Backup Report</span><span class="ja">AM Backup Report（朝のバックアップ）</span></span>
+    <div class="where">
+      <span class="path"><i>Menu</i><s>&rsaquo;</s><i>Daily Checks</i><s>&rsaquo;</s><i>Backup Report</i><s>&rsaquo;</s><i>morning</i></span>
+    </div>
+  </div>
+  <div class="miss">
+    <span class="en">Not filed in the last two weeks</span><span class="ja">直近2週間で未提出</span>
+    <b>16 / 56</b>
+  </div>
+</div>
+
+<!-- 3 -->
+<div class="slot">
+  <div class="head">
+    <span class="time">15:00</span>
+    <span class="what"><span class="en">Mid Shift Travel Path</span><span class="ja">Mid Shift Travel Path（中間の温度）</span></span>
+    <div class="where">
+      <span class="path"><i>Menu</i><s>&rsaquo;</s><i>Daily Checks</i><s>&rsaquo;</s><i>Travel Path</i><s>&rsaquo;</s><i>MID SHIFT</i></span>
+    </div>
+    <p class="note en">The most often late of all seven — 32 of the 36 that arrived came in after 15:00.</p>
+    <p class="note ja">7つの中で最も遅れが多い項目です。届いた36件のうち32件が15:00を過ぎていました。</p>
+  </div>
+  <div class="miss">
+    <span class="en">Not filed &middot; filed late</span><span class="ja">未提出 ・ 遅延</span>
+    <b>20 / 56 &middot; 32 late</b>
+  </div>
+</div>
+
+<!-- 4 -->
+<div class="slot">
+  <div class="head">
+    <span class="time">17:15</span>
+    <span class="what"><span class="en">PM Backup Report</span><span class="ja">PM Backup Report（夕方のバックアップ）</span></span>
+    <div class="where">
+      <span class="path"><i>Menu</i><s>&rsaquo;</s><i>Daily Checks</i><s>&rsaquo;</s><i>Backup Report</i><s>&rsaquo;</s><i>closing</i></span>
+    </div>
+    <p class="note en">The only one marked <strong>red</strong> in the system. Everything else is yellow.</p>
+    <p class="note ja">システム上で唯一 <strong>赤（red）</strong> に設定されている項目です。他は全て黄色です。</p>
+  </div>
+  <div class="miss">
+    <span class="en">Not filed in the last two weeks</span><span class="ja">直近2週間で未提出</span>
+    <b>27 / 56</b>
+  </div>
+</div>
+
+<!-- 5 -->
+<div class="slot">
+  <div class="head">
+    <span class="time">22:00</span>
+    <span class="what"><span class="en">Daily Inventory</span><span class="ja">Daily Inventory（日次棚卸し）</span></span>
+    <div class="where">
+      <span class="path"><i>Menu</i><s>&rsaquo;</s><i>Daily Checks</i><s>&rsaquo;</s><i>Daily Inventory</i><s>&rsaquo;</s><i>PM</i></span>
+    </div>
+    <p class="note en"><strong>Check the shift before you save.</strong> Over the last two weeks 41 were filed as AM and only 15 as PM. An AM count does not answer the 22:00 item, so the day reads as missing even though the work was done.</p>
+    <p class="note ja"><strong>保存する前に shift を確認してください。</strong>直近2週間で AM が41件、PM は15件でした。AM の棚卸しでは22:00の項目を満たさないため、作業はしているのに「未提出」と表示されます。</p>
+  </div>
+  <div class="miss">
+    <span class="en">No PM count on file</span><span class="ja">PM の記録が無い日</span>
+    <b>41 / 56</b>
+  </div>
+</div>
+
+<!-- 6 -->
+<div class="slot">
+  <div class="head">
+    <span class="time">22:00</span>
+    <span class="what"><span class="en">Disposal Report</span><span class="ja">Disposal Report（廃棄報告）</span></span>
+    <div class="where">
+      <span class="path"><i>Menu</i><s>&rsaquo;</s><i>Daily Checks</i><s>&rsaquo;</s><i>Disposal Report</i><s>&rsaquo;</s><i>closing</i></span>
+    </div>
+    <p class="note en"><strong>Nothing thrown away is still a report.</strong> File it as NIL. A blank day and a zero-waste day look the same from the office, and only one of them is good news.</p>
+    <p class="note ja"><strong>廃棄ゼロの日も報告します。</strong>NIL として出してください。事務側からは「報告が無い日」と「廃棄が無かった日」が同じに見えますが、良い知らせなのは片方だけです。</p>
+  </div>
+  <div class="miss">
+    <span class="en">Not filed &middot; filed late</span><span class="ja">未提出 ・ 遅延</span>
+    <b>31 / 56 &middot; 23 late</b>
+  </div>
+</div>
+
+<!-- 7 -->
+<div class="slot">
+  <div class="head">
+    <span class="time">22:30</span>
+    <span class="what"><span class="en">Closing Travel Path</span><span class="ja">Closing Travel Path（閉店時の温度）</span></span>
+    <div class="where">
+      <span class="path"><i>Menu</i><s>&rsaquo;</s><i>Daily Checks</i><s>&rsaquo;</s><i>Travel Path</i><s>&rsaquo;</s><i>CLOSING</i></span>
+    </div>
+    <p class="note en">Chiller readings are negative only by mistake. Use the &plusmn; button rather than typing a minus — the sign decides whether the reading can be used at all.</p>
+    <p class="note ja">チラーの温度がマイナスになるのは打ち間違いです。マイナスを手で打たず ± ボタンを使ってください。符号が違うと、その記録は使えなくなります。</p>
+  </div>
+  <div class="miss">
+    <span class="en">Not filed &middot; filed late</span><span class="ja">未提出 ・ 遅延</span>
+    <b>22 / 56 &middot; 31 late</b>
+  </div>
+</div>
+
+<h2><span class="en">Where each branch stands</span><span class="ja">拠点ごとの現状</span></h2>
+<p class="en">
+  Two weeks, 2&ndash;15 September. Each branch owes 112 submissions (7 reports
+  &times; 14 days, plus the Opening Report that the opening travel path answers).
+</p>
+<p class="ja">
+  2026年9月2日〜15日の2週間。各拠点の対象は112件です（7報告 × 14日、および
+  Opening Travel Path が兼ねる Opening Report を含む）。
+</p>
+<div class="scroller">
+  <table>
+    <thead><tr>
+      <th><span class="en">Branch</span><span class="ja">拠点</span></th>
+      <th><span class="en">Filed</span><span class="ja">提出</span></th>
+      <th><span class="en">Missing</span><span class="ja">未提出</span></th>
+    </tr></thead>
+    <tbody>
+      <tr><td>CUB</td><td class="n">93 / 112</td><td class="n">19</td></tr>
+      <tr><td>TAFT</td><td class="n">89 / 112</td><td class="n">23</td></tr>
+      <tr><td>PAR</td><td class="n">77 / 112</td><td class="n">35</td></tr>
+      <tr><td><strong>CK</strong></td><td class="n"><strong>0 / 112</strong></td><td class="n"><strong>112</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="why">
+  <p class="en"><strong>CK has filed nothing since July.</strong> Backup stopped
+  after August, travel path and inventory after July. In June CK filed all of
+  them. Whatever changed in July is the thing to fix &mdash; two months with no
+  temperature record is not a paperwork problem.</p>
+  <p class="ja"><strong>CK は7月以降ほとんど提出がありません。</strong>
+  Backup は8月まで、Travel Path と棚卸しは7月で止まっています。6月は全項目そろっていました。
+  <strong>7月に何が変わったのか</strong>がこの件の中心で、温度記録が2か月無い状態は
+  書類の問題ではありません。</p>
+</div>
+
+<h2><span class="en">Late is not the same as missing</span><span class="ja">遅延と未提出は別</span></h2>
+<p class="en">
+  A report filed after its deadline still counts as filed. It is recorded
+  separately so nobody is told off for the wrong thing &mdash; but the three
+  evening items are late far more often than the morning ones, and a
+  temperature read after closing cannot be acted on that night.
+</p>
+<p class="ja">
+  締切を過ぎても、出してあれば提出済みです。誤って叱られないよう別に集計しています。
+  ただし夕方の3項目は朝より遅延が多く、<strong>閉店後に読んだ温度は、その晩には何もできません。</strong>
+</p>
+
+<footer>
+  <p class="en">Sushi ZEN Workforce OS &middot; Figures measured 2&ndash;15 September 2026,
+  Manila. If a page in the menu does not match what is written here, that is a
+  fault in this sheet &mdash; say so rather than working around it.</p>
+  <p class="ja">Sushi ZEN Workforce OS ・ 数値は2026年9月2日〜15日のマニラ実測値。
+  メニューの画面がここに書いてあるものと違う場合は<strong>この表の不具合</strong>です。
+  回避せず、そのまま伝えてください。</p>
+</footer>
+
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btns = Array.prototype.slice.call(document.querySelectorAll(".langs button"));
+    function apply(l) {
+      root.setAttribute("data-lang", l);
+      btns.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.set === l)); });
+    }
+    var saved = null;
+    try { saved = localStorage.getItem("zen:kitchen-reports-lang"); } catch (e) { saved = null; }
+    apply(saved === "ja" ? "ja" : "en");
+    btns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        apply(b.dataset.set);
+        try { localStorage.setItem("zen:kitchen-reports-lang", b.dataset.set); } catch (e) {}
+      });
+    });
+  })();
+</script>
