@@ -52,8 +52,23 @@ const T = {
     tooLate: "That time has already gone by. Here are the next ones.",
     tooSoon: "We need at least a day's notice, so the earliest is tomorrow. Here are the next ones.",
     expired: "This link has expired",
+    // The day count is not written here. It moved from 7 to 14 on 2026-09-15
+    // and this sentence went on saying 7, in both languages, to the people the
+    // change was made for. The API sends the number it actually uses.
     expiredBody:
-      "Booking links stop working after 7 days. Reply to the message Sushi ZEN sent you and ask for a new one — your application is still on file.",
+      "Booking links stop working after {days} days. Reply to the message Sushi ZEN sent you and ask for a new one — your application is still on file.",
+    // A newer link exists and is sitting further down the same chat. Before,
+    // this case also said "expired", so the applicant asked us for a link they
+    // already had.
+    supersededTitle: "There is a newer link",
+    supersededBody:
+      "We sent you a more recent link — scroll down in our chat and open the newest message. This older one no longer works.",
+    // The hash of a dead token is not kept, so an unrecognised link cannot be
+    // told apart from a replaced one. Most of these are replaced links issued
+    // before 2026-09-16, so the sentence answers that case first.
+    unknownTitle: "This link no longer works",
+    unknownBody:
+      "If we sent you a more recent message, open the link in that one. Otherwise reply to Sushi ZEN and we will send a new link — your application is still on file.",
     errTitle: "Could not load",
     errBody: "Check your connection and open the link again.",
     retry: "Try again",
@@ -90,7 +105,13 @@ const T = {
     tooSoon: "Kailangan po ng kahit isang araw na abiso, kaya bukas na po ang pinakamaaga. Eto po ang susunod.",
     expired: "Expired na po ang link na ito",
     expiredBody:
-      "Ang mga booking link ay tumitigil pagkatapos ng 7 araw. I-reply lang po ang message ng Sushi ZEN at humingi ng bago — nasa amin pa rin ang application mo.",
+      "Ang mga booking link ay tumitigil pagkatapos ng {days} araw. I-reply lang po ang message ng Sushi ZEN at humingi ng bago — nasa amin pa rin ang application mo.",
+    supersededTitle: "May mas bagong link po",
+    supersededBody:
+      "May mas bagong link po kaming ipinadala — i-scroll pababa sa chat namin at buksan ang pinakabagong message. Hindi na po gumagana itong luma.",
+    unknownTitle: "Hindi na po gumagana ang link na ito",
+    unknownBody:
+      "Kung may mas bagong message po kami sa inyo, doon po ang link. Kung wala, i-reply lang po ang message ng Sushi ZEN at magpapadala kami ng bago — nasa amin pa rin ang application mo.",
     errTitle: "Hindi ma-load",
     errBody: "I-check ang connection at buksan ulit ang link.",
     retry: "Subukan ulit",
@@ -127,7 +148,10 @@ export default function BookPage() {
   const params = useParams();
   const token = String(params?.token || "");
   const [lang, setLang] = useState<Lang>("en");
-  const [state, setState] = useState<"loading" | "ok" | "expired" | "error">("loading");
+  const [state, setState] =
+    useState<"loading" | "ok" | "expired" | "superseded" | "unknown" | "error">("loading");
+  // How long a fresh link lasts, as the server actually configures it.
+  const [linkDays, setLinkDays] = useState(14);
   const [name, setName] = useState("");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -145,7 +169,19 @@ export default function BookPage() {
       try {
         const qs = after ? `?after=${encodeURIComponent(after)}` : "";
         const res = await fetch(`/api/book/${token}${qs}`);
-        if (res.status === 404) return setState("expired");
+        if (res.status === 404) {
+          // The server says which of the causes it was. Older deploys sent a
+          // bare string, so an unreadable body falls back to the old answer
+          // rather than showing nothing.
+          const d = await res.json().catch(() => null);
+          const info = d && typeof d.detail === "object" ? d.detail : null;
+          if (info?.days) setLinkDays(Number(info.days));
+          return setState(
+            info?.code === "link_superseded" ? "superseded"
+            : info?.code === "link_unknown" ? "unknown"
+            : "expired",
+          );
+        }
         if (!res.ok) return setState("error");
         const d = await res.json();
         setName(String(d.full_name || "").split(" ")[0] || "");
@@ -248,13 +284,22 @@ export default function BookPage() {
   );
 
   if (state === "loading") return <Shell><p className="text-zinc-400">{t.loading}</p></Shell>;
-  if (state === "expired")
+  if (state === "expired" || state === "superseded" || state === "unknown") {
+    const title =
+      state === "superseded" ? t.supersededTitle
+      : state === "unknown" ? t.unknownTitle
+      : t.expired;
+    const body =
+      state === "superseded" ? t.supersededBody
+      : state === "unknown" ? t.unknownBody
+      : t.expiredBody.replace("{days}", String(linkDays));
     return (
       <Shell>
-        <h1 className="text-xl font-semibold">{t.expired}</h1>
-        <p className="mt-3 text-sm leading-relaxed text-zinc-400">{t.expiredBody}</p>
+        <h1 className="text-xl font-semibold">{title}</h1>
+        <p className="mt-3 text-sm leading-relaxed text-zinc-400">{body}</p>
       </Shell>
     );
+  }
   if (state === "error")
     return (
       <Shell>
