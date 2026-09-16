@@ -68,6 +68,9 @@ type Review = {
   summary: Summary; manager_comment: string;
   completed_by: string | null;
   completed_at: string | null;
+  /** Already on the store's clock. `completed_at` is the database's, which is
+   *  UTC, and slicing it showed a Manila manager 03:44 for 11:44. */
+  completed_local: string | null;
   items: Item[];
   options: {
     assessments: Opt[]; issue_types: Opt[]; root_causes: Opt[]; actions: Opt[];
@@ -83,6 +86,7 @@ type ReviewRow = {
   city?: string | null;
   completed_by?: string | null;
   completed_at?: string | null;
+  completed_local?: string | null;
 };
 
 type Scope = "mine" | "manila" | "dubai";
@@ -166,7 +170,7 @@ function DoneForYou({ rows, onOpen }: { rows: ReviewRow[]; onOpen: (id: number) 
             </span>
             <span className={T_CAPTION}>
               {r.completed_by || "Somebody"} answered {r.answered} of {r.items}
-              {r.completed_at ? ` on ${r.completed_at.slice(0, 10)} ${r.completed_at.slice(11, 16)}` : ""}
+              {r.completed_local ? ` on ${r.completed_local}` : ""}
               {" — open to read what they recorded"}
             </span>
           </button>
@@ -766,7 +770,7 @@ export default function MorningReviewPage() {
             {review.completed_by && review.completed_by !== review.assigned_to
               ? `${review.completed_by} answered this one for you`
               : "You completed this one"}
-            {review.completed_at ? ` on ${review.completed_at.slice(0, 10)} ${review.completed_at.slice(11, 16)}` : ""}.
+            {review.completed_local ? ` on ${review.completed_local}` : ""}.
             {" "}What they recorded is above, and it stays as they left it.
           </p>
           {review.manager_comment && (
