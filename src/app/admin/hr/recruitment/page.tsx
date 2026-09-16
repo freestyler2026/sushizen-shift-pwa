@@ -3,6 +3,7 @@
 import { isoToday } from "@/lib/date";
 import { facebookLink } from "@/lib/facebook";
 import { LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outcome";
+import { cvStateOf } from "@/lib/cv-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
@@ -116,6 +117,9 @@ type Applicant = {
    *  dialog. `cv_asked_how` is 'cv_copied' (the wording left the page) or
    *  'cv_sent' (a person said they sent it). */
   cv_asked_at?: string | null;
+  /** When the CV actually landed. The board knew a CV existed but not when,
+   *  so the card fell silent at the one moment there was news to report. */
+  cv_received_at?: string | null;
   cv_asked_by?: string | null;
   cv_asked_how?: string | null;
   cv_link_made_at?: string | null;
@@ -444,16 +448,6 @@ function linkStateOf(a: Applicant): LinkState {
   return a.booking_sent_how === "booking_sent" ? "sent" : "copied";
 }
 
-/** Same three jobs for the CV request. Kept as its own value rather than
- *  reusing LinkState: the CV link has no expiry shown on the board, and
- *  collapsing them would make one of the two lie the first time they differ. */
-type CvState = "none" | "made" | "copied" | "sent";
-
-function cvStateOf(a: Applicant): CvState {
-  if (a.cv_asked_at) return a.cv_asked_how === "cv_sent" ? "sent" : "copied";
-  return a.cv_link_made_at ? "made" : "none";
-}
-
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -718,12 +712,34 @@ function KanbanCard({
                 2026-09-15, every one of the 132 from Facebook and 9 from
                 JobStreet has none, because HR typed them in and there was no
                 way for them to send one. */}
-            {applicant.status === "new" && !applicant.resume_screening_id && (() => {
+            {applicant.status === "new" && (() => {
               const cs = cvStateOf(applicant);
               // Every one of these opens the same panel. What changes is what
               // the card says has already happened, because "nobody has done
               // anything" and "it went out and they have not replied" are
               // different pieces of work and were sharing one line.
+              if (cs === "arrived" || cs === "on_file") {
+                // Not a button. The CV is read in the panel, and the card
+                // already opens it -- a button here would swallow that click
+                // and offer to ask again for something already received.
+                const when = applicant.cv_received_at;
+                return cs === "arrived" ? (
+                  <p
+                    className="mt-1 flex items-center justify-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-300"
+                    title={`The CV they were asked for came in${when ? ` on ${shortDate(when)}` : ""}${applicant.resume_filename ? `: ${applicant.resume_filename}` : ""}. Open the card to read it.`}
+                  >
+                    <FileText className="h-3 w-3" />
+                    CV arrived{when ? ` ${shortDate(when)}` : ""}
+                  </p>
+                ) : (
+                  <p
+                    className="mt-1 w-full px-2 py-1 text-center text-[10px] text-zinc-500"
+                    title={`Sent with the application${when ? ` on ${shortDate(when)}` : ""}${applicant.resume_filename ? `: ${applicant.resume_filename}` : ""}. Open the card to read it.`}
+                  >
+                    CV on file
+                  </p>
+                );
+              }
               const label =
                 cs === "sent"
                   ? `✓ CV asked ${shortDate(applicant.cv_asked_at)}`
@@ -4426,6 +4442,21 @@ export default function HRRecruitmentPage() {
               </span>
             );
           })}
+          {/* A CV landing is the one thing on this board that happens without
+              anybody here doing it, so it is the one thing you cannot find by
+              remembering what you did. Counted only while they are still in
+              New -- past that the CV is not what the row is waiting on. */}
+          {(() => {
+            const n = (grouped.new || []).filter(
+              (a) => cvStateOf(a) === "arrived").length;
+            if (n === 0) return null;
+            return (
+              <span className={`${T_CAPTION} flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-0.5 text-emerald-300`}>
+                <FileText className="h-3 w-3" />
+                CV arrived: <span className="font-semibold">{n}</span>
+              </span>
+            );
+          })()}
           <button
             onClick={() => setShowRequisitionsList((v) => !v)}
             className={`ml-auto flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
