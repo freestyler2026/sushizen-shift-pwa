@@ -1221,7 +1221,13 @@ export default function ProcurementInvoicesPage() {
   useEffect(() => {
     if (!allowed || !requestedBy || !pin) return;
     procurementJson<{ rows?: { registered_name?: string; trade_name?: string }[] }>(
-      `/api/admin/procurement/vendors?city=${encodeURIComponent(city)}&status=ACTIVE&limit=500`,
+      // Every vendor, not only the active ones. This is a filter over invoices
+      // already on file, and a supplier who stopped trading is exactly the one
+      // somebody is looking for — Ocean Fisheries went inactive on 2026-09-16
+      // with 40 invoice checks still pending, and dropped out of this list.
+      // Picking a vendor for NEW work (quotes, catalog, par levels) still hides
+      // the inactive ones; that is a different question from searching history.
+      `/api/admin/procurement/vendors?city=${encodeURIComponent(city)}&limit=500`,
       { method: "GET" },
       requestedBy,
       pin,
