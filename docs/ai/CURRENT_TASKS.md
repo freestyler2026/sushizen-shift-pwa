@@ -1,5 +1,42 @@
 # CURRENT_TASKS.md
 
+## 2026-09-16 — OT: 申請と違う分数で承認できるようにした（マニラからの要望・実装済み）
+
+要望: 「2時間のOT申請に1時間だけ承認したケースが数回あり、コメント欄にメモ記載。
+支払い処理時の見落としにつながるので、システム内で時間を変更できるようにしてほしい。
+短縮の理由も記載します。」
+
+### 見落としは既に起きていた
+
+| 日付 | 都市 | 本人 | 記録 | ノート | 状態 |
+|---|---|---|---|---|---|
+| 2026-09-09 | manila | Ricardo Lamis III | **120分** | `Please approve 1hr. Thank you.` | **paid** → DTR 2.00h |
+| 2026-09-09 | manila | Junowel Trespecios | 130分 | `2 hours of OT has been approved.` | paid → DTR 2.17h |
+| 2026-09-04 | dubai | Jheymar Fabros | **600分** | `1hr approved` | manager_approved |
+| 2026-09-02 | dubai | Jheymar Fabros | **663分** | `2hrs approved` | manager_approved |
+
+全207件のノートを数量の正規表現で洗って**この4件で全部**（一致していた2件は除く）。
+**Ricardo は1時間ぶん ₱129.19 の過払い。** ドバイ2件は未払い（ドバイOTは給与に届いていない）。
+
+### 実装
+
+- `overtime_requests.ot_minutes_reason`（新列）
+- `PATCH /api/admin/overtime/{id}/set-hours` — 分数＋**理由必須**。`source='manual'`
+- 承認ダイアログの `Approve a different number of hours…`（1操作で承認＋分数変更）
+- `manager_approved` 行の `Change hours` ボタン
+- ガード: 0分不可（＝却下を使う）/ 24h超不可 / paid不可 / 自分の申請不可 / 理由3文字以上
+- **同日の兄弟申請ガードは掛けていない** — あれは「打刻は1日の合計」への対策で、手入力には当てはまらない
+- **両都市で有効**（打刻はマニラ限定だが、手入力に打刻は要らない）
+- 本人に通知（前後の分数＋理由）。`ot_minutes_original` に申請額が残る
+
+### 残っている判断（オーナー）
+
+**上の4件をどう扱うか。** コードを直しても既存の記録は動かない。
+- Ricardo: 給与に入っているので `Remove from Payroll` → `Change hours` → 再投入、または次期で調整
+- Jheymar 2件: 未払いなので `Change hours` で直せる（600→60 / 663→120）
+- Junowel: 130分 vs「2 hours」は10分差。減額の意図か丸めた表現かが読めない
+
+
 ## 2026-09-16 — Travel Path: DEF・温度計なし・提出時刻（Ayako リクエスト・実装済み）
 
 ### 調べて分かったこと
