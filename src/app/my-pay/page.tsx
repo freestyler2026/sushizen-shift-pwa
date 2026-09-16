@@ -11,7 +11,6 @@ import {
   CreditCard,
   FileText,
   Fingerprint,
-  KeyRound,
   Lock,
   Loader2,
   MessageCircle,
@@ -322,12 +321,8 @@ interface PasskeyGateProps {
 }
 
 function PasskeyGate({ onVerified }: PasskeyGateProps) {
-  const [mode, setMode] = useState<"idle" | "loading" | "pin" | "registering">("idle");
-  const [pin, setPin] = useState("");
+  const [mode, setMode] = useState<"idle" | "loading" | "registering">("idle");
   const [error, setError] = useState("");
-  /** The PIN was right and is still the one everybody is handed. Not an error
-   *  they can retype their way out of, so it gets its own screen. */
-  const [pinIsDefault, setPinIsDefault] = useState(false);
   const [registered, setRegistered] = useState("");
   const [wauSupported] = useState(() =>
     typeof window !== "undefined" && !!window.PublicKeyCredential
@@ -411,52 +406,16 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
         throw new Error((j as { detail?: string }).detail || "Could not save it");
       }
       setRegistered("Saved. Use the button above from now on — on this device it is your fingerprint or face.");
-      setPinIsDefault(false);
       setMode("idle");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg.includes("NotAllowed") || msg.includes("cancel")
         ? "Cancelled. Nothing was saved."
         : msg || "Could not set it up on this device.");
-      setMode(pinIsDefault ? "idle" : "idle");
+      setMode("idle");
     }
-  }, [getHeaders, pinIsDefault]);
+  }, [getHeaders]);
 
-  const verifyPin = useCallback(async () => {
-    if (pin.length < 4) {
-      setError("PIN must be at least 4 digits.");
-      return;
-    }
-    setError("");
-    setMode("loading");
-    try {
-      const headers = await getHeaders();
-      const res = await fetch(`${API_BASE}/api/auth/step-up/pin`, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        const d = (j as { detail?: string | { code?: string; message?: string } }).detail;
-        // The PIN was correct. It is the one everybody was given, which is a
-        // different thing from getting it wrong, and retyping cannot fix it.
-        if (d && typeof d === "object" && d.code === "pin_is_default") {
-          setPin("");
-          setPinIsDefault(true);
-          setError("");
-          setMode("idle");
-          return;
-        }
-        throw new Error((typeof d === "string" ? d : d?.message) || "Invalid PIN");
-      }
-      const { step_up_token } = await res.json();
-      onVerified(step_up_token);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Invalid PIN");
-      setMode("pin");
-    }
-  }, [pin, getHeaders, onVerified]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -476,23 +435,6 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
         {error && (
           <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
             {error}
-          </div>
-        )}
-
-        {/* The PIN was right, and it is the one everybody was handed. Both ways
-            out live here, because sending somebody to another screen in the
-            middle of looking at their pay is how "Use PIN instead" stayed the
-            path of least resistance. */}
-        {pinIsDefault && mode !== "loading" && mode !== "registering" && (
-          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-            <p className="text-sm font-medium text-amber-300">
-              That is still the PIN you were given
-            </p>
-            <p className="mt-1 text-xs text-amber-200/80">
-              Everyone starts on the same one, so it cannot open your pay. Set up
-              your fingerprint or face on this device — it takes one tap and works
-              from then on — or choose a PIN of your own.
-            </p>
           </div>
         )}
 
@@ -516,7 +458,7 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
           </div>
         )}
 
-        {mode !== "loading" && mode !== "pin" && mode !== "registering" && (
+        {mode !== "loading" && mode !== "registering" && (
           <div className="space-y-3">
             {wauSupported && (
               <button
@@ -538,63 +480,26 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
                 Set it up on this device
               </button>
             )}
-            <button
-              onClick={() => { setMode("pin"); setError(""); }}
-              className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 font-medium py-3.5 transition text-sm"
-            >
-              <KeyRound className="h-4 w-4" />
-              Use PIN instead
-            </button>
-            {pinIsDefault && (
-              <a
-                href="/change-pin"
-                className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 font-medium py-3.5 transition text-sm"
-              >
-                <KeyRound className="h-4 w-4" />
-                Choose a PIN of your own
-              </a>
-            )}
+            {/* The PIN button is gone. It could not open a payslip any more, and
+                a button that always fails teaches people the screen is broken
+                rather than that the rule changed. */}
+            <p className="text-xs text-zinc-500 text-center leading-relaxed">
+              Your pay opens with your fingerprint or face on this device. A PIN
+              no longer opens it — everyone was given the same one.
+            </p>
 
             {!wauSupported && (
-              <p className="text-xs text-zinc-600 text-center">
-                This browser does not support passkeys. Please use Chrome or Safari.
-              </p>
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+                This browser cannot use a fingerprint or face. Open{" "}
+                <span className="font-semibold">sushizen-shift-pwa.vercel.app/my-pay</span>{" "}
+                in Chrome or Safari on your own phone — not inside Messenger or
+                Facebook, whose built-in browser does not support it. If that is
+                not possible, tell the office.
+              </div>
             )}
           </div>
         )}
 
-        {mode === "pin" && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                Enter your PIN
-              </label>
-              <input
-                type="password"
-                inputMode="numeric"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                onKeyDown={(e) => e.key === "Enter" && verifyPin()}
-                placeholder="••••"
-                autoFocus
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3.5 text-white text-center text-2xl tracking-[0.5em] placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50"
-              />
-            </div>
-            <button
-              onClick={verifyPin}
-              className="w-full rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold py-3.5 transition flex items-center justify-center gap-2"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              Confirm
-            </button>
-            <button
-              onClick={() => { setMode("idle"); setError(""); setPin(""); }}
-              className="w-full text-sm text-zinc-500 hover:text-zinc-300 transition py-1"
-            >
-              Back
-            </button>
-          </div>
-        )}
 
         <p className="mt-8 text-xs text-zinc-600 text-center">
           Your pay data is only visible after identity verification.
