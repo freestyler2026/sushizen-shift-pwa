@@ -330,6 +330,16 @@ export default function AttendancePage() {
   const [correctionReason, setCorrectionReason] = useState("");
   const [correctionBusy, setCorrectionBusy] = useState(false);
   const [correctionDone, setCorrectionDone] = useState(false);
+  /** What this person has already asked for. The screen used to POST these and
+   *  never read them back, so a day waiting on approval looked identical to a
+   *  day nobody had reported: the banner asked again on every open, and the
+   *  same request went in again. Sita Gurmachhan sent four for 14 Sep and
+   *  three for 15 Sep before anyone worked out why. */
+  const [myCorrections, setMyCorrections] = useState<{
+    work_date: string; requested_check_in: string | null;
+    requested_check_out: string | null; status: string;
+    reviewed_by: string | null; created_at: string;
+  }[]>([]);
   // Missed clock-out correction (for open session from previous day)
   const [unclosedCorrOpen, setUnclosedCorrOpen] = useState(false);
   const [unclosedCorrCheckOut, setUnclosedCorrCheckOut] = useState("");
@@ -397,6 +407,26 @@ export default function AttendancePage() {
     }
   }, [router]);
 
+  const fetchMyCorrections = useCallback(async () => {
+    const a = getAuth();
+    if (!a) return;
+    try {
+      const res = await fetch("/api/attendance/corrections", {
+        credentials: "same-origin", headers: getAuthHeaders(a), cache: "no-store",
+      });
+      if (!res.ok) return;
+      const j = await res.json() as { rows?: typeof myCorrections };
+      setMyCorrections(j.rows ?? []);
+    } catch { /* the page still works without it; it just cannot say "already sent" */ }
+  }, []);
+
+  /** The request already waiting for this date, if there is one. Only pending
+   *  counts -- an approved one has already changed the times, and a rejected
+   *  one means send another. */
+  const pendingCorrectionFor = useCallback((workDate: string) =>
+    myCorrections.find((c) => c.work_date === workDate && c.status === "pending"),
+    [myCorrections]);
+
   const fetchWfhStatus = useCallback(async () => {
     const a = getAuth();
     if (!a) return;
@@ -419,8 +449,9 @@ export default function AttendancePage() {
     if (auth) {
       void fetchToday();
       void fetchWfhStatus();
+      void fetchMyCorrections();
     }
-  }, [auth, fetchToday, fetchWfhStatus]);
+  }, [auth, fetchToday, fetchWfhStatus, fetchMyCorrections]);
 
   // ─── GPS acquisition ──────────────────────────────────────────────────────
   // maximumAge: 0  → always request a fresh fix; never accept a cached browser position.
@@ -1011,7 +1042,7 @@ export default function AttendancePage() {
         setError(j.detail || "Failed to submit correction");
         return;
       }
-      setCorrectionDone(true);
+      setCorrectionDone(true); void fetchMyCorrections();
       setCorrectionOpen(false);
       setCorrectionReason("");
     } catch {
@@ -1045,7 +1076,7 @@ export default function AttendancePage() {
         setError(j.detail || "Failed to submit correction");
         return;
       }
-      setUnclosedCorrDone(true);
+      setUnclosedCorrDone(true); void fetchMyCorrections();
       setUnclosedCorrOpen(false);
       setUnclosedCorrReason("");
     } catch {
@@ -1147,7 +1178,37 @@ export default function AttendancePage() {
         </div>
       )}
       {/* ── Missed clock-out banner ──────────────────────────────────────────── */}
-      {data?.open_session_yesterday && !unclosedCorrDone && (() => {
+      {data?.open_session_yesterday && !unclosedCorrDone
+        && pendingCorrectionFor(data.open_session_yesterday.work_date) && (() => {
+        // Already asked, still waiting. Saying so is the whole fix: the banner
+        // used to keep asking, and people answered it again every time.
+        const c = pendingCorrectionFor(data.open_session_yesterday!.work_date)!;
+        const sentOn = new Intl.DateTimeFormat("en-US",
+          { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
+            timeZone: cityTz(auth?.city) }).format(new Date(c.created_at));
+        return (
+          <div className="rounded-2xl border border-violet-500/40 bg-violet-950/30 px-4 py-4">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 size={16} className="text-violet-300 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-violet-200">
+                  Your request has been sent
+                </p>
+                <p className="text-xs text-violet-200/80 mt-0.5">
+                  You asked for {c.work_date} to be closed
+                  {c.requested_check_out ? ` at ${c.requested_check_out}` : ""}, sent {sentOn}.
+                  It is waiting for a manager to approve it.
+                  <span className="block mt-1 text-violet-200/60">
+                    Nothing more to do — sending it again does not make it faster.
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {data?.open_session_yesterday && !unclosedCorrDone
+        && !pendingCorrectionFor(data.open_session_yesterday.work_date) && (() => {
         const s = data.open_session_yesterday!;
         const dateLabel = s.work_date;
         const clockInLabel = s.check_in_at
