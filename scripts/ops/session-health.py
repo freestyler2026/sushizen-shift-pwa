@@ -391,6 +391,20 @@ def secret_of(platform, store):
     return tmpl.format(STORE=key.upper()), os.path.join(ROOT, art.format(store=key)), enc
 
 
+def carry_to_secret(name, path, encoding):
+    """手元のセッションファイルをシークレットへ運ぶコマンド。
+
+    ログインのやり直しではない。**既にログイン済みのローカルファイルを、
+    取込側が読める形で置き直すだけ。** encoding は SECRET_OF のもので、
+    decodes_like_ci が検証しているのと同じ変換を書く（片方だけ変えると、
+    検証が通るのに実物が壊れる）。
+    """
+    rel = os.path.relpath(path, os.path.dirname(ROOT))
+    if encoding == "file2b64":
+        return f"base64 < {rel} | tr -d '\\n' | gh secret set {name}"
+    return f"gh secret set {name} < {rel}"
+
+
 def secret_findings(secrets, readers, cron_of):
     """更新手順そのものの欠陥を返す。[(深刻度, 見出し, 詳細)]"""
     out = []
@@ -413,21 +427,26 @@ def secret_findings(secrets, readers, cron_of):
                 # 読む口はあるが自分では動かない。
                 #
                 # ここは長く「毎朝ではなく回す直前に更新する」とだけ書いていた。
-                # 正しいが、**何をすれば回るのかを書いていなかった。** 2026-09-16
-                # に現場から: noon のログインは毎日しているのに取込は一度も回して
-                # いない、コマンドが出ないので自分で探すことになる、と報告された。
-                # 「効かない」と伝えるだけでは、効かせる方法を知らせたことにならない
-                # （教訓21の変種 — 案内が指す行き先が無い）。回す2行をそのまま出す。
-                cmds = REFRESH.get(platform) or ()
-                login = cmds[0].format(store=store or "paranaque",
-                                       STORE=(store or "paranaque").upper()) if cmds else ""
+                # 正しいが、**何をすれば回るのかを書いていなかった。**
+                #
+                # 2026-09-16 に現場から「毎日やっているのに入らない」と報告され、
+                # 測って分かったのは案内の中身の方だった:
+                #   ローカル noon-session.json … 当日 14:36（毎日ログインしている）
+                #   NOON_SESSION（シークレット）… 3日前のまま
+                # 毎朝出していた `node scripts/noon/setup-session.js` は --upload が
+                # 無く、**ローカルにしか書かない**。人は言われたとおりに毎日やって
+                # いて、取込に届いていなかっただけだった。
+                #
+                # だから出すのは「ログインし直せ」ではなく **手元の生きている
+                # セッションをシークレットへ運ぶ** コマンド。ログインは既に
+                # 済んでいることの方が多く、死んでいれば上の 🔴 がそう言う。
                 out.append(("manual", f"{label} — 取込は自分で回す（{used[0]} に cron が無い）",
-                            "\n".join(x for x in (
-                                login,
+                            "\n".join((
+                                carry_to_secret(name, path, enc),
                                 f"gh workflow run {used[0]}",
-                                f"※ ログインした流れでここまで回す。{used[0]} は自動では動かず、"
-                                f"シークレットだけ入れても次に回すときには寿命で切れている",
-                            ) if x)))
+                                "※ ログインしただけではシークレットに届かない。"
+                                f"{used[0]} は cron を持たないので、運んで起動するまでが1つの作業",
+                            ))))
             if used and secrets is not None and name not in secrets:
                 out.append(("bad", f"{name} が存在しない",
                             f"{', '.join(used)} が読もうとしている"))
