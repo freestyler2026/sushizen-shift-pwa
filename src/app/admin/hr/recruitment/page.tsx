@@ -2,6 +2,7 @@
 
 import { isoToday } from "@/lib/date";
 import { facebookLink } from "@/lib/facebook";
+import { LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outcome";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
@@ -2443,12 +2444,6 @@ function NewPlanModal({
 
 type OutcomeReason = { key: string; label: string };
 
-/** Reasons that describe running out of time rather than judging anybody.
- *  Kept apart in both directions, and the server enforces the same split: a
- *  count of "another candidate is stronger" that quietly includes 45 people
- *  nobody ever assessed is worse than no count at all. */
-const LAPSE_REASONS = new Set(["unreachable", "lapsed", "no_show", "withdrew", "other"]);
-const LAPSE_ONLY = new Set(["unreachable", "lapsed"]);
 
 const OUTCOME_BUTTONS: {
   key: "proceed" | "hold" | "pass" | "lapse";
