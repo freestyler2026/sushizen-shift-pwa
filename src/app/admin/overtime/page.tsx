@@ -1333,7 +1333,7 @@ export default function AdminOvertimePage() {
                     <input
                       type="number" min={0} max={24} inputMode="numeric"
                       value={adjH}
-                      onChange={(e) => setAdjH(e.target.value)}
+                      onChange={(e) => { setAdjH(e.target.value); setActionError(""); setSetHoursError(""); }}
                       className={`${INPUT_CLASS} w-16 text-center`}
                       aria-label="Hours approved"
                     />
@@ -1341,20 +1341,20 @@ export default function AdminOvertimePage() {
                     <input
                       type="number" min={0} max={59} inputMode="numeric"
                       value={adjM}
-                      onChange={(e) => setAdjM(e.target.value)}
+                      onChange={(e) => { setAdjM(e.target.value); setActionError(""); setSetHoursError(""); }}
                       className={`${INPUT_CLASS} w-16 text-center`}
                       aria-label="Minutes approved"
                     />
                     <span className="text-sm text-white/60">m</span>
-                    <span className="text-xs text-white/45">
-                      asked for {formatMinutes(reviewing.ot_minutes)}
-                    </span>
                   </div>
+                  <p className="text-xs text-white/45">
+                    They asked for {formatMinutes(reviewing.ot_minutes)}.
+                  </p>
                   <div>
                     <label className={T_LABEL}>Why it was changed (required)</label>
                     <textarea
                       value={adjWhy}
-                      onChange={(e) => setAdjWhy(e.target.value)}
+                      onChange={(e) => { setAdjWhy(e.target.value); setActionError(""); setSetHoursError(""); }}
                       rows={2}
                       placeholder="e.g. Prep was already done; one hour covers the delivery."
                       className={`${TEXTAREA_CLASS} mt-1`}
@@ -1469,7 +1469,7 @@ export default function AdminOvertimePage() {
                 <input
                   type="number" min={0} max={24} inputMode="numeric"
                   value={adjH}
-                  onChange={(e) => setAdjH(e.target.value)}
+                  onChange={(e) => { setAdjH(e.target.value); setActionError(""); setSetHoursError(""); }}
                   className={`${INPUT_CLASS} w-16 text-center`}
                   aria-label="Hours approved"
                 />
@@ -1477,7 +1477,7 @@ export default function AdminOvertimePage() {
                 <input
                   type="number" min={0} max={59} inputMode="numeric"
                   value={adjM}
-                  onChange={(e) => setAdjM(e.target.value)}
+                  onChange={(e) => { setAdjM(e.target.value); setActionError(""); setSetHoursError(""); }}
                   className={`${INPUT_CLASS} w-16 text-center`}
                   aria-label="Minutes approved"
                 />
@@ -1488,7 +1488,7 @@ export default function AdminOvertimePage() {
               <label className={T_LABEL}>Why it was changed (required)</label>
               <textarea
                 value={adjWhy}
-                onChange={(e) => setAdjWhy(e.target.value)}
+                onChange={(e) => { setAdjWhy(e.target.value); setActionError(""); setSetHoursError(""); }}
                 rows={3}
                 placeholder="e.g. Prep was already done; one hour covers the delivery."
                 className={`${TEXTAREA_CLASS} mt-1`}
