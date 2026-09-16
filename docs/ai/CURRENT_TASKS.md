@@ -1,5 +1,34 @@
 # CURRENT_TASKS.md
 
+## 2026-09-16 — 応募者の Facebook リンクが開かない（報告・修正済み）
+
+`href={applicant.facebook_url}` に**生の値をそのまま**入れていた。フォームは
+「リンク、またはプロフィールの名前」を聞いているので、URL でない値は自社ドメインの
+相対パスとして解決され 404 になる（`Jonas Membrillos` → `/admin/hr/Jonas%20Membrillos`）。
+
+| 記入済み120件 | |
+|---|---|
+| 完全なURL | 33（動いていた） |
+| **氏名** | **54** |
+| **ハンドルのみ** | **21** |
+| **スキーマ無し `facebook.com/…`** | **12** |
+| | **計 87件（73%）が開かなかった** |
+
+### 実装
+
+`src/lib/facebook.ts` の `facebookLink()`:
+
+- 完全なURL → そのまま（`profile.php?id=…` のクエリも保持）
+- `facebook.com/x` / `Www.facebook.com/x` / `m.facebook.com/x` → `https://` を付ける
+- ハンドル（`rhendel.austria.7` / `@nickimperial.mariano`）→ `https://www.facebook.com/<handle>`
+- **それ以外（氏名・メール・`-`・`facebook`・パスに空白）→ Facebook 検索**
+  - 表示名からプロフィールURLを求める方法は無い。**当てずっぽうのURLは同じ 404 を作る**
+  - 画面に `— searches Facebook (they gave a name, not a link)` と出す。
+    検索結果を本人と読み違えないため
+
+`tests/facebook-link.test.ts` が**実データ120件全部**を通し、相対hrefが1件も出ないことを確認。
+
+
 ## 2026-09-16 — My Pay が初期PIN 1111 で開く（オーナー指摘・修正済み）
 
 ### 実態
