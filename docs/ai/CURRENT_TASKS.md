@@ -26637,3 +26637,41 @@ fresh one-off dyno running that migration for the first time.
   back in. If staff routinely use a phone and a store PC, this will keep
   happening by design — worth deciding whether one session per person is still
   the rule you want.
+
+## 2026-09-16 — A reminder the applicant can actually be sent
+
+The OS already reminds the **interviewer** on Discord the evening before. The
+**applicant** heard nothing between picking a time and the call.
+
+- `GET /api/admin/hr/interviews/{id}/reminder` composes it, English and Tagalog,
+  the same way `_booking_invite_payload` does. **The wording lives on the server**
+  so this and the booking invite cannot drift apart (lesson 62), and so the
+  GSM-7 rule lives in one place — one wide dash turns a 160-character SMS into 67.
+- Refuses on a booking with no `starts_at` and says to give it one, rather than
+  writing "your interview is at None".
+- Measured over 60 days: every interview is `viber` (29), `whatsapp` (10) or
+  `call` (9) and **none is in person**, so the message says how we will reach
+  them instead of inviting them to an office nobody is asked to visit.
+- Calendar day rows get **Reminder**. The applicant's own `form_language` opens
+  first. Nothing is sent — same shape as the booking link, and the panel says so.
+
+**Verified.** Real data through the deployed endpoint for four booked
+interviews: right names, "tomorrow at 9:00 AM", right app and number, and
+**every string inside GSM-7** (checked character by character, both languages).
+Then the button itself in a real browser on a throwaway mount: panel opens,
+Tagalog switches, the wording matches.
+
+⚠️ **The successful copy is not verified.** The in-app browser reports
+`clipboard-write: denied`, so no click can copy there. What is verified is the
+failure path: it shows "Could not copy. Select the text above and copy it by
+hand." The implementation is character-for-character the same
+`navigator.clipboard.writeText` + same fallback as the **Copy message** button
+on the booking-link panel, which is in daily use.
+
+### Open
+- Each message is ~210 characters, so two SMS segments if the gateway is ever
+  switched on. Irrelevant today (everything is pasted into Viber/WhatsApp), but
+  it would cost ~₱1.00 per applicant rather than ₱0.50.
+- Nothing records that a reminder was copied. The booking-link panel does
+  (`booking-invite/copied`), which is what makes "sent but never opened"
+  answerable. Worth the same here if reminders become routine.
