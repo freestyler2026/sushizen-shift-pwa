@@ -13,6 +13,8 @@ import {
 } from "@/lib/ui-tokens";
 import { Download, ExternalLink, RefreshCw, Receipt } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
+import { BRANCHES, labelOf, type City } from "@/lib/branches";
+import { RECEIPT_DEPARTMENTS } from "@/lib/receipt-log";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,24 +47,12 @@ type Summary = {
 
 // ─── Branch / dept maps ───────────────────────────────────────────────────────
 
-const MANILA_BRANCHES: Record<string, string> = {
-  PAR: "Paranaque",
-  CUB: "Cubao",
-  TAFT: "Taft",
-  CK: "Commissary Kitchen",
-};
-
-const DUBAI_BRANCHES: Record<string, string> = {
-  BB: "Business Bay",
-  JLT: "JLT",
-  ARJ: "Al Rigga / Jaddaf",
-  AM: "Al Mankhool",
-  AB: "Abu Baker",
-};
+// Third copy of the branch list, now removed: this page, the staff form and
+// src/lib/branches.ts had three different names for the same Dubai stores, and
+// the filter here could not reach a branch the form did not offer. One list.
 
 function branchLabel(code: string, city: string) {
-  const map = city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES;
-  return map[code] ?? code;
+  return labelOf(city as City, code);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -224,17 +214,14 @@ export default function AdminReceiptLogPage() {
   }, [filtered, city, month, branch, methodLabel]);
 
   // ─── Branch options ────────────────────────────────────────────────────────
-  const branchMap = city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES;
   const branchOptions = [
     { value: "", label: "All Branches" },
-    ...Object.entries(branchMap).map(([k, v]) => ({ value: k, label: v })),
+    ...BRANCHES[city as City].map((b) => ({ value: b.code, label: b.name })),
   ];
 
   const deptOptions = [
     { value: "", label: "All Departments" },
-    ...["Kitchen", "Operations", "Admin", "Maintenance", "Logistics", "Other"].map((d) => ({
-      value: d, label: d,
-    })),
+    ...RECEIPT_DEPARTMENTS.map((d) => ({ value: d, label: d })),
   ];
 
   const currencySymbol = city === "dubai" ? "AED" : "₱";

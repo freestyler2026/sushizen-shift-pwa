@@ -52,8 +52,16 @@ const STEP_UP_TOKEN = "test-step-up-token";
 let stepUpResponse: unknown = null;
 global.fetch = ((url: RequestInfo | URL, init?: RequestInit) => {
   const u = String(url);
-  if (u.includes("/api/auth/step-up/pin")) {
-    return Promise.resolve(stepUpResponse ?? okJson({ step_up_token: STEP_UP_TOKEN }));
+  if (u.includes("/api/auth/webauthn/auth/options")) {
+    return Promise.resolve(
+      stepUpResponse ?? okJson({ state_token: "st", options: { challenge: "AA", allowCredentials: [] } }),
+    );
+  }
+  if (u.includes("/api/auth/webauthn/auth/verify")) {
+    return Promise.resolve(okJson({ step_up_token: STEP_UP_TOKEN }));
+  }
+  if (u.includes("/api/auth/webauthn/register/")) {
+    return Promise.resolve(okJson({ state_token: "st", options: { challenge: "AA", user: { id: "AA", name: "n", displayName: "n" }, rp: {}, pubKeyCredParams: [] } }));
   }
   if (u.includes("/api/auth/")) return Promise.resolve(okJson({}));
   // Opening a payslip fetches its detail, which is one call more than most of
@@ -64,6 +72,46 @@ global.fetch = ((url: RequestInfo | URL, init?: RequestInit) => {
 }) as unknown as typeof fetch;
 
 // window.print mock
+// The gate calls the browser's authenticator. jsdom has none, so the page
+// would report "this browser does not support passkeys" and no test could get
+// past its own lock screen.
+Object.defineProperty(window, "PublicKeyCredential", { value: class {}, writable: true });
+Object.defineProperty(navigator, "credentials", {
+  value: {
+    get: vi.fn(async () => fakeCredential()),
+    create: vi.fn(async () => fakeCredential("attest")),
+  },
+  writable: true,
+});
+// The page narrows on `resp instanceof AuthenticatorAssertionResponse` to
+// decide which half of the credential to send. jsdom defines neither class, so
+// the check throws by name before any of it runs.
+class FakeAssertionResponse {
+  clientDataJSON = new Uint8Array([1, 2, 3]).buffer;
+  authenticatorData = new Uint8Array([1, 2, 3]).buffer;
+  signature = new Uint8Array([1, 2, 3]).buffer;
+  userHandle = new Uint8Array([1, 2, 3]).buffer;
+}
+class FakeAttestationResponse {
+  clientDataJSON = new Uint8Array([1, 2, 3]).buffer;
+  attestationObject = new Uint8Array([1, 2, 3]).buffer;
+  getTransports() { return ["internal"]; }
+}
+Object.defineProperty(globalThis, "AuthenticatorAssertionResponse",
+  { value: FakeAssertionResponse, writable: true });
+Object.defineProperty(globalThis, "AuthenticatorAttestationResponse",
+  { value: FakeAttestationResponse, writable: true });
+
+function fakeCredential(kind: "assert" | "attest" = "assert") {
+  return {
+    id: "cred-1",
+    type: "public-key",
+    rawId: new Uint8Array([1, 2, 3]).buffer,
+    response: kind === "assert" ? new FakeAssertionResponse() : new FakeAttestationResponse(),
+    getClientExtensionResults: () => ({}),
+  } as unknown as PublicKeyCredential;
+}
+
 global.print = vi.fn();
 Object.defineProperty(window, "print", { value: vi.fn(), writable: true });
 
@@ -235,15 +283,15 @@ function errorResponse(status = 500, text = "Server error") {
 
 /** Get past the identity gate, if it is showing.
  *
- *  Not a bypass: it clicks through the PIN route exactly as a person would, so
+ *  Not a bypass: it presses the passkey button exactly as a person would, so
  *  the gate itself stays covered and a change to it will still be noticed here.
+ *  The PIN route it used to click through is gone — a PIN no longer opens a
+ *  payslip, because 157 of 177 accounts were still on the one they were given.
  *  Tests that are about the gate render the page directly instead. */
 async function passGate() {
-  const pinRoute = screen.queryByText("Use PIN instead");
-  if (!pinRoute) return;
-  fireEvent.click(pinRoute);
-  fireEvent.change(screen.getByPlaceholderText("••••"), { target: { value: "1234" } });
-  fireEvent.click(screen.getByText("Confirm"));
+  const useIt = screen.queryByText("Use fingerprint or face");
+  if (!useIt) return;
+  fireEvent.click(useIt);
   await waitFor(() =>
     expect(screen.queryByText("Verify Your Identity")).not.toBeInTheDocument()
   );
@@ -315,28 +363,32 @@ describe("/my-pay — identity gate", () => {
     ).toBeInTheDocument();
   });
 
-  it("refuses a PIN shorter than four digits without calling the server", async () => {
+  it("offers no PIN route at all — a PIN cannot open a payslip", async () => {
     await renderRaw();
-    fireEvent.click(screen.getByText("Use PIN instead"));
-    fireEvent.change(screen.getByPlaceholderText("••••"), { target: { value: "12" } });
-    fireEvent.click(screen.getByText("Confirm"));
-    await waitFor(() =>
-      expect(screen.getByText("PIN must be at least 4 digits.")).toBeInTheDocument()
-    );
-    expect(screen.getByText("Verify Your Identity")).toBeInTheDocument();
+    expect(screen.queryByText("Use PIN instead")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("••••")).not.toBeInTheDocument();
+    expect(screen.getByText("Use fingerprint or face")).toBeInTheDocument();
   });
 
-  it("keeps the pay data hidden and says so when the PIN is wrong", async () => {
-    stepUpResponse = { ok: false, status: 401, json: async () => ({ detail: "Invalid PIN" }) };
+  it("lets somebody with no passkey make one here, not on another page", async () => {
     await renderRaw();
-    fireEvent.click(screen.getByText("Use PIN instead"));
-    fireEvent.change(screen.getByPlaceholderText("••••"), { target: { value: "9999" } });
-    fireEvent.click(screen.getByText("Confirm"));
-    await waitFor(() => expect(screen.getByText("Invalid PIN")).toBeInTheDocument());
+    expect(screen.getByText("Set it up on this device")).toBeInTheDocument();
+  });
+
+  it("keeps the pay data hidden and says so when the passkey is refused", async () => {
+    stepUpResponse = {
+      ok: false, status: 404,
+      json: async () => ({ detail: "No passkeys registered" }),
+    };
+    await renderRaw();
+    fireEvent.click(screen.getByText("Use fingerprint or face"));
+    await waitFor(() =>
+      expect(screen.getByText(/No passkey registered on this account/)).toBeInTheDocument()
+    );
     expect(screen.queryByText("Pay Slips")).not.toBeInTheDocument();
   });
 
-  it("shows the pay page once the PIN is accepted", async () => {
+  it("shows the pay page once the passkey is accepted", async () => {
     await renderRaw();
     await passGate();
     await waitFor(() => expect(screen.getByText("My Pay")).toBeInTheDocument());

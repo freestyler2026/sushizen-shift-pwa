@@ -11,7 +11,6 @@ import {
   CreditCard,
   FileText,
   Fingerprint,
-  KeyRound,
   Lock,
   Loader2,
   MessageCircle,
@@ -271,6 +270,50 @@ async function webauthnAuthenticate(options: Record<string, unknown>): Promise<R
   return credentialToJSON(cred as PublicKeyCredential);
 }
 
+/**
+ * Create a passkey on this device.
+ *
+ * The page could already *use* one and could not make one, so when somebody
+ * had none the gate told them to go to the Attendance page — a different
+ * screen, in the middle of trying to look at their pay. Almost nobody does
+ * that; they press "Use PIN instead", and until 2026-09-16 that PIN was 1111
+ * on 157 of 177 accounts.
+ */
+async function webauthnRegister(options: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const pubKey = options as unknown as {
+    rp: PublicKeyCredentialRpEntity;
+    user: { id: string; name: string; displayName: string };
+    challenge: string;
+    pubKeyCredParams: PublicKeyCredentialParameters[];
+    timeout?: number;
+    attestation?: AttestationConveyancePreference;
+    authenticatorSelection?: AuthenticatorSelectionCriteria;
+    excludeCredentials?: Array<{ id: string; type: string; transports?: string[] }>;
+  };
+  const cred = await navigator.credentials.create({
+    publicKey: {
+      rp: pubKey.rp,
+      user: {
+        id: b64uDecode(pubKey.user.id).buffer as ArrayBuffer,
+        name: pubKey.user.name,
+        displayName: pubKey.user.displayName,
+      },
+      challenge: b64uDecode(pubKey.challenge).buffer as ArrayBuffer,
+      pubKeyCredParams: pubKey.pubKeyCredParams,
+      timeout: pubKey.timeout ?? 60000,
+      attestation: pubKey.attestation ?? "none",
+      authenticatorSelection: pubKey.authenticatorSelection,
+      excludeCredentials: (pubKey.excludeCredentials ?? []).map((c) => ({
+        id: b64uDecode(c.id).buffer as ArrayBuffer,
+        type: c.type as PublicKeyCredentialType,
+        transports: (c.transports ?? []) as AuthenticatorTransport[],
+      })),
+    },
+  });
+  if (!cred) throw new Error("Registration cancelled");
+  return credentialToJSON(cred as PublicKeyCredential);
+}
+
 // ─── Passkey Gate ─────────────────────────────────────────────────────────────
 
 interface PasskeyGateProps {
@@ -278,9 +321,9 @@ interface PasskeyGateProps {
 }
 
 function PasskeyGate({ onVerified }: PasskeyGateProps) {
-  const [mode, setMode] = useState<"idle" | "loading" | "pin" | "registering">("idle");
-  const [pin, setPin] = useState("");
+  const [mode, setMode] = useState<"idle" | "loading" | "registering">("idle");
   const [error, setError] = useState("");
+  const [registered, setRegistered] = useState("");
   const [wauSupported] = useState(() =>
     typeof window !== "undefined" && !!window.PublicKeyCredential
   );
@@ -337,31 +380,42 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
     }
   }, [getHeaders, onVerified]);
 
-  const verifyPin = useCallback(async () => {
-    if (pin.length < 4) {
-      setError("PIN must be at least 4 digits.");
-      return;
-    }
-    setError("");
-    setMode("loading");
+  const registerPasskey = useCallback(async () => {
+    setError(""); setRegistered("");
+    setMode("registering");
     try {
       const headers = await getHeaders();
-      const res = await fetch(`${API_BASE}/api/auth/step-up/pin`, {
+      const optRes = await fetch(`${API_BASE}/api/auth/webauthn/register/options`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ friendly_name: "This device" }),
       });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error((j as { detail?: string }).detail || "Invalid PIN");
+      if (!optRes.ok) {
+        const j = await optRes.json().catch(() => ({}));
+        throw new Error((j as { detail?: string }).detail || `HTTP ${optRes.status}`);
       }
-      const { step_up_token } = await res.json();
-      onVerified(step_up_token);
+      const { state_token, options } = await optRes.json();
+      const credential = await webauthnRegister(options as Record<string, unknown>);
+      const verRes = await fetch(`${API_BASE}/api/auth/webauthn/register/verify`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ state_token, friendly_name: "This device", credential }),
+      });
+      if (!verRes.ok) {
+        const j = await verRes.json().catch(() => ({}));
+        throw new Error((j as { detail?: string }).detail || "Could not save it");
+      }
+      setRegistered("Saved. Use the button above from now on — on this device it is your fingerprint or face.");
+      setMode("idle");
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Invalid PIN");
-      setMode("pin");
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg.includes("NotAllowed") || msg.includes("cancel")
+        ? "Cancelled. Nothing was saved."
+        : msg || "Could not set it up on this device.");
+      setMode("idle");
     }
-  }, [pin, getHeaders, onVerified]);
+  }, [getHeaders]);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -384,6 +438,19 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
           </div>
         )}
 
+        {registered && (
+          <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            {registered}
+          </div>
+        )}
+
+        {mode === "registering" && (
+          <div className="flex flex-col items-center gap-3 py-8 text-zinc-400">
+            <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
+            <p className="text-sm">Follow your phone&rsquo;s prompt…</p>
+          </div>
+        )}
+
         {mode === "loading" && (
           <div className="flex flex-col items-center gap-3 py-8 text-zinc-400">
             <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
@@ -391,7 +458,7 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
           </div>
         )}
 
-        {mode !== "loading" && mode !== "pin" && (
+        {mode !== "loading" && mode !== "registering" && (
           <div className="space-y-3">
             {wauSupported && (
               <button
@@ -399,57 +466,40 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
                 className="w-full flex items-center justify-center gap-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold py-4 transition"
               >
                 <Fingerprint className="h-5 w-5" />
-                Verify with Passkey
+                Use fingerprint or face
               </button>
             )}
-            <button
-              onClick={() => { setMode("pin"); setError(""); }}
-              className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 font-medium py-3.5 transition text-sm"
-            >
-              <KeyRound className="h-4 w-4" />
-              Use PIN instead
-            </button>
+            {/* Making one was only possible on the Attendance page, which is
+                not where anybody is when they want their payslip. */}
+            {wauSupported && (
+              <button
+                onClick={registerPasskey}
+                className="w-full flex items-center justify-center gap-3 rounded-xl border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 font-medium py-3.5 transition text-sm"
+              >
+                <Fingerprint className="h-4 w-4" />
+                Set it up on this device
+              </button>
+            )}
+            {/* The PIN button is gone. It could not open a payslip any more, and
+                a button that always fails teaches people the screen is broken
+                rather than that the rule changed. */}
+            <p className="text-xs text-zinc-500 text-center leading-relaxed">
+              Your pay opens with your fingerprint or face on this device. A PIN
+              no longer opens it — everyone was given the same one.
+            </p>
 
             {!wauSupported && (
-              <p className="text-xs text-zinc-600 text-center">
-                This browser does not support passkeys. Please use Chrome or Safari.
-              </p>
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+                This browser cannot use a fingerprint or face. Open{" "}
+                <span className="font-semibold">sushizen-shift-pwa.vercel.app/my-pay</span>{" "}
+                in Chrome or Safari on your own phone — not inside Messenger or
+                Facebook, whose built-in browser does not support it. If that is
+                not possible, tell the office.
+              </div>
             )}
           </div>
         )}
 
-        {mode === "pin" && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                Enter your PIN
-              </label>
-              <input
-                type="password"
-                inputMode="numeric"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                onKeyDown={(e) => e.key === "Enter" && verifyPin()}
-                placeholder="••••"
-                autoFocus
-                className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3.5 text-white text-center text-2xl tracking-[0.5em] placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50"
-              />
-            </div>
-            <button
-              onClick={verifyPin}
-              className="w-full rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold py-3.5 transition flex items-center justify-center gap-2"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              Confirm
-            </button>
-            <button
-              onClick={() => { setMode("idle"); setError(""); setPin(""); }}
-              className="w-full text-sm text-zinc-500 hover:text-zinc-300 transition py-1"
-            >
-              Back
-            </button>
-          </div>
-        )}
 
         <p className="mt-8 text-xs text-zinc-600 text-center">
           Your pay data is only visible after identity verification.

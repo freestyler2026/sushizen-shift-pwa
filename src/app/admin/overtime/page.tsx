@@ -5,6 +5,7 @@ import { Clock, CheckCircle, XCircle, AlertCircle, Download, Banknote, UserCheck
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import SelectDark from "@/components/SelectDark";
+import ModalScrim, { BodyScrollLock } from "@/components/ModalScrim";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -56,6 +57,7 @@ type OTRequest = {
   ot_minutes_original?: number | null;
   ot_minutes_source?: string;
   ot_minutes_set_by?: string;
+  ot_minutes_reason?: string;
   disputed_at?: string | null;
   dispute_note?: string;
   dispute_closed_at?: string | null;
@@ -457,6 +459,16 @@ function DecisionNotes({ r, onCloseDispute }: {
           {formatMinutes(r.ot_minutes_original)}
         </span>
       )}
+      {/* A person decided this amount, so the reason travels with it. It used
+          to live in the comment box, where payroll paid the claim instead. */}
+      {r.ot_minutes_source === "manual" && r.ot_minutes_original != null && (
+        <span className="mt-1 block text-[11px] text-amber-200/90">
+          {r.ot_minutes < r.ot_minutes_original ? "Shortened" : "Raised"} to{" "}
+          {formatMinutes(r.ot_minutes)} by {r.ot_minutes_set_by} — asked for{" "}
+          {formatMinutes(r.ot_minutes_original)}
+          {r.ot_minutes_reason ? <>. {r.ot_minutes_reason}</> : null}
+        </span>
+      )}
       {r.status === "rejected" && (
         <span className="mt-1 block text-[11px] text-red-300/80">
           {ground ? ground.label : "No reason was recorded"}
@@ -525,6 +537,15 @@ export default function AdminOvertimePage() {
   const [rejectCode, setRejectCode] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  // Approving a different number of hours than were asked for. Shared by the
+  // approve dialog and the standalone one, which are never open together.
+  const [adjOpen, setAdjOpen] = useState(false);
+  const [adjH, setAdjH] = useState("");
+  const [adjM, setAdjM] = useState("");
+  const [adjWhy, setAdjWhy] = useState("");
+  const [setHoursFor, setSetHoursFor] = useState<OTRequest | null>(null);
+  const [setHoursBusy, setSetHoursBusy] = useState(false);
+  const [setHoursError, setSetHoursError] = useState("");
 
   const [exporting, setExporting] = useState(false);
 
@@ -611,6 +632,72 @@ export default function AdminOvertimePage() {
     setActionNote("");
     setActionError("");
     setRejectCode("");
+    setAdjOpen(false);
+    // Pre-filled with the claim so the reviewer edits a number rather than
+    // composing one, and a stray Enter cannot approve zero.
+    setAdjH(String(Math.floor(r.ot_minutes / 60)));
+    setAdjM(String(r.ot_minutes % 60));
+    setAdjWhy("");
+  }
+
+  /** The typed amount, or null when it is not usable yet. */
+  function adjMinutes(): number | null {
+    const h = Number(adjH || 0);
+    const m = Number(adjM || 0);
+    if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || m < 0) return null;
+    const total = Math.round(h * 60 + m);
+    if (total <= 0 || total > 24 * 60) return null;
+    return total;
+  }
+
+  function openSetHours(r: OTRequest) {
+    setSetHoursFor(r);
+    setSetHoursError("");
+    setAdjH(String(Math.floor(r.ot_minutes / 60)));
+    setAdjM(String(r.ot_minutes % 60));
+    setAdjWhy("");
+  }
+
+  /** Approve a different number of hours on a request that is already approved.
+   *
+   *  Reported from Manila: a two-hour claim where one hour is approved has come
+   *  up several times, and the amount was going into the comment box while the
+   *  record kept the claim — so payroll paid the claim.
+   */
+  async function submitSetHours() {
+    const r = setHoursFor;
+    if (!r) return;
+    const minutes = adjMinutes();
+    if (minutes === null) {
+      setSetHoursError("Give the hours as a number between 1 minute and 24 hours.");
+      return;
+    }
+    if (minutes === r.ot_minutes) {
+      setSetHoursError(`That is already the approved amount (${formatMinutes(r.ot_minutes)}).`);
+      return;
+    }
+    if (adjWhy.trim().length < 3) {
+      setSetHoursError("Say why — the employee sees this, and payroll reads it later.");
+      return;
+    }
+    setSetHoursBusy(true);
+    setSetHoursError("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/admin/overtime/${r.id}/set-hours`, {
+        method: "PATCH",
+        headers: new Headers(headers),
+        body: JSON.stringify({ minutes, reason: adjWhy.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Nothing was changed.");
+      setSetHoursFor(null);
+      await load();
+    } catch (e) {
+      setSetHoursError(e instanceof Error ? e.message : "Nothing was changed.");
+    } finally {
+      setSetHoursBusy(false);
+    }
   }
 
   async function submitAction(useClock = false) {
@@ -621,12 +708,30 @@ export default function AdminOvertimePage() {
       const headers = await tokenHeaders();
       let endpoint = "";
       let body: Record<string, string> = {};
-      let bodyJson: Record<string, string | boolean> | null = null;
+      let bodyJson: Record<string, string | number | boolean> | null = null;
       if (modalAction === "manager_approve") {
         endpoint = `/api/admin/overtime/${reviewing.id}/manager-approve`;
-        // A flag, not a number. The server recomputes the minutes from the
-        // roster and the punches — money posted from a browser is not evidence.
-        bodyJson = { note: actionNote, use_clock: useClock };
+        if (adjOpen) {
+          // Here the number does come from the browser, because nothing else
+          // could produce it — the reviewer is deciding, not measuring. What
+          // makes it answerable is the reason, so it is required.
+          const minutes = adjMinutes();
+          if (minutes === null) {
+            setActionError("Give the hours as a number between 1 minute and 24 hours.");
+            setActionBusy(false);
+            return;
+          }
+          if (adjWhy.trim().length < 3) {
+            setActionError("Say why the hours were changed — the employee sees this.");
+            setActionBusy(false);
+            return;
+          }
+          bodyJson = { note: actionNote, set_minutes: minutes, set_reason: adjWhy.trim() };
+        } else {
+          // A flag, not a number. The server recomputes the minutes from the
+          // roster and the punches — money posted from a browser is not evidence.
+          bodyJson = { note: actionNote, use_clock: useClock };
+        }
       } else if (modalAction === "remove_from_payroll") {
         endpoint = `/api/admin/overtime/${reviewing.id}/remove-from-payroll`;
         body = { note: actionNote };
@@ -921,6 +1026,17 @@ export default function AdminOvertimePage() {
                           Set to {formatMinutes(r.ot_facts.computed_minutes)}
                         </button>
                       )}
+                      {/* Approved, but for a different number of hours than was
+                          asked for. This was going into the comment box while
+                          the record kept the claim, so payroll paid the claim. */}
+                      {r.status === "manager_approved" && canStage1 && (
+                        <button
+                          onClick={() => openSetHours(r)}
+                          className="rounded-xl border border-amber-500/25 bg-amber-900/10 px-3 py-2 text-xs text-amber-300 hover:bg-amber-900/30 transition whitespace-nowrap"
+                        >
+                          Change hours
+                        </button>
+                      )}
                       {r.status === "manager_approved" && canStage2 && (
                         <button
                           onClick={() => openModal(r, "mark_paid")}
@@ -1024,6 +1140,14 @@ export default function AdminOvertimePage() {
                                 Set to {formatMinutes(r.ot_facts.computed_minutes)}
                               </button>
                             )}
+                            {r.status === "manager_approved" && canStage1 && (
+                              <button
+                                onClick={() => openSetHours(r)}
+                                className="rounded-lg border border-amber-500/25 bg-amber-900/10 px-2 py-1 text-xs text-amber-300 hover:bg-amber-900/30 transition whitespace-nowrap"
+                              >
+                                Change hours
+                              </button>
+                            )}
                             {r.status === "manager_approved" && canStage2 && (
                               <button
                                 onClick={() => openModal(r, "mark_paid")}
@@ -1066,6 +1190,7 @@ export default function AdminOvertimePage() {
       {/* Action Modal */}
       {reviewing && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+          <BodyScrollLock />
           <div className={`${GLASS_CARD} w-full sm:max-w-md p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto rounded-b-none sm:rounded-2xl pb-safe`}>
             <h3 className={T_SECTION}>{modalTitle}</h3>
             <div className="space-y-1 rounded-lg bg-white/5 p-3 text-sm">
@@ -1191,11 +1316,88 @@ export default function AdminOvertimePage() {
                 className={`${TEXTAREA_CLASS} mt-1`}
               />
             </div>
+            {modalAction === "manager_approve" && (
+              adjOpen ? (
+                <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-900/15 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className={T_LABEL}>Approve this much instead</span>
+                    <button
+                      type="button"
+                      onClick={() => setAdjOpen(false)}
+                      className="text-xs text-white/45 hover:text-white/80"
+                    >
+                      Keep {formatMinutes(reviewing.ot_minutes)} as asked
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number" min={0} max={24} inputMode="numeric"
+                      value={adjH}
+                      onChange={(e) => { setAdjH(e.target.value); setActionError(""); setSetHoursError(""); }}
+                      className={`${INPUT_CLASS} w-16 text-center`}
+                      aria-label="Hours approved"
+                    />
+                    <span className="text-sm text-white/60">h</span>
+                    <input
+                      type="number" min={0} max={59} inputMode="numeric"
+                      value={adjM}
+                      onChange={(e) => { setAdjM(e.target.value); setActionError(""); setSetHoursError(""); }}
+                      className={`${INPUT_CLASS} w-16 text-center`}
+                      aria-label="Minutes approved"
+                    />
+                    <span className="text-sm text-white/60">m</span>
+                  </div>
+                  <p className="text-xs text-white/45">
+                    They asked for {formatMinutes(reviewing.ot_minutes)}.
+                  </p>
+                  <div>
+                    <label className={T_LABEL}>Why it was changed (required)</label>
+                    <textarea
+                      value={adjWhy}
+                      onChange={(e) => { setAdjWhy(e.target.value); setActionError(""); setSetHoursError(""); }}
+                      rows={2}
+                      placeholder="e.g. Prep was already done; one hour covers the delivery."
+                      className={`${TEXTAREA_CLASS} mt-1`}
+                    />
+                    <p className={`${T_CAPTION} mt-1`}>
+                      The employee is told this, and it stays on the record for payroll.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAdjOpen(true)}
+                  className="text-sm text-amber-300/90 underline underline-offset-2 hover:text-amber-200"
+                >
+                  Approve a different number of hours…
+                </button>
+              )
+            )}
             {actionError && <p className="text-sm text-red-400">{actionError}</p>}
             {/* Two buttons only when the clock and the claim actually differ,
                 and each says the number it will approve. A single "Approve"
                 with a silent basis is how 56 short claims went through. */}
-            {modalAction === "manager_approve"
+            {modalAction === "manager_approve" && adjOpen ? (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setReviewing(null)}
+                  className={`${SECONDARY_BUTTON} flex-1`}
+                  disabled={actionBusy}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => submitAction(false)}
+                  disabled={actionBusy}
+                  className={`${PRIMARY_BUTTON} flex-1`}
+                >
+                  {actionBusy
+                    ? "Saving…"
+                    : `Approve ${adjMinutes() === null ? "—" : formatMinutes(adjMinutes() as number)}`}
+                </button>
+              </div>
+            ) : modalAction === "manager_approve"
               && reviewing.ot_facts
               && !reviewing.ot_facts.unavailable
               && reviewing.ot_facts.computed_minutes !== null
@@ -1238,6 +1440,85 @@ export default function AdminOvertimePage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Change the approved hours on a request that is already approved.
+          Reported from Manila: "a two-hour request where only one hour was
+          approved has come up several times, and we have been writing it in
+          the comment box." The record kept the claim, so payroll paid it. */}
+      {setHoursFor && (
+        <ModalScrim className="z-[80] bg-black/60 backdrop-blur-sm">
+          <div className={`${GLASS_CARD} mx-auto my-4 w-full sm:max-w-md space-y-4 p-4 sm:p-6`}>
+            <h3 className={T_SECTION}>Change the approved hours</h3>
+            <div className="space-y-1 rounded-lg bg-white/5 p-3 text-sm">
+              <p>
+                <span className="text-white/50">Staff:</span>{" "}
+                <strong className="text-white">{setHoursFor.staff_name}</strong>
+              </p>
+              <p>
+                <span className="text-white/50">Date:</span> {setHoursFor.work_date}
+              </p>
+              <p>
+                <span className="text-white/50">They asked for:</span>{" "}
+                <span className="text-white">{formatMinutes(setHoursFor.ot_minutes)}</span>
+              </p>
+            </div>
+            <div>
+              <label className={T_LABEL}>Approve this much</label>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  type="number" min={0} max={24} inputMode="numeric"
+                  value={adjH}
+                  onChange={(e) => { setAdjH(e.target.value); setActionError(""); setSetHoursError(""); }}
+                  className={`${INPUT_CLASS} w-16 text-center`}
+                  aria-label="Hours approved"
+                />
+                <span className="text-sm text-white/60">h</span>
+                <input
+                  type="number" min={0} max={59} inputMode="numeric"
+                  value={adjM}
+                  onChange={(e) => { setAdjM(e.target.value); setActionError(""); setSetHoursError(""); }}
+                  className={`${INPUT_CLASS} w-16 text-center`}
+                  aria-label="Minutes approved"
+                />
+                <span className="text-sm text-white/60">m</span>
+              </div>
+            </div>
+            <div>
+              <label className={T_LABEL}>Why it was changed (required)</label>
+              <textarea
+                value={adjWhy}
+                onChange={(e) => { setAdjWhy(e.target.value); setActionError(""); setSetHoursError(""); }}
+                rows={3}
+                placeholder="e.g. Prep was already done; one hour covers the delivery."
+                className={`${TEXTAREA_CLASS} mt-1`}
+              />
+              <p className={`${T_CAPTION} mt-1`}>
+                The employee is told this, and it stays on the record so payroll
+                pays the approved amount rather than the claim.
+              </p>
+            </div>
+            {setHoursError && <p className="text-sm text-red-400">{setHoursError}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSetHoursFor(null)}
+                className={`${SECONDARY_BUTTON} flex-1`}
+                disabled={setHoursBusy}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitSetHours}
+                disabled={setHoursBusy}
+                className={`${PRIMARY_BUTTON} flex-1`}
+              >
+                {setHoursBusy
+                  ? "Saving…"
+                  : `Approve ${adjMinutes() === null ? "—" : formatMinutes(adjMinutes() as number)}`}
+              </button>
+            </div>
+          </div>
+        </ModalScrim>
       )}
     </div>
   );

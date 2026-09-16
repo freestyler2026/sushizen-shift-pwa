@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prepareUpload } from "@/lib/image-compress";
+import { BRANCHES } from "@/lib/branches";
+import { RECEIPT_DEPARTMENTS } from "@/lib/receipt-log";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi, type City } from "@/lib/auth";
 import {
   GLASS_CARD,
@@ -32,21 +34,15 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MANILA_BRANCHES: Record<string, string> = {
-  PAR: "Paranaque",
-  CUB: "Cubao",
-  TAFT: "Taft",
-  CK: "Commissary Kitchen",
-};
-const DUBAI_BRANCHES: Record<string, string> = {
-  BB: "Business Bay",
-  JLT: "JLT",
-  ARJ: "Al Rigga / Jaddaf",
-  AM: "Al Mankhool",
-  AB: "Abu Baker",
-};
+// The branch list is src/lib/branches.ts, not a copy. This page kept its own
+// and the two had drifted: AB read "Abu Baker", AM "Al Mankhool", ARJ
+// "Al Rigga / Jaddaf" — three different places from the names on the QR
+// posters in those stores (Al Barsha, Al Mina, Arjan). Somebody filing a
+// receipt was choosing a branch by a name nobody there uses. Neither Manila's
+// Back Office nor Dubai's HQ was on the list at all, so the fifteen people who
+// work in an office had to file against a restaurant.
 
-const DEPARTMENTS = ["Kitchen", "Operations", "Admin", "Maintenance", "Logistics", "Other"];
+const DEPARTMENTS = RECEIPT_DEPARTMENTS;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,12 +110,12 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
 
   const [city, setCity] = useState<City>(auth.city === "dubai" ? "dubai" : "manila");
 
-  const branches = city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES;
-  const branchKeys = Object.keys(branches);
+  const branchList = BRANCHES[city];
+  const branchKeys = branchList.map((b) => b.code);
 
   // ── Form state ──
-  const [branch, setBranch]     = useState(branchKeys[0]);
-  const [dept, setDept]         = useState(DEPARTMENTS[0]);
+  const [branch, setBranch]     = useState<string>(branchKeys[0]);
+  const [dept, setDept]         = useState<string>(DEPARTMENTS[0]);
   const [date, setDate]         = useState(todayLocal);
   const [supplier, setSupplier] = useState("");
   const [supplierOpen, setSupplierOpen] = useState(false);
@@ -157,8 +153,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
 
   // Reset branch to first branch of the new city when city switches
   useEffect(() => {
-    const keys = city === "dubai" ? Object.keys(DUBAI_BRANCHES) : Object.keys(MANILA_BRANCHES);
-    setBranch(keys[0]);
+    setBranch(BRANCHES[city][0].code);
     setSupplier("");
   }, [city]);
 
@@ -438,7 +433,7 @@ function ReceiptLogApp({ auth }: { auth: NonNullable<ReturnType<typeof getAuth>>
             <SelectDark
               value={branch}
               onChange={(v) => setBranch(v)}
-              options={branchKeys.map((k) => ({ value: k, label: `${k} — ${branches[k]}` }))}
+              options={branchList.map((b) => ({ value: b.code, label: `${b.code} — ${b.name}` }))}
             />
           </div>
           <div>

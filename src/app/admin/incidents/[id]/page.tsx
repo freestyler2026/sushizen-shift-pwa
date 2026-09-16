@@ -10,6 +10,7 @@ import {
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
+import ModalScrim from "@/components/ModalScrim";
 import {
   BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, T_LABEL, T_SECTION, TEXTAREA_CLASS,
@@ -51,6 +52,11 @@ type IncidentDetail = {
   incident_datetime: string; status: string; created_at: string;
   updated_at: string; replies: Reply[]; attachments: Attachment[];
   internal_notes: InternalNote[];
+  /** What it was filed at, once somebody has re-graded it. */
+  severity_original?: string | null;
+  severity_set_by?: string;
+  severity_set_at?: string | null;
+  severity_reason?: string;
   // Issue-resolution lifecycle (Phase 1 backend)
   proposed_solution?: string;
   implementation_note?: string;
@@ -76,14 +82,42 @@ const EVAL_BADGE: Record<string, string> = {
   resolved: BADGE_SUCCESS, partial: BADGE_WARNING, recurring: BADGE_ERROR,
 };
 
-function fmtDt(iso: string): string {
+/** Where the incident happened decides which clock its times are read on. */
+function cityTz(city: string): string {
+  return (city || "").toLowerCase() === "dubai" ? "Asia/Dubai" : "Asia/Manila";
+}
+
+/**
+ * A stamped instant, shown on the branch's clock.
+ *
+ * It used to format on the reader's device. On 2026-09-16 that put two times
+ * for the same event at the top of this page, four hours apart: a Manila
+ * report filed at 12:54 read "08:54" beside an incident time of "12:53",
+ * because the person reading it was on a machine set to Dubai.
+ */
+function fmtDt(iso: string, city: string): string {
   if (!iso) return "—";
   try {
     return new Date(iso).toLocaleString("en-GB", {
+      timeZone: cityTz(city),
       year: "numeric", month: "2-digit", day: "2-digit",
       hour: "2-digit", minute: "2-digit",
     });
   } catch { return iso; }
+}
+
+/**
+ * The time the reporter typed.
+ *
+ * `incident_datetime` is a bare `YYYY-MM-DDTHH:MM` from a datetime-local
+ * field: already the branch's wall clock, with no zone on it. Putting it
+ * through a Date would have the browser read it as the reader's own time and
+ * then convert it, moving a time somebody typed.
+ */
+function fmtTyped(v: string): string {
+  if (!v) return "—";
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}, ${m[4]}:${m[5]}` : v;
 }
 
 export default function AdminIncidentDetailPage() {
@@ -115,6 +149,14 @@ export default function AdminIncidentDetailPage() {
   const [savingLife, setSavingLife]     = useState(false);
   const [lifeError, setLifeError]       = useState("");
   const [lifeSuccess, setLifeSuccess]   = useState("");
+
+  // Re-grading. The level is the reporter's first read, made before anybody
+  // looked into it, and nothing could move it afterwards.
+  const [sevOpen, setSevOpen]   = useState(false);
+  const [sevPick, setSevPick]   = useState("");
+  const [sevWhy, setSevWhy]     = useState("");
+  const [sevBusy, setSevBusy]   = useState(false);
+  const [sevErr, setSevErr]     = useState("");
 
   const fetchDetail = useCallback(async () => {
     const a = getAuth();
@@ -161,6 +203,32 @@ export default function AdminIncidentDetailPage() {
     } catch (e: unknown) {
       setStatusError(e instanceof Error ? e.message : "Failed to update");
     } finally { setStatusUpdating(false); }
+  };
+
+  const handleSetSeverity = async () => {
+    const a = getAuth();
+    if (!a || !item) return;
+    if (!sevPick || sevPick === item.severity) {
+      setSevErr("Pick a different level."); return;
+    }
+    if (sevWhy.trim().length < 3) {
+      setSevErr("Say why — the person who filed it is shown this."); return;
+    }
+    setSevBusy(true); setSevErr("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/incidents/${reportId}/severity`, {
+        method: "PATCH", headers: getAuthHeaders(a),
+        body: JSON.stringify({ severity: sevPick, reason: sevWhy.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || "Nothing was changed.");
+      }
+      setSevOpen(false); setSevWhy(""); setSevPick("");
+      await fetchDetail();
+    } catch (e: unknown) {
+      setSevErr(e instanceof Error ? e.message : "Nothing was changed.");
+    } finally { setSevBusy(false); }
   };
 
   const handleSaveLifecycle = async () => {
@@ -261,11 +329,26 @@ export default function AdminIncidentDetailPage() {
               <h1 className="text-xl font-semibold text-white">{item.category}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <span className={`text-sm font-medium ${sev.text}`}>{sev.label} severity</span>
+                <button
+                  onClick={() => { setSevPick(item.severity); setSevWhy(""); setSevErr(""); setSevOpen(true); }}
+                  className="rounded-lg border border-white/15 px-2 py-0.5 text-[11px] text-zinc-300 hover:bg-white/10"
+                >
+                  Change level
+                </button>
                 <span className="text-zinc-600">·</span>
                 <span className="flex items-center gap-1 text-xs text-zinc-500">
-                  <Clock className="h-3 w-3" />{fmtDt(item.created_at)}
+                  <Clock className="h-3 w-3" />{fmtDt(item.created_at, item.city)}
                 </span>
               </div>
+              {/* The level it was filed at is kept. It says how the person on
+                  the spot read it, which is the thing worth calibrating. */}
+              {item.severity_original && item.severity_original !== item.severity && (
+                <p className="mt-1 text-[11px] text-zinc-400">
+                  Filed as {SEV_CFG[item.severity_original]?.label ?? item.severity_original}
+                  {item.severity_set_by ? `, changed by ${item.severity_set_by}` : ""}
+                  {item.severity_reason ? ` — ${item.severity_reason}` : ""}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -311,7 +394,7 @@ export default function AdminIncidentDetailPage() {
             { Icon: MapPin,    label: "City",     value: item.city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila" },
             { Icon: User,      label: "Reporter", value: item.reporter_name },
             ...(item.incident_datetime
-              ? [{ Icon: Calendar, label: "Incident Date & Time", value: fmtDt(item.incident_datetime) }]
+              ? [{ Icon: Calendar, label: "Incident Date & Time", value: fmtTyped(item.incident_datetime) }]
               : []),
           ].map(({ Icon, label, value }) => (
             <div key={label} className="flex items-start gap-2.5 rounded-xl border border-white/6 bg-white/3 px-3.5 py-2.5">
@@ -397,7 +480,7 @@ export default function AdminIncidentDetailPage() {
         {/* ① Recognized (read-only, from the report) */}
         <div className="mb-4 rounded-lg border border-white/8 bg-white/3 px-3 py-2 text-xs text-zinc-400">
           <span className="text-zinc-500">① Recognized:</span>{" "}
-          {item.reporter_name || "—"} · {fmtDt(item.incident_datetime || item.created_at)}
+          {item.reporter_name || "—"} · {item.incident_datetime ? fmtTyped(item.incident_datetime) : fmtDt(item.created_at, item.city)}
         </div>
 
         {/* ② Proposed solution */}
@@ -430,7 +513,7 @@ export default function AdminIncidentDetailPage() {
                 <p className="mt-1.5 text-xs text-zinc-300">{item.store_eval_note}</p>
               )}
               <p className="mt-1 text-[11px] text-zinc-500">
-                by {item.store_eval_by || "—"} · {fmtDt(item.store_eval_at || "")}
+                by {item.store_eval_by || "—"} · {fmtDt(item.store_eval_at || "", item.city)}
               </p>
             </div>
           ) : (
@@ -470,7 +553,7 @@ export default function AdminIncidentDetailPage() {
         {/* ⑤ Resolved date (read-only, stamped when status → Resolved) */}
         {item.resolved_at && (
           <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
-            ⑤ Resolved: {fmtDt(item.resolved_at)}
+            ⑤ Resolved: {fmtDt(item.resolved_at, item.city)}
             {item.resolved_by ? ` · by ${item.resolved_by}` : ""}
           </div>
         )}
@@ -523,7 +606,7 @@ export default function AdminIncidentDetailPage() {
                       <span className="text-sm font-semibold text-white">{n.author_name}</span>
                       <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">HQ</span>
                       <span className="ml-auto flex items-center gap-1 text-[11px] text-zinc-600">
-                        <Clock className="h-3 w-3" />{fmtDt(n.created_at)}
+                        <Clock className="h-3 w-3" />{fmtDt(n.created_at, item.city)}
                       </span>
                     </div>
                     <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{n.note}</p>
@@ -593,7 +676,7 @@ export default function AdminIncidentDetailPage() {
                         {reply.author_role}
                       </span>
                       <span className="ml-auto flex items-center gap-1 text-[11px] text-zinc-600">
-                        <Clock className="h-3 w-3" />{fmtDt(reply.created_at)}
+                        <Clock className="h-3 w-3" />{fmtDt(reply.created_at, item.city)}
                       </span>
                     </div>
                     <p className="mt-1.5 text-sm leading-relaxed text-zinc-300">{reply.message}</p>
@@ -627,6 +710,58 @@ export default function AdminIncidentDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Change the level ──────────────────────────────────────── */}
+      {sevOpen && (
+        <ModalScrim className="z-[80] bg-black/60 backdrop-blur-sm">
+          <div className={`${GLASS_CARD} mx-auto my-4 w-full sm:max-w-md space-y-4 p-5`}>
+            <h3 className="text-base font-semibold text-white">Change the level</h3>
+            <p className="text-xs text-zinc-400">
+              {item.reporter_name || "The reporter"} filed this as{" "}
+              {SEV_CFG[item.severity_original || item.severity]?.label
+                ?? (item.severity_original || item.severity)}. They are told if it moves.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(["low", "medium", "high", "critical"] as const).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => { setSevPick(k); setSevErr(""); }}
+                  className={`rounded-xl border px-3 py-2 text-xs ${
+                    sevPick === k
+                      ? `${SEV_CFG[k].bg} ${SEV_CFG[k].text} ring-1 ${SEV_CFG[k].ring} border-transparent`
+                      : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                  }`}
+                >
+                  {SEV_CFG[k].emoji} {SEV_CFG[k].label}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">
+                Why it was changed (required)
+              </label>
+              <textarea
+                value={sevWhy}
+                onChange={(e) => { setSevWhy(e.target.value); setSevErr(""); }}
+                rows={3}
+                placeholder="e.g. Several absences at one branch — this decides whether the shift can open."
+                className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-zinc-600"
+              />
+            </div>
+            {sevErr && <p className="text-xs text-red-400">{sevErr}</p>}
+            <div className="flex gap-3">
+              <button className={`${SMALL_BUTTON} flex-1`} disabled={sevBusy}
+                      onClick={() => setSevOpen(false)}>
+                Cancel
+              </button>
+              <button className={`${PRIMARY_BUTTON} flex-1`} disabled={sevBusy}
+                      onClick={() => void handleSetSeverity()}>
+                {sevBusy ? "Saving…" : "Change it"}
+              </button>
+            </div>
+          </div>
+        </ModalScrim>
+      )}
     </div>
   );
 }

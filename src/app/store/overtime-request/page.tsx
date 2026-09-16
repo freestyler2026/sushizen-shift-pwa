@@ -48,6 +48,7 @@ type OTRequest = {
   ot_minutes_original?: number | null;
   ot_minutes_source?: string;
   ot_minutes_set_by?: string;
+  ot_minutes_reason?: string;
   disputed_at?: string | null;
   dispute_note?: string;
   dispute_closed_at?: string | null;
@@ -120,7 +121,8 @@ function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) 
     : "";
   const openDispute = r.disputed_at && !r.dispute_closed_at;
   const canDispute = r.status !== "paid";
-  if (!f && !ground && !r.review_note && r.ot_minutes_source !== "clock") return null;
+  const settled = r.ot_minutes_source === "clock" || r.ot_minutes_source === "manual";
+  if (!f && !ground && !r.review_note && !settled) return null;
 
   return (
     <div className="border-t border-white/10 pt-2 space-y-1.5">
@@ -132,6 +134,16 @@ function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) 
             ? `Set to ${mins(r.ot_minutes)} from the clock — you had worked longer than you asked for (${mins(r.ot_minutes_original)}).`
             : `Set to ${mins(r.ot_minutes)} from the clock — you asked for ${mins(r.ot_minutes_original)}.`}
           {r.ot_minutes_set_by ? ` By ${r.ot_minutes_set_by}.` : ""}
+        </p>
+      )}
+      {/* A person decided this amount rather than reading it off the clock, so
+          the employee is shown the reason. It used to sit in a comment box the
+          employee never saw, on a record that still said the full claim. */}
+      {r.ot_minutes_source === "manual" && r.ot_minutes_original != null && (
+        <p className={`text-xs ${r.ot_minutes > r.ot_minutes_original ? "text-sky-300" : "text-amber-300"}`}>
+          {`Approved at ${mins(r.ot_minutes)} — you asked for ${mins(r.ot_minutes_original)}.`}
+          {r.ot_minutes_set_by ? ` By ${r.ot_minutes_set_by}.` : ""}
+          {r.ot_minutes_reason ? ` ${r.ot_minutes_reason}` : ""}
         </p>
       )}
       {ground && (

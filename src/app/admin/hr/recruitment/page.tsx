@@ -1,6 +1,7 @@
 "use client";
 
 import { isoToday } from "@/lib/date";
+import { facebookLink } from "@/lib/facebook";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
@@ -90,6 +91,11 @@ type Applicant = {
    *  `booking_copied_at` is the honest end of it. The OS never sends the
    *  message -- somebody copies it into Viber or SMS -- so copying is the last
    *  moment it can see, and it is not the same as sending. */
+  /** Whether the offer letter's figures are on file. A yes or no — the board
+   *  never carries the amounts, and this list is not behind the salary
+   *  boundary. */
+  offer_recorded?: boolean;
+  offer_sent_at?: string | null;
   booking_invited_at?: string | null;
   booking_token_expires_at?: string | null;
   booking_sent_at?: string | null;
@@ -243,6 +249,91 @@ type Evaluation = {
 };
 
 // ─── Kanban columns ──────────────────────────────────────────────────────────
+
+/** What the offer letter says.
+ *
+ *  Both cities' allowance lines live on one row; a city only ever fills its
+ *  own. Manila's four are the BIR de minimis benefits, which are tax-free up
+ *  to a monthly cap — the caps are printed beside the fields because an offer
+ *  written above them costs the employee tax nobody intended. */
+type Offer = {
+  applicant_id: string;
+  city: string;
+  position: string;
+  branch_code: string;
+  employment_type: string;
+  start_date: string | null;
+  currency: string;
+  basic_monthly: string | number;
+  allow_rice: string | number;
+  allow_clothing: string | number;
+  allow_laundry: string | number;
+  allow_medical: string | number;
+  allow_accommodation: string | number;
+  allow_transport: string | number;
+  allow_other: string | number;
+  notes: string;
+  sent_at: string | null;
+  sent_by: string;
+  applied_to_payroll_at: string | null;
+  applied_to_payroll_by: string;
+};
+
+const ALLOWANCE_KEYS = [
+  "rice", "clothing", "laundry", "medical",
+  "accommodation", "transport", "other",
+] as const;
+type AllowanceKey = (typeof ALLOWANCE_KEYS)[number];
+
+type OfferForm = {
+  position: string; branch_code: string; employment_type: string;
+  start_date: string; basic_monthly: string; notes: string;
+} & Record<AllowanceKey, string>;
+
+const BLANK_OFFER: OfferForm = {
+  position: "", branch_code: "", employment_type: "", start_date: "",
+  basic_monthly: "", notes: "",
+  rice: "", clothing: "", laundry: "", medical: "",
+  accommodation: "", transport: "", other: "",
+};
+
+const MANILA_ALLOWANCES: { key: AllowanceKey; label: string; cap?: string }[] = [
+  { key: "rice",     label: "Rice allowance",     cap: "₱2,000" },
+  { key: "clothing", label: "Clothing allowance", cap: "₱500" },
+  { key: "laundry",  label: "Laundry allowance",  cap: "₱300" },
+  { key: "medical",  label: "Medical allowance",  cap: "₱250" },
+];
+
+const DUBAI_ALLOWANCES: { key: AllowanceKey; label: string; cap?: string }[] = [
+  { key: "accommodation", label: "Accommodation" },
+  { key: "transport",     label: "Transport" },
+  { key: "other",         label: "Other allowances" },
+];
+
+/** A zero reads as "we agreed nothing", which is not what an empty field
+ *  means. Blank stays blank so the form does not put figures in the letter. */
+function money(v: string | number | null | undefined): string {
+  const n = Number(v ?? 0);
+  return !n ? "" : String(n);
+}
+
+function offerToForm(o: Offer): OfferForm {
+  return {
+    position: o.position || "",
+    branch_code: o.branch_code || "",
+    employment_type: o.employment_type || "",
+    start_date: (o.start_date || "").slice(0, 10),
+    basic_monthly: money(o.basic_monthly),
+    notes: o.notes || "",
+    rice: money(o.allow_rice),
+    clothing: money(o.allow_clothing),
+    laundry: money(o.allow_laundry),
+    medical: money(o.allow_medical),
+    accommodation: money(o.allow_accommodation),
+    transport: money(o.allow_transport),
+    other: money(o.allow_other),
+  };
+}
 
 const KANBAN_COLUMNS: { id: KanbanStatus; label: string; color: string }[] = [
   { id: "new",         label: "New",               color: "border-neutral-600" },
@@ -414,6 +505,7 @@ function KanbanCard({
   onSendLink,
   onCloseStale,
   onAskForCv,
+  onRecordOffer,
   nextStatus,
 }: {
   applicant: Applicant;
@@ -423,6 +515,7 @@ function KanbanCard({
   onSendLink: (a: Applicant) => void;
   onCloseStale: (a: Applicant) => void;
   onAskForCv: (a: Applicant) => void;
+  onRecordOffer: (a: Applicant) => void;
   nextStatus: KanbanStatus | null;
 }) {
   return (
@@ -563,6 +656,31 @@ function KanbanCard({
         ) : (
         nextStatus && (
           <div className="mt-2">
+            {/* The letter has gone out, so this is the moment the agreed money
+                exists and the only moment somebody still remembers it. Once the
+                card moves to Hired it leaves the board, and payroll meets the
+                figure again at the staff profile with nothing to check it
+                against. So the gap is said on the card, not left to be found. */}
+            {applicant.status === "offer_sent" && (
+              applicant.offer_recorded ? (
+                <button
+                  className="mb-1.5 w-full rounded-lg px-2 py-1 text-left text-[10px] font-medium text-emerald-400 hover:bg-white/5 transition-colors"
+                  title="The offer letter's terms are on file. Payroll fills the staff profile from them. Open it to change what was agreed."
+                  onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
+                >
+                  ✓ offer on file{applicant.offer_sent_at ? ` ${shortDate(applicant.offer_sent_at)}` : ""} · change
+                </button>
+              ) : (
+                <button
+                  className={`${SMALL_BUTTON} mb-1.5 w-full text-center justify-center flex items-center gap-1 border-amber-500/40 text-amber-300`}
+                  title="Nothing about the pay has been recorded for this offer. Enter what the letter says and payroll fills the staff profile from it, so the salary is typed once."
+                  onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
+                >
+                  <ClipboardList className="h-3 w-3" />
+                  Record the offer
+                </button>
+              )
+            )}
             <button
               className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
               onClick={(e) => {
@@ -1003,6 +1121,8 @@ type ApplicantEvent = {
   reason: string; note: string; actor: string; origin: string; created_at: string;
 };
 
+type DetailTab = "info" | "interview" | "evaluation" | "offer";
+
 function DetailPanel({
   applicant,
   onClose,
@@ -1010,6 +1130,7 @@ function DetailPanel({
   onRecordOutcome,
   onRefresh,
   reasons,
+  initialTab = "info",
 }: {
   applicant: Applicant;
   onClose: () => void;
@@ -1017,8 +1138,19 @@ function DetailPanel({
   onRecordOutcome: (a: Applicant) => void;
   onRefresh: () => void;
   reasons: OutcomeReason[];
+  initialTab?: DetailTab;
 }) {
-  const [tab, setTab] = useState<"info" | "interview" | "evaluation">("info");
+  // Only the opening tab. The panel is keyed on it, so pressing a card's
+  // "Record the offer" remounts here on Offer; the tabs then work as normal.
+  const [tab, setTab] = useState<DetailTab>(initialTab);
+  const [offer, setOffer] = useState<Offer | null>(null);
+  const [offerForm, setOfferForm] = useState<OfferForm>(BLANK_OFFER);
+  const [offerBusy, setOfferBusy] = useState(false);
+  const [offerSaved, setOfferSaved] = useState("");
+  // The server says whether the figures are readable. Reading it off an empty
+  // box instead would confuse "not agreed yet" with "not yours to see", and
+  // saving on that guess is how an agreed salary gets wiped (lesson 67).
+  const [salaryVisible, setSalaryVisible] = useState(true);
   const [interviews, setInterviews] = useState<InterviewSchedule[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loadingInterviews, setLoadingInterviews] = useState(false);
@@ -1099,11 +1231,63 @@ function DetailPanel({
     } catch { setMergedRows([]); }
   }, [applicant.id]);
 
+  const loadOffer = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicant.id}/offer`,
+        { headers: getAuthHeaders(), cache: "no-store" });
+      if (!res.ok) return;
+      const d = await res.json() as { offer?: Offer | null; salary_visible?: boolean };
+      const o = (d?.offer ?? null) as Offer | null;
+      setOffer(o);
+      setSalaryVisible(d?.salary_visible !== false);
+      // The form opens on what was last sent, so a revision is an edit rather
+      // than a re-type. Blank fields would invite typing the salary twice,
+      // which is the thing this screen exists to stop.
+      setOfferForm(o ? offerToForm(o) : {
+        ...BLANK_OFFER,
+        position: applicant.position_applied || "",
+        branch_code: applicant.assigned_branch || "",
+      });
+    } catch { /* leave what is on screen */ }
+  }, [applicant.id, applicant.position_applied, applicant.assigned_branch]);
+
   useEffect(() => {
     if (tab === "interview") void loadInterviews();
     if (tab === "evaluation") void loadEvaluations();
+    if (tab === "offer") void loadOffer();
     if (tab === "info" && (applicant.merged_count ?? 0) > 0) void loadMerged();
-  }, [tab, loadInterviews, loadEvaluations, loadMerged, applicant.merged_count]);
+  }, [tab, loadInterviews, loadEvaluations, loadOffer, loadMerged, applicant.merged_count]);
+
+  const saveOffer = async () => {
+    setOfferBusy(true); setError(""); setOfferSaved("");
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicant.id}/offer`,
+        {
+          method: "PUT",
+          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({
+            position: offerForm.position,
+            branch_code: offerForm.branch_code,
+            employment_type: offerForm.employment_type,
+            start_date: offerForm.start_date,
+            notes: offerForm.notes,
+            ...(salaryVisible ? {
+              basic_monthly: Number(offerForm.basic_monthly || 0),
+              ...Object.fromEntries(
+                ALLOWANCE_KEYS.map((k) => [k, Number(offerForm[k] || 0)])),
+            } : {}),
+          }),
+        });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((d as { detail?: string }).detail || "Could not save");
+      setOffer((d as { offer: Offer }).offer);
+      setOfferSaved("Saved. Payroll can fill the profile from this.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Could not save");
+    } finally { setOfferBusy(false); }
+  };
 
   // Undo lives beside the thing it undoes, and the row comes back into the
   // queue immediately -- not behind a filter the reader has to know about
@@ -1208,13 +1392,14 @@ function DetailPanel({
 
       {/* Tabs */}
       <div className={`${TAB_CONTAINER} mt-3 shrink-0`}>
-        {(["info", "interview", "evaluation"] as const).map((t) => (
+        {(["info", "interview", "evaluation", "offer"] as const).map((t) => (
           <button
             key={t}
             className={tab === t ? TAB_ACTIVE : TAB_INACTIVE}
             onClick={() => setTab(t)}
           >
-            {t === "info" ? "Info" : t === "interview" ? "Interview" : "Evaluation"}
+            {t === "info" ? "Info" : t === "interview" ? "Interview"
+              : t === "evaluation" ? "Evaluation" : "Offer"}
           </button>
         ))}
       </div>
@@ -1284,19 +1469,37 @@ function DetailPanel({
                       <span className="break-all text-zinc-200">{val || "—"}</span>
                     </div>
                   ))}
-                  {applicant.facebook_url && (
-                    <div className="flex gap-2 text-sm">
-                      <span className="w-52 shrink-0 text-zinc-500">Facebook</span>
-                      <a
-                        href={applicant.facebook_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="break-all text-violet-300 underline underline-offset-2"
-                      >
-                        {applicant.facebook_url}
-                      </a>
-                    </div>
-                  )}
+                  {/* What they typed is not always a link. 87 of the 120 who
+                      filled this in wrote a name, a handle, or facebook.com
+                      without the scheme, and the raw value in an href resolved
+                      against our own domain — every one of those 404'd. */}
+                  {(() => {
+                    const fb = facebookLink(applicant.facebook_url);
+                    if (!fb) return null;
+                    return (
+                      <div className="flex gap-2 text-sm">
+                        <span className="w-52 shrink-0 text-zinc-500">Facebook</span>
+                        <span className="break-all">
+                          <a
+                            href={fb.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-violet-300 underline underline-offset-2"
+                          >
+                            {fb.label}
+                          </a>
+                          {fb.isSearch && (
+                            /* A display name cannot be turned into a profile
+                               URL. Say that the link searches, so nobody reads
+                               a wrong result as the wrong person. */
+                            <span className="ml-1.5 whitespace-nowrap text-[11px] text-zinc-500">
+                              — searches Facebook (they gave a name, not a link)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 {applicant.form_language === "tl" && (
                   <p className="mt-2 text-xs text-zinc-500">
@@ -1681,6 +1884,109 @@ function DetailPanel({
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* ── Offer Tab ──
+            What the letter says, typed once. The final interview gets skipped;
+            the offer letter never does, so this is where the agreed money can
+            be recorded without a stage that might not happen. Payroll fills the
+            profile from it rather than the figure being typed a second time. */}
+        {tab === "offer" && (
+          <div className="space-y-3">
+            <p className={T_BODY}>
+              The figures on the offer letter. Payroll fills{" "}
+              {applicant.city === "dubai" ? "the salary config" : "the staff profile"}{" "}
+              from these, so they are typed once.
+            </p>
+
+            {offer?.sent_at && (
+              <p className={T_CAPTION}>
+                Last sent {String(offer.sent_at).slice(0, 10)}
+                {offer.sent_by ? ` by ${offer.sent_by}` : ""}
+                {offer.applied_to_payroll_at
+                  ? ` · used for payroll ${String(offer.applied_to_payroll_at).slice(0, 10)}`
+                  : " · not yet used for payroll"}
+              </p>
+            )}
+
+            {!salaryVisible && (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                The money on this offer is not yours to see. You can still record
+                the position, branch, employment type and start date — the
+                figures stay as they are. Someone with payroll access, or HR,
+                sets them.
+              </p>
+            )}
+
+            <div className={`${GLASS_CARD} p-3 space-y-3`}>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={T_LABEL}>Position</label>
+                  <input className={`${INPUT_CLASS} mt-1`} value={offerForm.position}
+                    onChange={(e) => setOfferForm({ ...offerForm, position: e.target.value })} />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Branch</label>
+                  <input className={`${INPUT_CLASS} mt-1`} value={offerForm.branch_code}
+                    onChange={(e) => setOfferForm({ ...offerForm, branch_code: e.target.value })} />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Employment type</label>
+                  <input className={`${INPUT_CLASS} mt-1`} placeholder="probationary"
+                    value={offerForm.employment_type}
+                    onChange={(e) => setOfferForm({ ...offerForm, employment_type: e.target.value })} />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Start date</label>
+                  <input type="date" className={`${INPUT_CLASS} mt-1`} value={offerForm.start_date}
+                    onChange={(e) => setOfferForm({ ...offerForm, start_date: e.target.value })} />
+                </div>
+              </div>
+
+              <div>
+                <label className={T_LABEL}>
+                  Basic salary — monthly ({applicant.city === "dubai" ? "AED" : "PHP"})
+                </label>
+                <input type="number" inputMode="decimal" min={0}
+                  disabled={!salaryVisible}
+                  placeholder={salaryVisible ? "" : "••••"}
+                  className={`${INPUT_CLASS} mt-1 ${salaryVisible ? "" : "opacity-60"}`}
+                  value={salaryVisible ? offerForm.basic_monthly : ""}
+                  onChange={(e) => setOfferForm({ ...offerForm, basic_monthly: e.target.value })} />
+                <p className={`${T_CAPTION} mt-1`}>This is the figure payroll pays from.</p>
+              </div>
+
+              {/* Only the lines that city has. Showing Manila's rice allowance
+                  to Dubai would invite a number that no engine reads. */}
+              <div className="grid grid-cols-2 gap-3">
+                {(applicant.city === "dubai" ? DUBAI_ALLOWANCES : MANILA_ALLOWANCES)
+                  .map(({ key, label, cap }) => (
+                    <div key={key}>
+                      <label className={T_LABEL}>{label}</label>
+                      <input type="number" inputMode="decimal" min={0}
+                        disabled={!salaryVisible}
+                        placeholder={salaryVisible ? "" : "••••"}
+                        className={`${INPUT_CLASS} mt-1 ${salaryVisible ? "" : "opacity-60"}`}
+                        value={salaryVisible ? offerForm[key] : ""}
+                        onChange={(e) => setOfferForm({ ...offerForm, [key]: e.target.value })} />
+                      {cap && <p className={T_CAPTION}>Tax-free up to {cap}/month</p>}
+                    </div>
+                  ))}
+              </div>
+
+              <div>
+                <label className={T_LABEL}>Anything else the letter says</label>
+                <textarea rows={2} className={`${TEXTAREA_CLASS} mt-1`} value={offerForm.notes}
+                  onChange={(e) => setOfferForm({ ...offerForm, notes: e.target.value })} />
+              </div>
+
+              {offerSaved && <p className="text-xs text-emerald-400">{offerSaved}</p>}
+              <button className={PRIMARY_BUTTON} disabled={offerBusy}
+                      onClick={() => void saveOffer()}>
+                {offerBusy ? "Saving…" : offer ? "Update the offer" : "Record the offer"}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -3287,6 +3593,7 @@ export default function HRRecruitmentPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("info");
   /** The last one-tap stage move, kept so it can be taken back. It stays until
    *  it is used, dismissed, or replaced by the next move -- a bar that fades
    *  after a few seconds is the same as not having one, because the card has
@@ -4203,12 +4510,19 @@ export default function HRRecruitmentPage() {
                             <KanbanCard
                               key={applicant.id}
                               applicant={applicant}
-                              onSelect={() => setSelectedApplicant(applicant)}
+                              onSelect={() => {
+                                setDetailTab("info");
+                                setSelectedApplicant(applicant);
+                              }}
                               onQuickStatus={handleQuickStatus}
                               onRecordOutcome={setOutcomeFor}
                               onSendLink={(a) => setLinkFor(a)}
                               onCloseStale={handleCloseStale}
                               onAskForCv={setCvFor}
+                              onRecordOffer={(a) => {
+                                setDetailTab("offer");
+                                setSelectedApplicant(a);
+                              }}
                               nextStatus={getNextStatus(applicant.status)}
                             />
                           ))
@@ -4229,13 +4543,14 @@ export default function HRRecruitmentPage() {
             {selectedApplicant && (
               <div className="hidden md:flex w-[360px] shrink-0 border-l border-white/10 bg-[#0d1117]/95 p-4 flex-col sticky top-4 self-start h-[calc(100vh-5rem)]">
                 <DetailPanel
-                  key={selectedApplicant.id}
+                  key={`${selectedApplicant.id}:${detailTab}`}
                   applicant={selectedApplicant}
                   onClose={() => setSelectedApplicant(null)}
                   onStatusChange={handleStatusChange}
                   onRecordOutcome={setOutcomeFor}
                   onRefresh={() => void loadData()}
                   reasons={outcomeReasons}
+                  initialTab={detailTab}
                 />
               </div>
             )}
@@ -4249,13 +4564,14 @@ export default function HRRecruitmentPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <DetailPanel
-                  key={selectedApplicant.id}
+                  key={`${selectedApplicant.id}:${detailTab}`}
                   applicant={selectedApplicant}
                   onClose={() => setSelectedApplicant(null)}
                   onStatusChange={handleStatusChange}
                   onRecordOutcome={setOutcomeFor}
                   onRefresh={() => void loadData()}
                   reasons={outcomeReasons}
+                  initialTab={detailTab}
                 />
               </div>
             </div>

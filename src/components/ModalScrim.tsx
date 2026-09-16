@@ -35,6 +35,34 @@ import { useEffect } from "react";
  * part that keeps getting forgotten, and a dialog cannot mount this without
  * getting it.
  */
+/**
+ * Lock the page behind a dialog.
+ *
+ * Exported separately because some dialogs cannot use the scrim above without
+ * changing how they look — the overtime action dialog is a bottom sheet on a
+ * phone, which the scrim's block flow does not do. The lock is the half of the
+ * fix that those dialogs still need, and it should not be written twice.
+ */
+export function useLockBodyScroll() {
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+}
+
+/**
+ * The lock as a component, for dialogs written as inline JSX rather than as a
+ * component of their own — a hook cannot be called conditionally, but mounting
+ * this alongside the dialog markup can.
+ */
+export function BodyScrollLock() {
+  useLockBodyScroll();
+  return null;
+}
+
 export default function ModalScrim({
   children,
   className = "",
@@ -43,15 +71,9 @@ export default function ModalScrim({
   /** Extra classes for the backdrop — a different tint, mostly. */
   className?: string;
 }) {
-  useEffect(() => {
-    // Restore whatever was there rather than assuming "" — a page that sets
-    // its own overflow should get its own value back, and dialogs can stack.
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, []);
+  // Restore whatever was there rather than assuming "" — a page that sets its
+  // own overflow should get its own value back, and dialogs can stack.
+  useLockBodyScroll();
 
   return (
     <div

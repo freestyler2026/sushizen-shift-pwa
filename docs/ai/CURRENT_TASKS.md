@@ -1,5 +1,302 @@
 # CURRENT_TASKS.md
 
+## 2026-09-16 — オファー内容を記録し、給与プロファイルに流す（実装済み）
+
+合意した給与はオファーレターにしか存在せず、数週間後に給与プロファイルへ**2度目の入力**を
+していた。**1つの合意額を2回打つと、誰も合意していない額で支払われうる**うえ、
+後から照合する相手が無い。最終面接は省かれることがあるが、オファーレターは必ず出る。
+
+### 実装
+
+**`hr_applicant_offers`**（応募者1人1行、改訂は上書き）
+- position / branch_code / employment_type / start_date / currency / basic_monthly
+- マニラ: rice / clothing / laundry / medical（BIR de minimis・上限を画面に表示）
+- ドバイ: accommodation / transport / other
+- sent_at / sent_by / applied_to_payroll_at / applied_to_payroll_by
+
+**応募者パネルに `Offer` タブ**（Info / Interview / Evaluation の隣）
+- 都市に応じて手当欄を出し分け（マニラにドバイの項目を出さない）
+- 前回送った内容で開く＝改訂は「編集」であって再入力ではない
+- 空欄は空欄のまま保存（0は「合意なし」を意味してしまう）
+
+**Manila Staff Profiles に `Fill from the offer`**
+- `monthly_rate` / `hire_date` / `position` / de minimis 4項目をフォームに入れる
+- **書き込みはしない。** 確認して Save する既存の経路をそのまま使う
+- 給与を書ける人にしか出さない（マスクは人単位）
+
+**繋ぎは `hr_onboarding.applicant_id`** — 応募者とスタッフ名を結ぶ唯一の行。
+氏名一致で繋ぐと別人に流れる。
+
+⚠️ **書き込み経路は1つに保った。** 一度 `POST /seed-from-offer` を書いたが削除した。
+プロファイルの PUT は人単位の給与マスク（見えない額をディスクの値に固定）を持っており、
+2つ目の書き込み口はそのルールの2つ目の写しになる。
+「payroll で使われたか」は**実際に保存された額**から判定する（ボタンを押しただけでは立てない）。
+
+### やっていないこと
+
+**面接の段階（1次=音声 / 2次=電話 / 最終=面談）は分けていない。** 現状の
+`interviewed` は1列のまま。`hr_interview_schedules.interview_type` に入れる器はあるので、
+「どの回か」を記録してカードに出すのは次の作業。
+
+
+## 2026-09-16 — 面接の割り当てが「Peterができない時に次の人」になっていなかった（修正済み）
+
+**原因は私が入れた1日上限4件**（`HR_INTERVIEW_MAX_PER_DAY` 既定4、コミット `c7a24b83`）。
+オーナーの指示ではない。上限があると
+
+> 「Peter **ができない** 時に次の人」 → 「Peter が **4件やった** 時に次の人」
+
+という別のルールになる。順位は「できるか」で決めるもので、件数で決めるものではない。
+
+### 実例（9/18）
+
+Peter は BO 9:00–18:00 に公開シフトあり。11:30・15:30・16:30 は**空いていた**が、
+4件目が入った後だったので3件とも Camilla に回った。
+
+全体: Peter 23 / Camilla 10 / Yuri 1 / Ayako 0（全34件、すべて応募者の自己予約）
+
+### 実装
+
+- `cap` の既定を**上限なし**に（`HR_INTERVIEW_MAX_PER_DAY` を設定すれば復活、デプロイ不要）
+- `open_slots` の死んだローカル3つ（`mins`/`buf`/`cap`）を削除。
+  空き枠の定義はカレンダー実装時から `_free_slots` に一本化済みで、読んで使っていなかった
+
+確認: 修正後、9/21〜9/30 の空き枠は**全部 Peter** に出る（Peter が塞がっている時間だけ次へ）。
+
+### 残っている判断（オーナー）
+
+**上限のせいで下位に回った既存の予約が34件中7件**ある。
+
+| 日時 | 実際 | 本来 |
+|---|---|---|
+| 09-16 17:30 | Yuri | Peter（勤務中・空き） |
+| 09-17 16:30 / 17:30 | Camilla | Peter |
+| 09-18 11:30 / 15:30 / 16:30 | Camilla | Peter |
+| 09-22 09:00 | Camilla | Peter |
+
+**動かしていない。** 応募者には面接官名を伝えてあり、両者への再連絡が要るため。
+
+⚠️ **面接45分・前後15分の間隔も私が決めた既定値**（`HR_INTERVIEW_MINUTES` /
+`HR_INTERVIEW_BUFFER_MIN`）。違うなら設定で変えられる。
+「面接官をまたいで同時刻は1件」と「月〜金のみ」はオーナー指示としてコメントに記録あり。
+
+
+## 2026-09-16 — 応募者の Facebook リンクが開かない（報告・修正済み）
+
+`href={applicant.facebook_url}` に**生の値をそのまま**入れていた。フォームは
+「リンク、またはプロフィールの名前」を聞いているので、URL でない値は自社ドメインの
+相対パスとして解決され 404 になる（`Jonas Membrillos` → `/admin/hr/Jonas%20Membrillos`）。
+
+| 記入済み120件 | |
+|---|---|
+| 完全なURL | 33（動いていた） |
+| **氏名** | **54** |
+| **ハンドルのみ** | **21** |
+| **スキーマ無し `facebook.com/…`** | **12** |
+| | **計 87件（73%）が開かなかった** |
+
+### 実装
+
+`src/lib/facebook.ts` の `facebookLink()`:
+
+- 完全なURL → そのまま（`profile.php?id=…` のクエリも保持）
+- `facebook.com/x` / `Www.facebook.com/x` / `m.facebook.com/x` → `https://` を付ける
+- ハンドル（`rhendel.austria.7` / `@nickimperial.mariano`）→ `https://www.facebook.com/<handle>`
+- **それ以外（氏名・メール・`-`・`facebook`・パスに空白）→ Facebook 検索**
+  - 表示名からプロフィールURLを求める方法は無い。**当てずっぽうのURLは同じ 404 を作る**
+  - 画面に `— searches Facebook (they gave a name, not a link)` と出す。
+    検索結果を本人と読み違えないため
+
+`tests/facebook-link.test.ts` が**実データ120件全部**を通し、相対hrefが1件も出ないことを確認。
+
+
+## 2026-09-16 — My Pay が初期PIN 1111 で開く（オーナー指摘・修正済み）
+
+### 実態
+
+| | |
+|---|---|
+| PINを持つアカウント | 177 |
+| **まだ 1111** | **157**（うち在籍 109） |
+| その他の推測可能 | 1212 ×1 / 123456 ×1 |
+| **パスキー登録済み** | **147名 / 471件** |
+
+**指紋・顔認証は既に実装済みで、147名が登録済みでした。** 穴は「Use PIN instead」の側です。
+
+⚠️ **この PIN はログインPINと同じ**（`verify_staff_pin` が `/api/auth/verify` の判定）。
+**My Pay だけの問題ではありません。** 157アカウントは誰でもログインできる状態です。
+
+### 実装
+
+- `is_default_pin()`（`app/db.py`）— 配布時の 1111・同一数字4つ・繰り返し（1212）・連番（1234/9876）。
+  **狭く作っている**（1357・2580・8341・1122・9182 は通す）。広すぎるリストはPINをカードの裏に書かせる
+- `/api/auth/step-up/pin` — **正しく入力された既定PINも 403**（`code: pin_is_default`）
+- `change_pin` と**初回セットアップの両方**で新しいPINの既定値を拒否。片方だけだと 0000 に移るだけ
+- My Pay のロック画面に **`Set it up on this device`**（パスキー登録）。以前は Attendance ページへ送っていた
+- 既定PINで弾かれたとき、画面は「入力ミスではない」と説明し、指紋/顔 と Change PIN の両方を出す
+
+本番の実エンドポイントで往復確認済み（1111→403 pin_is_default / 誤PIN→Invalid PIN / 自前PIN→200）。
+
+### 続き — パスキー必須にした（2026-09-16、オーナー判断）
+
+| | |
+|---|---|
+| 在籍スタッフ | 127 |
+| **パスキー登録済み** | **125** |
+| 未登録 | **2**（Hanako Yamada / Sanjeev Bahadur Malla・どちらもロック画面から自分で登録可） |
+
+- `_require_payroll_step_up` が `method == 'passkey'` を要求。**画面ではなくAPIで閉じている**
+  （ステップアップトークンに発行方法が残る。ボタンを隠すだけでは header を送れば通る）
+- My Pay のロック画面から **PIN 経路を完全撤去**（到達不能なコードも削除）
+- WebAuthn 非対応ブラウザには**何をすればよいか**を出す（Messenger内蔵ブラウザではなく Chrome/Safari で開く）
+- **登録はログインだけで可能**（既存パスキー不要）＝ 端末紛失・機種変更でも詰まない
+- 戻し道: `heroku config:set MY_PAY_ALLOW_PIN=1`（デプロイ不要）
+- 本番の実APIで確認: PIN由来トークン→403 `passkey_required` / パスキー由来→200 /
+  `MY_PAY_ALLOW_PIN=1` で200に戻り、unset で403に戻る
+- ⚠️ **My Pay のテスト69件がPIN経路でゲートを通っていた**ので、パスキー経路に書き換え
+  （jsdom に authenticator と `Authenticator*Response` を与える必要がある）
+
+**`/api/auth/step-up/pin` 自体は残す** — admin/security・finance・analytics の3画面が使っている。
+
+### 残っている判断（オーナー）
+
+1. **157アカウントのログインPINをどうするか。** `staff_master.setup_required` を立てれば次回ログイン時に
+   PIN再設定を強制できる。**109名が在籍中なので運用イベントになる**
+2. ~~My Pay をパスキー必須にするか~~ → **実施済み**（上記）
+
+
+## 2026-09-16 — Incident Report の severity が誰にも変えられなかった（オーナー指摘・修正済み）
+
+Camilla の勤怠インシデント（Taft 複数欠勤）が `medium` で提出された。
+**提出者を含め、誰も変えられなかった** — `incident_reports.severity` を UPDATE する
+コードが全コードベースに存在しない。
+
+### これは見た目の話ではない
+
+未対応レポートの追いかけ（`get_urgent_reports_to_notify`）は
+**`severity IN ('high','critical')` の行しか拾わない**:
+
+| 等級 | 追いかけ |
+|---|---|
+| critical | 6時間ごと |
+| high | 24時間ごと |
+| **medium / low** | **一度も追いかけない** |
+
+※ `acknowledged_by` が入ると止まる。Camilla の件は Ayako が承認済みなので、
+仮に high にしても追いかけは発火しない。
+
+実測の分布: high 16 / medium 12 / critical 3（等級は実際に選ばれており、既定値で固まってはいない）
+
+### 実装
+
+- `severity_original` / `severity_set_by` / `severity_set_at` / `severity_reason`（新列）
+- `PATCH /api/admin/incidents/{id}/severity` — 権限は返信・ステータス変更と同じ、**理由必須**、提出者に通知
+- 詳細画面に `Change level`（4段階＋理由）。変更後は「Filed as Medium, changed by 〇〇 — 理由」を表示
+- **同じ画面の時刻が4時間ずれていた問題も修正**: `fmtDt` が読む人の端末TZで描いていた（ドバイのPCで見ると マニラ 12:54 が 08:54）。支店の都市の時計で描く。`incident_datetime` は現地の壁時計文字列なので Date に通さない
+- `SEVERITY_LEVELS` の二重定義を解消
+
+### 残り
+
+- **Camilla のレポートは変更していません。** 等級の判断と理由はオーナーのもの
+
+
+## 2026-09-16 — Morning Review に Quality C が「反映されない」（Yusuke 報告・修正済み）
+
+**反映されていた。** 時系列:
+
+| 時刻（マニラ） | 起きたこと |
+|---|---|
+| 09-15 18:10 / 18:20 | CUBAO で Product Score C ×2（Angelica Regondola） |
+| 09-16 **05:00** | Review 66 生成。city=manila / branch=CUB / **assigned_to=Yusuke Uejima**、C 2件を明細として保持 |
+| 09-16 ~10:20 | Yusuke が Morning Review を確認 → 「Nothing to review」 |
+| 09-16 **11:43–11:44** | **Yuri Yamada** が2件とも回答し、レビューを完了 |
+
+画面は `status=open` しか要求しないため、完了した瞬間に担当者の一覧から消え、
+空状態が「レビューはその日に何かあった日にだけ作られます」と表示していた。
+
+**代行は例外ではない**: 完了65件中 **32件が担当者以外**による完了（一括クローズ21件を除いても 11/44）。
+
+### 実装
+
+- `done_for_me()` — 直近1週間に**他人が自分の名前で回答した**レビューを返す
+  - `HAVING` で「他人の回答が1件以上ある」ものだけ。無いと一括クローズの20行がノイズになる
+- 画面に `Answered for you`（誰が・いつ・何件）。空状態の文言も分岐
+- **完了済みは読み取り専用**（Undo 無効・Complete 非表示・コメント欄非表示）
+- `completed_at` を店舗の時計で表示（UTC の 03:44 → マニラ 11:44）
+- `_ops_review_may_touch` の docstring を訂正（「0件」と書いてあった）
+
+### 残り
+
+- ドバイは当番表が無く、レビューが誰にも宛てられていない（マニュアル記載済み・未着手）
+
+
+## 2026-09-16 — 予約リンクが「動かない」問題（応募者からの報告・修正済み）
+
+**期限切れではなかった。上書きだった。** `booking_token_hash` は1つの列で、
+`issue_invite` が貼り替える。トークンは生で保存しないので発行が送信の唯一の道＝
+**押すたびに相手の手元のリンクが死ぬ**。
+
+| 実測（9/15） | |
+|---|---|
+| 発行 | 117回 / 84名 |
+| 送信（`booking_sent`） | 76回 |
+| 差 | **41回が「発行したが送っていない」押下** |
+| イベントで確定した被害 | 1名（Rea Mae Flores Faustino） |
+| 報告者（Aldrene Anding） | `booking_sent` は記録済みだが**本人に届いていない**。sent は自己申告 |
+
+### 実装
+
+- `hr_booking_tokens`（1リンク1行）。**期限内は全部生きる。** 発行は追加であって置換ではない
+- 移行で**列にあった生存84件を行へ複製**（デプロイでリンクを失う人ゼロ、実測 84/84 一致）
+- `merged_into` を辿る（統合された応募者のリンクが死んでいた。5つ目の原因）
+- `first_opened_at` を記録 → HRキューに `opened` / `not opened yet`
+- 失敗理由を分離: `link_expired` / `link_superseded` / `link_unknown`。応募者ページは日英で出し分け
+- **HR側の確認ダイアログを削除**（「古いリンクが開かなくなる」は、この変更で嘘になる）
+- 応募者ページの「7 days」を撤去（9/15に14日へ移したのに文言が残っていた／日英とも）
+
+### 残り
+
+- **変更前に死んだトークンは復元できない**（ハッシュのみ）。該当者には再発行して送り直す
+- 音声面接のリンク（`hr_voice_screenings.token_hash`）は**同じ1枠構造のまま**。同型の事故が起きうる
+
+
+## 2026-09-16 — OT: 申請と違う分数で承認できるようにした（マニラからの要望・実装済み）
+
+要望: 「2時間のOT申請に1時間だけ承認したケースが数回あり、コメント欄にメモ記載。
+支払い処理時の見落としにつながるので、システム内で時間を変更できるようにしてほしい。
+短縮の理由も記載します。」
+
+### 見落としは既に起きていた
+
+| 日付 | 都市 | 本人 | 記録 | ノート | 状態 |
+|---|---|---|---|---|---|
+| 2026-09-09 | manila | Ricardo Lamis III | **120分** | `Please approve 1hr. Thank you.` | **paid** → DTR 2.00h |
+| 2026-09-09 | manila | Junowel Trespecios | 130分 | `2 hours of OT has been approved.` | paid → DTR 2.17h |
+| 2026-09-04 | dubai | Jheymar Fabros | **600分** | `1hr approved` | manager_approved |
+| 2026-09-02 | dubai | Jheymar Fabros | **663分** | `2hrs approved` | manager_approved |
+
+全207件のノートを数量の正規表現で洗って**この4件で全部**（一致していた2件は除く）。
+**Ricardo は1時間ぶん ₱129.19 の過払い。** ドバイ2件は未払い（ドバイOTは給与に届いていない）。
+
+### 実装
+
+- `overtime_requests.ot_minutes_reason`（新列）
+- `PATCH /api/admin/overtime/{id}/set-hours` — 分数＋**理由必須**。`source='manual'`
+- 承認ダイアログの `Approve a different number of hours…`（1操作で承認＋分数変更）
+- `manager_approved` 行の `Change hours` ボタン
+- ガード: 0分不可（＝却下を使う）/ 24h超不可 / paid不可 / 自分の申請不可 / 理由3文字以上
+- **同日の兄弟申請ガードは掛けていない** — あれは「打刻は1日の合計」への対策で、手入力には当てはまらない
+- **両都市で有効**（打刻はマニラ限定だが、手入力に打刻は要らない）
+- 本人に通知（前後の分数＋理由）。`ot_minutes_original` に申請額が残る
+
+### 残っている判断（オーナー）
+
+**上の4件をどう扱うか。** コードを直しても既存の記録は動かない。
+- Ricardo: 給与に入っているので `Remove from Payroll` → `Change hours` → 再投入、または次期で調整
+- Jheymar 2件: 未払いなので `Change hours` で直せる（600→60 / 663→120）
+- Junowel: 130分 vs「2 hours」は10分差。減額の意図か丸めた表現かが読めない
+
+
 ## 2026-09-16 — Travel Path: DEF・温度計なし・提出時刻（Ayako リクエスト・実装済み）
 
 ### 調べて分かったこと
@@ -26031,3 +26328,125 @@ CK ラベルの3件に加えて、チャンネル全体を調べて出たもの�
   Bamboo Shoot / Edamame 500g / Vegetable Oil 16L）。推測で入れると「推測で入れた値」と
   区別がつかなくなるので、CKに確認してもらう
 - 滞留20件（解決率23%、最古99日）は運用の問題
+
+## 2026-09-16 — Offer salary masking
+
+**Done.** The Offer tab added the previous turn carried the agreed salary under
+`/api/admin/hr/applicants/`, which is not a payroll path, so it was readable by
+everyone who can open the recruitment screen (13) rather than by the people who
+may read pay (6). Seven saw an agreed salary they may not see anywhere else:
+5 ADMIN, Camilla Gadingan (HR_STAFF), Peter Villafuerte (HR_MANAGER).
+
+- Masked at the middleware (`_is_offer_path` + `_OFFER_MONEY_FIELDS` +
+  `_strip_offer_money`), which is the enforcement boundary; the endpoint is the
+  second layer. The offer's keys are its own (`basic_monthly`, `allow_rice`), so
+  they get their own field list — putting names this plain into `_SALARY_FIELDS`
+  would blank unrelated payroll columns.
+- Two ways to read it: `_salary_view_mode(actor) != "none"`, or the new
+  `hr.view_offer_salary` permission (Role Management → HR Recruitment →
+  "See Offer Salary"). Seeded to HR_MANAGER in `DEFAULT_ROLE_GRANTS`; **granted
+  to the custom HR_STAFF role directly in the DB** (row id `hrstaff-offer-salary`)
+  because custom roles never receive defaults — this preserved what Camilla had.
+  The owner can untick either in Role Management.
+- A masked caller's PUT pins every money line back to what is on disk. Verified:
+  terms changed, `basic` stayed 18,500 and `rice` stayed 2,000, and a PUT posting
+  `basic_monthly: 1` changed nothing.
+- `GET .../offer` returns `salary_visible`; the screen drives off that rather
+  than guessing from an empty box.
+
+**Measured, not assumed:** Manila Staff Profiles was *already* masked. Real HTTP
+with real resolved profiles: Rose Ann Onido / Camilla / Peter see **0 of 446**
+money cells; Cyrine (payroll.view_salary) sees 362; HQ sees 446. The only live
+exposure was the Offer tab.
+
+Manuals republished: Recruitment Guide (new step 04 "Recording the offer"),
+Payroll Manual (the "HQ Role Only" card was stale — two people hold
+View Salary Amounts; plus "Fill from the offer").
+
+### Still open
+- Interview rounds are not split — `Interviewed` is still one column. 2次=電話 /
+  最終=面談 are not distinguished. `hr_interview_schedules.interview_type` has a
+  slot for it.
+- Owner decisions outstanding: the 4 OT records whose note disagrees with
+  `ot_minutes`; the 7 interview bookings that went to a lower-priority
+  interviewer; whether to force a PIN reset for the accounts still on 1111.
+- Dubai has no interview duty roster — reviews generated but addressed to nobody.
+- 66 files still carry the broken `fixed inset-0 flex items-center` modal pattern.
+
+## 2026-09-16 — Recording the offer from the board
+
+**Done.** The Offer tab was reachable only by clicking a card body and then a
+tab nobody had reason to open, so none of the five people in Offer Sent had any
+pay recorded. A card there now leads with **Record the offer** (amber) when
+nothing is on file and opens the panel straight on the Offer tab; one that has
+it shows `✓ offer on file <date> · change`. **Hired is not gated** — the card
+says what is missing, it does not decide the order of work.
+
+- `GET /api/admin/hr/applicants` carries `offer_recorded` / `offer_sent_at` via
+  `offers_for()` (which was dead until now). **A yes or no, never the amounts** —
+  this path is not behind the salary boundary, so the board has to be safe for
+  all thirteen people who can open the screen. Verified: `money keys on the
+  board = none` for HQ and for an ADMIN.
+- `DetailPanel` takes `initialTab`; the panel is keyed on it so the button
+  remounts it on Offer.
+
+**Verified in the browser** (element click — the pane reports a 0×0 viewport in
+this environment, so pixel clicks were not possible): all 5 cards show the
+button, pressing it opens the panel on Offer with the basic-salary and
+allowance inputs, and `/offer` is fetched. The recorded state was checked by
+intercepting the board response in the tab only — **nothing was written**.
+
+⚠️ **Deploy check was a false positive first time.** I polled the served chunk
+for `"Record the offer"`, which was *already* the Offer tab's save-button label,
+so the loop exited immediately and I read a stale bundle as the new one. The
+React fiber showed the card receiving the old 8 props. **Pick a marker that did
+not exist before the change** (`offer on file` here).
+
+- Observation, not fixed: both `DetailPanel`s mount (desktop + the `md:hidden`
+  bottom sheet), so every panel tab fetches twice. Pre-existing.
+
+## 2026-09-16 — Receipt Log: the office as a branch
+
+**Done.** Dubai reported that the branch list had no back-office option. It had
+neither: Manila's **BO (10 staff)** and Dubai's **HQ (5 staff)** were both
+missing, so fifteen people filing a receipt had to pick a restaurant they do not
+work at.
+
+- `src/lib/branches.ts` gains `HQ — HQ / Management` (Dubai). Manila keeps **one**
+  code for the office: `"HQ"` typed there normalises to `BO`, or the same spend
+  splits across two names.
+- Departments gain **HR** and move to `src/lib/receipt-log.ts`.
+  `RECEIPT_DEPARTMENTS` is read by the staff form *and* the admin filter — they
+  each had their own copy, so adding to one alone would have made those receipts
+  unreachable from the screen that reviews them (lesson 95).
+- Both Receipt Log screens now read `src/lib/branches.ts` instead of keeping
+  copies. **That was a third and fourth copy.**
+
+⚠️ **Found in passing: three of the five Dubai branch names were wrong.** The
+Receipt Log called AB "Abu Baker", AM "Al Mankhool", ARJ "Al Rigga / Jaddaf".
+The QR posters standing in those stores (`os_branch_qr.label`, authoritative)
+say **Al Barsha, Al Mina, Arjan** — three different places. Staff were choosing
+a branch by a name nobody there uses. All 21 receipts on file are Kitchen, so
+nothing already recorded moved.
+
+No backend change: `receipt_log.branch_code` is free text and the summary groups
+by the stored value, so new codes flow through. Checked the other consumers —
+the fixed branch lists in `cash_report_api`, `db_public_apply` and
+`ai_analytics_pro` do not read `receipt_log`.
+
+**Verified from the served bundle**, not the UI: the browser session had expired
+and a PIN is a credential I do not type. The live shared chunk carries
+Dubai `…, HQ / Management` and Manila `…, Back Office`, departments
+`Kitchen, Operations, Admin, HR, …`, and the page chunk no longer contains
+"Abu Baker", "Al Mankhool" or "Al Rigga". **Not clicked through in the app.**
+
+⚠️ **Deploy polling caught me a second time.** I grepped the *page* chunk for
+"HQ / Management", but the string lives in the shared chunk that `branches.ts`
+compiles into, so the loop would never have exited. Check which chunk actually
+carries the marker before polling on it.
+
+### Open
+- `staff_master.branch_code` also has Dubai `CK`, `DRIVER` and an empty-string
+  branch with 8 inactive rows. The empty one is worth a look.
+- `src/app/admin/branches.ts` is still a separate list (no BO/HQ). Not touched —
+  it serves other screens and none of them were reported broken.

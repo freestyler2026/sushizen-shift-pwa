@@ -415,6 +415,42 @@ Causes: More orders                  <span style="color:var(--muted)">&lt;- <spa
     </div>
   </div>
 
+  <h3 class="sub"><span class="ja">申請より短く（長く）承認する</span><span class="en">Approving a different number of hours</span></h3>
+  <div class="card">
+    <p><span class="ja">2時間の申請に対して1時間だけ認める、という判断は実際に何度も起きています。これまでは<strong>コメント欄に「1hr approved」と書いていました</strong>が、記録上の分数は2時間のままなので、<strong>給与処理は2時間を支払います。</strong>実際に起きました ── Ricardo Lamis III の 2026-09-09 はコメントに「Please approve 1hr」とありながら、DTR には 2.00 時間が入っています。</span>
+      <span class="en">Allowing one hour of a two-hour claim is a decision that has come up several times. Until now it was written in the comment box — &ldquo;1hr approved&rdquo; — while the record still said two hours, so <strong>payroll paid two hours.</strong> That has happened: Ricardo Lamis III on 2026-09-09 carries the note &ldquo;Please approve 1hr&rdquo;, and 2.00 hours reached his DTR.</span></p>
+    <p><span class="ja">入口は2つあります。<strong>どちらも理由が必須です。</strong></span>
+      <span class="en">There are two ways in, and <strong>both require a reason.</strong></span></p>
+    <ul class="plain">
+      <li><span class="ja"><strong>承認するとき</strong> ── 承認ダイアログの <span class="ui">Approve a different number of hours…</span> を開き、時間と理由を入れます。ボタンが <span class="ui">Approve 1h</span> に変わり、その分数で承認されます</span>
+          <span class="en"><strong>While approving</strong> — open <span class="ui">Approve a different number of hours…</span> in the approve dialog, type the amount and the reason. The button becomes <span class="ui">Approve 1h</span> and that is what is approved</span></li>
+      <li><span class="ja"><strong>承認した後</strong> ── 行の <span class="ui">Change hours</span>。給与に入る前ならいつでも直せます</span>
+          <span class="en"><strong>After approving</strong> — <span class="ui">Change hours</span> on the row. It can be corrected any time before it reaches payroll</span></li>
+    </ul>
+    <p><span class="ja">申請された分数は<strong>消えません。</strong>行には「Shortened to 1h by 〇〇 — asked for 2h」と理由が並び、本人の履歴にも同じ文が出ます。<strong>本人には通知が飛びます。</strong></span>
+      <span class="en">The claimed amount is <strong>not lost.</strong> The row reads &ldquo;Shortened to 1h by <em>name</em> — asked for 2h&rdquo; with the reason beside it, the same sentence appears in the person's own history, and <strong>they are notified.</strong></span></p>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">📌</span>
+    <div>
+      <span class="ja"><strong>打刻で決めるのと、手で決めるのは別物です。</strong><span class="ui">Set to 1h20m</span>（水色）はシフトと打刻から<strong>システムが計算した</strong>分数なので、理由は要りません ── 根拠は画面に出ています。<span class="ui">Change hours</span>（琥珀色）は<strong>人が決めた</strong>分数なので、根拠は理由の一文しかありません。だから必須です。<br>
+      なお <span class="ui">Change hours</span> はマニラ・ドバイ両方で使えます。打刻を読むのはマニラだけですが、人が打った数字に打刻は要りません。</span>
+      <span class="en"><strong>Settling on the clock and setting it by hand are not the same act.</strong> <span class="ui">Set to 1h20m</span> (blue) is a number <strong>the system computed</strong> from the shift and the punches, so it needs no reason — the evidence is on the screen. <span class="ui">Change hours</span> (amber) is a number <strong>a person chose</strong>, and the sentence is the only evidence there is. That is why it is required.<br>
+      <span class="ui">Change hours</span> works in both Manila and Dubai. Only the clock is Manila-only; a typed amount does not need one.</span>
+    </div>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠</span>
+    <div>
+      <span class="ja"><strong>0 時間で承認することはできません。</strong>「認めない」は却下であって、承認額ゼロではありません。<span class="ui">Reject</span> を使ってください ── 却下には理由が付き、本人にその理由が届きます。承認額ゼロだと、本人には何も伝わりません。<br>
+      <strong>給与に入った後は変えられません。</strong><span class="ui">Remove from Payroll</span> で先に戻してください。</span>
+      <span class="en"><strong>Zero hours cannot be approved.</strong> Refusing is a rejection, not an approval of nothing — use <span class="ui">Reject</span>, which carries a ground and delivers it to the person. An approval of zero tells them nothing.<br>
+      <strong>Once it is in payroll it cannot be changed here.</strong> Take it out with <span class="ui">Remove from Payroll</span> first.</span>
+    </div>
+  </div>
+
   <h3 class="sub"><span class="ja">システムが手を引く場面</span><span class="en">Where the system stands down</span></h3>
   <div class="card">
     <p><span class="ja">数字が信用できないときに黙って数字を出すのが、一番悪い形です。次の場合、システムは<strong>「使えません」と言って判断を人に返します。</strong></span>
@@ -457,8 +493,8 @@ Causes: More orders                  <span style="color:var(--muted)">&lt;- <spa
     </div></li>
     <li class="step"><span class="step-num">3</span><div>
       <div class="step-title"><span class="ja">承認者が決める</span><span class="en">The reviewer decides</span></div>
-      <div class="step-desc"><span class="ja">打刻どおりで承認するか、申請どおりで承認するか、却下するか。<strong>却下するなら理由を選び、判断系なら一文を書きます。</strong></span>
-        <span class="en">Approve on the clock, approve as asked, or refuse. <strong>A refusal picks a ground, and a ground that is a judgement carries a sentence.</strong></span></div>
+      <div class="step-desc"><span class="ja">打刻どおりで承認するか、申請どおりで承認するか、<strong>別の分数で承認するか</strong>、却下するか。<strong>却下するなら理由を選び、判断系なら一文を書きます。分数を手で変えるなら、必ず理由を書きます。</strong></span>
+        <span class="en">Approve on the clock, approve as asked, <strong>approve a different amount</strong>, or refuse. <strong>A refusal picks a ground, and a ground that is a judgement carries a sentence. Changing the amount by hand always carries one.</strong></span></div>
     </div></li>
     <li class="step"><span class="step-num">4</span><div>
       <div class="step-title"><span class="ja">本人に届く</span><span class="en">The person is told</span></div>

@@ -67,6 +67,10 @@ type Review = {
   status: "open" | "completed"; assigned_to: string;
   summary: Summary; manager_comment: string;
   completed_by: string | null;
+  completed_at: string | null;
+  /** Already on the store's clock. `completed_at` is the database's, which is
+   *  UTC, and slicing it showed a Manila manager 03:44 for 11:44. */
+  completed_local: string | null;
   items: Item[];
   options: {
     assessments: Opt[]; issue_types: Opt[]; root_causes: Opt[]; actions: Opt[];
@@ -80,6 +84,9 @@ type ReviewRow = {
   /** Present on every row; only shown when reading somebody else's. */
   assigned_to?: string | null;
   city?: string | null;
+  completed_by?: string | null;
+  completed_at?: string | null;
+  completed_local?: string | null;
 };
 
 type Scope = "mine" | "manila" | "dubai";
@@ -133,6 +140,46 @@ function Chips({
   );
 }
 
+/**
+ * What somebody else finished in your name.
+ *
+ * The list only ever asked for open reviews, so a completed one left this
+ * screen with nothing left behind. A manager read "Nothing to review" on the
+ * morning of 2026-09-16, an hour after a colleague had answered the two
+ * C-grade photos on the review addressed to him, and went and handled the
+ * same two through the Management Inbox instead.
+ *
+ * Only reviews carrying an answer somebody else gave reach here — a day that
+ * had nothing on it, or one a sweep closed without answering anything, is not
+ * news (lesson 39).
+ */
+function DoneForYou({ rows, onOpen }: { rows: ReviewRow[]; onOpen: (id: number) => void }) {
+  if (!rows.length) return null;
+  return (
+    <div className="mt-4">
+      <p className={`${T_LABEL} mb-1.5`}>Answered for you</p>
+      <div className="flex flex-col gap-2">
+        {rows.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => onOpen(r.id)}
+            className="rounded-xl border border-white/10 bg-white/4 px-3 py-2 text-left hover:bg-white/8"
+          >
+            <span className="block text-sm text-zinc-200">
+              {BRANCH_LABEL[r.branch] || r.branch} · {r.review_date}
+            </span>
+            <span className={T_CAPTION}>
+              {r.completed_by || "Somebody"} answered {r.answered} of {r.items}
+              {r.completed_local ? ` on ${r.completed_local}` : ""}
+              {" — open to read what they recorded"}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function MorningReviewPage() {
   // Read once. getAuth() parses localStorage and hands back a fresh object
   // every call, so calling it in the render body gave loadList -- and the
@@ -156,6 +203,11 @@ export default function MorningReviewPage() {
   /** What the server holds, which is not always what it sent. The navigation
       badge counts the first number; this page used to render the second. */
   const [total, setTotal] = useState(0);
+  /** Reviews addressed to you that somebody else answered and closed. They
+   *  used to leave this screen without a trace the moment they were completed,
+   *  and the empty state then said a review is only made on a day that has
+   *  something in it. */
+  const [doneForYou, setDoneForYou] = useState<ReviewRow[]>([]);
   const isHQ = ["HQ", "ADMIN"].includes(String(auth?.role || "").toUpperCase());
 
   const loadList = useCallback(async () => {
@@ -178,6 +230,7 @@ export default function MorningReviewPage() {
       const d = await res.json();
       setRows(d.reviews || []);
       setTotal(Number(d.total ?? (d.reviews || []).length));
+      setDoneForYou(scope === "mine" ? (d.done_for_you || []) : []);
       if ((d.reviews || []).length) await loadOne(d.reviews[0].id);
       else setReview(null);
     } catch {
@@ -271,6 +324,11 @@ export default function MorningReviewPage() {
   const quality = useMemo(() => review?.items.filter((i) => i.kind === "quality") ?? [], [review]);
   const preps   = useMemo(() => review?.items.filter((i) => i.kind === "prep_time") ?? [], [review]);
   const left    = useMemo(() => review?.items.filter((i) => !i.answer).length ?? 0, [review]);
+  /** A completed review can now be opened -- that is the point of showing the
+   *  ones somebody else finished -- so it has to stop offering the controls.
+   *  Until now only open reviews were ever listed, so nothing guarded this and
+   *  opening one would have let you overwrite the answers they recorded. */
+  const readOnly = review?.status === "completed";
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -311,12 +369,20 @@ export default function MorningReviewPage() {
               deciding, four reviews addressed to the person reading this sat
               behind that sentence. */}
           <p className={`${T_BODY} mt-1`}>
-            {scope === "mine"
-              ? "Nothing is addressed to you right now. A review is only made on a day that has something in it, and it goes to whoever was on the roster for that branch."
-              : "No open reviews in this city."}
+            {scope !== "mine"
+              ? "No open reviews in this city."
+              : doneForYou.length
+              /* Saying "a review is only made on a day that has something in
+                 it" to somebody whose review was made, and answered by a
+                 colleague an hour ago, is the screen telling them nothing
+                 happened. On 2026-09-16 that sent a manager to handle the
+                 same two C-grade photos a second time through the Inbox. */
+              ? "Nothing is waiting on you. Your last one was answered by somebody else — it is below."
+              : "Nothing is addressed to you right now. A review is only made on a day that has something in it, and it goes to whoever was on the roster for that branch."}
           </p>
           <button className={`${SMALL_BUTTON} mt-4`} onClick={() => void loadList()}>Refresh</button>
         </div>
+        <DoneForYou rows={doneForYou} onOpen={(id) => void loadOne(id)} />
         {err && <p className="mt-3 text-xs text-red-400">{err}</p>}
       </div>
     );
@@ -398,6 +464,11 @@ export default function MorningReviewPage() {
           ))}
         </div>
       )}
+
+      {/* Also here, not only on the empty screen: somebody with one review of
+          their own still has to be able to see that another was answered for
+          them. */}
+      <DoneForYou rows={doneForYou} onOpen={(id) => void loadOne(id)} />
 
       {err && (
         <p className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
@@ -547,7 +618,7 @@ export default function MorningReviewPage() {
                           </span>
                           <button
                             className={`${SMALL_BUTTON} flex items-center gap-1.5`}
-                            disabled={busy === it.id}
+                            disabled={busy === it.id || readOnly}
                             onClick={() => void save(it, null)}
                           >
                             <Undo2 className="h-3.5 w-3.5" /> Undo
@@ -561,7 +632,7 @@ export default function MorningReviewPage() {
                             options={review.options.assessments}
                             value={d.assessment ? [d.assessment] : []}
                             single
-                            disabled={busy === it.id}
+                            disabled={busy === it.id || readOnly}
                             onChange={(v) => {
                               const k = v[0];
                               const ends = review.options.assessments.find((x) => x.key === k)?.ends;
@@ -572,18 +643,18 @@ export default function MorningReviewPage() {
                           {d.assessment && !review.options.assessments.find((x) => x.key === d.assessment)?.ends && (
                             <>
                               <Chips label="What was wrong" options={review.options.issue_types}
-                                     value={d.issue_type} disabled={busy === it.id}
+                                     value={d.issue_type} disabled={busy === it.id || readOnly}
                                      onChange={(v) => patch(it.id, { issue_type: v })} />
                               <Chips label="Why" options={review.options.root_causes}
-                                     value={d.root_cause} disabled={busy === it.id}
+                                     value={d.root_cause} disabled={busy === it.id || readOnly}
                                      onChange={(v) => patch(it.id, { root_cause: v })} />
                               <Chips label="What you did" options={review.options.actions}
-                                     value={d.action_taken} disabled={busy === it.id}
+                                     value={d.action_taken} disabled={busy === it.id || readOnly}
                                      onChange={(v) => patch(it.id, { action_taken: v })} />
                               {staff.length > 0 && (
                                 <Chips label="Staff involved"
                                        options={staff.slice(0, 60).map((n) => ({ key: n, label: n }))}
-                                       value={d.staff} disabled={busy === it.id}
+                                       value={d.staff} disabled={busy === it.id || readOnly}
                                        onChange={(v) => patch(it.id, { staff: v })} />
                               )}
                               <textarea
@@ -594,7 +665,7 @@ export default function MorningReviewPage() {
                               />
                               <button
                                 className={PRIMARY_BUTTON}
-                                disabled={busy === it.id}
+                                disabled={busy === it.id || readOnly}
                                 onClick={() => void save(it, { ...d })}
                               >
                                 Save
@@ -658,7 +729,7 @@ export default function MorningReviewPage() {
                             {a.root_cause.join(", ")} — {a.action_taken.join(", ")}
                           </span>
                           <button className={`${SMALL_BUTTON} flex items-center gap-1.5`}
-                                  disabled={busy === it.id} onClick={() => void save(it, null)}>
+                                  disabled={busy === it.id || readOnly} onClick={() => void save(it, null)}>
                             <Undo2 className="h-3.5 w-3.5" /> Undo
                           </button>
                         </div>
@@ -667,16 +738,16 @@ export default function MorningReviewPage() {
                           {/* No "no issue" here: an order that took 47 minutes
                               took 47 minutes. */}
                           <Chips label="Why it took this long" options={review.options.prep_causes}
-                                 value={d.root_cause} disabled={busy === it.id}
+                                 value={d.root_cause} disabled={busy === it.id || readOnly}
                                  onChange={(v) => patch(it.id, { root_cause: v })} />
                           <Chips label="What you did" options={review.options.prep_actions}
-                                 value={d.action_taken} disabled={busy === it.id}
+                                 value={d.action_taken} disabled={busy === it.id || readOnly}
                                  onChange={(v) => patch(it.id, { action_taken: v })} />
                           <textarea className={TEXTAREA_CLASS} rows={2}
                                     placeholder="Note (required only for Other)"
                                     value={d.note}
                                     onChange={(e) => patch(it.id, { note: e.target.value })} />
-                          <button className={PRIMARY_BUTTON} disabled={busy === it.id}
+                          <button className={PRIMARY_BUTTON} disabled={busy === it.id || readOnly}
                                   onClick={() => void save(it, { ...d, kind: "prep_time" })}>
                             Save
                           </button>
@@ -692,6 +763,21 @@ export default function MorningReviewPage() {
       )}
 
       {/* ── One comment for the whole morning, then done ── */}
+      {readOnly ? (
+        <div className={`${GLASS_CARD} p-4`}>
+          <p className={T_SECTION}>Already completed</p>
+          <p className={`${T_BODY} mt-1`}>
+            {review.completed_by && review.completed_by !== review.assigned_to
+              ? `${review.completed_by} answered this one for you`
+              : "You completed this one"}
+            {review.completed_local ? ` on ${review.completed_local}` : ""}.
+            {" "}What they recorded is above, and it stays as they left it.
+          </p>
+          {review.manager_comment && (
+            <p className={`${T_BODY} mt-2 rounded-lg bg-white/5 p-3`}>{review.manager_comment}</p>
+          )}
+        </div>
+      ) : (
       <div className={`${GLASS_CARD} p-4`}>
         <p className={`${T_LABEL} mb-1.5`}>What happened and what you did</p>
         <textarea
@@ -721,6 +807,7 @@ export default function MorningReviewPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

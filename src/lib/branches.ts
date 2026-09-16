@@ -9,6 +9,7 @@ export type BranchCode =
   | "AB"
   | "CK"
   | "DRIVER"
+  | "HQ"
   | "PAR"
   | "CUB"
   | "TAFT"
@@ -27,6 +28,11 @@ export const BRANCHES: Record<City, Branch[]> = {
     { code: "CK", name: "Central Kitchen" },
     { code: "WH", name: "Warehouse" },
     { code: "DRIVER", name: "Delivery" },
+    // The Dubai office. Five people are registered here on staff_master and
+    // it had no entry in this list, so every screen built from it made them
+    // pick a restaurant they do not work at. There is no QR poster for it
+    // because it is an office, not a store.
+    { code: "HQ", name: "HQ / Management" },
   ],
   manila: [
     { code: "PAR", name: "Paranaque" },
@@ -61,6 +67,9 @@ export function normalizeBranchCode(city: City, v: string): BranchCode | string 
     if (low.includes("ck") || low.includes("central")) return "CK";
     if (low.includes("warehouse") || low === "wh") return "WH";
     if (low.includes("back office") || low.includes("regus") || low === "bo") return "BO";
+    // Manila's office is the Back Office. "HQ" typed here means the same
+    // place — one code for it, or the spend splits across two names.
+    if (low === "hq" || low.includes("head office") || low.includes("management")) return "BO";
   }
 
   if (city === "dubai") {
@@ -74,6 +83,8 @@ export function normalizeBranchCode(city: City, v: string): BranchCode | string 
     if (low.includes("driver") || low.includes("delivery")) return "DRIVER";
     if (low.includes("ck") || low.includes("central")) return "CK";
     if (low.includes("warehouse") || low === "wh") return "WH";
+    if (low === "hq" || low.includes("head office") || low.includes("back office")
+        || low.includes("management")) return "HQ";
   }
 
   return u || s;

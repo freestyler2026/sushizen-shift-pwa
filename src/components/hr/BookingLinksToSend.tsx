@@ -41,6 +41,11 @@ type Row = {
   contact_via: string;
   copied_at: string | null;
   copied_by: string | null;
+  /** When the applicant first opened the newest link. The only evidence from
+   *  this side that the message actually arrived -- "sent" is a button we
+   *  press after pasting, and on 2026-09-16 one row read sent while nothing
+   *  had reached the applicant's phone. */
+  link_opened_at: string | null;
 };
 
 type Invite = {
@@ -200,17 +205,10 @@ export default function BookingLinksToSend({
     // costs nothing. Asking anyway is how a warning gets clicked through: on
     // 2026-09-15 all 18 live links had been copied zero times, so every single
     // person saw a warning that was not true of their case.
-    if (row.link_live && row.copied_at && !justIssued.has(row.id)) {
-      const when = row.copied_at.length > 15
-        ? `${row.copied_at.slice(0, 10)} ${row.copied_at.slice(11, 16)}`
-        : row.copied_at.slice(0, 10);
-      const ok = window.confirm(
-        `${row.copied_by || "Somebody"} copied ${row.full_name}'s message on ${when}. ` +
-        `If it was sent, a new link stops the old one from opening and they will ` +
-        `get an error. Continue?`,
-      );
-      if (!ok) return;
-    }
+    // There used to be a confirmation here, because a second link replaced the
+    // first and whoever was holding it got an error. Links are rows now and
+    // every unexpired one keeps working, so making another costs nothing and
+    // the question would be asking about a consequence that no longer exists.
     setBusy(true);
     setErr("");
     setSmsNote("");
@@ -446,6 +444,22 @@ export default function BookingLinksToSend({
               {row.copied_at.length > 15 ? ` ${row.copied_at.slice(11, 16)}` : ""}
             </span>
           )}
+          {/* Sent is what we did; opened is what happened. A row that says
+              sent and has never been opened is the one worth a second look --
+              it is how a message that never left the phone looks from here. */}
+          {row.link_opened_at ? (
+            <span className={BADGE_SUCCESS} title="They opened the link.">
+              opened {row.link_opened_at.slice(0, 10)}
+              {row.link_opened_at.length > 15 ? ` ${row.link_opened_at.slice(11, 16)}` : ""}
+            </span>
+          ) : row.copied_at ? (
+            <span
+              className={BADGE_WARNING}
+              title="Marked sent, but the link has never been opened. Check the message actually went out."
+            >
+              not opened yet
+            </span>
+          ) : null}
           <span className="ml-auto">
             <button
               className={sent ? SMALL_BUTTON : PRIMARY_BUTTON}
