@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cvStateOf, type CvFacts } from "@/lib/cv-request";
+import { cvStateOf, openedSinceAsk, type CvFacts } from "@/lib/cv-request";
 
 /**
  * The nine rows sitting in New on 2026-09-16, exactly as the board receives
@@ -72,5 +72,35 @@ describe("cvStateOf — the CV landing", () => {
       resume_screening_id: 98, cv_asked_at: "2026-09-15T13:35:55Z",
       cv_asked_how: "cv_copied",
     })).toBe("arrived");
+  });
+});
+
+describe("openedSinceAsk — only ever says yes", () => {
+  it("an open after the link was built counts", () => {
+    expect(openedSinceAsk({
+      cv_link_made_at: "2026-09-15T13:40:00Z",
+      link_opened_at: "2026-09-16T02:11:00Z",
+    })).toBe(true);
+  });
+
+  it("the visit they made when they applied does not count", () => {
+    // Every one of the twelve looks like this: client_seen_at is days older
+    // than the invite because it was set while they filled in the form.
+    expect(openedSinceAsk({
+      cv_link_made_at: "2026-09-15T13:40:00Z",
+      link_opened_at: "2026-09-10T09:23:52Z",
+    })).toBe(false);
+  });
+
+  it("no open on record is not a claim that they ignored it", () => {
+    expect(openedSinceAsk({ cv_link_made_at: "2026-09-15T13:40:00Z" })).toBe(false);
+    expect(openedSinceAsk({ link_opened_at: "2026-09-16T02:11:00Z" })).toBe(false);
+    expect(openedSinceAsk({})).toBe(false);
+  });
+
+  it("unparseable timestamps stay silent rather than guess", () => {
+    expect(openedSinceAsk({
+      cv_link_made_at: "not a date", link_opened_at: "2026-09-16T02:11:00Z",
+    })).toBe(false);
   });
 });

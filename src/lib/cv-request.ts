@@ -27,7 +27,29 @@ export type CvFacts = {
   cv_asked_at?: string | null;
   cv_asked_how?: string | null;
   cv_link_made_at?: string | null;
+  link_opened_at?: string | null;
 };
+
+/** Did they open the link after we sent it?
+ *
+ *  Only ever answers true. Silence means no open is on record, which is not
+ *  the same as "they did not open it": opens were first recorded on
+ *  2026-09-16, and every link issued before that has none. Saying "not
+ *  opened" would turn a gap in our recording into a statement about the
+ *  applicant -- and that statement would send somebody chasing a phone
+ *  number that was fine.
+ *
+ *  Compared against the link, not against the send: the send is somebody's
+ *  account of what they did, and an open that beats it by a minute is far
+ *  more likely a slow Done press than a psychic applicant.
+ */
+export function openedSinceAsk(a: CvFacts): boolean {
+  if (!a.link_opened_at || !a.cv_link_made_at) return false;
+  const opened = Date.parse(a.link_opened_at);
+  const made = Date.parse(a.cv_link_made_at);
+  if (!Number.isFinite(opened) || !Number.isFinite(made)) return false;
+  return opened >= made;
+}
 
 export function cvStateOf(a: CvFacts): CvState {
   // The CV outranks everything else: once it is here, what was done to get

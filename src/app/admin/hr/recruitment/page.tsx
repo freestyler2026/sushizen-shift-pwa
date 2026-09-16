@@ -3,7 +3,7 @@
 import { isoToday } from "@/lib/date";
 import { facebookLink } from "@/lib/facebook";
 import { LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outcome";
-import { cvStateOf } from "@/lib/cv-request";
+import { cvStateOf, openedSinceAsk } from "@/lib/cv-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
@@ -124,6 +124,11 @@ type Applicant = {
   cv_asked_how?: string | null;
   cv_link_made_at?: string | null;
   cv_link_live?: boolean | null;
+  /** Last time the applicant opened their link -- something the server saw,
+   *  unlike the send, which is somebody's account of it. Recorded from
+   *  2026-09-16 only, so absence means "no open on record", never "they did
+   *  not open it". */
+  link_opened_at?: string | null;
   resume_bytes?: number;
   /** What they typed on the application form. All of it has been stored since
    *  the form went up and all of it reaches this payload -- none of it was on
@@ -740,19 +745,27 @@ function KanbanCard({
                   </p>
                 );
               }
+              // An open is the only sign of life between asking and the CV
+              // landing. Without it the work has no feedback at all: twelve
+              // requests had gone out and nothing on this board could say
+              // whether a single one had reached anybody.
+              const seen = openedSinceAsk(applicant) ? " · opened" : "";
               const label =
                 cs === "sent"
-                  ? `✓ CV asked ${shortDate(applicant.cv_asked_at)}`
+                  ? `✓ CV asked ${shortDate(applicant.cv_asked_at)}${seen}`
                   : cs === "copied"
-                  ? `CV asked ${shortDate(applicant.cv_asked_at)} · not confirmed`
+                  ? `CV asked ${shortDate(applicant.cv_asked_at)} · not confirmed${seen}`
                   : cs === "made"
-                  ? `CV link made ${shortDate(applicant.cv_link_made_at)} · not sent`
+                  ? `CV link made ${shortDate(applicant.cv_link_made_at)} · not sent${seen}`
                   : "No CV — ask for one";
               const tone = cs === "sent" ? "text-emerald-400/90 hover:text-emerald-300"
                                          : "text-amber-400/80 hover:text-amber-300";
               const tip =
                 cs === "sent"
-                  ? `They were asked for a CV${applicant.cv_asked_by ? ` by ${applicant.cv_asked_by}` : ""} and it has not arrived. Open to ask again.`
+                  ? `They were asked for a CV${applicant.cv_asked_by ? ` by ${applicant.cv_asked_by}` : ""} and it has not arrived. `
+                    + (openedSinceAsk(applicant)
+                        ? `They opened the link on ${shortDate(applicant.link_opened_at)} and did not send one, so the message reached them.`
+                        : "No open is on record. Opens were first recorded on 16 Sep, so for anything asked before then this says nothing either way.")
                   : cs === "copied"
                   ? `The wording was copied${applicant.cv_asked_by ? ` by ${applicant.cv_asked_by}` : ""} but nobody confirmed sending it. Open and press "I sent it" once it has gone out.`
                   : cs === "made"
