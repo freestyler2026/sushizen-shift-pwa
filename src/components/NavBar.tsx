@@ -36,7 +36,6 @@ import {
   LogOut,
   MoreHorizontal,
   Package,
-  PackageCheck,
   PackageSearch,
   PenLine,
   Receipt,
@@ -232,12 +231,19 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/emergency-request", label: "Emergency Request", icon: Siren,  match: "prefix" , cat: "goods" },
   { href: "/store/purchase", label: "Direct Purchase", icon: ShoppingBag, match: "prefix" , cat: "goods" },
   { href: "/store/spot-purchase", label: "Spot Purchase", icon: ShoppingBag, match: "prefix" , cat: "goods" },
-  { href: "/store/ck-production", label: "CK Dispatch", icon: Truck, match: "prefix" , cat: "goods" },
+  // CK Dispatch and CK Receiving are off the menu. Both were used for three weeks
+  // in June -- seven dispatches to 2026-06-10, seven receipts to 2026-06-23 -- and
+  // then CK Delivery took over the whole job and has carried it since (135 records,
+  // 18 of them this month). The pages and their data stay where they are; only the
+  // menu entries are gone, so the seven historical records are still readable by URL.
+  //
+  // Removing them here is the only thing that hides them: unlike most staff entries
+  // they carried no rule at all and fell through to `return true`, so every role saw
+  // them and no Role Management toggle could reach them.
   { href: "/store/ck-inventory", label: "CK Inventory", icon: FlaskConical, match: "prefix" , cat: "goods" },
   { href: "/store/ck-production-plan", label: "CK Production Plan", icon: Factory, match: "prefix" , cat: "goods" },
   { href: "/store/ck-delivery", label: "CK Delivery", icon: Truck, match: "prefix" , cat: "goods" },
   { href: "/store/ck-ingredient-receiving", label: "CK Ingredient Receiving", icon: PackageSearch, match: "prefix" , cat: "goods" },
-  { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" , cat: "goods" },
   { href: "/store/supplier-receiving", label: "Supplier Receiving", icon: PackageSearch, match: "prefix" , cat: "goods" },
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" , cat: "daily" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" , cat: "daily" },
