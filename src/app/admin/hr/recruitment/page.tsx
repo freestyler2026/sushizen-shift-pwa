@@ -245,6 +245,91 @@ type Evaluation = {
 
 // ─── Kanban columns ──────────────────────────────────────────────────────────
 
+/** What the offer letter says.
+ *
+ *  Both cities' allowance lines live on one row; a city only ever fills its
+ *  own. Manila's four are the BIR de minimis benefits, which are tax-free up
+ *  to a monthly cap — the caps are printed beside the fields because an offer
+ *  written above them costs the employee tax nobody intended. */
+type Offer = {
+  applicant_id: string;
+  city: string;
+  position: string;
+  branch_code: string;
+  employment_type: string;
+  start_date: string | null;
+  currency: string;
+  basic_monthly: string | number;
+  allow_rice: string | number;
+  allow_clothing: string | number;
+  allow_laundry: string | number;
+  allow_medical: string | number;
+  allow_accommodation: string | number;
+  allow_transport: string | number;
+  allow_other: string | number;
+  notes: string;
+  sent_at: string | null;
+  sent_by: string;
+  applied_to_payroll_at: string | null;
+  applied_to_payroll_by: string;
+};
+
+const ALLOWANCE_KEYS = [
+  "rice", "clothing", "laundry", "medical",
+  "accommodation", "transport", "other",
+] as const;
+type AllowanceKey = (typeof ALLOWANCE_KEYS)[number];
+
+type OfferForm = {
+  position: string; branch_code: string; employment_type: string;
+  start_date: string; basic_monthly: string; notes: string;
+} & Record<AllowanceKey, string>;
+
+const BLANK_OFFER: OfferForm = {
+  position: "", branch_code: "", employment_type: "", start_date: "",
+  basic_monthly: "", notes: "",
+  rice: "", clothing: "", laundry: "", medical: "",
+  accommodation: "", transport: "", other: "",
+};
+
+const MANILA_ALLOWANCES: { key: AllowanceKey; label: string; cap?: string }[] = [
+  { key: "rice",     label: "Rice allowance",     cap: "₱2,000" },
+  { key: "clothing", label: "Clothing allowance", cap: "₱500" },
+  { key: "laundry",  label: "Laundry allowance",  cap: "₱300" },
+  { key: "medical",  label: "Medical allowance",  cap: "₱250" },
+];
+
+const DUBAI_ALLOWANCES: { key: AllowanceKey; label: string; cap?: string }[] = [
+  { key: "accommodation", label: "Accommodation" },
+  { key: "transport",     label: "Transport" },
+  { key: "other",         label: "Other allowances" },
+];
+
+/** A zero reads as "we agreed nothing", which is not what an empty field
+ *  means. Blank stays blank so the form does not put figures in the letter. */
+function money(v: string | number | null | undefined): string {
+  const n = Number(v ?? 0);
+  return !n ? "" : String(n);
+}
+
+function offerToForm(o: Offer): OfferForm {
+  return {
+    position: o.position || "",
+    branch_code: o.branch_code || "",
+    employment_type: o.employment_type || "",
+    start_date: (o.start_date || "").slice(0, 10),
+    basic_monthly: money(o.basic_monthly),
+    notes: o.notes || "",
+    rice: money(o.allow_rice),
+    clothing: money(o.allow_clothing),
+    laundry: money(o.allow_laundry),
+    medical: money(o.allow_medical),
+    accommodation: money(o.allow_accommodation),
+    transport: money(o.allow_transport),
+    other: money(o.allow_other),
+  };
+}
+
 const KANBAN_COLUMNS: { id: KanbanStatus; label: string; color: string }[] = [
   { id: "new",         label: "New",               color: "border-neutral-600" },
   { id: "screened",    label: "Screened",           color: "border-blue-600" },
@@ -1019,7 +1104,11 @@ function DetailPanel({
   onRefresh: () => void;
   reasons: OutcomeReason[];
 }) {
-  const [tab, setTab] = useState<"info" | "interview" | "evaluation">("info");
+  const [tab, setTab] = useState<"info" | "interview" | "evaluation" | "offer">("info");
+  const [offer, setOffer] = useState<Offer | null>(null);
+  const [offerForm, setOfferForm] = useState<OfferForm>(BLANK_OFFER);
+  const [offerBusy, setOfferBusy] = useState(false);
+  const [offerSaved, setOfferSaved] = useState("");
   const [interviews, setInterviews] = useState<InterviewSchedule[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loadingInterviews, setLoadingInterviews] = useState(false);
@@ -1100,11 +1189,59 @@ function DetailPanel({
     } catch { setMergedRows([]); }
   }, [applicant.id]);
 
+  const loadOffer = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicant.id}/offer`,
+        { headers: getAuthHeaders(), cache: "no-store" });
+      if (!res.ok) return;
+      const o = ((await res.json())?.offer ?? null) as Offer | null;
+      setOffer(o);
+      // The form opens on what was last sent, so a revision is an edit rather
+      // than a re-type. Blank fields would invite typing the salary twice,
+      // which is the thing this screen exists to stop.
+      setOfferForm(o ? offerToForm(o) : {
+        ...BLANK_OFFER,
+        position: applicant.position_applied || "",
+        branch_code: applicant.assigned_branch || "",
+      });
+    } catch { /* leave what is on screen */ }
+  }, [applicant.id, applicant.position_applied, applicant.assigned_branch]);
+
   useEffect(() => {
     if (tab === "interview") void loadInterviews();
     if (tab === "evaluation") void loadEvaluations();
+    if (tab === "offer") void loadOffer();
     if (tab === "info" && (applicant.merged_count ?? 0) > 0) void loadMerged();
-  }, [tab, loadInterviews, loadEvaluations, loadMerged, applicant.merged_count]);
+  }, [tab, loadInterviews, loadEvaluations, loadOffer, loadMerged, applicant.merged_count]);
+
+  const saveOffer = async () => {
+    setOfferBusy(true); setError(""); setOfferSaved("");
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicant.id}/offer`,
+        {
+          method: "PUT",
+          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({
+            position: offerForm.position,
+            branch_code: offerForm.branch_code,
+            employment_type: offerForm.employment_type,
+            start_date: offerForm.start_date,
+            notes: offerForm.notes,
+            basic_monthly: Number(offerForm.basic_monthly || 0),
+            ...Object.fromEntries(
+              ALLOWANCE_KEYS.map((k) => [k, Number(offerForm[k] || 0)])),
+          }),
+        });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((d as { detail?: string }).detail || "Could not save");
+      setOffer((d as { offer: Offer }).offer);
+      setOfferSaved("Saved. Payroll can fill the profile from this.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Could not save");
+    } finally { setOfferBusy(false); }
+  };
 
   // Undo lives beside the thing it undoes, and the row comes back into the
   // queue immediately -- not behind a filter the reader has to know about
@@ -1209,13 +1346,14 @@ function DetailPanel({
 
       {/* Tabs */}
       <div className={`${TAB_CONTAINER} mt-3 shrink-0`}>
-        {(["info", "interview", "evaluation"] as const).map((t) => (
+        {(["info", "interview", "evaluation", "offer"] as const).map((t) => (
           <button
             key={t}
             className={tab === t ? TAB_ACTIVE : TAB_INACTIVE}
             onClick={() => setTab(t)}
           >
-            {t === "info" ? "Info" : t === "interview" ? "Interview" : "Evaluation"}
+            {t === "info" ? "Info" : t === "interview" ? "Interview"
+              : t === "evaluation" ? "Evaluation" : "Offer"}
           </button>
         ))}
       </div>
@@ -1700,6 +1838,94 @@ function DetailPanel({
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* ── Offer Tab ──
+            What the letter says, typed once. The final interview gets skipped;
+            the offer letter never does, so this is where the agreed money can
+            be recorded without a stage that might not happen. Payroll fills the
+            profile from it rather than the figure being typed a second time. */}
+        {tab === "offer" && (
+          <div className="space-y-3">
+            <p className={T_BODY}>
+              The figures on the offer letter. Payroll fills{" "}
+              {applicant.city === "dubai" ? "the salary config" : "the staff profile"}{" "}
+              from these, so they are typed once.
+            </p>
+
+            {offer?.sent_at && (
+              <p className={T_CAPTION}>
+                Last sent {String(offer.sent_at).slice(0, 10)}
+                {offer.sent_by ? ` by ${offer.sent_by}` : ""}
+                {offer.applied_to_payroll_at
+                  ? ` · used for payroll ${String(offer.applied_to_payroll_at).slice(0, 10)}`
+                  : " · not yet used for payroll"}
+              </p>
+            )}
+
+            <div className={`${GLASS_CARD} p-3 space-y-3`}>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={T_LABEL}>Position</label>
+                  <input className={`${INPUT_CLASS} mt-1`} value={offerForm.position}
+                    onChange={(e) => setOfferForm({ ...offerForm, position: e.target.value })} />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Branch</label>
+                  <input className={`${INPUT_CLASS} mt-1`} value={offerForm.branch_code}
+                    onChange={(e) => setOfferForm({ ...offerForm, branch_code: e.target.value })} />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Employment type</label>
+                  <input className={`${INPUT_CLASS} mt-1`} placeholder="probationary"
+                    value={offerForm.employment_type}
+                    onChange={(e) => setOfferForm({ ...offerForm, employment_type: e.target.value })} />
+                </div>
+                <div>
+                  <label className={T_LABEL}>Start date</label>
+                  <input type="date" className={`${INPUT_CLASS} mt-1`} value={offerForm.start_date}
+                    onChange={(e) => setOfferForm({ ...offerForm, start_date: e.target.value })} />
+                </div>
+              </div>
+
+              <div>
+                <label className={T_LABEL}>
+                  Basic salary — monthly ({applicant.city === "dubai" ? "AED" : "PHP"})
+                </label>
+                <input type="number" inputMode="decimal" min={0}
+                  className={`${INPUT_CLASS} mt-1`} value={offerForm.basic_monthly}
+                  onChange={(e) => setOfferForm({ ...offerForm, basic_monthly: e.target.value })} />
+                <p className={`${T_CAPTION} mt-1`}>This is the figure payroll pays from.</p>
+              </div>
+
+              {/* Only the lines that city has. Showing Manila's rice allowance
+                  to Dubai would invite a number that no engine reads. */}
+              <div className="grid grid-cols-2 gap-3">
+                {(applicant.city === "dubai" ? DUBAI_ALLOWANCES : MANILA_ALLOWANCES)
+                  .map(({ key, label, cap }) => (
+                    <div key={key}>
+                      <label className={T_LABEL}>{label}</label>
+                      <input type="number" inputMode="decimal" min={0}
+                        className={`${INPUT_CLASS} mt-1`} value={offerForm[key]}
+                        onChange={(e) => setOfferForm({ ...offerForm, [key]: e.target.value })} />
+                      {cap && <p className={T_CAPTION}>Tax-free up to {cap}/month</p>}
+                    </div>
+                  ))}
+              </div>
+
+              <div>
+                <label className={T_LABEL}>Anything else the letter says</label>
+                <textarea rows={2} className={`${TEXTAREA_CLASS} mt-1`} value={offerForm.notes}
+                  onChange={(e) => setOfferForm({ ...offerForm, notes: e.target.value })} />
+              </div>
+
+              {offerSaved && <p className="text-xs text-emerald-400">{offerSaved}</p>}
+              <button className={PRIMARY_BUTTON} disabled={offerBusy}
+                      onClick={() => void saveOffer()}>
+                {offerBusy ? "Saving…" : offer ? "Update the offer" : "Record the offer"}
+              </button>
+            </div>
           </div>
         )}
       </div>
