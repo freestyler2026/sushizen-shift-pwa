@@ -26404,3 +26404,49 @@ not exist before the change** (`offer on file` here).
 
 - Observation, not fixed: both `DetailPanel`s mount (desktop + the `md:hidden`
   bottom sheet), so every panel tab fetches twice. Pre-existing.
+
+## 2026-09-16 — Receipt Log: the office as a branch
+
+**Done.** Dubai reported that the branch list had no back-office option. It had
+neither: Manila's **BO (10 staff)** and Dubai's **HQ (5 staff)** were both
+missing, so fifteen people filing a receipt had to pick a restaurant they do not
+work at.
+
+- `src/lib/branches.ts` gains `HQ — HQ / Management` (Dubai). Manila keeps **one**
+  code for the office: `"HQ"` typed there normalises to `BO`, or the same spend
+  splits across two names.
+- Departments gain **HR** and move to `src/lib/receipt-log.ts`.
+  `RECEIPT_DEPARTMENTS` is read by the staff form *and* the admin filter — they
+  each had their own copy, so adding to one alone would have made those receipts
+  unreachable from the screen that reviews them (lesson 95).
+- Both Receipt Log screens now read `src/lib/branches.ts` instead of keeping
+  copies. **That was a third and fourth copy.**
+
+⚠️ **Found in passing: three of the five Dubai branch names were wrong.** The
+Receipt Log called AB "Abu Baker", AM "Al Mankhool", ARJ "Al Rigga / Jaddaf".
+The QR posters standing in those stores (`os_branch_qr.label`, authoritative)
+say **Al Barsha, Al Mina, Arjan** — three different places. Staff were choosing
+a branch by a name nobody there uses. All 21 receipts on file are Kitchen, so
+nothing already recorded moved.
+
+No backend change: `receipt_log.branch_code` is free text and the summary groups
+by the stored value, so new codes flow through. Checked the other consumers —
+the fixed branch lists in `cash_report_api`, `db_public_apply` and
+`ai_analytics_pro` do not read `receipt_log`.
+
+**Verified from the served bundle**, not the UI: the browser session had expired
+and a PIN is a credential I do not type. The live shared chunk carries
+Dubai `…, HQ / Management` and Manila `…, Back Office`, departments
+`Kitchen, Operations, Admin, HR, …`, and the page chunk no longer contains
+"Abu Baker", "Al Mankhool" or "Al Rigga". **Not clicked through in the app.**
+
+⚠️ **Deploy polling caught me a second time.** I grepped the *page* chunk for
+"HQ / Management", but the string lives in the shared chunk that `branches.ts`
+compiles into, so the loop would never have exited. Check which chunk actually
+carries the marker before polling on it.
+
+### Open
+- `staff_master.branch_code` also has Dubai `CK`, `DRIVER` and an empty-string
+  branch with 8 inactive rows. The empty one is worth a look.
+- `src/app/admin/branches.ts` is still a separate list (no BO/HQ). Not touched —
+  it serves other screens and none of them were reported broken.
