@@ -4,6 +4,7 @@ import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
+import ModalScrim from "@/components/ModalScrim";
 import { getAuth, refreshAuthFromApi, getAuthHeaders, getUploadHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
 import { prepareIfImage } from "@/lib/image-compress";
 import { API_BASE } from "@/lib/api";
@@ -648,8 +649,8 @@ function CvRequestModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-      <div className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto overscroll-contain p-6 space-y-3`}>
+    <ModalScrim className="bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-3`}>
         <div className="flex items-center justify-between">
           <p className={T_SECTION}>Ask for a CV — {applicant.full_name}</p>
           <button
@@ -700,7 +701,7 @@ function CvRequestModal({
           </>
         )}
       </div>
-    </div>
+    </ModalScrim>
   );
 }
 
@@ -2026,8 +2027,8 @@ function NewPlanModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-      <div className={`${GLASS_CARD} w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+    <ModalScrim className="bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-2xl mx-auto my-4 p-6 space-y-4`}>
         <div className="flex items-center justify-between">
           <p className={T_SECTION}>New Hiring Plan</p>
           <button
@@ -2128,7 +2129,7 @@ function NewPlanModal({
           <button className={SECONDARY_BUTTON} onClick={onClose}>Cancel</button>
         </div>
       </div>
-    </div>
+    </ModalScrim>
   );
 }
 
@@ -2229,8 +2230,8 @@ function InterviewOutcomeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-      <div className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+    <ModalScrim className="bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-4`}>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className={T_SECTION}>{applicant.full_name}</p>
@@ -2326,7 +2327,7 @@ function InterviewOutcomeModal({
           added from the candidate&apos;s Evaluation tab.
         </p>
       </div>
-    </div>
+    </ModalScrim>
   );
 }
 
@@ -2520,9 +2521,9 @@ function AddApplicantModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <ModalScrim className="bg-black/60">
       <div
-        className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4`}
+        className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-4`}
       >
         <div className="flex items-center justify-between">
           <p className={T_SECTION}>Add Applicant</p>
@@ -2681,7 +2682,7 @@ function AddApplicantModal({
           </button>
         </div>
       </div>
-    </div>
+    </ModalScrim>
   );
 }
 
@@ -2790,8 +2791,8 @@ function BulkAddModal({
 
   if (result) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-        <div className={`${GLASS_CARD} w-full max-w-lg p-6 space-y-4`}>
+      <ModalScrim className="bg-black/60">
+        <div className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-4`}>
           <p className={T_SECTION}>
             {result.created_count} candidate{result.created_count === 1 ? "" : "s"} added
           </p>
@@ -2805,13 +2806,13 @@ function BulkAddModal({
           )}
           <button className={PRIMARY_BUTTON} onClick={onClose}>Done</button>
         </div>
-      </div>
+      </ModalScrim>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-      <div className={`${GLASS_CARD} w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4`}>
+    <ModalScrim className="bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-2xl mx-auto my-4 p-6 space-y-4`}>
         <div className="flex items-center justify-between">
           <p className={T_SECTION}>Add Several Candidates</p>
           <button
@@ -2929,7 +2930,7 @@ function BulkAddModal({
           <button className={SECONDARY_BUTTON} onClick={onClose}>Cancel</button>
         </div>
       </div>
-    </div>
+    </ModalScrim>
   );
 }
 
@@ -2963,9 +2964,9 @@ function AddRequisitionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+    <ModalScrim className="bg-black/60">
       <div
-        className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4`}
+        className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-4`}
       >
         <div className="flex items-center justify-between">
           <p className={T_SECTION}>Add Requisition</p>
@@ -3092,7 +3093,7 @@ function AddRequisitionModal({
           </button>
         </div>
       </div>
-    </div>
+    </ModalScrim>
   );
 }
 
@@ -4285,8 +4286,8 @@ export default function HRRecruitmentPage() {
         />
       )}
       {linkFor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-          <div className={`${GLASS_CARD} w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-3`}>
+        <ModalScrim className="bg-black/60">
+          <div className={`${GLASS_CARD} w-full max-w-2xl mx-auto my-4 p-6 space-y-3`}>
             <div className="flex items-center justify-between">
               <p className={T_SECTION}>Interview link — {linkFor.full_name}</p>
               <button
@@ -4307,7 +4308,7 @@ export default function HRRecruitmentPage() {
                 in one of them only. */}
             <BookingLinksToSend onlyApplicantId={linkFor.id} autoOpen compact />
           </div>
-        </div>
+        </ModalScrim>
       )}
       {outcomeFor && (
         <InterviewOutcomeModal
