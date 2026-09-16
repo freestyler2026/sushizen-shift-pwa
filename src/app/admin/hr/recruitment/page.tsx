@@ -1109,6 +1109,10 @@ function DetailPanel({
   const [offerForm, setOfferForm] = useState<OfferForm>(BLANK_OFFER);
   const [offerBusy, setOfferBusy] = useState(false);
   const [offerSaved, setOfferSaved] = useState("");
+  // The server says whether the figures are readable. Reading it off an empty
+  // box instead would confuse "not agreed yet" with "not yours to see", and
+  // saving on that guess is how an agreed salary gets wiped (lesson 67).
+  const [salaryVisible, setSalaryVisible] = useState(true);
   const [interviews, setInterviews] = useState<InterviewSchedule[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [loadingInterviews, setLoadingInterviews] = useState(false);
@@ -1195,8 +1199,10 @@ function DetailPanel({
         `${API_BASE}/api/admin/hr/applicants/${applicant.id}/offer`,
         { headers: getAuthHeaders(), cache: "no-store" });
       if (!res.ok) return;
-      const o = ((await res.json())?.offer ?? null) as Offer | null;
+      const d = await res.json() as { offer?: Offer | null; salary_visible?: boolean };
+      const o = (d?.offer ?? null) as Offer | null;
       setOffer(o);
+      setSalaryVisible(d?.salary_visible !== false);
       // The form opens on what was last sent, so a revision is an edit rather
       // than a re-type. Blank fields would invite typing the salary twice,
       // which is the thing this screen exists to stop.
@@ -1229,9 +1235,11 @@ function DetailPanel({
             employment_type: offerForm.employment_type,
             start_date: offerForm.start_date,
             notes: offerForm.notes,
-            basic_monthly: Number(offerForm.basic_monthly || 0),
-            ...Object.fromEntries(
-              ALLOWANCE_KEYS.map((k) => [k, Number(offerForm[k] || 0)])),
+            ...(salaryVisible ? {
+              basic_monthly: Number(offerForm.basic_monthly || 0),
+              ...Object.fromEntries(
+                ALLOWANCE_KEYS.map((k) => [k, Number(offerForm[k] || 0)])),
+            } : {}),
           }),
         });
       const d = await res.json().catch(() => ({}));
@@ -1864,6 +1872,15 @@ function DetailPanel({
               </p>
             )}
 
+            {!salaryVisible && (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                The money on this offer is not yours to see. You can still record
+                the position, branch, employment type and start date — the
+                figures stay as they are. Someone with payroll access, or HR,
+                sets them.
+              </p>
+            )}
+
             <div className={`${GLASS_CARD} p-3 space-y-3`}>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1894,7 +1911,10 @@ function DetailPanel({
                   Basic salary — monthly ({applicant.city === "dubai" ? "AED" : "PHP"})
                 </label>
                 <input type="number" inputMode="decimal" min={0}
-                  className={`${INPUT_CLASS} mt-1`} value={offerForm.basic_monthly}
+                  disabled={!salaryVisible}
+                  placeholder={salaryVisible ? "" : "••••"}
+                  className={`${INPUT_CLASS} mt-1 ${salaryVisible ? "" : "opacity-60"}`}
+                  value={salaryVisible ? offerForm.basic_monthly : ""}
                   onChange={(e) => setOfferForm({ ...offerForm, basic_monthly: e.target.value })} />
                 <p className={`${T_CAPTION} mt-1`}>This is the figure payroll pays from.</p>
               </div>
@@ -1907,7 +1927,10 @@ function DetailPanel({
                     <div key={key}>
                       <label className={T_LABEL}>{label}</label>
                       <input type="number" inputMode="decimal" min={0}
-                        className={`${INPUT_CLASS} mt-1`} value={offerForm[key]}
+                        disabled={!salaryVisible}
+                        placeholder={salaryVisible ? "" : "••••"}
+                        className={`${INPUT_CLASS} mt-1 ${salaryVisible ? "" : "opacity-60"}`}
+                        value={salaryVisible ? offerForm[key] : ""}
                         onChange={(e) => setOfferForm({ ...offerForm, [key]: e.target.value })} />
                       {cap && <p className={T_CAPTION}>Tax-free up to {cap}/month</p>}
                     </div>
