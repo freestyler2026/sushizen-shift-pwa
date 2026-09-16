@@ -26501,3 +26501,84 @@ were uncovered; now 0.
 ⚠️ **A component declared inside another component's body is a remount every
 render.** Grep for `const X = ({...}) => {` between a `function Component(` and
 its `return` — anything with an input in it will misbehave exactly this way.
+
+## 2026-09-16 — Ocean Fisheries → Fresh to Home: a new entity, not a rename
+
+Dubai reported the supplier was "becoming Fresh to Home". It is **not a rename**:
+different trade licence, different legal entity.
+
+- **VENDOR-D0017 / FRESHTOHOME FOODS (S.P.S - L.L.C)** — created, ACTIVE.
+  Ajman industrial licence **135049**, register 201838818, issued 2025-10-28,
+  **expires 2026-10-27** (tenancy 2026-10-14). Bank ADCB,
+  `AE260030014428579920001`, SWIFT ADCBAEAA, title FRESHTOHOME FOODS SPS LLC.
+  Alias `Fresh to Home`.
+- **TRN `100555826500003`** — from the FTA certificate. ⚠️ **It is a VAT GROUP
+  number shared by seven companies**, representative member FRESHTOHOME TRADING
+  (Musaffah, Abu Dhabi). Our supplier is member 7, matched to Ajman licence
+  135049 on the certificate. **The TRN alone does not identify who billed us** —
+  invoice checks must also read the legal name and the bank account, or a
+  different group company's invoice passes as this one.
+- **VENDOR-D004 / Ocean Fisheries LLC** — set **INACTIVE, not deleted**. Its TRN
+  (100235069000003) and alias (`OCEAN FISHERIES`) are kept: 472 order lines and
+  275 POs (2026-06-01 .. 09-15) are in that name, and anything unpaid is owed to
+  that entity.
+- **`Ocean Fisheries` was deliberately NOT added as an alias of Fresh to Home.**
+  Borrowing it would make every past Ocean Fisheries invoice resolve to the new
+  company.
+
+The catalog rename (`Ocean Fisheries` → `Fresh to Home`) had already been done by
+Ruby at 13:42 Dubai time. Harmless — `rename_proc_catalog_supplier` only touches
+`proc_curated_catalog_items`, never orders, POs or invoices — but it left the
+alias dangling until the vendor row existed.
+
+Verified through `_proc_vendor_map("dubai")`: `Fresh to Home` → VENDOR-D0017,
+`Ocean Fisheries` → VENDOR-D004. Both directions resolve.
+
+### Fixed in the same pass
+**Searching history is not the same question as choosing a supplier.** Setting
+Ocean Fisheries INACTIVE dropped it out of the Vendor dropdown on the **Invoices**
+page — a filter over invoices already on file, with the free-text fallback hidden
+whenever options exist, so there was no way left to look for them. Now unfiltered.
+The three places that pick a vendor for NEW work (Quotes, Catalog, CK Par Levels)
+still hide inactive ones, correctly.
+
+⚠️ Counted, not assumed: only **one** backend read filters `status='ACTIVE'` (the
+CK par-level dropdown) and two frontend screens did. `_proc_vendor_map` does not,
+so invoice/PO matching is unaffected by a vendor going inactive.
+
+### Open
+- **40 PO-invoice checks against Ocean Fisheries are still PENDING**
+  (`proc_po_invoice_checks`, 87 rows total). Unaffected by INACTIVE — that screen
+  does not filter by vendor status — but they need clearing, and a closed
+  supplier gets harder to query the longer it waits.
+- The renewed Ajman licence is due before 2026-10-27.
+
+## 2026-09-16 — Back-office workload: what the OS can and cannot see
+
+Measured the ten active Manila BO staff over 90 days (the owner named Francis,
+Richard and Mariano as exclusions; **none of the three are in BO** — Francis
+Ibana and Richard Gante are registered at CUB, Mariano Espenida is BO but
+ON_LEAVE).
+
+**Hours are nearly flat**: eight of ten sit at 9.6–10.6 h/day over 72–78 days.
+The spread is in *recorded output*, and much of that spread is instrumentation,
+not effort.
+
+⚠️ **Do not rank BO staff on actor-stamped row counts.** Procurement writes an
+audit row per action; HR, payroll and warehouse barely stamp anything. Two gaps
+make three people look idle who are not:
+
+- **`hr_applicants` has no author column** — 409 applicants entered in 90 days,
+  attributable to nobody.
+- **`manila_payroll_runs` has no `computed_by`** — 263 runs, same problem.
+- Interviews are on `hr_interview_schedules.interviewer`, which a `%_by` sweep
+  misses entirely (Camilla 16, Peter 10 — the two who looked lightest).
+
+Also found: **Caila Macararanga is scheduled 26–30 days/month and clocks in
+about 15**, on a monthly-paid contract, with 75 active days against 42 clocked.
+Only one ABSENT_DEDUCTION resulted, because the DTR fills from the published
+shift — so no pay was lost, but any per-day metric for her is inflated.
+
+Adding those two author columns would make this question answerable next time.
+Not done — it changes write paths in payroll and recruitment, and nobody has
+asked for the measurement to be repeatable yet.
