@@ -278,6 +278,57 @@ function ProfileModal({
     }
   }
 
+  /** Put the agreed figures in, instead of typing them a second time.
+   *
+   *  The offer letter is where the salary was agreed. It was being retyped
+   *  here weeks later, from memory or from the thread, with nothing to check
+   *  it against. This fills the form from what HR recorded when the letter
+   *  went out; it is still a form, so it is reviewed and saved like any other
+   *  edit rather than landing behind your back. */
+  async function fillFromOffer() {
+    if (!existing) return;
+    setSyncing(true); setSyncMsg("");
+    try {
+      const r = await apiFetch(
+        `/api/admin/payroll/offer-for/${encodeURIComponent(existing.staff_name)}?city=manila`);
+      if (!r.ok) throw new Error(await r.text());
+      const o = (await r.json())?.offer as Record<string, string | null> | null;
+      if (!o) {
+        setSyncMsg("No offer on record for this person. HR records it on the applicant's Offer tab when the letter goes out.");
+        return;
+      }
+      const put = (v: string | null | undefined) => (Number(v ?? 0) ? String(Number(v)) : "");
+      const filled: string[] = [];
+      setForm((f) => {
+        const next = { ...f };
+        if (Number(o.basic_monthly ?? 0)) {
+          next.monthly_rate = String(Number(o.basic_monthly));
+          filled.push(`Monthly rate → ${Number(o.basic_monthly).toLocaleString()}`);
+        }
+        if (o.start_date) { next.hire_date = String(o.start_date).slice(0, 10); filled.push(`Hire date → ${next.hire_date}`); }
+        if (o.position) { next.position = String(o.position); filled.push(`Position → ${o.position}`); }
+        if (o.employment_type) next.employment_type = String(o.employment_type);
+        for (const [src, dst, label] of [
+          ["allow_rice", "rice_allowance", "Rice"],
+          ["allow_clothing", "clothing_allowance", "Clothing"],
+          ["allow_laundry", "laundry_allowance", "Laundry"],
+          ["allow_medical", "medical_allowance", "Medical"],
+        ] as [string, keyof FormState, string][]) {
+          const v = put(o[src]);
+          if (v) { (next[dst] as string) = v; filled.push(`${label} → ${v}`); }
+        }
+        return next;
+      });
+      setSyncMsg(filled.length
+        ? `From the offer: ${filled.join(" · ")} — check it, then Save.`
+        : "The offer on record has no figures on it yet.");
+    } catch (e) {
+      setSyncMsg(`Could not read the offer: ${String(e)}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const L = "block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wide";
   const I = INPUT_CLASS + " bg-slate-800/80 border-white/10 text-white placeholder:text-slate-600";
   const S = SELECT_CLASS + " bg-slate-800/80 border-white/10 text-white";
@@ -295,6 +346,13 @@ function ProfileModal({
         <div className="max-h-[75vh] overflow-y-auto p-6">
           {isEdit && (
             <div className="mb-4 flex flex-wrap items-center gap-3">
+              {canEditSalary && (
+                <button type="button" onClick={() => void fillFromOffer()} disabled={syncing}
+                  className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50">
+                  {syncing ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                  Fill from the offer
+                </button>
+              )}
               <button type="button" onClick={() => void syncFromRoster()} disabled={syncing}
                 className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-300 hover:bg-violet-500/20 disabled:opacity-50">
                 {syncing ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
