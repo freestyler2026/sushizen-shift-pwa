@@ -271,6 +271,50 @@ async function webauthnAuthenticate(options: Record<string, unknown>): Promise<R
   return credentialToJSON(cred as PublicKeyCredential);
 }
 
+/**
+ * Create a passkey on this device.
+ *
+ * The page could already *use* one and could not make one, so when somebody
+ * had none the gate told them to go to the Attendance page — a different
+ * screen, in the middle of trying to look at their pay. Almost nobody does
+ * that; they press "Use PIN instead", and until 2026-09-16 that PIN was 1111
+ * on 157 of 177 accounts.
+ */
+async function webauthnRegister(options: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const pubKey = options as unknown as {
+    rp: PublicKeyCredentialRpEntity;
+    user: { id: string; name: string; displayName: string };
+    challenge: string;
+    pubKeyCredParams: PublicKeyCredentialParameters[];
+    timeout?: number;
+    attestation?: AttestationConveyancePreference;
+    authenticatorSelection?: AuthenticatorSelectionCriteria;
+    excludeCredentials?: Array<{ id: string; type: string; transports?: string[] }>;
+  };
+  const cred = await navigator.credentials.create({
+    publicKey: {
+      rp: pubKey.rp,
+      user: {
+        id: b64uDecode(pubKey.user.id).buffer as ArrayBuffer,
+        name: pubKey.user.name,
+        displayName: pubKey.user.displayName,
+      },
+      challenge: b64uDecode(pubKey.challenge).buffer as ArrayBuffer,
+      pubKeyCredParams: pubKey.pubKeyCredParams,
+      timeout: pubKey.timeout ?? 60000,
+      attestation: pubKey.attestation ?? "none",
+      authenticatorSelection: pubKey.authenticatorSelection,
+      excludeCredentials: (pubKey.excludeCredentials ?? []).map((c) => ({
+        id: b64uDecode(c.id).buffer as ArrayBuffer,
+        type: c.type as PublicKeyCredentialType,
+        transports: (c.transports ?? []) as AuthenticatorTransport[],
+      })),
+    },
+  });
+  if (!cred) throw new Error("Registration cancelled");
+  return credentialToJSON(cred as PublicKeyCredential);
+}
+
 // ─── Passkey Gate ─────────────────────────────────────────────────────────────
 
 interface PasskeyGateProps {
@@ -281,6 +325,10 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
   const [mode, setMode] = useState<"idle" | "loading" | "pin" | "registering">("idle");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  /** The PIN was right and is still the one everybody is handed. Not an error
+   *  they can retype their way out of, so it gets its own screen. */
+  const [pinIsDefault, setPinIsDefault] = useState(false);
+  const [registered, setRegistered] = useState("");
   const [wauSupported] = useState(() =>
     typeof window !== "undefined" && !!window.PublicKeyCredential
   );
@@ -337,6 +385,43 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
     }
   }, [getHeaders, onVerified]);
 
+  const registerPasskey = useCallback(async () => {
+    setError(""); setRegistered("");
+    setMode("registering");
+    try {
+      const headers = await getHeaders();
+      const optRes = await fetch(`${API_BASE}/api/auth/webauthn/register/options`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ friendly_name: "This device" }),
+      });
+      if (!optRes.ok) {
+        const j = await optRes.json().catch(() => ({}));
+        throw new Error((j as { detail?: string }).detail || `HTTP ${optRes.status}`);
+      }
+      const { state_token, options } = await optRes.json();
+      const credential = await webauthnRegister(options as Record<string, unknown>);
+      const verRes = await fetch(`${API_BASE}/api/auth/webauthn/register/verify`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ state_token, friendly_name: "This device", credential }),
+      });
+      if (!verRes.ok) {
+        const j = await verRes.json().catch(() => ({}));
+        throw new Error((j as { detail?: string }).detail || "Could not save it");
+      }
+      setRegistered("Saved. Use the button above from now on — on this device it is your fingerprint or face.");
+      setPinIsDefault(false);
+      setMode("idle");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg.includes("NotAllowed") || msg.includes("cancel")
+        ? "Cancelled. Nothing was saved."
+        : msg || "Could not set it up on this device.");
+      setMode(pinIsDefault ? "idle" : "idle");
+    }
+  }, [getHeaders, pinIsDefault]);
+
   const verifyPin = useCallback(async () => {
     if (pin.length < 4) {
       setError("PIN must be at least 4 digits.");
@@ -353,7 +438,17 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error((j as { detail?: string }).detail || "Invalid PIN");
+        const d = (j as { detail?: string | { code?: string; message?: string } }).detail;
+        // The PIN was correct. It is the one everybody was given, which is a
+        // different thing from getting it wrong, and retyping cannot fix it.
+        if (d && typeof d === "object" && d.code === "pin_is_default") {
+          setPin("");
+          setPinIsDefault(true);
+          setError("");
+          setMode("idle");
+          return;
+        }
+        throw new Error((typeof d === "string" ? d : d?.message) || "Invalid PIN");
       }
       const { step_up_token } = await res.json();
       onVerified(step_up_token);
@@ -384,6 +479,36 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
           </div>
         )}
 
+        {/* The PIN was right, and it is the one everybody was handed. Both ways
+            out live here, because sending somebody to another screen in the
+            middle of looking at their pay is how "Use PIN instead" stayed the
+            path of least resistance. */}
+        {pinIsDefault && mode !== "loading" && mode !== "registering" && (
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+            <p className="text-sm font-medium text-amber-300">
+              That is still the PIN you were given
+            </p>
+            <p className="mt-1 text-xs text-amber-200/80">
+              Everyone starts on the same one, so it cannot open your pay. Set up
+              your fingerprint or face on this device — it takes one tap and works
+              from then on — or choose a PIN of your own.
+            </p>
+          </div>
+        )}
+
+        {registered && (
+          <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            {registered}
+          </div>
+        )}
+
+        {mode === "registering" && (
+          <div className="flex flex-col items-center gap-3 py-8 text-zinc-400">
+            <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
+            <p className="text-sm">Follow your phone&rsquo;s prompt…</p>
+          </div>
+        )}
+
         {mode === "loading" && (
           <div className="flex flex-col items-center gap-3 py-8 text-zinc-400">
             <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
@@ -391,7 +516,7 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
           </div>
         )}
 
-        {mode !== "loading" && mode !== "pin" && (
+        {mode !== "loading" && mode !== "pin" && mode !== "registering" && (
           <div className="space-y-3">
             {wauSupported && (
               <button
@@ -399,7 +524,18 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
                 className="w-full flex items-center justify-center gap-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-semibold py-4 transition"
               >
                 <Fingerprint className="h-5 w-5" />
-                Verify with Passkey
+                Use fingerprint or face
+              </button>
+            )}
+            {/* Making one was only possible on the Attendance page, which is
+                not where anybody is when they want their payslip. */}
+            {wauSupported && (
+              <button
+                onClick={registerPasskey}
+                className="w-full flex items-center justify-center gap-3 rounded-xl border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 font-medium py-3.5 transition text-sm"
+              >
+                <Fingerprint className="h-4 w-4" />
+                Set it up on this device
               </button>
             )}
             <button
@@ -409,6 +545,15 @@ function PasskeyGate({ onVerified }: PasskeyGateProps) {
               <KeyRound className="h-4 w-4" />
               Use PIN instead
             </button>
+            {pinIsDefault && (
+              <a
+                href="/change-pin"
+                className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 font-medium py-3.5 transition text-sm"
+              >
+                <KeyRound className="h-4 w-4" />
+                Choose a PIN of your own
+              </a>
+            )}
 
             {!wauSupported && (
               <p className="text-xs text-zinc-600 text-center">
