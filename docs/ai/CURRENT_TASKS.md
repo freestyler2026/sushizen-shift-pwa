@@ -26582,3 +26582,58 @@ shift — so no pay was lost, but any per-day metric for her is inflated.
 Adding those two author columns would make this question answerable next time.
 Not done — it changes write paths in payroll and recruitment, and nobody has
 asked for the measurement to be repeatable yet.
+
+## 2026-09-16 — "Logged out about once a minute"
+
+One staff member reported it. **At least three people had it**, in bursts of
+10–30 minutes with 30–170 seconds between sign-ins:
+
+| | when | sign-ins |
+|---|---|---|
+| Camilla Gadingan | 09-16 09:04–09:23 | 12 |
+| Alex Delgado | 09-16 10:50–11:18 | 9 |
+| Dipa Sitaula | 09-16 20:02–20:13 | 7 |
+
+**The loop.** `/api/auth/verify` treated any call carrying a valid `sz_access`
+cookie as a re-mint and skipped session management entirely. That is right while
+the session is alive. It is wrong once a **second device supersedes it**
+(`superseded_by_new_login`, 747 in three days — single-session enforcement
+working as designed):
+
+1. Device B signs in → device A's session row goes `is_valid=false`.
+2. A's access token is still good for **16 hours**, and the browser cannot clear
+   it — `sz_access`/`sz_session` are httpOnly on `path=/api`.
+3. A's SessionGuard polls `session-check` with the superseded id → kicked.
+4. A signs in again → the still-valid cookie makes it **a re-mint** → no session
+   is created → A is kicked again on the next poll. **Signing in could not fix
+   it**, and `clearAuth()` could not either: it only reaches localStorage.
+
+**The fix, in three places.**
+- `app/main.py` — a re-mint now needs **both** a valid token **and** a session
+  that is still alive (`validate_staff_session` on the presented id). No live
+  session means a real sign-in, and a real sign-in issues one.
+- `src/app/api/auth/verify/route.ts` — forwards `sz_session` as `X-Session-Id`.
+  ⚠️ **Required by the above.** Without it the backend sees no session on any
+  verify, calls them all sign-ins, and re-mints start force-logging people out —
+  the opposite failure.
+- `src/components/SessionGuard.tsx` — the automatic kick now posts
+  `/api/auth/logout` before redirecting, which is the only route that can clear
+  the httpOnly pair.
+
+**Verified on production**, both branches, then the probe rows deleted:
+a live session → still a re-mint, no churn (the original protection is intact);
+a superseded session → a real sign-in, a session is issued.
+**Not exercised end-to-end through a browser login** — that needs a PIN.
+
+⚠️ **Checked before shipping, not after:** `validate_staff_session` calls
+`ensure_security_hardening_tables()`, which looked like lesson 85 (a migration
+on a request path). It is guarded by a process-level flag and runs once per
+dyno, so the login path takes no new DDL. The timeout seen while probing was a
+fresh one-off dyno running that migration for the first time.
+
+### Open
+- **Single-session enforcement still logs out device A when device B signs in.**
+  That is deliberate (H-3) and untouched. What is fixed is that A can now get
+  back in. If staff routinely use a phone and a store PC, this will keep
+  happening by design — worth deciding whether one session per person is still
+  the rule you want.
