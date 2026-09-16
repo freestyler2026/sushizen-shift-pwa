@@ -1,5 +1,40 @@
 # CURRENT_TASKS.md
 
+## 2026-09-16 — Incident Report の severity が誰にも変えられなかった（オーナー指摘・修正済み）
+
+Camilla の勤怠インシデント（Taft 複数欠勤）が `medium` で提出された。
+**提出者を含め、誰も変えられなかった** — `incident_reports.severity` を UPDATE する
+コードが全コードベースに存在しない。
+
+### これは見た目の話ではない
+
+未対応レポートの追いかけ（`get_urgent_reports_to_notify`）は
+**`severity IN ('high','critical')` の行しか拾わない**:
+
+| 等級 | 追いかけ |
+|---|---|
+| critical | 6時間ごと |
+| high | 24時間ごと |
+| **medium / low** | **一度も追いかけない** |
+
+※ `acknowledged_by` が入ると止まる。Camilla の件は Ayako が承認済みなので、
+仮に high にしても追いかけは発火しない。
+
+実測の分布: high 16 / medium 12 / critical 3（等級は実際に選ばれており、既定値で固まってはいない）
+
+### 実装
+
+- `severity_original` / `severity_set_by` / `severity_set_at` / `severity_reason`（新列）
+- `PATCH /api/admin/incidents/{id}/severity` — 権限は返信・ステータス変更と同じ、**理由必須**、提出者に通知
+- 詳細画面に `Change level`（4段階＋理由）。変更後は「Filed as Medium, changed by 〇〇 — 理由」を表示
+- **同じ画面の時刻が4時間ずれていた問題も修正**: `fmtDt` が読む人の端末TZで描いていた（ドバイのPCで見ると マニラ 12:54 が 08:54）。支店の都市の時計で描く。`incident_datetime` は現地の壁時計文字列なので Date に通さない
+- `SEVERITY_LEVELS` の二重定義を解消
+
+### 残り
+
+- **Camilla のレポートは変更していません。** 等級の判断と理由はオーナーのもの
+
+
 ## 2026-09-16 — Morning Review に Quality C が「反映されない」（Yusuke 報告・修正済み）
 
 **反映されていた。** 時系列:
