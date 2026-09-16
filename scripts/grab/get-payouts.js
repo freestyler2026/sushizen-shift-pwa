@@ -209,22 +209,43 @@ async function postWebhook(payload) {
  * The per-order endpoint does name the store, so one page of it is enough to
  * check before writing anything.
  */
+// One filter value emptied this check without anyone noticing.
+//
+// `transaction_status: 'completed'` (lower case) now comes back as
+// `{"results":null,"total_count":0}` -- HTTP 200, no error field. Measured
+// 2026-09-16 against a live Paranaque session over the same 30-day window the
+// job uses: lower case 0 rows, `COMPLETED` 20 rows, no status parameter at all
+// 20 rows. All three are 200s, so nothing looked broken.
+//
+// The check reads fail-open (no names -> return), which is right -- a branch
+// should not stop being paid because a filter changed. But fail-open means the
+// guard disappears silently, and it did: on 2026-09-16 all three stores skipped
+// it, and no run has ever printed the refusal. So don't depend on one spelling.
+// Ask without the filter as well, and only give up when both come back empty.
+const STORE_NAME_QUERIES = [
+  { transaction_status: 'COMPLETED' },
+  {},  // no status filter -- the endpoint names the store either way
+];
+
 async function assertSessionMatchesStore(cookieStr) {
-  const params = new URLSearchParams({
-    merchant_group_id: MERCHANT_GROUP,
-    from: DATE_FROM, to: DATE_TO,
-    transaction_status: 'completed',
-    currency: 'PHP', limit: '20', offset: '0',
-  });
   let names = [];
-  try {
-    // grabGet returns { status, text } -- not parsed JSON.
-    const resp = await grabGet(cookieStr, `https://merchant.grab.com/mex/finances/v2/transactions?${params}`);
-    const j = JSON.parse(resp.text);
-    const rows = j?.data?.results || j?.data || j?.results || [];
-    names = [...new Set((Array.isArray(rows) ? rows : [])
-      .map(r => r.store_name).filter(Boolean))];
-  } catch (_) { /* fall through to the "cannot tell" branch below */ }
+  for (const extra of STORE_NAME_QUERIES) {
+    const params = new URLSearchParams({
+      merchant_group_id: MERCHANT_GROUP,
+      from: DATE_FROM, to: DATE_TO,
+      currency: 'PHP', limit: '20', offset: '0',
+      ...extra,
+    });
+    try {
+      // grabGet returns { status, text } -- not parsed JSON.
+      const resp = await grabGet(cookieStr, `https://merchant.grab.com/mex/finances/v2/transactions?${params}`);
+      const j = JSON.parse(resp.text);
+      const rows = j?.data?.results || j?.data || j?.results || [];
+      names = [...new Set((Array.isArray(rows) ? rows : [])
+        .map(r => r.store_name).filter(Boolean))];
+    } catch (_) { /* try the next shape, then fall through to "cannot tell" */ }
+    if (names.length) break;
+  }
 
   if (!names.length) {
     console.log('⚠ Could not read a store name from this session — skipping the');
