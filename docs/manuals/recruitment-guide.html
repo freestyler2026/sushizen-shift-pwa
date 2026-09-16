@@ -1028,9 +1028,12 @@ open one of these, then press send yourself.
           Copy it and send it yourself from SMS or Viber — the OS does not send it. You no
           longer have to go to the <span class="ui">Interviews</span> tab and find the name
           again.</p>
-        <p lang="en">If they already have a live link it is <em>not</em> replaced on its own:
-          the panel opens with <span class="ui">New link</span> and warns you first, because a
-          new link stops the old one from opening.</p>
+        <p lang="en">If they already have a link, making another one does <em>not</em> break it.
+          Every link you issue keeps working until it expires, so
+          <span class="ui">New link</span> asks nothing and costs nothing. It used to warn
+          you, because the old link really did stop opening &mdash; that is what happened on
+          2026-09-16, when an applicant wrote back to say her link was dead while a live one
+          sat in the same chat.</p>
         <p lang="en">It used to say <span class="ui">Interview Sched.</span> and simply move the card,
           which recorded an interview that did not exist and — worse — took the person out of
           the booking-link list, so there was then no way to invite them at all. <strong>The card moves to
@@ -1042,9 +1045,11 @@ open one of these, then press send yourself.
           <span class="ui">Copy message</span>・<span class="ui">Copy link only</span> が出ます。
           コピーして、SMSやViberから自分で送ってください — OSは送信しません。
           <span class="ui">Interviews</span> タブへ移動して名前を探し直す必要はなくなりました。</p>
-        <p lang="ja" hidden>すでに有効なリンクがある人は<em>自動では作り直しません</em>。
-          <span class="ui">New link</span> が出て先に確認を求めます。新しいリンクを作ると、
-          相手の手元にある古いリンクが開かなくなるためです。</p>
+        <p lang="ja" hidden>すでにリンクを持っている人にもう1本作っても、<em>前のリンクは壊れません</em>。
+          発行したリンクは期限まで全部生きるので、<span class="ui">New link</span> は確認を出しません。
+          以前は確認が出ていました ── 当時は本当に古いリンクが開かなくなったからです。
+          2026-09-16、応募者から「リンクが動かない」と返信が来て、同じチャットに生きたリンクが
+          あったのに気づけなかったのがこれです。</p>
         <p lang="ja" hidden>以前は <span class="ui">Interview Sched.</span> と表示され、押すとカードが動くだけでした。
           存在しない面接を記録したうえに、<strong>その人が予約リンクの一覧から消えて招待できなくなる</strong>
           動きでした。<strong>カードが <span class="ui">Interview Sched.</span> に移るのは、
@@ -1076,10 +1081,13 @@ open one of these, then press send yourself.
         <li>They leave the list when they pick a time. Nobody has to chase them.
           On their phone the times are grouped by day and they scroll — the date is
           written once, not on every row.</li>
-        <li><span class="ui">New link</span> replaces the old one, and the old one stops
-          opening. <strong>It only asks when somebody has copied that message before</strong> —
-          the OS never sends anything by itself, so a link nobody copied is in nobody's hands
-          and replacing it costs nothing. When it does ask, it names who copied it and when.</li>
+        <li><span class="ui">New link</span> <strong>adds</strong> a link. It does not replace
+          one: every link stays open until it expires, so pressing it twice is harmless and
+          nothing is asked. Press it whenever you need the message again.</li>
+        <li><strong><span class="ui">opened</span> is the one to read, not
+          <span class="ui">sent</span>.</strong> Sent is a button we press after pasting the
+          message, so it can say sent when nothing actually left the phone. A row that says
+          sent and <span class="ui">not opened yet</span> a day later is worth checking.</li>
         <li><strong>The message says what they applied for</strong> — the role and the branch.
           It arrives from a number they have never heard from, so it has to be obviously us
           rather than obviously a scam. The link itself now previews as
@@ -1095,10 +1103,13 @@ open one of these, then press send yourself.
           <strong>送信はされません。</strong>SMSのボタンがあればそれで送り、無ければ文面をコピーして
           本人が希望した手段で送ってください。希望した連絡アプリは氏名の横に出ています。</li>
         <li>本人が時間を選ぶとリストから消えます。追いかける必要はありません。</li>
-        <li><span class="ui">New link</span> は作り直しで、<strong>古いリンクは開かなくなります</strong>。
-          <strong>確認が出るのは、その文面を誰かがコピーしたことがある場合だけ</strong>です。
-          OSは自動で送らないので、コピーされていないリンクは誰の手にも渡っておらず、
-          作り直しても失うものはありません。確認が出るときは「誰が・いつコピーしたか」が出ます。</li>
+        <li><span class="ui">New link</span> は<strong>追加</strong>です。作り直しではありません。
+          発行したリンクは期限まで全部生きるので、2回押しても害はなく、確認も出ません。
+          文面がもう一度必要になったら、いつでも押してください。</li>
+        <li><strong>見るのは <span class="ui">sent</span> ではなく <span class="ui">opened</span> です。</strong>
+          sent は文面を貼った後にこちらが押すボタンなので、<strong>実際には送られていなくても
+          「送信済み」と出ます</strong>。翌日になっても <span class="ui">not opened yet</span> の行は、
+          本当に送られたか確認する価値があります。</li>
         <li><strong>文面には応募した職種と店が入ります。</strong>相手にとっては一度も
           やり取りのない番号から届くので、「詐欺ではなく当社だ」と一目で分かる必要があります。
           リンク自体のプレビューも <span class="ui">Sushi ZEN — book your interview</span> と
