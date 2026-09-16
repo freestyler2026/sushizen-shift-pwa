@@ -1115,8 +1115,29 @@ export default function AttendancePage() {
             <AlertCircle size={15} className="mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
-          {/* The fence turned them away. Somewhere to go, or it is just a red box. */}
-          {/too far/i.test(error) && !isCheckedIn && (
+        </div>
+      )}
+      {/* Somewhere to go, or it is just a red box.
+       *
+       *  This used to appear only when the fence turned somebody away -- when
+       *  GPS worked and the server said "too far". Somebody whose phone will
+       *  not give a position at all got the settings guide and nothing else,
+       *  so if the guide did not help there was no way to start a shift.
+       *  Sita Gurmachhan spent three days in that state and filed a correction
+       *  every evening instead (2026-09-14 to 16).
+       *
+       *  Nothing here clocks anybody in: it sends a photo of the store clock
+       *  for a manager to approve, so opening it up does not open the fence. */}
+      {!isCheckedIn && (/too far/i.test(error) || gpsPermissionDenied
+                        || (!!gpsError && !gpsLoading)) && (
+        <div className="space-y-2">
+          {!(/too far/i.test(error)) && !proofDone && (
+            <p className="px-1 text-xs text-zinc-400">
+              Cannot get your location? You can still start your shift — send a
+              photo of the store clock and your manager will record the time.
+            </p>
+          )}
+          {(
             proofDone ? (
               <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/25 px-3 py-2.5 text-sm text-emerald-200">
                 Sent. Your manager will see the photo and record your time in.
