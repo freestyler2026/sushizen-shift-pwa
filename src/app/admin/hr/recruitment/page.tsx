@@ -1,6 +1,7 @@
 "use client";
 
 import { isoToday } from "@/lib/date";
+import { facebookLink } from "@/lib/facebook";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
@@ -1284,19 +1285,37 @@ function DetailPanel({
                       <span className="break-all text-zinc-200">{val || "—"}</span>
                     </div>
                   ))}
-                  {applicant.facebook_url && (
-                    <div className="flex gap-2 text-sm">
-                      <span className="w-52 shrink-0 text-zinc-500">Facebook</span>
-                      <a
-                        href={applicant.facebook_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="break-all text-violet-300 underline underline-offset-2"
-                      >
-                        {applicant.facebook_url}
-                      </a>
-                    </div>
-                  )}
+                  {/* What they typed is not always a link. 87 of the 120 who
+                      filled this in wrote a name, a handle, or facebook.com
+                      without the scheme, and the raw value in an href resolved
+                      against our own domain — every one of those 404'd. */}
+                  {(() => {
+                    const fb = facebookLink(applicant.facebook_url);
+                    if (!fb) return null;
+                    return (
+                      <div className="flex gap-2 text-sm">
+                        <span className="w-52 shrink-0 text-zinc-500">Facebook</span>
+                        <span className="break-all">
+                          <a
+                            href={fb.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-violet-300 underline underline-offset-2"
+                          >
+                            {fb.label}
+                          </a>
+                          {fb.isSearch && (
+                            /* A display name cannot be turned into a profile
+                               URL. Say that the link searches, so nobody reads
+                               a wrong result as the wrong person. */
+                            <span className="ml-1.5 whitespace-nowrap text-[11px] text-zinc-500">
+                              — searches Facebook (they gave a name, not a link)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 {applicant.form_language === "tl" && (
                   <p className="mt-2 text-xs text-zinc-500">
