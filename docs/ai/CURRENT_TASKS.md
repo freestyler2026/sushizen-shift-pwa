@@ -1,5 +1,44 @@
 # CURRENT_TASKS.md
 
+## 2026-09-16 — オファー内容を記録し、給与プロファイルに流す（実装済み）
+
+合意した給与はオファーレターにしか存在せず、数週間後に給与プロファイルへ**2度目の入力**を
+していた。**1つの合意額を2回打つと、誰も合意していない額で支払われうる**うえ、
+後から照合する相手が無い。最終面接は省かれることがあるが、オファーレターは必ず出る。
+
+### 実装
+
+**`hr_applicant_offers`**（応募者1人1行、改訂は上書き）
+- position / branch_code / employment_type / start_date / currency / basic_monthly
+- マニラ: rice / clothing / laundry / medical（BIR de minimis・上限を画面に表示）
+- ドバイ: accommodation / transport / other
+- sent_at / sent_by / applied_to_payroll_at / applied_to_payroll_by
+
+**応募者パネルに `Offer` タブ**（Info / Interview / Evaluation の隣）
+- 都市に応じて手当欄を出し分け（マニラにドバイの項目を出さない）
+- 前回送った内容で開く＝改訂は「編集」であって再入力ではない
+- 空欄は空欄のまま保存（0は「合意なし」を意味してしまう）
+
+**Manila Staff Profiles に `Fill from the offer`**
+- `monthly_rate` / `hire_date` / `position` / de minimis 4項目をフォームに入れる
+- **書き込みはしない。** 確認して Save する既存の経路をそのまま使う
+- 給与を書ける人にしか出さない（マスクは人単位）
+
+**繋ぎは `hr_onboarding.applicant_id`** — 応募者とスタッフ名を結ぶ唯一の行。
+氏名一致で繋ぐと別人に流れる。
+
+⚠️ **書き込み経路は1つに保った。** 一度 `POST /seed-from-offer` を書いたが削除した。
+プロファイルの PUT は人単位の給与マスク（見えない額をディスクの値に固定）を持っており、
+2つ目の書き込み口はそのルールの2つ目の写しになる。
+「payroll で使われたか」は**実際に保存された額**から判定する（ボタンを押しただけでは立てない）。
+
+### やっていないこと
+
+**面接の段階（1次=音声 / 2次=電話 / 最終=面談）は分けていない。** 現状の
+`interviewed` は1列のまま。`hr_interview_schedules.interview_type` に入れる器はあるので、
+「どの回か」を記録してカードに出すのは次の作業。
+
+
 ## 2026-09-16 — 面接の割り当てが「Peterができない時に次の人」になっていなかった（修正済み）
 
 **原因は私が入れた1日上限4件**（`HR_INTERVIEW_MAX_PER_DAY` 既定4、コミット `c7a24b83`）。
