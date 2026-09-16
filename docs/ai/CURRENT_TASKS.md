@@ -26328,3 +26328,47 @@ CK ラベルの3件に加えて、チャンネル全体を調べて出たもの�
   Bamboo Shoot / Edamame 500g / Vegetable Oil 16L）。推測で入れると「推測で入れた値」と
   区別がつかなくなるので、CKに確認してもらう
 - 滞留20件（解決率23%、最古99日）は運用の問題
+
+## 2026-09-16 — Offer salary masking
+
+**Done.** The Offer tab added the previous turn carried the agreed salary under
+`/api/admin/hr/applicants/`, which is not a payroll path, so it was readable by
+everyone who can open the recruitment screen (13) rather than by the people who
+may read pay (6). Seven saw an agreed salary they may not see anywhere else:
+5 ADMIN, Camilla Gadingan (HR_STAFF), Peter Villafuerte (HR_MANAGER).
+
+- Masked at the middleware (`_is_offer_path` + `_OFFER_MONEY_FIELDS` +
+  `_strip_offer_money`), which is the enforcement boundary; the endpoint is the
+  second layer. The offer's keys are its own (`basic_monthly`, `allow_rice`), so
+  they get their own field list — putting names this plain into `_SALARY_FIELDS`
+  would blank unrelated payroll columns.
+- Two ways to read it: `_salary_view_mode(actor) != "none"`, or the new
+  `hr.view_offer_salary` permission (Role Management → HR Recruitment →
+  "See Offer Salary"). Seeded to HR_MANAGER in `DEFAULT_ROLE_GRANTS`; **granted
+  to the custom HR_STAFF role directly in the DB** (row id `hrstaff-offer-salary`)
+  because custom roles never receive defaults — this preserved what Camilla had.
+  The owner can untick either in Role Management.
+- A masked caller's PUT pins every money line back to what is on disk. Verified:
+  terms changed, `basic` stayed 18,500 and `rice` stayed 2,000, and a PUT posting
+  `basic_monthly: 1` changed nothing.
+- `GET .../offer` returns `salary_visible`; the screen drives off that rather
+  than guessing from an empty box.
+
+**Measured, not assumed:** Manila Staff Profiles was *already* masked. Real HTTP
+with real resolved profiles: Rose Ann Onido / Camilla / Peter see **0 of 446**
+money cells; Cyrine (payroll.view_salary) sees 362; HQ sees 446. The only live
+exposure was the Offer tab.
+
+Manuals republished: Recruitment Guide (new step 04 "Recording the offer"),
+Payroll Manual (the "HQ Role Only" card was stale — two people hold
+View Salary Amounts; plus "Fill from the offer").
+
+### Still open
+- Interview rounds are not split — `Interviewed` is still one column. 2次=電話 /
+  最終=面談 are not distinguished. `hr_interview_schedules.interview_type` has a
+  slot for it.
+- Owner decisions outstanding: the 4 OT records whose note disagrees with
+  `ot_minutes`; the 7 interview bookings that went to a lower-priority
+  interviewer; whether to force a PIN reset for the accounts still on 1111.
+- Dubai has no interview duty roster — reviews generated but addressed to nobody.
+- 66 files still carry the broken `fixed inset-0 flex items-center` modal pattern.
