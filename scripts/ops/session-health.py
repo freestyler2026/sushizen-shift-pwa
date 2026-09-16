@@ -94,8 +94,12 @@ REFRESH = {
                "gh secret set CAREEM_SESSION < scripts/careem/careem-session.b64.txt"),
     "keeta": ("node scripts/keeta/setup-session.js",
               "gh secret set KEETA_RZ_SESSION < scripts/keeta/keeta-session.b64.txt"),
-    "noon": ("node scripts/noon/setup-session.js",
-             "base64 < scripts/noon/noon-session.json | tr -d '\\n' | gh secret set NOON_SESSION"),
+    # noon だけ1行。setup-session.js に --upload があり、ログインが成功した
+    # ときだけ `gh secret set NOON_SESSION` まで自分でやる（失敗時は throw して
+    # そこへ到達しない）。手で base64 を詰め替える2行目は、そのスクリプトが
+    # 既にやることの手作業版だった。中身はどちらも同じ session オブジェクトの
+    # base64 なので、取込側（get-payouts.js:71）の復号は変わらない。
+    "noon": ("node scripts/noon/setup-session.js --upload",),
     "talabat": ("node scripts/talabat/setup-session.js",
                 "gh secret set TALABAT_SESSION_STATE < scripts/talabat/talabat-session.b64.txt"),
 }
@@ -406,11 +410,24 @@ def secret_findings(secrets, readers, cron_of):
                 out.append(("info", f"{name} を読むワークフローが無い",
                             f"{label} を更新しても取込には影響しない（手元の作業専用）"))
             elif not [f for f in used if cron_of.get(f)]:
-                # 読む口はあるが自分では動かない。毎朝更新しても、次に人が
-                # 手で回すときには寿命で死んでいる。更新は「回す直前」に寄せる。
-                out.append(("info", f"{name} を読むワークフローに cron が無い",
-                            f"{', '.join(used)} は手動起動のみ。{label} のシークレットは"
-                            "毎朝ではなく、取込を回す直前に更新する"))
+                # 読む口はあるが自分では動かない。
+                #
+                # ここは長く「毎朝ではなく回す直前に更新する」とだけ書いていた。
+                # 正しいが、**何をすれば回るのかを書いていなかった。** 2026-09-16
+                # に現場から: noon のログインは毎日しているのに取込は一度も回して
+                # いない、コマンドが出ないので自分で探すことになる、と報告された。
+                # 「効かない」と伝えるだけでは、効かせる方法を知らせたことにならない
+                # （教訓21の変種 — 案内が指す行き先が無い）。回す2行をそのまま出す。
+                cmds = REFRESH.get(platform) or ()
+                login = cmds[0].format(store=store or "paranaque",
+                                       STORE=(store or "paranaque").upper()) if cmds else ""
+                out.append(("manual", f"{label} — 取込は自分で回す（{used[0]} に cron が無い）",
+                            "\n".join(x for x in (
+                                login,
+                                f"gh workflow run {used[0]}",
+                                f"※ ログインした流れでここまで回す。{used[0]} は自動では動かず、"
+                                f"シークレットだけ入れても次に回すときには寿命で切れている",
+                            ) if x)))
             if used and secrets is not None and name not in secrets:
                 out.append(("bad", f"{name} が存在しない",
                             f"{', '.join(used)} が読もうとしている"))
@@ -420,11 +437,13 @@ def secret_findings(secrets, readers, cron_of):
 def refresh_steps(platform, store, readers, cron_of):
     """画面に出す更新手順。
 
-    2行目（シークレット）は、それを読む口が**自分で動く**ときだけ出す。cron を
-    持たないワークフローのシークレットを毎朝入れ替えても、次に人が手で回すとき
-    には寿命で死んでいる。案内に残すと、効かない作業を毎朝させることになる
-    （教訓21 — 実行できない案内は、案内が無いより悪い）。2026-09-12 に noon で
-    実際にそうなっていた。ログイン自体は値引きスナップショットに要るので残す。
+    読む口が cron を持たないときは、**手順を1行減らすのではなく1行増やす**。
+    2026-09-12 に「毎朝シークレットを入れても寿命で切れる」と分かったとき、私は
+    2行目を落として「回す直前に更新する」と注記した。それは正しいが、回す方法を
+    書かなかったので、現場は毎日ログインだけして取込を一度も回していなかった
+    （2026-09-16 に報告）。**止めるべきなのは「切り離された更新」であって、更新
+    そのものではない。** ログイン→シークレット→起動を1つの流れとして出せば、
+    その場で完結し、寿命の問題も起きない。
     """
     cmds = REFRESH.get(platform)
     if not cmds:
@@ -433,10 +452,11 @@ def refresh_steps(platform, store, readers, cron_of):
     fmt = lambda c: "      " + c.format(store=key, STORE=key.upper())
     name = secret_of(platform, store)[0] if platform in SECRET_OF else None
     used = (readers.get(name) or []) if name else []
+    steps = [fmt(c) for c in cmds]
     if used and not [f for f in used if cron_of.get(f)]:
-        return [fmt(cmds[0]),
-                f"      ※ シークレットは毎朝ではなく、{used[0]} を手で回す直前に更新する"]
-    return [fmt(c) for c in cmds]
+        steps.append(fmt(f"gh workflow run {used[0]}"))
+        steps.append(f"      ※ {used[0]} は cron を持たない。ここまで続けて回す")
+    return steps
 
 
 def last_run(workflow):
@@ -554,19 +574,28 @@ def main():
             print(f"   {label:<22} {why}")
         print()
 
+    def show(items):
+        for _, head, detail in items:
+            print(f"   {head}")
+            for line in str(detail).splitlines():
+                print(f"      {line}")
+
     bad = [f for f in findings if f[0] == "bad"]
+    manual = [f for f in findings if f[0] == "manual"]
     info = [f for f in findings if f[0] == "info"]
     if bad:
         print("🔧 更新手順そのものが壊れている")
-        for _, head, detail in bad:
-            print(f"   {head}")
-            print(f"      {detail}")
+        show(bad)
+        print()
+    # ℹ️（本当に効かないもの）と分ける。ひとまとめに「効かない」と書いていた
+    # せいで、回せば効くものまで「やらなくてよい」と読まれていた。
+    if manual:
+        print("▶️  セッションを更新したら、続けてこれを回す")
+        show(manual)
         print()
     if info:
         print("ℹ️  更新しても取込には効かないもの")
-        for _, head, detail in info:
-            print(f"   {head}")
-            print(f"      {detail}")
+        show(info)
         print()
 
     if not dead and not soon and not bad:
