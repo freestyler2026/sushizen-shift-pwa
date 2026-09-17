@@ -706,7 +706,26 @@ export default function AttendancePage() {
             "The passkey check did not finish. Nothing was recorded — tap the button again. " +
             "If it stops a second time, tap \"Register this device\" below, then try once more.",
           );
-        } else if (!isUserCancelled) {
+        } else if (isUserCancelled) {
+          // A cancel used to say nothing at all. The reasoning was that
+          // somebody who backs out on purpose does not need telling -- but the
+          // browser reports NotAllowedError for a sheet that timed out, a
+          // phone that was put down mid-prompt, and a fingerprint that failed
+          // a few times, none of which the person reads as "I cancelled".
+          // The screen simply went back to normal and they walked away
+          // believing they had clocked in. Peter Villafuerte lost a whole
+          // morning that way on 17 Sep, and found out at 16:21.
+          //
+          // So say the one thing that matters: nothing was written. It goes in
+          // the red banner on purpose -- standing in the office not clocked in
+          // is a problem the person has to act on, and the quiet version of
+          // this message is what cost him the morning.
+          setError(
+            action === "checkin"
+              ? "Not clocked in. The passkey check did not complete, so nothing was recorded. Tap Clock In again."
+              : "Nothing was recorded — the passkey check did not complete. Tap the button again."
+          );
+        } else {
           setError(
             isPasskeyMissing
               ? "Passkey not found on this device. Please tap \"Register this device\" below to set up your passkey, then try again."
