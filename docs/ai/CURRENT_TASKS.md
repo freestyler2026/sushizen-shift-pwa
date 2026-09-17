@@ -26675,3 +26675,107 @@ on the booking-link panel, which is in daily use.
 - Nothing records that a reminder was copied. The booking-link panel does
   (`booking-invite/copied`), which is what makes "sent but never opened"
   answerable. Worth the same here if reminders become routine.
+
+---
+
+## 2026-09-17 — CK Delivery Note の単価が空欄になる件
+
+### 現場からの質問
+CKからの納品で6品の単価がDelivery Noteに出ない。Manage Itemsには価格が入っている。
+
+### 分かったこと（測定値）
+
+**価格の連鎖（マニラ）**
+```
+Procurement → Catalog (proc_curated_catalog_items)
+  → 店舗の発注フォーム /store/procurement/request （item-catalog API）
+  → proc_request_items.unit_price   ← 発注した瞬間にコピー
+  → ck_delivery_items.unit_price    ← 納品書作成時にそのままコピー
+```
+- **マニラは `inv_items`（Manage Items）を一度も読まない。** 読むのは
+  **ドバイのCKカテゴリだけ**（`list_ck_items_as_catalog_rows` の source 1）。
+- `menu_item_master`（Cost Calculation）→ カタログの同期は**存在しない**。
+  読んでいるのはドバイCKの source 2 のみ。
+
+**品名が生まれる経路は4つ**（Cost Calculation は供給元になっていない）
+| 経路 | 書き込む表 |
+|---|---|
+| Cost Calculation | `ingredient_master` / `menu_item_master` |
+| Daily Inventory → Manage Items | `inv_items` |
+| Procurement → Catalog 画面 | `proc_curated_catalog_items` |
+| 店舗の発注フォームの Add item | 同上（価格の初期値 0） |
+
+**重複の実測（マニラ）**: カタログ 990行 / 異なる品名 478 → 512行（52%）が重複。
+有効414品名のうち `ingredient_master` 78・`menu_item_master` 55・`inv_items` 245・
+**どのマスタにも無い 159（38%）**。逆に Cost Calculation の材料213件のうち
+発注できるのは78件（37%）。
+
+**「カタログ単価＝直近仕入原価」は成り立っていない**（仮説4つを113行で検証）
+- 現在の直近仕入原価と一致 26件中9件（35%）／設定当時の原価と一致も同じ9件
+- Cost Calculation の計算原価と一致 7件中**0件**（`menu_item_master` は673品中565品が原価0）
+- **113行中100行が7月以降一度も更新されていない** → 固定の振替価格表
+
+**価格が消えた本当の原因**: 9/8から始まった重複整理で、
+**店舗が実際に使っていた方の行がOFFにされた**（`Century Tuna Chunk` 9/8 08:04 など）。
+名前の不一致ではなく、生きている行の名前が発注名と違うだけだった。
+
+### やったこと
+
+**a. データ修正**（DB・デプロイ不要）
+- 納品書168/169の手入力値を是正（TAFT: Century Tuna 100.25→105.25 /
+  Chicken Teriyaki Portion 18.95→24.22 / Miso Paste 165→171）。退避
+  `_ck_delivery_items_bk_20260917`（141行）
+- カタログ `Chicken Teriyaki` → `Chicken Teriyaki (100g / Portion)`・unit `PC`→`Portion`
+  にリネーム（根拠: 9/9・9/10・9/11 の受領が同名・₱24.22）。退避
+  `_proc_catalog_bk_20260917`（1行）
+- ⚠️ カタログの他の整理は **Yusuke が同日 04:01〜04:05 に実行中**だったので触っていない
+
+**b. 納品書のカタログフォールバック**
+- `_apply_ck_note_catalog_fallback()` — **PENDING のみ**0円明細をカタログ現在価格で表示、
+  行ごとに `price_source`（order / catalog / none）、`items_priced_from_catalog` を返す
+- 同じ品名で仕入先ごとに価格が違うものは**埋めない**（当てずっぽうは空欄より悪い）
+- `confirm_ck_delivery` で解決値を書き込んで固定。**CONFIRMED は二度と書き換えない**
+- キルスイッチ `CK_NOTE_CATALOG_FALLBACK=0`
+
+**c-2. 発注フォームの Add item を Cost Calculation 検索に**
+- `GET /api/admin/procurement/catalog/master-search`（`search_item_master` /
+  `count_item_master`）。**品名だけ**を master から取る — master の単位・原価は
+  レシピ単位（g・pc）で、仕入の包装単位・単価とは別物
+- 0件のとき**検索した件数を出す**（登録済みのものを登録しろと言わないため）
+- **単価0のまま保存できないようにした**
+
+**d. Edit Prices の権限**
+- ⚠️ **サーバー側の認可が存在しなかった。** docstring は "manager-only" だが
+  `/api/store/` ゲートはログイン確認のみで、**約130名の誰でも納品書の単価を書き換えられた**。
+  ロール一覧はボタンの表示条件にしかなかった
+- `channel.store_ck_delivery.manage` を新設し、**価格更新と明細削除の2本**に適用
+- フロントの `canEditPrices` も権限判定に（ロール一覧は `||` で残す）
+- 増減: **減る人0名**。現在の13名（ADMIN 7・HQ 4・DUBAI_MANAGEMENT 1・
+  MANILA_MANAGEMENT 1）は全員システムロールなので維持。MANAGER 3名が増える
+- 逃げ道 `CK_DELIVERY_PRICE_ALLOW_LEGACY_ROLES=1`
+
+### 検証
+デプロイ済みコードを one-off dyno で実行:
+- `_ck_note_catalog_prices(manila)` = 286品名（一意に価格が決まるもの）
+- 正例: PENDING+0円+一意 → 2件補完（Miso Paste 171.0 / Powdered Cheese 226g 268.5）
+- 負例: CONFIRMED は触らない / 同名で価格が割れる品は埋めない /
+  `CK_NOTE_CATALOG_FALLBACK=0` で完全に無効
+- `search_item_master` 4パターン、`count_item_master(manila)`=680
+- フロント: 両ページのチャンクを実際に取得して文字列を確認
+
+### 残っていること
+- **Role Management → Resync System Channels の実行が必要**（新権限の同期）。
+  カスタムロール（Manila Manager・CK Manila 等）は Roles タブで手動付与
+- Yusuke に渡す残りの0円行（id指定）:
+  `ddc6098c` Chicken teriyaki sauce CK/Paranaque ／ `a9244aea` 同 CK/Taft ／
+  `78774046` Multi Purpose Plastic (10x14 Calypso) WH Supplier ／
+  `4954c782` Multi Purpose Plastic (1PKT = 100pcs) Warehouse/ALL
+- ⚠️ **Par Level の対応表が1件切れた**: `Daily Quezo Cheese (2kilo)` →
+  `Daily Quezo 2KG` が 9/17 04:05 に OFF にされたため。CK自身の仕入価格が出なくなる
+- `ck_par_levels.catalog_item_name` は**既にある対応表**だが、マニラ182行中57行しか
+  埋まっていない（31%）。c-1 の `master_item_id` はこれを一般化する形になる
+- **c-1（master_item_id）・c-3（inv_items の位置づけ）は未着手。**
+  c-3 はドバイのCK発注が `inv_items.cost` を読んでいるので、先に決めないと動かせない
+- 名前の正規化（990行→478名）は未着手。打ち間違いまで寄せると別の仕入先の金額を
+  当てずっぽうで決めることになるので、一覧を出してオーナー確認を取ってから
+- **Procurement Manual の HTML は更新済み・artifact の republish は未了**
