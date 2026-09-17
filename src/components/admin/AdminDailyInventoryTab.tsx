@@ -215,6 +215,11 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const [orderBusy, setOrderBusy] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [generatedPRs, setGeneratedPRs] = useState<GeneratedPR[]>([]);
+  // Lines the order was created with no price. The endpoint has always returned
+  // these by name and nothing showed them, so a blank first surfaced weeks later
+  // on the delivery note -- where somebody types a figure in by hand and two
+  // branches end up charged differently for the same tin.
+  const [unpricedLines, setUnpricedLines] = useState<{ item_name: string; unit: string }[]>([]);
 
   // Direct Purchase from supplier WARN/LOW items
   const [dpModalOpen, setDpModalOpen] = useState(false);
@@ -349,12 +354,16 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requested_by: requestedBy, items: selectedItems }),
       });
-      const json = await res.json() as { ok?: boolean; created?: GeneratedPR[]; detail?: unknown };
+      const json = await res.json() as {
+        ok?: boolean; created?: GeneratedPR[]; detail?: unknown;
+        unpriced?: { item_name: string; unit: string }[];
+      };
       if (!res.ok) {
         const msg = typeof json.detail === "string" ? json.detail : "Failed to generate order";
         throw new Error(msg);
       }
       setGeneratedPRs((json.created as GeneratedPR[]) || []);
+      setUnpricedLines(Array.isArray(json.unpriced) ? json.unpriced : []);
     } catch (err) {
       setOrderError(err instanceof Error ? err.message : "Unknown error");
     } finally { setOrderBusy(false); }
@@ -564,6 +573,25 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               <div className="px-6 py-5 space-y-3">
                 <p className="text-sm font-semibold text-emerald-300">Draft orders created!</p>
                 <p className="text-xs text-amber-300/80">Each order is saved as <strong>DRAFT</strong>. Go to the Hub, review quantities, then click <strong>Submit</strong>.</p>
+                {unpricedLines.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-950/25 px-4 py-3">
+                    <p className="text-xs font-semibold text-amber-200">
+                      {unpricedLines.length} line(s) have no price — the catalogue has no entry
+                      under this exact name and unit.
+                    </p>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {unpricedLines.map((u) => (
+                        <li key={`${u.item_name}-${u.unit}`} className="text-[11px] text-amber-300/90">
+                          {u.item_name} <span className="text-amber-400/70">({u.unit})</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1.5 text-[11px] text-amber-300/70">
+                      Report these rather than typing a price on the delivery note — a figure
+                      entered there applies to one branch only.
+                    </p>
+                  </div>
+                )}
                 {generatedPRs.map((pr) => (
                   <div key={pr.request_id} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/5 px-4 py-3">
                     <div><p className="text-xs font-semibold text-zinc-300">{pr.type} Order</p><p className="text-xs text-zinc-500">{pr.request_no}</p></div>

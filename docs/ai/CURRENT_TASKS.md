@@ -26952,3 +26952,54 @@ id 指定で削除・残存0。
   機構の確認はドバイで実施した。**これは既存の状態で今回の変更とは無関係**
 - ⚠️ 既存の不具合: **都市を切り替えても店舗プルダウンが更新されない**
   （Manila に切り替えてもドバイの店舗が残る。リロードすると直る）
+
+### ⚠️ 返信を出す直前に、自分の説明が誤りだと分かった
+
+スタッフへの返信案に「カタログ側を直したので、明日からの発注には自動で価格が乗ります」と
+書いたが、**出す前に確かめたら6品中5品は明日も ₱0 のままだった。**
+
+**真の経路はこれだった:**
+```
+Daily Inventory レポート（inv_items の品名・単位）
+  → /api/daily-inventory/reports/{id}/generate-order で発注が自動生成
+     source_ref = "daily_inventory:35179:PARANAQUE:2026-09-17"
+  → _lookup_price(inv品名, inv単位) でカタログを引く
+  → proc_request_items.unit_price → ck_delivery_items.unit_price
+```
+- **発注明細の品名は `inv_items`（Daily Inventory → Manage Items）由来。**
+  カタログのピッカーからではない。**質問者の「Manage Items に価格が入っている」という
+  見立ての方が、私の最初の説明より実態に近かった。**
+- `_lookup_price` は ①完全一致 ②**カタログ名が在庫名の前方一致 かつ単位が一致**
+  の2段。**単位が違えば前方一致は使わない**（2026-09-10 のステッカー事故が根拠・
+  1枚単価がシート数量に付いて ₱27 の発注になった）。
+- 9/17 の発注 129 品名のうち **21 品名がカタログに同名なし**。
+  Daily Inventory の active 282品目中 **45品目が単価0** だった。
+
+**直したもの（カタログを Daily Inventory の名前・単位に合わせる）**
+
+| Daily Inventory の名前 | 単位 | 対処 | 結果 |
+|---|---|---|---|
+| Century Tuna Chunk | PCS | 同名の既存行(₱105.25)を有効化・`420g` 行を無効化 | ₱105.25 |
+| Miso Paste (Marukome) | pkt | `Miso Paste` をリネーム・単位 PC→pkt | ₱171.00 |
+| Daily Quezo Cheese (2kilo) | PKT | `(2KG)` をリネーム・単位 PC→PKT | ₱398.00 |
+| Powdered Cheese | BTL | 同名の既存行を有効化し₱268.50を入力・`226g` 行を無効化 | ₱268.50 |
+| Multi Purpose Plastic (10x14 Calypso ) | PKT | `(1PKT = 175pcs)` をリネーム | ₱41.00 |
+| Chicken Teriyaki (100g / Portion) | Portion | （既に対応済み） | ₱24.22 |
+
+消える説明は `package_spec` に残した（`420g` / `226g` / `2KG` / `1PKT = 175pcs`）。
+退避 `_proc_catalog_bk3_20260917`（7行）。
+
+**検証**: 本番のカタログで `_lookup_price` と同じ手順を再現し、6品すべてが
+正しい単価を引くことを確認。Daily Inventory 全体の単価0は **45 → 40 品目**。
+回帰も確認（店舗の選べる行に新しい重複なし／Par Level の未解決は `Cheese Spread` の
+1件のまま／`ingredient_catalog_map` の参照切れ0）。
+
+**`unpriced` が画面に出ていなかった。**
+`generate-order` は単価が引けなかった明細を名前で返しており、コードにも
+「0を返して黙っていると承認画面で見分けがつかない（教訓58）」と書いてあるのに、
+`AdminDailyInventoryTab.tsx` が `json.created` だけを読んで捨てていた。
+**発注が作られるその瞬間に分かることを、数週間後の納品書まで黙っていた。**
+→ 生成結果の画面に品名と単位を出し、「納品書に手で打たずに報告してください」と併記。
+
+**教訓**: 「直したので明日から大丈夫です」と書く前に、**明日と同じ経路を実際に通す。**
+カタログに価格が入っていることと、発注に価格が乗ることは別の命題だった。
