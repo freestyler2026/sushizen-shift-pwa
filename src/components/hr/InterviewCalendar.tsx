@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight, FileText, Mic, MessageSquare, Copy, Check } from "lucide-react";
+import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight, FileText, Mic, MessageSquare, Copy, Check, Send } from "lucide-react";
 import {
   BADGE_INFO,
   BADGE_SUCCESS,
@@ -141,11 +141,23 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
   const [remindErr, setRemindErr] = useState("");
   const [remindBusy, setRemindBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  /** Whether the OS can text at all, and the result of pressing Send. Read
+   *  once per panel: a button that is offered and then fails is worse than no
+   *  button, so it is only drawn when the gateway says it can send. */
+  const [smsGate, setSmsGate] = useState<{ enabled: boolean; blocked_by: string } | null>(null);
+  const [smsBusy, setSmsBusy] = useState(false);
+  const [smsSentTo, setSmsSentTo] = useState("");
+  const [smsFail, setSmsFail] = useState("");
 
   const openReminder = async (id: string) => {
     if (remindFor === id) { setRemindFor(""); return; }
     setRemindFor(id); setRemindMsg(null); setRemindErr(""); setCopied(false);
     setRemindLang("en"); setRemindBusy(true);
+    setSmsSentTo(""); setSmsFail("");
+    void fetch("/api/admin/hr/sms/status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setSmsGate(d ? { enabled: !!d.enabled, blocked_by: String(d.blocked_by || "") } : null))
+      .catch(() => setSmsGate(null));
     try {
       const res = await fetch(`/api/admin/hr/interviews/${id}/reminder`, { cache: "no-store" });
       const text = await res.text();
@@ -163,6 +175,34 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
       setRemindErr("Could not build the message. Try again.");
     } finally {
       setRemindBusy(false);
+    }
+  };
+
+  /** Text the reminder. The wording sent is the short one the server builds
+   *  for SMS -- the panel's version runs to three segments, so sending what is
+   *  on screen would cost three credits a person. */
+  const sendReminderSms = async (id: string) => {
+    if (smsBusy) return;
+    setSmsBusy(true); setSmsFail(""); setSmsSentTo("");
+    try {
+      const res = await fetch(`/api/admin/hr/interviews/${id}/reminder/sms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lang: remindLang }),
+      });
+      const text = await res.text();
+      let j: Record<string, unknown> = {};
+      try { j = JSON.parse(text); } catch { /* text/plain */ }
+      if (!res.ok) {
+        // A send that failed must never read as a send that worked.
+        setSmsFail(String(j.detail || text).slice(0, 200));
+        return;
+      }
+      setSmsSentTo(String(j.sent_to || ""));
+    } catch {
+      setSmsFail("Could not reach the server. Nothing was sent.");
+    } finally {
+      setSmsBusy(false);
     }
   };
 
@@ -546,13 +586,56 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                                 {copied ? "Copied" : "Copy message"}
                               </span>
                             </button>
-                            <span className={T_CAPTION}>
-                              Nothing has been sent. Paste it into{" "}
-                              {iv.contact_via === "whatsapp" ? "WhatsApp"
-                                : iv.contact_via === "viber" ? "Viber" : "the chat"}
-                              {" "}and press send yourself.
-                            </span>
+                            {/* Texting is offered only when the gateway says it
+                                can send. The wording that goes out is the short
+                                one built for SMS -- what is on screen is three
+                                segments, and sending that would cost three
+                                credits a person. */}
+                            {smsGate?.enabled && iv.phone && (
+                              <button
+                                className={smsSentTo ? SMALL_BUTTON : PRIMARY_BUTTON}
+                                disabled={smsBusy}
+                                onClick={() => void sendReminderSms(iv.id)}
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Send className="h-4 w-4" />
+                                  {smsBusy ? "Sending…"
+                                    : smsSentTo ? "Send it again"
+                                    : `Send by SMS to ${iv.phone}`}
+                                </span>
+                              </button>
+                            )}
+                            {!smsSentTo && !smsFail && (
+                              <span className={T_CAPTION}>
+                                Nothing has been sent yet. Paste it into{" "}
+                                {iv.contact_via === "whatsapp" ? "WhatsApp"
+                                  : iv.contact_via === "viber" ? "Viber" : "the chat"}
+                                {" "}yourself, or text it with the button.
+                              </span>
+                            )}
                           </div>
+                          {smsSentTo && (
+                            <div className="mt-2 rounded-lg border border-emerald-500/40 bg-emerald-950/30 px-3 py-2">
+                              <p className="text-sm font-semibold text-emerald-200">
+                                Text sent to {smsSentTo}
+                              </p>
+                              <p className="mt-0.5 text-xs text-emerald-200/70">
+                                One message, sent as SUSHIZEN. Pressing again sends
+                                a second one and costs another credit. The wording
+                                texted is the short version — what is above is what
+                                you would paste into {iv.contact_via === "whatsapp"
+                                  ? "WhatsApp" : iv.contact_via === "viber" ? "Viber" : "chat"}.
+                              </p>
+                            </div>
+                          )}
+                          {smsFail && (
+                            <div className="mt-2 rounded-lg border border-amber-500/40 bg-amber-950/30 px-3 py-2">
+                              <p className="text-sm font-semibold text-amber-200">Not sent — {smsFail}</p>
+                              <p className="mt-0.5 text-xs text-amber-200/70">
+                                Nothing went out. Copy the message and send it yourself.
+                              </p>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
