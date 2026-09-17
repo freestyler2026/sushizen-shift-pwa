@@ -26833,3 +26833,59 @@ MANILA_MANAGEMENT。HQ は `["*"]` で通る）。
 ₱0 の行に価格が無い限り埋まらない。**未解決。**
 
 退避: `_proc_catalog_bk2_20260917`（23行）/ `_ck_par_levels_bk_20260917`（4行）
+
+### 実装レビュー（同日・自分の実装を点検して3件直した）
+
+**① 自分が仕掛けたゲートが現場の76%を止めるところだった。**
+Add Item を「Cost Calculation に無ければ登録不可」にしたが、**塞ぐ前に母集団を測っていなかった**。
+実測: 7月以降に追加された54件のうち master に完全一致は **13件（ブロック率76%）**、
+active カタログ421品名のうち一致は **123件（29%）**。
+落ちるのは White Onion・Red Chili・ケース単位の飲料・包装資材・洗剤・ガスなど、
+**Cost Calculation が持っていない「仕入の語彙」**。`ingredient_master` は
+レシピ単位（g・pc）の材料マスタで、購買カタログの上位集合ではない。
+→ 検索は既定のまま残し、0件のときに **「この名前で追加する」を出して行き止まりを解消**。
+0円ガードは維持（441行の0円がその必要性の証拠）。
+
+**② `confirm_ck_delivery` は `DISPATCHED` でも通るのに、フォールバックは `PENDING` だけだった。**
+DISPATCHED の伝票は画面で0円のまま、確定した瞬間に誰も見ていない価格が入る状態。
+→ DISPATCHED も対象に。
+
+**③ ②を直した結果、7月の伝票に9月の価格が入る経路ができた。**
+DISPATCHED 10件は**全部7月**で、ほぼ全明細が0円（#51 は 68/68）。
+遅れて確定すると当時の記録に今日の価格が焼き付く（**教訓103と同型**）。
+→ 読み取り・確定の**両方**に14日の窓（`CK_NOTE_CATALOG_FALLBACK_DAYS`）。
+日付は `city_today()` / `store_today(d.city)` で店舗の時計。
+（最初 `date.today()`（UTC）で書いてしまい、その場で直した）
+
+**検証（デプロイ済みコードで実施）**
+
+| 条件 | 結果 |
+|---|---|
+| PENDING 2026-09-17 / 09-05 | 補完する |
+| PENDING 2026-09-02（16日前） | 補完しない |
+| DISPATCHED 今日 | 補完する |
+| DISPATCHED 2026-07-23 | 補完しない |
+| CONFIRMED | 常に補完しない |
+| 実在 #168/#169/#167/#72/#51 | 期待どおり（#72・#51 は無変更） |
+| 確定時SQLの窓 | DBで `in_window` を直接判定し読み取り側と一致 |
+
+**認可を実HTTPで往復検証**（TestClient・本番トークン・同じ値を書くので実害なし）
+
+| ロール | 結果 |
+|---|---|
+| ADMIN / HQ / DUBAI_MANAGEMENT / MANILA_MANAGEMENT / MANAGER / HR_MANAGER / MANILA_MANAGER | **200** |
+| CK_MANILA / HR_STAFF / INVENTORY_PURCHASING / MANILA_MANAGER_CANDIDATE / MANILA_STAFF / STAFF | **403** |
+| 認証なし | **401** |
+
+**増減の数え直し（前回「+3名」は誤り）**: 13名 → **18名**、**失う人0名**、
+増えるのは **5名**（Francis Ibana / Jasmine Sadoval / Lyssa Rae / Sherileene Santiago / **Peter Villafuerte**）。
+⚠️ Peter は HR_MANAGER で、意図して足したロールではない（Role Management で
+158権限を持っている）。CK納品書の単価を触ってよいかは要判断。
+
+**`_order_type_for_supplier` の実HTTP検証**: 本番で1行 insert → `Supplier` が入ることを確認 →
+id 指定で削除・残存0。
+
+**その他の確認**
+- `get_ck_delivery` の呼び出し元は1箇所のみ。`list_ck_deliveries` は単価を返さないので
+  一覧と明細が食い違う経路は無い
+- 一括upsertは `order_type` が空欄の行にだけ追加クエリを打つ（管理Catalog画面は明示送信）
