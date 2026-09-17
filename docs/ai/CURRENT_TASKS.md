@@ -26889,3 +26889,66 @@ id 指定で削除・残存0。
 - `get_ck_delivery` の呼び出し元は1箇所のみ。`list_ck_deliveries` は単価を返さないので
   一覧と明細が食い違う経路は無い
 - 一括upsertは `order_type` が空欄の行にだけ追加クエリを打つ（管理Catalog画面は明示送信）
+
+### 未検証だった角度の追加テスト（同日・実ブラウザ含む）
+
+**A) 連携先の破壊がないか（未検証だった）**
+- `ingredient_catalog_map`（Cost Calculation ↔ カタログの対応表）: マニラ106行、
+  **参照切れ0**。私がリネーム・無効化した品名を参照している行は**ゼロ**
+- ドバイの CK Delivery は3件（全て 2026-06-16）で **14日窓の外**なので無影響
+- `get_ck_delivery` の呼び出し元は1箇所のみ。`list_ck_deliveries` は単価を返さない
+
+**B) 確定時の価格固定SQLを実弾テスト（ロールバック付き）**
+
+| 対象 | 操作 | 結果 |
+|---|---|---|
+| #168 PENDING 9/17（窓の中） | 1明細を0にして freeze | **1行更新・180.16 に復帰** |
+| #72 DISPATCHED 7/23（窓の外） | 同じ操作 | **0行・0円のまま** |
+| いずれも `conn.rollback()` | — | 本番の値は無変更を確認 |
+
+窓の外の PENDING/DISPATCHED は **64件**。補完も固定もされない（意図どおり）。
+
+**C) 一括upsertのN+1懸念 → 該当なし**
+管理Catalog画面は `rows:[{...row}]` の**1行ずつ**送信で、既存行（id付き）なので
+`_order_type_for_supplier` は発火しない。補完クエリが増えるのは
+発注フォームの新規1行のときだけ。
+
+**D) 店舗が選べる行の回帰（PAR / TAFT / CUB 各406行）**
+- 再有効化した `Century Tuna` `Daily Quezo 2KG` は**1行ずつ**表示。重複は作っていない
+- ⚠️ **0円と価格つきが並ぶ品名が3件残っている**（店員が0円側を選べる）:
+  `Sliced Cheddar Cheese (Eden)` 0 / 150 ・`Sesame Dressing QP` 0 / 435 ・
+  `Wet Wipes` 0 / 24。**同名で価格が割れるため納品書のフォールバックも救わない**
+- 0円の行は 36 / 406
+
+**E) 実ブラウザで押した（教訓56）**
+
+| 操作 | 結果 |
+|---|---|
+| `/store/ck-delivery/168/note` | 単価・行合計・合計が表示。**Edit Prices ボタンが出る**（HQ） |
+| Edit Prices を押す | 入力欄に切替、Cancel / Save Prices が出る。**保存はしていない** |
+| 発注フォーム → Add Item → `salmon` | `master-search` が **200**、20件描画 |
+| → `Zonrox Bleach 1L`（master に無い） | **「Use "..." as a new name」が出る**。行き止まりなし |
+| → 名前を確定して価格0のまま Add | **「Enter the price you pay for one unit.」で拒否** |
+| DB確認 | **書き込みゼロ**（Zonrox 3行は5〜7月の既存） |
+
+**E で見つけて直したもの**
+1. **納品書に既存の `SOURCE` 列があり、`Order` バッジを出していた。**
+   これは「明細が発注由来か」であって価格の話ではないのに、私が足したバナー
+   （「N行はカタログ価格」）と同じ問いへの答えに見えた。しかも
+   **どの行のことか画面から特定できなかった**（教訓73: 押せない数字）。
+   → 単価セルに `catalog` バッジを付け、列名を `Source` → `Line from` に変更
+2. **検索結果がメニュー料理で埋まっていた。** ドバイは menu 791 / ingredient 285 なので
+   `salmon` で `[Lunch] Salmon Avocado Hosomaki` 等が `FRESH SALMON FILLET` の上に18件。
+   **料理は発注できない。** → ingredient を先に並べる
+   （副産物: master には `TUNA CHUNK` `CABBAGE WHITE` があり、カタログは
+   `Century Tuna Chunk` `White Cabbage`。**綴りが違うだけで登録済み**という
+   実例が確認できた＝ c-2 の「一致しなければ拒否」が誤りだった裏付け）
+
+**未検証のまま残ること**
+- `catalog` バッジの**実描画は見ていない**。14日窓の中に0円明細を持つ納品書が
+  **現在1件も無い**ため（条件はサーバ側で確認済み・チャンクにコードが載っていることも確認）
+- マニラの発注フォームは**店舗一覧が空**（"No store found for Manila. Please sync the
+  city workbook in Procurement Imports first."）でHQからは駆動できず、
+  機構の確認はドバイで実施した。**これは既存の状態で今回の変更とは無関係**
+- ⚠️ 既存の不具合: **都市を切り替えても店舗プルダウンが更新されない**
+  （Manila に切り替えてもドバイの店舗が残る。リロードすると直る）
