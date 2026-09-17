@@ -697,6 +697,7 @@ export default function ManualShiftPage() {
       groups.get(g)!.push(e);
     }
     let failed = false;
+    let lastError = "";
     for (const [g, edits] of groups) {
       const [c, bc, ws] = g.split("|");
       try {
@@ -713,11 +714,24 @@ export default function ManualShiftPage() {
           const k = queueKey(e);
           if (outboxRef.current.get(k) === e) outboxRef.current.delete(k);
         }
-      } catch {
+      } catch (err: unknown) {
+        // Every failure used to read as a dropped connection, and the banner
+        // promised the edits would go "as soon as the connection comes back".
+        // For anything the server actually refuses that is never true: the same
+        // request goes out every five seconds for as long as the tab is open,
+        // and Publish stays blocked because the queue never empties. Say what
+        // came back instead, so the next person does not spend an afternoon
+        // reloading and logging in again.
         failed = true;
+        lastError = err instanceof Error ? err.message : String(err);
       }
     }
-    setSyncError(failed ? "Not saved yet — retrying. Keep this page open." : "");
+    setSyncError(
+      !failed ? ""
+        : lastError
+        ? `Not saved — the server refused this edit: ${lastError}`
+        : "Not saved yet — retrying. Keep this page open.",
+    );
     syncOutboxSize();
   }, [syncOutboxSize]);
 
@@ -798,13 +812,33 @@ export default function ManualShiftPage() {
         editors[k] = { by: e.edited_by || "", at: e.edited_at || "" };
       }
     }
+    // Somebody typed in by hand is on no roster and, until their first publish,
+    // in no published row either -- so the grid has no line for them and this
+    // used to drop their cells on the floor. The work was never lost: it sat in
+    // shift_week_edits, unreachable from the one screen that could publish it.
+    // Bibek Tamang had seven days saved that way and read as gone (2026-10-19).
+    //
+    // The overlay is the server's answer about this exact week. If it holds a
+    // cell for a name, the name belongs on the grid. A row taken out on purpose
+    // still stays out.
+    const removedNow = new Set([...removedStaffRef.current, ...hiddenStaffRef.current]);
+    const newNames = Array.from(new Set(
+      changes.map((ch) => ch.staffName)
+        .filter((n) => n && !removedNow.has(n) && !staffListRef.current.includes(n)),
+    ));
+    if (newNames.length > 0) {
+      const merged = Array.from(new Set([...staffListRef.current, ...newNames]))
+        .sort((a, b) => a.localeCompare(b));
+      staffListRef.current = merged;
+      setStaffList(merged);
+    }
     if (changes.length > 0) {
       setGridData((prev) => {
         const next: GridData = {};
         for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
         for (const ch of changes) {
-          // A cell for somebody not on this branch's roster would be a phantom row.
-          if (!next[ch.staffName]) continue;
+          if (removedNow.has(ch.staffName)) continue;
+          if (!next[ch.staffName]) next[ch.staffName] = {};
           next[ch.staffName][ch.dateStr] = ch.value;
         }
         return next;
@@ -1487,7 +1521,18 @@ export default function ManualShiftPage() {
     // not be published.
     await flushOutbox();
     if (outboxRef.current.size > 0) {
-      setError("Some edits have not reached the server yet. Wait a moment and publish again.");
+      // Name the cells. "Some edits" sent people looking at the network when
+      // the stuck entry was one cell the server would never take.
+      const stuck = Array.from(outboxRef.current.values())
+        .slice(0, 4)
+        .map((e) => `${e.staff_name} ${e.work_date}`)
+        .join(", ");
+      const more = outboxRef.current.size > 4 ? ` and ${outboxRef.current.size - 4} more` : "";
+      setError(
+        `${outboxRef.current.size} edit${outboxRef.current.size === 1 ? "" : "s"} could not be saved, `
+        + `so publishing would leave them out: ${stuck}${more}.`
+        + (syncError ? ` ${syncError}` : ""),
+      );
       return;
     }
     if (unpublishedCells.size === 0) {

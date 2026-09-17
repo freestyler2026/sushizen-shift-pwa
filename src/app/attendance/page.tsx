@@ -330,6 +330,16 @@ export default function AttendancePage() {
   const [correctionReason, setCorrectionReason] = useState("");
   const [correctionBusy, setCorrectionBusy] = useState(false);
   const [correctionDone, setCorrectionDone] = useState(false);
+  /** What this person has already asked for. The screen used to POST these and
+   *  never read them back, so a day waiting on approval looked identical to a
+   *  day nobody had reported: the banner asked again on every open, and the
+   *  same request went in again. Sita Gurmachhan sent four for 14 Sep and
+   *  three for 15 Sep before anyone worked out why. */
+  const [myCorrections, setMyCorrections] = useState<{
+    work_date: string; requested_check_in: string | null;
+    requested_check_out: string | null; status: string;
+    reviewed_by: string | null; created_at: string;
+  }[]>([]);
   // Missed clock-out correction (for open session from previous day)
   const [unclosedCorrOpen, setUnclosedCorrOpen] = useState(false);
   const [unclosedCorrCheckOut, setUnclosedCorrCheckOut] = useState("");
@@ -397,6 +407,26 @@ export default function AttendancePage() {
     }
   }, [router]);
 
+  const fetchMyCorrections = useCallback(async () => {
+    const a = getAuth();
+    if (!a) return;
+    try {
+      const res = await fetch("/api/attendance/corrections", {
+        credentials: "same-origin", headers: getAuthHeaders(a), cache: "no-store",
+      });
+      if (!res.ok) return;
+      const j = await res.json() as { rows?: typeof myCorrections };
+      setMyCorrections(j.rows ?? []);
+    } catch { /* the page still works without it; it just cannot say "already sent" */ }
+  }, []);
+
+  /** The request already waiting for this date, if there is one. Only pending
+   *  counts -- an approved one has already changed the times, and a rejected
+   *  one means send another. */
+  const pendingCorrectionFor = useCallback((workDate: string) =>
+    myCorrections.find((c) => c.work_date === workDate && c.status === "pending"),
+    [myCorrections]);
+
   const fetchWfhStatus = useCallback(async () => {
     const a = getAuth();
     if (!a) return;
@@ -419,8 +449,9 @@ export default function AttendancePage() {
     if (auth) {
       void fetchToday();
       void fetchWfhStatus();
+      void fetchMyCorrections();
     }
-  }, [auth, fetchToday, fetchWfhStatus]);
+  }, [auth, fetchToday, fetchWfhStatus, fetchMyCorrections]);
 
   // ─── GPS acquisition ──────────────────────────────────────────────────────
   // maximumAge: 0  → always request a fresh fix; never accept a cached browser position.
@@ -668,6 +699,22 @@ export default function AttendancePage() {
         const isPasskeyMissing =
           eName === "NotImplementedError" || eName === "NotSupportedError" ||
           msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not supported");
+        // Tell the server the attempt ended with nothing written. Fire and
+        // forget: the person is standing there and must not wait on a report
+        // about their own failure, and a failure to record must never become
+        // a second failure they can see.
+        void fetch("/api/attendance/action/gave-up", {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
+          body: JSON.stringify({
+            action,
+            outcome: timedOut ? "timed_out"
+              : isPasskeyMissing ? "passkey_missing"
+              : isUserCancelled ? "cancelled" : "error",
+            detail: msg.slice(0, 200),
+          }),
+        }).catch(() => { /* nothing to do about it here */ });
+
         if (timedOut) {
           // Distinct from a cancel: nothing was recorded, and saying so is the
           // difference between trying again and standing there.
@@ -675,7 +722,26 @@ export default function AttendancePage() {
             "The passkey check did not finish. Nothing was recorded — tap the button again. " +
             "If it stops a second time, tap \"Register this device\" below, then try once more.",
           );
-        } else if (!isUserCancelled) {
+        } else if (isUserCancelled) {
+          // A cancel used to say nothing at all. The reasoning was that
+          // somebody who backs out on purpose does not need telling -- but the
+          // browser reports NotAllowedError for a sheet that timed out, a
+          // phone that was put down mid-prompt, and a fingerprint that failed
+          // a few times, none of which the person reads as "I cancelled".
+          // The screen simply went back to normal and they walked away
+          // believing they had clocked in. Peter Villafuerte lost a whole
+          // morning that way on 17 Sep, and found out at 16:21.
+          //
+          // So say the one thing that matters: nothing was written. It goes in
+          // the red banner on purpose -- standing in the office not clocked in
+          // is a problem the person has to act on, and the quiet version of
+          // this message is what cost him the morning.
+          setError(
+            action === "checkin"
+              ? "Not clocked in. The passkey check did not complete, so nothing was recorded. Tap Clock In again."
+              : "Nothing was recorded — the passkey check did not complete. Tap the button again."
+          );
+        } else {
           setError(
             isPasskeyMissing
               ? "Passkey not found on this device. Please tap \"Register this device\" below to set up your passkey, then try again."
@@ -1011,7 +1077,7 @@ export default function AttendancePage() {
         setError(j.detail || "Failed to submit correction");
         return;
       }
-      setCorrectionDone(true);
+      setCorrectionDone(true); void fetchMyCorrections();
       setCorrectionOpen(false);
       setCorrectionReason("");
     } catch {
@@ -1045,7 +1111,7 @@ export default function AttendancePage() {
         setError(j.detail || "Failed to submit correction");
         return;
       }
-      setUnclosedCorrDone(true);
+      setUnclosedCorrDone(true); void fetchMyCorrections();
       setUnclosedCorrOpen(false);
       setUnclosedCorrReason("");
     } catch {
@@ -1084,8 +1150,29 @@ export default function AttendancePage() {
             <AlertCircle size={15} className="mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
-          {/* The fence turned them away. Somewhere to go, or it is just a red box. */}
-          {/too far/i.test(error) && !isCheckedIn && (
+        </div>
+      )}
+      {/* Somewhere to go, or it is just a red box.
+       *
+       *  This used to appear only when the fence turned somebody away -- when
+       *  GPS worked and the server said "too far". Somebody whose phone will
+       *  not give a position at all got the settings guide and nothing else,
+       *  so if the guide did not help there was no way to start a shift.
+       *  Sita Gurmachhan spent three days in that state and filed a correction
+       *  every evening instead (2026-09-14 to 16).
+       *
+       *  Nothing here clocks anybody in: it sends a photo of the store clock
+       *  for a manager to approve, so opening it up does not open the fence. */}
+      {!isCheckedIn && (/too far/i.test(error) || gpsPermissionDenied
+                        || (!!gpsError && !gpsLoading)) && (
+        <div className="space-y-2">
+          {!(/too far/i.test(error)) && !proofDone && (
+            <p className="px-1 text-xs text-zinc-400">
+              Cannot get your location? You can still start your shift — send a
+              photo of the store clock and your manager will record the time.
+            </p>
+          )}
+          {(
             proofDone ? (
               <div className="rounded-xl border border-emerald-600/40 bg-emerald-900/25 px-3 py-2.5 text-sm text-emerald-200">
                 Sent. Your manager will see the photo and record your time in.
@@ -1147,7 +1234,37 @@ export default function AttendancePage() {
         </div>
       )}
       {/* ── Missed clock-out banner ──────────────────────────────────────────── */}
-      {data?.open_session_yesterday && !unclosedCorrDone && (() => {
+      {data?.open_session_yesterday && !unclosedCorrDone
+        && pendingCorrectionFor(data.open_session_yesterday.work_date) && (() => {
+        // Already asked, still waiting. Saying so is the whole fix: the banner
+        // used to keep asking, and people answered it again every time.
+        const c = pendingCorrectionFor(data.open_session_yesterday!.work_date)!;
+        const sentOn = new Intl.DateTimeFormat("en-US",
+          { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
+            timeZone: cityTz(auth?.city) }).format(new Date(c.created_at));
+        return (
+          <div className="rounded-2xl border border-violet-500/40 bg-violet-950/30 px-4 py-4">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 size={16} className="text-violet-300 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-violet-200">
+                  Your request has been sent
+                </p>
+                <p className="text-xs text-violet-200/80 mt-0.5">
+                  You asked for {c.work_date} to be closed
+                  {c.requested_check_out ? ` at ${c.requested_check_out}` : ""}, sent {sentOn}.
+                  It is waiting for a manager to approve it.
+                  <span className="block mt-1 text-violet-200/60">
+                    Nothing more to do — sending it again does not make it faster.
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {data?.open_session_yesterday && !unclosedCorrDone
+        && !pendingCorrectionFor(data.open_session_yesterday.work_date) && (() => {
         const s = data.open_session_yesterday!;
         const dateLabel = s.work_date;
         const clockInLabel = s.check_in_at

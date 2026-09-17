@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { markBookingCopied, markBookingSent } from "@/lib/booking-mark";
 import { Link2, Send, Copy, Check, Clock, RefreshCw, Phone } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS,
@@ -105,6 +106,11 @@ export default function BookingLinksToSend({
   // every time a panel opens, so yesterday's copy cannot mark today's as sent.
   const [copiedOnce, setCopiedOnce] = useState(false);
   const [smsNote, setSmsNote] = useState("");
+  /** Set once the gateway has accepted a send for this panel. The button read
+   *  the same before and after, and the outcome was a grey caption under three
+   *  other buttons -- so the person who pressed it could not tell whether
+   *  anything had happened, and the only safe guess is to press again. */
+  const [smsSentTo, setSmsSentTo] = useState("");
 
   // Whether "Send by SMS" is offered at all, and when it is not, why -- a
   // disabled button with no reason reads as the screen being broken.
@@ -291,7 +297,7 @@ export default function BookingLinksToSend({
   async function sendSms(applicantId: string, token: string) {
     if (busy) return;
     setBusy(true);
-    setSmsNote("");
+    setSmsNote(""); setSmsSentTo("");
     try {
       const res = await fetch(`/api/admin/hr/applicants/${applicantId}/booking-invite/sms`, {
         method: "POST",
@@ -306,7 +312,8 @@ export default function BookingLinksToSend({
         setSmsNote(`Not sent — ${String(j.detail || text).slice(0, 160)}`);
         return;
       }
-      setSmsNote(`Sent to ${String(j.sent_to || "")}.`);
+      setSmsNote("");
+      setSmsSentTo(String(j.sent_to || ""));
     } catch {
       setSmsNote("Not sent — could not reach the server.");
     } finally {
@@ -345,17 +352,11 @@ export default function BookingLinksToSend({
     // is the whole point of the marker. Only recording the successful path
     // would leave exactly those people invisible, which is the failure this
     // marker exists to prevent.
-    try {
-      await fetch(`/api/admin/hr/applicants/${applicantId}/booking-invite/copied`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ what: clipboardWorked ? what : `${what} (by hand)`, lang }),
-      });
-      setRows((rs) => rs.map((r) => r.id === applicantId
-        ? { ...r, copied_at: new Date().toISOString(), copied_by: "you" }
-        : r));
-      setCopiedOnce(true);
-    } catch { /* the trace is a convenience, the copy is the job */ }
+    await markBookingCopied(applicantId, what, lang, clipboardWorked);
+    setRows((rs) => rs.map((r) => r.id === applicantId
+      ? { ...r, copied_at: new Date().toISOString(), copied_by: "you" }
+      : r));
+    setCopiedOnce(true);
   }
 
   /** Close the panel, and when the wording was copied out of it first, record
@@ -363,22 +364,18 @@ export default function BookingLinksToSend({
    *  the OS that they have sent it. */
   async function finishSend(applicantId: string) {
     const close = () => {
-      setInvite(null); setOpenFor(""); setSmsNote(""); setCopied(""); setCopiedOnce(false);
+      setInvite(null); setOpenFor(""); setSmsNote(""); setSmsSentTo(""); setCopied(""); setCopiedOnce(false);
     };
     if (!copiedOnce) { close(); return; }
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/hr/applicants/${applicantId}/booking-invite/sent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ how: "copied the message and sent it" }),
-      });
+      const ok = await markBookingSent(applicantId);
       // ⚠️ Do not close on a failure. The first version swallowed it, and the
       // panel closing looked exactly like it had worked -- a mark that did not
       // land, on a row that then reads "not sent", with nobody any the wiser
       // (lesson 46). Caught in testing when a deploy restart 500'd this call
       // and the screen said nothing at all.
-      if (!res.ok) {
+      if (!ok) {
         setErr("Marked nothing — the send was not recorded. Press Done again.");
         return;
       }
@@ -513,13 +510,15 @@ export default function BookingLinksToSend({
             <div className="mt-2 flex flex-wrap gap-2">
               {smsGate?.enabled && (
                 <button
-                  className={PRIMARY_BUTTON}
+                  className={smsSentTo ? SMALL_BUTTON : PRIMARY_BUTTON}
                   disabled={busy}
                   onClick={() => void sendSms(row.id, invite.token)}
                 >
                   <span className="flex items-center gap-1.5">
                     <Send className="h-4 w-4" />
-                    Send by SMS{invite.phone ? ` to ${invite.phone}` : ""}
+                    {busy ? "Sending…"
+                      : smsSentTo ? "Send it again"
+                      : `Send by SMS${invite.phone ? ` to ${invite.phone}` : ""}`}
                   </span>
                 </button>
               )}
@@ -553,10 +552,25 @@ export default function BookingLinksToSend({
                 {copiedOnce ? "Done — sent" : "Close"}
               </button>
             </div>
+            {smsSentTo && (
+              <div className="mt-3 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-2.5">
+                <p className="text-sm font-semibold text-emerald-200">
+                  Text sent to {smsSentTo}
+                </p>
+                <p className="mt-0.5 text-xs text-emerald-200/70">
+                  The network accepted it. Nothing else to do here — this person
+                  now reads as sent on the board. Pressing again sends a second
+                  text and costs another credit.
+                </p>
+              </div>
+            )}
             {smsNote && (
-              <p className={`${T_CAPTION} mt-2 ${smsNote.startsWith("Sent") ? "text-emerald-300" : "text-amber-300"}`}>
-                {smsNote}
-              </p>
+              <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2.5">
+                <p className="text-sm font-semibold text-amber-200">{smsNote}</p>
+                <p className="mt-0.5 text-xs text-amber-200/70">
+                  Nothing went out. Send it from Viber or copy the message below.
+                </p>
+              </div>
             )}
             {smsGate && !smsGate.enabled && smsGate.blocked_by && (
               <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">

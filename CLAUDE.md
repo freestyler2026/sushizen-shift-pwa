@@ -54,6 +54,7 @@
 | 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
 | **Receipt Log**（`/store/receipt-log` 入力フォーム / `/admin/procurement/receipt-log` 全件一覧・月次） | **Receipt Log**（日英切替・スタッフ向け） | `docs/manuals/receipt-log-manual.html` |
 | **Morning Review**（`/store/management/review` / レーン分割 / D評価 / 前日レビューの生成） | **The Morning Review**（日英切替・マネージャー向け） | `docs/manuals/morning-review-manual.html` |
+| **Required Reports**（`app/required_reports_api.py` の8項目・締切・スロット / `/admin/management/required-reports` / 提出4画面: Travel Path・Backup・Daily Inventory・Disposal） | **Kitchen Daily Reports**（キッチン向け）と **Back Office Daily Review**（BO向け）の**2本とも** | `docs/manuals/kitchen-daily-reports.html` / `docs/manuals/back-office-daily-review.html` |
 | 緊急通報系（**Report Something** / Waiting for Someone / My Phone Number / Emergency Contacts） | **Emergency Reporting**（スタッフ向け・英語） | `docs/manuals/emergency-reporting.html` |
 | Recruitment系（Applicants / Requisitions / Hiring Plans / 面接結果記録） | **Recruitment Guide**（HRスタッフ向け・英語） | `docs/manuals/recruitment-guide.html` |
 | **音声一次面接**（`/apply` / `/voice/[token]` / Voice screening タブ / 招待送信 / SMS / 判断3ボタン） | **Voice Interview Runbook**（日英切替・HR向け） | `docs/manuals/voice-interview-guide.html` |
@@ -123,6 +124,22 @@
    - file_path: docs/manuals/receipt-log-manual.html
    - url: https://claude.ai/code/artifact/2ca823ce-1649-4a06-b8cd-eb832c88bf33   ← Receipt Log（日英切替）
    - favicon: 🧾
+
+   - file_path: docs/manuals/kitchen-daily-reports.html
+   - url: https://claude.ai/code/artifact/0b782ecd-a035-4368-897f-70579fce3240   ← Kitchen Daily Reports（日英切替・キッチン/店舗向け）
+   - favicon: 🔪
+   ※ 毎日出す7件と、その締切・提出ページ。**Required Reports の定義
+     （app/required_reports_api.py の REQUIRED_REPORTS）を変えたら必ず直す。**
+     Opening Report と Opening Travel Path は同じ提出物なので、7件として書いてある。
+     数字は実測値（2026-09-02〜15 マニラ）。測り直したら数字も直すこと。
+
+   - file_path: docs/manuals/back-office-daily-review.html
+   - url: https://claude.ai/code/artifact/6df156db-c63a-4a60-890b-9e4894698084   ← Back Office Daily Review（日英切替・BO向け）
+   - favicon: 📋
+   ※ 上のキッチン版と対。**提出（店舗）と点検（BO）は別の文書に分ける** —
+     片方の担当者にもう片方の義務を混ぜると、どちらも自分宛だと思われなくなる。
+     導線は Menu → Store Operations → BO Dashboard → Required Reports タブ
+     （独立したメニュー項目は無い）。
 
    - file_path: docs/manuals/morning-review-manual.html
    - url: https://claude.ai/code/artifact/14fd264c-7a57-4489-a604-21f869666e7b   ← The Morning Review（日英切替）

@@ -2,6 +2,8 @@
 
 import { isoToday } from "@/lib/date";
 import { facebookLink } from "@/lib/facebook";
+import { LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outcome";
+import { cvStateOf, openedSinceAsk } from "@/lib/cv-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
@@ -108,6 +110,25 @@ type Applicant = {
    *  (lesson 29). Null means none on file. */
   resume_screening_id?: number | null;
   resume_filename?: string;
+  /** Whether anybody has asked this person for a CV. `cv_link_made_at` is the
+   *  link being built, which is not the same as the message going out --
+   *  measured 2026-09-16, eight of the nine people with no CV had a link and
+   *  none of them had a send on record, because Done used to only close the
+   *  dialog. `cv_asked_how` is 'cv_copied' (the wording left the page) or
+   *  'cv_sent' (a person said they sent it). */
+  cv_asked_at?: string | null;
+  /** When the CV actually landed. The board knew a CV existed but not when,
+   *  so the card fell silent at the one moment there was news to report. */
+  cv_received_at?: string | null;
+  cv_asked_by?: string | null;
+  cv_asked_how?: string | null;
+  cv_link_made_at?: string | null;
+  cv_link_live?: boolean | null;
+  /** Last time the applicant opened their link -- something the server saw,
+   *  unlike the send, which is somebody's account of it. Recorded from
+   *  2026-09-16 only, so absence means "no open on record", never "they did
+   *  not open it". */
+  link_opened_at?: string | null;
   resume_bytes?: number;
   /** What they typed on the application form. All of it has been stored since
    *  the form went up and all of it reaches this payload -- none of it was on
@@ -696,15 +717,70 @@ function KanbanCard({
                 2026-09-15, every one of the 132 from Facebook and 9 from
                 JobStreet has none, because HR typed them in and there was no
                 way for them to send one. */}
-            {applicant.status === "new" && !applicant.resume_screening_id && (
-              <button
-                className="mt-1 w-full rounded-lg px-2 py-1 text-[10px] text-amber-400/80 hover:bg-white/5 hover:text-amber-300 transition-colors"
-                title="No CV on file. Makes a link that asks for one and nothing else — they upload it and it lands on this applicant."
-                onClick={(e) => { e.stopPropagation(); onAskForCv(applicant); }}
-              >
-                No CV — ask for one
-              </button>
-            )}
+            {applicant.status === "new" && (() => {
+              const cs = cvStateOf(applicant);
+              // Every one of these opens the same panel. What changes is what
+              // the card says has already happened, because "nobody has done
+              // anything" and "it went out and they have not replied" are
+              // different pieces of work and were sharing one line.
+              if (cs === "arrived" || cs === "on_file") {
+                // Not a button. The CV is read in the panel, and the card
+                // already opens it -- a button here would swallow that click
+                // and offer to ask again for something already received.
+                const when = applicant.cv_received_at;
+                return cs === "arrived" ? (
+                  <p
+                    className="mt-1 flex items-center justify-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-300"
+                    title={`The CV they were asked for came in${when ? ` on ${shortDate(when)}` : ""}${applicant.resume_filename ? `: ${applicant.resume_filename}` : ""}. Open the card to read it.`}
+                  >
+                    <FileText className="h-3 w-3" />
+                    CV arrived{when ? ` ${shortDate(when)}` : ""}
+                  </p>
+                ) : (
+                  <p
+                    className="mt-1 w-full px-2 py-1 text-center text-[10px] text-zinc-500"
+                    title={`Sent with the application${when ? ` on ${shortDate(when)}` : ""}${applicant.resume_filename ? `: ${applicant.resume_filename}` : ""}. Open the card to read it.`}
+                  >
+                    CV on file
+                  </p>
+                );
+              }
+              // An open is the only sign of life between asking and the CV
+              // landing. Without it the work has no feedback at all: twelve
+              // requests had gone out and nothing on this board could say
+              // whether a single one had reached anybody.
+              const seen = openedSinceAsk(applicant) ? " · opened" : "";
+              const label =
+                cs === "sent"
+                  ? `✓ CV asked ${shortDate(applicant.cv_asked_at)}${seen}`
+                  : cs === "copied"
+                  ? `CV asked ${shortDate(applicant.cv_asked_at)} · not confirmed${seen}`
+                  : cs === "made"
+                  ? `CV link made ${shortDate(applicant.cv_link_made_at)} · not sent${seen}`
+                  : "No CV — ask for one";
+              const tone = cs === "sent" ? "text-emerald-400/90 hover:text-emerald-300"
+                                         : "text-amber-400/80 hover:text-amber-300";
+              const tip =
+                cs === "sent"
+                  ? `They were asked for a CV${applicant.cv_asked_by ? ` by ${applicant.cv_asked_by}` : ""} and it has not arrived. `
+                    + (openedSinceAsk(applicant)
+                        ? `They opened the link on ${shortDate(applicant.link_opened_at)} and did not send one, so the message reached them.`
+                        : "No open is on record. Opens were first recorded on 16 Sep, so for anything asked before then this says nothing either way.")
+                  : cs === "copied"
+                  ? `The wording was copied${applicant.cv_asked_by ? ` by ${applicant.cv_asked_by}` : ""} but nobody confirmed sending it. Open and press "I sent it" once it has gone out.`
+                  : cs === "made"
+                  ? "A link was built but the message was never copied or confirmed, so nothing has reached them. Open it to send."
+                  : "No CV on file. Makes a link that asks for one and nothing else — they upload it and it lands on this applicant.";
+              return (
+                <button
+                  className={`mt-1 w-full rounded-lg px-2 py-1 text-[10px] transition-colors hover:bg-white/5 ${tone}`}
+                  title={tip}
+                  onClick={(e) => { e.stopPropagation(); onAskForCv(applicant); }}
+                >
+                  {label}
+                </button>
+              );
+            })()}
           </div>
         )
         )
@@ -719,7 +795,25 @@ function KanbanCard({
  *  copies it and sends it from Viber or SMS themselves. Nothing is sent from
  *  here -- there is no gateway, and a button that claims to send would be the
  *  third screen this month to say "sent" about something that was not.
+ *
+ *  ⚠️ Opening this used to issue a link straight away, and issuing replaces
+ *  `token_hash` on the screening row. So coming back to record "I already sent
+ *  this" would have killed the link the applicant was holding (lesson 118).
+ *  It now reads the state first and only builds a link when there isn't a live
+ *  one, or when somebody asks for a new one knowing what that costs.
  */
+type CvRequestState = {
+  has_resume: boolean; resume_filename: string;
+  link_live: boolean; link_made_at: string | null; link_made_by: string;
+  link_expires_at: string | null;
+  asked_at: string | null; asked_by: string; asked_how: string;
+};
+type CvLink = {
+  url: string; phone: string; expires_days: number;
+  already_has_resume?: boolean; resume_filename?: string;
+  messages: { en: string; tl: string };
+};
+
 function CvRequestModal({
   applicant,
   onClose,
@@ -731,11 +825,27 @@ function CvRequestModal({
   const [err, setErr] = useState("");
   const [lang, setLang] = useState<"en" | "tl">("en");
   const [copied, setCopied] = useState("");
-  const [out, setOut] = useState<{
-    url: string; phone: string; expires_days: number;
-    already_has_resume?: boolean; resume_filename?: string;
-    messages: { en: string; tl: string };
-  } | null>(null);
+  const [marked, setMarked] = useState("");
+  const [state, setState] = useState<CvRequestState | null>(null);
+  const [out, setOut] = useState<CvLink | null>(null);
+
+  const issue = useCallback(async () => {
+    setBusy(true); setErr("");
+    try {
+      const res = await fetch(
+        `/api/admin/hr/applicants/${applicant.id}/resume-request`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const text = await res.text();
+      let j: Record<string, unknown> = {};
+      try { j = JSON.parse(text); } catch { /* text/plain */ }
+      if (!res.ok) { setErr(String(j.detail || text).slice(0, 240)); return; }
+      setOut(j as unknown as CvLink);
+    } catch {
+      setErr("The link could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  }, [applicant.id]);
 
   useEffect(() => {
     let alive = true;
@@ -743,28 +853,51 @@ function CvRequestModal({
       try {
         const res = await fetch(
           `/api/admin/hr/applicants/${applicant.id}/resume-request`,
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-        const text = await res.text();
-        let j: Record<string, unknown> = {};
-        try { j = JSON.parse(text); } catch { /* text/plain */ }
+          { cache: "no-store" });
         if (!alive) return;
-        if (!res.ok) { setErr(String(j.detail || text).slice(0, 240)); return; }
-        const o = j as unknown as NonNullable<typeof out>;
-        setOut(o);
+        if (!res.ok) { setErr("Could not read where this request stands."); setBusy(false); return; }
+        const j = (await res.json()) as CvRequestState;
+        if (!alive) return;
+        setState(j);
         if (applicant.form_language === "tl") setLang("tl");
+        // Nobody has a working link, so there is nothing to protect -- build
+        // one now and keep the common path at one tap.
+        if (!j.link_live) { void issue(); } else { setBusy(false); }
       } catch {
-        if (alive) setErr("The link could not be created.");
-      } finally {
-        if (alive) setBusy(false);
+        if (alive) { setErr("Could not read where this request stands."); setBusy(false); }
       }
     })();
     return () => { alive = false; };
-  }, [applicant.id, applicant.form_language]);
+  }, [applicant.id, applicant.form_language, issue]);
+
+  /** Say out loud that the wording left this page, or that a person sent it.
+   *  Failing to record must not look like failing to send, so it says so. */
+  async function mark(kind: "copied" | "sent") {
+    try {
+      const res = await fetch(
+        `/api/admin/hr/applicants/${applicant.id}/resume-request/mark`,
+        { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind }) });
+      if (!res.ok) { setErr("Sent, but recording it failed. The board will still say not sent."); return false; }
+      setMarked(kind);
+      return true;
+    } catch {
+      setErr("Sent, but recording it failed. The board will still say not sent.");
+      return false;
+    }
+  }
 
   async function copy(text: string, what: string) {
-    try { await navigator.clipboard.writeText(text); setCopied(what); }
-    catch { setErr("Could not copy. Select the text above and copy it by hand."); }
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+      if (what === "message") void mark("copied");
+    } catch {
+      setErr("Could not copy. Select the text above and copy it by hand.");
+    }
   }
+
+  const asked = marked || state?.asked_how?.replace("cv_", "") || "";
 
   return (
     <ModalScrim className="bg-black/60">
@@ -779,17 +912,62 @@ function CvRequestModal({
           </button>
         </div>
 
-        {busy && <p className={T_CAPTION}>Making the link…</p>}
+        {busy && <p className={T_CAPTION}>Checking…</p>}
         {err && <p className="text-sm text-amber-300">{err}</p>}
+
+        {state?.has_resume && (
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            They already sent one{state.resume_filename ? `: ${state.resume_filename}` : ""}.
+            Asking again asks for it a second time.
+          </p>
+        )}
+
+        {/* What the record already says. Written before the wording so that
+            somebody who only came to confirm an old send can stop here. */}
+        {state && (asked || state.link_made_at) && (
+          <p className={`rounded-lg px-3 py-2 text-xs ${
+            asked ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                  : "border border-white/10 bg-white/5 text-zinc-300"}`}>
+            {asked === "sent"
+              ? `Recorded as sent${state.asked_by ? ` by ${state.asked_by}` : ""}${state.asked_at ? ` on ${shortDate(state.asked_at)}` : ""}.`
+              : asked === "copied"
+              ? `The wording was copied${state.asked_by ? ` by ${state.asked_by}` : ""}${state.asked_at ? ` on ${shortDate(state.asked_at)}` : ""}, but nobody confirmed sending it.`
+              : `A link was built ${shortDate(state.link_made_at)}${state.link_made_by ? ` by ${state.link_made_by}` : ""}, but no message has been recorded as going out.`}
+          </p>
+        )}
+
+        {/* A live link exists. It cannot be shown again -- only its hash is
+            kept -- so the honest options are to confirm an earlier send, or to
+            replace it and pay the price of the old one dying. */}
+        {!busy && state?.link_live && !out && (
+          <>
+            <p className={T_CAPTION}>
+              Their link works until {shortDate(state.link_expires_at)}. The link
+              itself cannot be shown again — only a scrambled copy is kept — so
+              if they still have it, nothing needs to be re-sent.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {asked !== "sent" && (
+                <button className={PRIMARY_BUTTON} onClick={async () => {
+                  if (await mark("sent")) onClose();
+                }}>
+                  I sent it — mark this asked
+                </button>
+              )}
+              <button
+                className={SMALL_BUTTON}
+                title="Builds a new link and the one they already have stops working. Only do this if it never reached them."
+                onClick={() => void issue()}
+              >
+                They never got it — make a new link
+              </button>
+              <button className={SMALL_BUTTON} onClick={onClose}>Close</button>
+            </div>
+          </>
+        )}
 
         {out && (
           <>
-            {out.already_has_resume && (
-              <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                They already sent one{out.resume_filename ? `: ${out.resume_filename}` : ""}.
-                Sending this asks for it again.
-              </p>
-            )}
             <p className={T_CAPTION}>
               Opens a page with one thing on it — send your CV. No questions, no
               recording. Works for {out.expires_days} days, and what they upload
@@ -814,7 +992,15 @@ function CvRequestModal({
               <button className={SMALL_BUTTON} onClick={() => void copy(out.url, "link")}>
                 {copied === "link" ? "Copied" : "Copy link only"}
               </button>
-              <button className={SMALL_BUTTON} onClick={onClose}>Done</button>
+              {/* Done used to close and record nothing, so the board could not
+                  tell an asked person from an untouched one. It now says what
+                  it does. */}
+              <button className={PRIMARY_BUTTON} onClick={async () => {
+                if (await mark("sent")) onClose();
+              }}>
+                I sent it
+              </button>
+              <button className={SMALL_BUTTON} onClick={onClose}>Close without sending</button>
             </div>
           </>
         )}
@@ -2443,12 +2629,6 @@ function NewPlanModal({
 
 type OutcomeReason = { key: string; label: string };
 
-/** Reasons that describe running out of time rather than judging anybody.
- *  Kept apart in both directions, and the server enforces the same split: a
- *  count of "another candidate is stronger" that quietly includes 45 people
- *  nobody ever assessed is worse than no count at all. */
-const LAPSE_REASONS = new Set(["unreachable", "lapsed", "no_show", "withdrew", "other"]);
-const LAPSE_ONLY = new Set(["unreachable", "lapsed"]);
 
 const OUTCOME_BUTTONS: {
   key: "proceed" | "hold" | "pass" | "lapse";
@@ -3770,6 +3950,31 @@ export default function HRRecruitmentPage() {
     if (accessReady && view === "plans") void loadOverview();
   }, [accessReady, view, loadOverview]);
 
+  /** Coming back to the board reloads it.
+   *
+   *  The other tabs move people. Shortlisting in Voice screening sends the
+   *  applicant from New to Screened on the server and issues their booking
+   *  link in the same breath -- but the board was still holding the list it
+   *  fetched when the page opened, so switching back showed them sitting in
+   *  New as though nothing had happened. Maevelyn Teanchon was screened and
+   *  invited at 07:32:31 on 17 Sep and still drawn in the New column
+   *  afterwards.
+   *
+   *  That is worse than a stale number: the next person reads "New" and does
+   *  the work again -- sends a second link, or scores a second time. The board
+   *  has to be true the moment it is looked at, and a reload on arrival is the
+   *  only version of that which cannot miss a change made in a tab that does
+   *  not know this one exists.
+   *
+   *  Skipped on the first mount, where the effect above has just loaded it. */
+  const boardLoadedOnce = useRef(false);
+  useEffect(() => {
+    if (!accessReady) return;
+    if (view !== "pipeline") { boardLoadedOnce.current = true; return; }
+    if (!boardLoadedOnce.current) return;
+    void loadData();
+  }, [accessReady, view, loadData]);
+
   // Fetched rather than hard-coded, so the chips shown here are exactly the
   // values the database will accept.
   useEffect(() => {
@@ -4275,6 +4480,21 @@ export default function HRRecruitmentPage() {
               </span>
             );
           })}
+          {/* A CV landing is the one thing on this board that happens without
+              anybody here doing it, so it is the one thing you cannot find by
+              remembering what you did. Counted only while they are still in
+              New -- past that the CV is not what the row is waiting on. */}
+          {(() => {
+            const n = (grouped.new || []).filter(
+              (a) => cvStateOf(a) === "arrived").length;
+            if (n === 0) return null;
+            return (
+              <span className={`${T_CAPTION} flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-0.5 text-emerald-300`}>
+                <FileText className="h-3 w-3" />
+                CV arrived: <span className="font-semibold">{n}</span>
+              </span>
+            );
+          })()}
           <button
             onClick={() => setShowRequisitionsList((v) => !v)}
             className={`ml-auto flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
@@ -4368,6 +4588,7 @@ export default function HRRecruitmentPage() {
         <VoiceScreeningQueue
           focusScreeningId={focusVoice}
           onFocusHandled={() => setFocusVoice(0)}
+          onApplicantMoved={() => void loadData()}
         />
       ) : view === "plans" ? (
         <PlansView

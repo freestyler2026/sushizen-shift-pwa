@@ -26450,3 +26450,228 @@ carries the marker before polling on it.
   branch with 8 inactive rows. The empty one is worth a look.
 - `src/app/admin/branches.ts` is still a separate list (no BO/HQ). Not touched —
   it serves other screens and none of them were reported broken.
+
+## 2026-09-16 — The interview panel: three faults, reported twice
+
+Manila reported the same screen a second time. **My first fix (the modal scrim,
+lesson 116) did not touch this panel** — it is inline, not a modal. Three
+separate faults:
+
+**1. The note box lost focus after one character.** `Line` was declared inside
+`InterviewDay`'s render body, so it was a **new component type on every render**.
+Each keystroke re-rendered the parent → React unmounted the row and rebuilt it →
+the textarea was destroyed and recreated. With nothing focused, space scrolls the
+page: that is "it goes out of the typing box". Hoisted to module scope.
+**A re-render keeps the caret; a remount destroys it.**
+
+**2. Two of the four buttons could never succeed.** The save posted
+`{outcome, notes}` and never a `reason`. The server requires one for `hold`,
+`pass` and `lapse`, so **"Hold — decide later" and "Not for this role" returned
+400 every time** — and the refusal was drawn in the page-level banner far above
+the button, so it read as nothing happening. (`proceed` needs none, and the
+server supplies `no_show`'s own reason, so those two always worked.)
+Reason chips now come first, sharing `src/lib/hr-outcome.ts` with the board's
+dialog instead of a second copy; the refusal prints inside the panel; and `err`
+(list load) is no longer the same state as `outcomeErr` (save).
+
+**3. `Could not load the list (403)` — visible in their screenshot.**
+`/api/admin/hr/booking-invites/{pending,issue-all}`, `/hr/sms/status` and
+`/hr/applicant-events/coverage` were missing from `_HR_PATH_CHANNELS`. An
+unlisted path resolves to `channel=""`, which no permission can match, so
+**everyone but HQ/ADMIN/`*` got 403 and no grant in Role Management could have
+fixed it.** That is the first step of the whole interview flow, broken for
+exactly the two people whose job it is (Peter, Camilla) and working for the
+owner, who passes by role. Counted structurally: 4 of 80 `/api/admin/hr` routes
+were uncovered; now 0.
+
+### Verified
+- `tests/hr/interview-outcome.test.tsx` — **5 of its 6 cases fail against the
+  code the staff was using**: focus lands on `<body>` after the first character,
+  the textarea is a different DOM node between keystrokes, and "Not for this
+  role" posts a save with no reason. 6/6 pass on the fix.
+- **Real browser, real mouse, real keyboard** (local dev server, throwaway page
+  mounting the real component, no credential): typed "good fit for kitchen" with
+  spaces — caret stayed at 20, focus on the textarea, **space moved the page 0px**.
+  Pressed "Not for this role" → reason chips appeared, **nothing posted yet** →
+  pressed a chip → posted `{outcome:"pass", reason:"no_experience", notes:…}` and
+  the row read `Recorded — Not for this role`.
+- 403: production one-off, by name — Peter (HR_MANAGER) and Camilla (HR_STAFF)
+  now get 200 on all four paths.
+
+⚠️ **A component declared inside another component's body is a remount every
+render.** Grep for `const X = ({...}) => {` between a `function Component(` and
+its `return` — anything with an input in it will misbehave exactly this way.
+
+## 2026-09-16 — Ocean Fisheries → Fresh to Home: a new entity, not a rename
+
+Dubai reported the supplier was "becoming Fresh to Home". It is **not a rename**:
+different trade licence, different legal entity.
+
+- **VENDOR-D0017 / FRESHTOHOME FOODS (S.P.S - L.L.C)** — created, ACTIVE.
+  Ajman industrial licence **135049**, register 201838818, issued 2025-10-28,
+  **expires 2026-10-27** (tenancy 2026-10-14). Bank ADCB,
+  `AE260030014428579920001`, SWIFT ADCBAEAA, title FRESHTOHOME FOODS SPS LLC.
+  Alias `Fresh to Home`.
+- **TRN `100555826500003`** — from the FTA certificate. ⚠️ **It is a VAT GROUP
+  number shared by seven companies**, representative member FRESHTOHOME TRADING
+  (Musaffah, Abu Dhabi). Our supplier is member 7, matched to Ajman licence
+  135049 on the certificate. **The TRN alone does not identify who billed us** —
+  invoice checks must also read the legal name and the bank account, or a
+  different group company's invoice passes as this one.
+- **VENDOR-D004 / Ocean Fisheries LLC** — set **INACTIVE, not deleted**. Its TRN
+  (100235069000003) and alias (`OCEAN FISHERIES`) are kept: 472 order lines and
+  275 POs (2026-06-01 .. 09-15) are in that name, and anything unpaid is owed to
+  that entity.
+- **`Ocean Fisheries` was deliberately NOT added as an alias of Fresh to Home.**
+  Borrowing it would make every past Ocean Fisheries invoice resolve to the new
+  company.
+
+The catalog rename (`Ocean Fisheries` → `Fresh to Home`) had already been done by
+Ruby at 13:42 Dubai time. Harmless — `rename_proc_catalog_supplier` only touches
+`proc_curated_catalog_items`, never orders, POs or invoices — but it left the
+alias dangling until the vendor row existed.
+
+Verified through `_proc_vendor_map("dubai")`: `Fresh to Home` → VENDOR-D0017,
+`Ocean Fisheries` → VENDOR-D004. Both directions resolve.
+
+### Fixed in the same pass
+**Searching history is not the same question as choosing a supplier.** Setting
+Ocean Fisheries INACTIVE dropped it out of the Vendor dropdown on the **Invoices**
+page — a filter over invoices already on file, with the free-text fallback hidden
+whenever options exist, so there was no way left to look for them. Now unfiltered.
+The three places that pick a vendor for NEW work (Quotes, Catalog, CK Par Levels)
+still hide inactive ones, correctly.
+
+⚠️ Counted, not assumed: only **one** backend read filters `status='ACTIVE'` (the
+CK par-level dropdown) and two frontend screens did. `_proc_vendor_map` does not,
+so invoice/PO matching is unaffected by a vendor going inactive.
+
+### Open
+- **40 PO-invoice checks against Ocean Fisheries are still PENDING**
+  (`proc_po_invoice_checks`, 87 rows total). Unaffected by INACTIVE — that screen
+  does not filter by vendor status — but they need clearing, and a closed
+  supplier gets harder to query the longer it waits.
+- The renewed Ajman licence is due before 2026-10-27.
+
+## 2026-09-16 — Back-office workload: what the OS can and cannot see
+
+Measured the ten active Manila BO staff over 90 days (the owner named Francis,
+Richard and Mariano as exclusions; **none of the three are in BO** — Francis
+Ibana and Richard Gante are registered at CUB, Mariano Espenida is BO but
+ON_LEAVE).
+
+**Hours are nearly flat**: eight of ten sit at 9.6–10.6 h/day over 72–78 days.
+The spread is in *recorded output*, and much of that spread is instrumentation,
+not effort.
+
+⚠️ **Do not rank BO staff on actor-stamped row counts.** Procurement writes an
+audit row per action; HR, payroll and warehouse barely stamp anything. Two gaps
+make three people look idle who are not:
+
+- **`hr_applicants` has no author column** — 409 applicants entered in 90 days,
+  attributable to nobody.
+- **`manila_payroll_runs` has no `computed_by`** — 263 runs, same problem.
+- Interviews are on `hr_interview_schedules.interviewer`, which a `%_by` sweep
+  misses entirely (Camilla 16, Peter 10 — the two who looked lightest).
+
+Also found: **Caila Macararanga is scheduled 26–30 days/month and clocks in
+about 15**, on a monthly-paid contract, with 75 active days against 42 clocked.
+Only one ABSENT_DEDUCTION resulted, because the DTR fills from the published
+shift — so no pay was lost, but any per-day metric for her is inflated.
+
+Adding those two author columns would make this question answerable next time.
+Not done — it changes write paths in payroll and recruitment, and nobody has
+asked for the measurement to be repeatable yet.
+
+## 2026-09-16 — "Logged out about once a minute"
+
+One staff member reported it. **At least three people had it**, in bursts of
+10–30 minutes with 30–170 seconds between sign-ins:
+
+| | when | sign-ins |
+|---|---|---|
+| Camilla Gadingan | 09-16 09:04–09:23 | 12 |
+| Alex Delgado | 09-16 10:50–11:18 | 9 |
+| Dipa Sitaula | 09-16 20:02–20:13 | 7 |
+
+**The loop.** `/api/auth/verify` treated any call carrying a valid `sz_access`
+cookie as a re-mint and skipped session management entirely. That is right while
+the session is alive. It is wrong once a **second device supersedes it**
+(`superseded_by_new_login`, 747 in three days — single-session enforcement
+working as designed):
+
+1. Device B signs in → device A's session row goes `is_valid=false`.
+2. A's access token is still good for **16 hours**, and the browser cannot clear
+   it — `sz_access`/`sz_session` are httpOnly on `path=/api`.
+3. A's SessionGuard polls `session-check` with the superseded id → kicked.
+4. A signs in again → the still-valid cookie makes it **a re-mint** → no session
+   is created → A is kicked again on the next poll. **Signing in could not fix
+   it**, and `clearAuth()` could not either: it only reaches localStorage.
+
+**The fix, in three places.**
+- `app/main.py` — a re-mint now needs **both** a valid token **and** a session
+  that is still alive (`validate_staff_session` on the presented id). No live
+  session means a real sign-in, and a real sign-in issues one.
+- `src/app/api/auth/verify/route.ts` — forwards `sz_session` as `X-Session-Id`.
+  ⚠️ **Required by the above.** Without it the backend sees no session on any
+  verify, calls them all sign-ins, and re-mints start force-logging people out —
+  the opposite failure.
+- `src/components/SessionGuard.tsx` — the automatic kick now posts
+  `/api/auth/logout` before redirecting, which is the only route that can clear
+  the httpOnly pair.
+
+**Verified on production**, both branches, then the probe rows deleted:
+a live session → still a re-mint, no churn (the original protection is intact);
+a superseded session → a real sign-in, a session is issued.
+**Not exercised end-to-end through a browser login** — that needs a PIN.
+
+⚠️ **Checked before shipping, not after:** `validate_staff_session` calls
+`ensure_security_hardening_tables()`, which looked like lesson 85 (a migration
+on a request path). It is guarded by a process-level flag and runs once per
+dyno, so the login path takes no new DDL. The timeout seen while probing was a
+fresh one-off dyno running that migration for the first time.
+
+### Open
+- **Single-session enforcement still logs out device A when device B signs in.**
+  That is deliberate (H-3) and untouched. What is fixed is that A can now get
+  back in. If staff routinely use a phone and a store PC, this will keep
+  happening by design — worth deciding whether one session per person is still
+  the rule you want.
+
+## 2026-09-16 — A reminder the applicant can actually be sent
+
+The OS already reminds the **interviewer** on Discord the evening before. The
+**applicant** heard nothing between picking a time and the call.
+
+- `GET /api/admin/hr/interviews/{id}/reminder` composes it, English and Tagalog,
+  the same way `_booking_invite_payload` does. **The wording lives on the server**
+  so this and the booking invite cannot drift apart (lesson 62), and so the
+  GSM-7 rule lives in one place — one wide dash turns a 160-character SMS into 67.
+- Refuses on a booking with no `starts_at` and says to give it one, rather than
+  writing "your interview is at None".
+- Measured over 60 days: every interview is `viber` (29), `whatsapp` (10) or
+  `call` (9) and **none is in person**, so the message says how we will reach
+  them instead of inviting them to an office nobody is asked to visit.
+- Calendar day rows get **Reminder**. The applicant's own `form_language` opens
+  first. Nothing is sent — same shape as the booking link, and the panel says so.
+
+**Verified.** Real data through the deployed endpoint for four booked
+interviews: right names, "tomorrow at 9:00 AM", right app and number, and
+**every string inside GSM-7** (checked character by character, both languages).
+Then the button itself in a real browser on a throwaway mount: panel opens,
+Tagalog switches, the wording matches.
+
+⚠️ **The successful copy is not verified.** The in-app browser reports
+`clipboard-write: denied`, so no click can copy there. What is verified is the
+failure path: it shows "Could not copy. Select the text above and copy it by
+hand." The implementation is character-for-character the same
+`navigator.clipboard.writeText` + same fallback as the **Copy message** button
+on the booking-link panel, which is in daily use.
+
+### Open
+- Each message is ~210 characters, so two SMS segments if the gateway is ever
+  switched on. Irrelevant today (everything is pasted into Viber/WhatsApp), but
+  it would cost ~₱1.00 per applicant rather than ₱0.50.
+- Nothing records that a reminder was copied. The booking-link panel does
+  (`booking-invite/copied`), which is what makes "sent but never opened"
+  answerable. Worth the same here if reminders become routine.

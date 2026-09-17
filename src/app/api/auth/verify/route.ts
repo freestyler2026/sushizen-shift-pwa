@@ -26,18 +26,20 @@ export async function POST(req: NextRequest) {
     ? `Bearer ${existingToken}`
     : clientAuth || "";
 
-  // The server-side session, so Heroku can tell a token refresh from a second
-  // person logging in. Without it a refresh looked like a new login and threw
-  // every other session this person had off the system -- the tab they were
-  // typing in, or the phone they were about to clock out on.
-  const priorSessionId = req.cookies.get("sz_session")?.value || "";
+  // The session the caller is already on, so the backend can tell a re-mint from
+  // a real sign-in. A token alone cannot: it stays valid for sixteen hours after
+  // another device has superseded the session, and the browser cannot clear it
+  // (httpOnly). Without this the backend sees no session, calls every verify a
+  // sign-in, and re-mints start force-logging people out again.
+  const existingSession = req.cookies.get("sz_session")?.value
+    || req.headers.get("x-session-id") || "";
 
   const upstream = await fetch(`${apiBase}/api/auth/verify${search}`, {
     method: "POST",
     headers: {
       Accept: "application/json",
       ...(authHeader ? { Authorization: authHeader } : {}),
-      ...(priorSessionId ? { "X-Session-Id": priorSessionId } : {}),
+      ...(existingSession ? { "X-Session-Id": existingSession } : {}),
       ...(req.headers.get("x-approver-pin") ? { "X-Approver-Pin": req.headers.get("x-approver-pin") as string } : {}),
       ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
       ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),

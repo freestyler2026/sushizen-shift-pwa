@@ -146,9 +146,18 @@ export default function SessionGuard() {
       setToast(msg);
 
       setTimeout(() => {
-        clearAuth();
-        document.cookie = "sushizen_authed=; path=/; max-age=0";
-        router.replace(`/login?reason=${encodeURIComponent(reason)}`);
+        // Clear the httpOnly pair too. clearAuth() only reaches localStorage, and
+        // sz_access/sz_session are httpOnly on path=/api — JS cannot touch them.
+        // Leaving them behind is what made the next sign-in look like a re-mint
+        // of a session that no longer existed, so the user logged in, got no
+        // session, and was thrown out again within the minute.
+        void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" })
+          .catch(() => { /* the login page re-mints either way */ })
+          .finally(() => {
+            clearAuth();
+            document.cookie = "sushizen_authed=; path=/; max-age=0";
+            router.replace(`/login?reason=${encodeURIComponent(reason)}`);
+          });
       }, 3000);
     } catch {
       // Network error — don't kick the user out

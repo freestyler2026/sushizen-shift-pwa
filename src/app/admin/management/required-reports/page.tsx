@@ -14,6 +14,9 @@ interface Row {
   item_key: string;
   label: string;
   deadline: string;
+  /** Deadlines are per branch now, because one time could not fit three
+   *  branches that open an hour apart. A cell carries its own. */
+  deadline_next_day?: boolean;
   page: string;
   slot: string;
   severity: string;
@@ -60,6 +63,9 @@ function Cell({ row, onReview }: { row: Row; onReview: (r: Row, issue: boolean, 
         className={`w-full rounded-lg border px-2 py-1.5 text-left ${st.bg} ${canReview ? "cursor-pointer" : "cursor-default"}`}
       >
         <div className={`text-[11px] font-semibold ${st.text}`}>{st.label}</div>
+        <div className="text-[10px] text-zinc-500">
+          due {row.deadline}{row.deadline_next_day ? " +1d" : ""}
+        </div>
         {row.late && <div className="text-[10px] text-red-300">Submitted late</div>}
         {row.reviewed_by && <div className="text-[10px] text-zinc-500">{row.reviewed_by}</div>}
       </button>
@@ -205,7 +211,27 @@ export default function RequiredReportsPage() {
                       <div className="text-sm font-medium text-white">{first.label}</div>
                       {first.note && <div className="text-[11px] text-amber-300">{first.note}</div>}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs tabular-nums text-zinc-300">{first.deadline}</td>
+                    <td className="px-3 py-2 font-mono text-xs tabular-nums text-zinc-300">
+                      {(() => {
+                        // One time in this column used to be the first branch's,
+                        // printed across the whole row. Branches open an hour
+                        // apart, so that was wrong for the other two the moment
+                        // the deadlines stopped being identical.
+                        const times = Array.from(new Set(cells.map((c) => c.deadline))).sort();
+                        const nextDay = cells.some((c) => c.deadline_next_day);
+                        if (times.length === 1) {
+                          return <span title={nextDay ? "The small hours of the next day — closing work crosses midnight." : undefined}>
+                            {times[0]}{nextDay ? " +1d" : ""}
+                          </span>;
+                        }
+                        return (
+                          <span title={cells.map((c) => `${c.branch} ${c.deadline}`).join("  ·  ")}>
+                            {times[0]}–{times[times.length - 1]}
+                            <span className="ml-1 text-[10px] text-zinc-500">by branch</span>
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="px-3 py-2 text-xs text-zinc-400">{first.slot}</td>
                     {branches.map((b) => {
                       const r = cells.find((c) => c.branch === b);

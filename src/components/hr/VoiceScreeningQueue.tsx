@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { markBookingCopied, markBookingSent } from "@/lib/booking-mark";
 import {
   RefreshCw, Play, Check, PauseCircle, X, Undo2, AlertTriangle, Mic, Send, FileText,
 } from "lucide-react";
@@ -337,12 +338,18 @@ function mmss(sec: number | null): string {
   return m ? `${m}:${String(s).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`;
 }
 
-export default function VoiceScreeningQueue({ city = "manila", focusScreeningId = 0, onFocusHandled }: {
+export default function VoiceScreeningQueue({ city = "manila", focusScreeningId = 0,
+                                              onFocusHandled, onApplicantMoved }: {
   city?: string;
   /** Open this screening on arrival, whichever bucket it is in. Set when the
    *  calendar sends somebody here from a booked interview. */
   focusScreeningId?: number;
   onFocusHandled?: () => void;
+  /** A decision here moves the applicant on the server -- shortlist sends them
+   *  from New to Screened. The board and the counts above the tabs were built
+   *  from a list fetched when the page opened, so without this they keep
+   *  showing the old stage, and the next person does the work again. */
+  onApplicantMoved?: () => void;
 } = {}) {
   // Arriving with a specific person means the bucket is not known -- and
   // guessing it ("anyone booked has a decision, so Done") bakes a rule into
@@ -450,6 +457,9 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
   const [inviteFor, setInviteFor] = useState<string>("");
   const [inviteLang, setInviteLang] = useState<"en" | "tl">("en");
   const [copied, setCopied] = useState("");
+  /** Whether the booking wording has left this panel. "Sent — close" only
+   *  claims a send when something was actually taken away. */
+  const [bookingCopiedOnce, setBookingCopiedOnce] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -610,14 +620,23 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
     }
   }
 
-  async function copy(text: string, what: string) {
+  async function copy(text: string, what: string, forApplicantId = "") {
+    let clipboardWorked = true;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(what);
     } catch {
       // Clipboard is blocked outside a secure context or without permission.
       // Saying so beats a button that looks like it worked.
+      clipboardWorked = false;
       setErr("Could not copy. Select the text and copy it by hand.");
+    }
+    // The board decides whether a row reads "sent" from these events, and this
+    // panel was writing none of them. Somebody who sent the link from here came
+    // back on the board as "not sent" and sent it a second time.
+    if (forApplicantId) {
+      await markBookingCopied(forApplicantId, what, inviteLang, clipboardWorked);
+      setBookingCopiedOnce(true);
     }
   }
 
@@ -658,6 +677,9 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
       setNote("");
       setOpenId(null);
       setDetail(null);
+      // Tell the page the applicant is somewhere else now, so the board and
+      // the counts above the tabs stop describing where they used to be.
+      onApplicantMoved?.();
       if (decision === "shortlist") {
         // The link is fetched here rather than behind another button: a second
         // press is a second chance to not press it.
@@ -1196,7 +1218,7 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
                             <a
                               className={SMALL_BUTTON}
                               href={`viber://chat?number=${encodeURIComponent(ph.e164)}`}
-                              onClick={() => void copy(invite.messages[inviteLang], "viber")}
+                              onClick={() => void copy(invite.messages[inviteLang], "viber", row.applicant_id)}
                             >
                               Viber (copies the text)
                             </a>
@@ -1221,13 +1243,13 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
                       className={SMALL_BUTTON}
-                      onClick={() => void copy(invite.messages[inviteLang], "message")}
+                      onClick={() => void copy(invite.messages[inviteLang], "message", row.applicant_id)}
                     >
                       Copy message
                     </button>
                     <button
                       className={SMALL_BUTTON}
-                      onClick={() => void copy(invite.url, "link")}
+                      onClick={() => void copy(invite.url, "link", row.applicant_id)}
                     >
                       Copy link only
                     </button>
@@ -1238,7 +1260,29 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
                     )}
                     <button
                       className={`${SMALL_BUTTON} ml-auto`}
-                      onClick={() => { setInvite(null); setInviteFor(""); setCopied(""); void load(); }}
+                      disabled={saving}
+                      onClick={async () => {
+                        // The button says "Sent". Until today it only closed
+                        // the panel, so the board went on showing "not sent"
+                        // and the message went out again from there.
+                        const close = () => {
+                          setInvite(null); setInviteFor(""); setCopied("");
+                          setBookingCopiedOnce(false); void load();
+                        };
+                        if (!bookingCopiedOnce) { close(); return; }
+                        setSaving(true);
+                        try {
+                          const ok = await markBookingSent(row.applicant_id);
+                          // Do not close on a failure: a panel closing looks
+                          // exactly like it worked, and the row then reads
+                          // "not sent" with nobody any the wiser (lesson 46).
+                          if (!ok) {
+                            setErr("Marked nothing — the send was not recorded. Press it again.");
+                            return;
+                          }
+                          close();
+                        } finally { setSaving(false); }
+                      }}
                     >
                       Sent — close
                     </button>

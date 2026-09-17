@@ -1,0 +1,336 @@
+<title>Back Office Daily Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap">
+
+<style>
+  :root {
+    --paper:#EDEFF2; --card:#FFFFFF; --sunken:#DFE3E9;
+    --ink:#171A1F; --ink-soft:#454A53; --muted:#696F7A;
+    --line:#CFD5DD; --line-soft:#E2E6EC;
+    --key:#1F4E79;  --key-wash:#DDE8F2;
+    --warn:#9A5B12; --warn-wash:#F6EBDC;
+    --done:#2C6249; --done-wash:#DFEDE6;
+    --rule:2px solid var(--ink);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#111419; --card:#1A1E25; --sunken:#232830;
+      --ink:#E9ECF0; --ink-soft:#BBC1C9; --muted:#8C939D;
+      --line:#2E343D; --line-soft:#262B33;
+      --key:#79AEDC;  --key-wash:#17242F;
+      --warn:#D9A15C; --warn-wash:#2A2318;
+      --done:#78B99B; --done-wash:#18271F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#111419; --card:#1A1E25; --sunken:#232830;
+    --ink:#E9ECF0; --ink-soft:#BBC1C9; --muted:#8C939D;
+    --line:#2E343D; --line-soft:#262B33;
+    --key:#79AEDC;  --key-wash:#17242F;
+    --warn:#D9A15C; --warn-wash:#2A2318;
+    --done:#78B99B; --done-wash:#18271F;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:Inter,"Noto Sans JP",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:45rem; margin:0 auto; padding:0 1rem 5rem; }
+
+  .bar {
+    position:sticky; top:0; z-index:9; background:var(--paper);
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    padding:.55rem 0; margin-bottom:1.5rem;
+  }
+  .bar b {
+    font-family:"Barlow Condensed",Inter,sans-serif; font-weight:700; font-size:1rem;
+    letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+  }
+  .langs { display:flex; gap:2px; background:var(--sunken); border-radius:7px; padding:2px; }
+  .langs button {
+    font:inherit; font-size:.8rem; font-weight:600; border:0; border-radius:5px;
+    padding:.25rem .7rem; background:transparent; color:var(--muted); cursor:pointer;
+  }
+  .langs button[aria-pressed="true"] { background:var(--card); color:var(--ink); }
+  .langs button:focus-visible { outline:2px solid var(--key); outline-offset:2px; }
+
+  .ja { display:none; }
+  :root[data-lang="ja"] .ja { display:revert; }
+  :root[data-lang="ja"] .en { display:none; }
+
+  h1 {
+    font-family:"Barlow Condensed",Inter,sans-serif; font-weight:700;
+    font-size:clamp(2.1rem,7.5vw,3rem); line-height:1.02; text-transform:uppercase;
+    margin:0 0 .4rem;
+  }
+  .sub { color:var(--ink-soft); margin:0 0 1.5rem; max-width:33rem; }
+  p { margin:0 0 .9rem; max-width:34rem; }
+
+  /* where to go */
+  .goto {
+    border:var(--rule); border-radius:12px; background:var(--card);
+    padding:1rem 1.1rem; margin-bottom:2rem;
+  }
+  .goto .k {
+    font-size:.7rem; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--muted); font-weight:600; display:block; margin-bottom:.5rem;
+  }
+  .path { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem; font-size:1rem; }
+  .path i {
+    font-style:normal; background:var(--sunken); border-radius:6px;
+    padding:.14em .55em; font-weight:600;
+  }
+  .path i.hi { background:var(--key); color:var(--card); }
+  .path s { text-decoration:none; color:var(--muted); }
+  .goto p { margin:.7rem 0 0; font-size:.88rem; color:var(--muted); }
+
+  /* the chain */
+  .chain { display:grid; grid-template-columns:repeat(auto-fit,minmax(9rem,1fr)); gap:.5rem; margin:1.1rem 0 2rem; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:.75rem .85rem; }
+  .step b { display:block; font-size:.95rem; margin-bottom:.15rem; }
+  .step span { font-size:.82rem; color:var(--muted); line-height:1.4; display:block; }
+  .step.s1 { border-color:var(--line); }
+  .step.s2 { border-color:var(--key); background:var(--key-wash); }
+  .step.s2 b { color:var(--key); }
+
+  /* slot cards */
+  .slot { background:var(--card); border:1px solid var(--line); border-radius:12px;
+          margin-bottom:.8rem; overflow:hidden; }
+  .slot > header {
+    display:flex; align-items:baseline; justify-content:space-between; gap:1rem;
+    padding:.85rem 1rem .6rem; border-bottom:1px solid var(--line-soft);
+  }
+  .slot h3 {
+    margin:0; font-family:"Barlow Condensed",Inter,sans-serif; font-weight:700;
+    font-size:1.3rem; text-transform:uppercase; letter-spacing:.02em;
+  }
+  .ja h3 { font-family:"Noto Sans JP",sans-serif; text-transform:none; font-size:1.05rem; }
+  .slot header em {
+    font-style:normal; font-family:"Roboto Mono",monospace; font-size:1.15rem;
+    color:var(--warn); font-variant-numeric:tabular-nums;
+  }
+  .slot ul { margin:0; padding:.7rem 1rem .85rem 2.1rem; }
+  .slot li { margin-bottom:.3rem; font-size:.95rem; }
+  .slot li:last-child { margin-bottom:0; }
+  .slot li b { font-family:"Roboto Mono",monospace; font-weight:500; color:var(--muted); font-size:.86rem; }
+
+  h2 {
+    font-family:"Barlow Condensed",Inter,sans-serif; font-weight:700; font-size:1.5rem;
+    text-transform:uppercase; margin:2.6rem 0 .5rem; padding-bottom:.35rem;
+    border-bottom:var(--rule);
+  }
+  .ja h2 { font-family:"Noto Sans JP",sans-serif; text-transform:none; font-size:1.25rem; }
+
+  .flag { background:var(--warn-wash); border-radius:10px; padding:1rem 1.1rem; margin:1rem 0; }
+  .flag p:last-child { margin-bottom:0; }
+
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  th,td { text-align:left; padding:.55rem .6rem; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  th { font-size:.7rem; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);
+       font-weight:600; border-bottom:1px solid var(--line); }
+  td.n { font-family:"Roboto Mono",monospace; text-align:right; font-variant-numeric:tabular-nums; }
+  .scroller { overflow-x:auto; }
+
+  footer { margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--line);
+           color:var(--muted); font-size:.85rem; }
+  footer p { max-width:none; }
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+
+<div class="wrap">
+
+<div class="bar">
+  <b><span class="en">Sushi ZEN &middot; Back Office</span><span class="ja">Sushi ZEN・バックオフィス</span></b>
+  <div class="langs" role="group" aria-label="Language">
+    <button type="button" data-set="en" aria-pressed="true">English</button>
+    <button type="button" data-set="ja" aria-pressed="false">日本語</button>
+  </div>
+</div>
+
+<h1><span class="en">Reading what the stores sent</span><span class="ja">店舗から届いたものを読む</span></h1>
+<p class="sub en">
+  The stores file eight things a day. Until somebody here has read one, nothing
+  is known about that store&rsquo;s day &mdash; a report can arrive on time and
+  still be wrong.
+</p>
+<p class="sub ja">
+  店舗は1日に8件を提出します。それをここで<strong>誰かが読むまで、その店のその日について何も分かりません</strong>。
+  時間どおりに届いていても、中身が正しいとは限らないためです。
+</p>
+
+<div class="goto">
+  <span class="k"><span class="en">Where this is done</span><span class="ja">作業する場所</span></span>
+  <div class="path">
+    <i>Menu</i><s>&rsaquo;</s><i>Store Operations</i><s>&rsaquo;</s><i>BO Dashboard</i><s>&rsaquo;</s><i class="hi">Required Reports</i>
+  </div>
+  <p class="en">There is no menu entry of its own &mdash; it is a tab across the
+    top of the BO Dashboard, next to Owners and Par Levels.</p>
+  <p class="ja">独立したメニュー項目はありません。<strong>BO Dashboard の上部タブ</strong>として、
+    Owners や Par Levels と並んでいます。</p>
+</div>
+
+<h2><span class="en">Four stages, not two</span><span class="ja">段階は2つではなく4つ</span></h2>
+<div class="chain">
+  <div class="step s1">
+    <b><span class="en">1 &middot; Submitted</span><span class="ja">1・提出</span></b>
+    <span class="en">The store filed it. This part is already done for you.</span>
+    <span class="ja">店舗が出した状態。ここは自動で埋まります。</span>
+  </div>
+  <div class="step s2">
+    <b><span class="en">2 &middot; Reviewed</span><span class="ja">2・点検</span></b>
+    <span class="en">You read it. <strong>This is your part.</strong></span>
+    <span class="ja">読んで確認する。<strong>ここが担当分です。</strong></span>
+  </div>
+  <div class="step s2">
+    <b><span class="en">3 &middot; Issue found</span><span class="ja">3・問題あり</span></b>
+    <span class="en">Only if something is wrong. Write what.</span>
+    <span class="ja">おかしい場合のみ。内容を書きます。</span>
+  </div>
+  <div class="step s2">
+    <b><span class="en">4 &middot; Action taken</span><span class="ja">4・対処</span></b>
+    <span class="en">What was done about it, and by whom.</span>
+    <span class="ja">何をしたか、誰がしたか。</span>
+  </div>
+</div>
+<p class="en">
+  Marking something reviewed with no issue is a real answer and takes one tap.
+  <strong>Stage 3 and 4 are only for the ones that are actually wrong.</strong>
+</p>
+<p class="ja">
+  問題が無ければ「点検済み・問題なし」で1タップです。
+  <strong>3と4は、実際におかしかったものだけ</strong>に使います。
+</p>
+
+<h2><span class="en">Who owns which</span><span class="ja">担当の分かれ方</span></h2>
+<p class="en">The eight items split into two slots. The numbers are what went
+  unread over 2&ndash;15 September.</p>
+<p class="ja">8項目は2つの担当に分かれます。数字は2026年9月2日〜15日に読まれなかった件数です。</p>
+
+<div class="slot">
+  <header>
+    <h3>BO Staff A <span class="en">&mdash; stock and waste</span><span class="ja">&mdash; 在庫・廃棄</span></h3>
+    <em>95</em>
+  </header>
+  <ul>
+    <li><span class="en">AM Backup Report</span><span class="ja">AM Backup Report</span> &middot; <b>PAR 11:30 &middot; CUB 11:15 &middot; TAFT 11:45</b></li>
+    <li><span class="en">PM Backup Report</span><span class="ja">PM Backup Report</span> &middot; <b>PAR 17:30 &middot; CUB 17:45 &middot; TAFT 18:15</b> &middot;
+        <span class="en">the only red item</span><span class="ja">唯一の赤判定</span></li>
+    <li><span class="en">Daily Inventory</span><span class="ja">Daily Inventory</span> &middot; <b>18:30</b> &middot; <span class="en">PM count only</span><span class="ja">PM のみ</span></li>
+    <li><span class="en">Disposal Report / NIL</span><span class="ja">Disposal Report / NIL</span> &middot; <b>00:00</b> <span class="en">next day, after closing</span><span class="ja">翌未明・閉店後</span></li>
+  </ul>
+</div>
+
+<div class="slot">
+  <header>
+    <h3>BO Staff D <span class="en">&mdash; opening and temperature</span><span class="ja">&mdash; 開店・温度</span></h3>
+    <em>135</em>
+  </header>
+  <ul>
+    <li><span class="en">Opening Report</span><span class="ja">Opening Report</span> &middot; <b>PAR 10:30 &middot; CUB 11:15 &middot; TAFT 11:15</b> &middot; <span class="en">from Daily Checks, not the travel path</span><span class="ja">Daily Checks から。Travel Path ではありません</span></li>
+    <li><span class="en">Opening Travel Path</span><span class="ja">Opening Travel Path</span> &middot; <b>PAR 11:15 &middot; CUB 12:30 &middot; TAFT 11:30</b></li>
+    <li><span class="en">Mid Shift Travel Path</span><span class="ja">Mid Shift Travel Path</span> &middot; <b>PAR 18:00 &middot; CUB 16:30 &middot; TAFT 18:00</b></li>
+    <li><span class="en">Closing Travel Path</span><span class="ja">Closing Travel Path</span> &middot; <b>01:00</b> <span class="en">next day</span><span class="ja">翌未明</span></li>
+  </ul>
+</div>
+
+<div class="flag">
+  <p class="en"><strong>Opening Report and Opening Travel Path are one
+    submission.</strong> Both read the same record, so when the store files the
+    opening travel path, both lines fill. Reviewing it once answers both.</p>
+  <p class="ja"><strong>Opening Report と Opening Travel Path は同じ提出物です。</strong>
+    どちらも同じ記録を読んでいるため、店舗が Opening Travel Path を出すと両方の行が埋まります。
+    点検も1回で両方に効きます。</p>
+</div>
+
+<h2><span class="en">Where this stands</span><span class="ja">現状</span></h2>
+<p class="en">
+  Over those two weeks the stores filed <strong>259</strong> reports.
+  <strong>29</strong> were read. That is one in nine.
+</p>
+<p class="ja">
+  この2週間に店舗が出したのは <strong>259件</strong>。読まれたのは <strong>29件</strong>で、
+  <strong>9件に1件</strong>です。
+</p>
+<div class="scroller">
+  <table>
+    <thead><tr>
+      <th><span class="en">Branch</span><span class="ja">拠点</span></th>
+      <th><span class="en">Arrived</span><span class="ja">届いた</span></th>
+      <th><span class="en">Never read</span><span class="ja">未点検</span></th>
+    </tr></thead>
+    <tbody>
+      <tr><td>CUB</td><td class="n">93</td><td class="n">89</td></tr>
+      <tr><td>TAFT</td><td class="n">89</td><td class="n">79</td></tr>
+      <tr><td>PAR</td><td class="n">77</td><td class="n">62</td></tr>
+      <tr><td>CK</td><td class="n">0</td><td class="n">&mdash;</td></tr>
+    </tbody>
+  </table>
+</div>
+<p class="en" style="margin-top:.9rem">
+  <strong>The branches that file best have the most unread.</strong> That is
+  arithmetic, not blame &mdash; there is simply more of theirs to read. It does
+  mean the stores keeping up are the ones getting no answer back.
+</p>
+<p class="ja" style="margin-top:.9rem">
+  <strong>よく提出している店ほど未点検が多くなっています。</strong>
+  読む対象が多いというだけの計算ですが、<strong>きちんと出している店ほど、何の反応も返っていない</strong>ということでもあります。
+</p>
+
+<div class="flag">
+  <p class="en"><strong>Three people did all 29.</strong> Aliana Manuel 19,
+    Erica May Sadiasa 6, Francis Ibana 4. Nobody else opened the tab in two
+    weeks. If the slots A and D are not assigned to named people, they are not
+    assigned.</p>
+  <p class="ja"><strong>29件すべてを3名で行っています。</strong>
+    Aliana Manuel 19件、Erica May Sadiasa 6件、Francis Ibana 4件。
+    この2週間、他の誰もこのタブを開いていません。
+    <strong>A と D の担当が個人名で決まっていなければ、決まっていないのと同じです。</strong></p>
+</div>
+
+<h2><span class="en">One thing to expect on screen</span><span class="ja">画面で1点</span></h2>
+<p class="en">
+  <strong>Daily Inventory shows missing more often than it is.</strong> The item
+  asks for the PM count; over these two weeks the stores filed 41 AM counts and
+  15 PM. The work is being done at the other end of the day. Worth settling
+  which is right rather than reading it as a store that skipped.
+</p>
+<p class="ja">
+  <strong>Daily Inventory は実態より多く「未提出」と出ます。</strong>
+  この項目は PM の棚卸しを求めていますが、この2週間の実績は AM 41件・PM 15件でした。
+  作業は1日の反対側で行われています。<strong>店舗の怠慢と読む前に、どちらが正しいかを決める</strong>のが先です。
+</p>
+
+<footer>
+  <p class="en">Sushi ZEN Workforce OS &middot; Figures measured 2&ndash;15 September 2026,
+  Manila. If the screen does not match what is written here, that is a fault in
+  this sheet &mdash; say so rather than working around it.</p>
+  <p class="ja">Sushi ZEN Workforce OS ・ 数値は2026年9月2日〜15日のマニラ実測値。
+  画面がここに書いてあるものと違う場合は<strong>この表の不具合</strong>です。
+  回避せず、そのまま伝えてください。</p>
+</footer>
+
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btns = Array.prototype.slice.call(document.querySelectorAll(".langs button"));
+    function apply(l) {
+      root.setAttribute("data-lang", l);
+      btns.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.set === l)); });
+    }
+    var saved = null;
+    try { saved = localStorage.getItem("zen:bo-review-lang"); } catch (e) { saved = null; }
+    apply(saved === "ja" ? "ja" : "en");
+    btns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        apply(b.dataset.set);
+        try { localStorage.setItem("zen:bo-review-lang", b.dataset.set); } catch (e) {}
+      });
+    });
+  })();
+</script>
