@@ -281,7 +281,7 @@ export default function CKDeliveryNotePage() {
                       <th className="text-right py-1 pl-3" style={{ width: "14%" }}>Line Total</th>
                     </>
                   )}
-                  <th className="text-left py-1 pl-3" style={{ width: "9%" }}>Source</th>
+                  <th className="text-left py-1 pl-3" style={{ width: "9%" }}>Line from</th>
                   {!editMode && <th className="text-left py-1 pl-3" style={{ width: "9%" }}>✓</th>}
                 </tr>
               </thead>
@@ -310,8 +310,25 @@ export default function CKDeliveryNotePage() {
                                 onChange={e => setDraftPrices(p => ({ ...p, [origItem?.id ?? item.id]: e.target.value }))}
                                 className="w-24 rounded border border-blue-300 bg-blue-50 px-1.5 py-0.5 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-400"
                               />
+                            ) : (item.unit_price || 0) > 0 ? (
+                              <>
+                                {fmt(item.unit_price)}
+                                {/* Which lines the banner is counting. A count on its
+                                    own cannot be acted on -- the reader has to be able
+                                    to see which figure is today's catalogue price
+                                    rather than the one the order carried. The SOURCE
+                                    column next to it means something else entirely
+                                    (whether the LINE came from the order), so this
+                                    cannot live there. */}
+                                {item.price_source === "catalog" && (
+                                  <span
+                                    title="The order carried no price. This is the current catalogue price."
+                                    className="ml-1.5 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-amber-700"
+                                  >catalog</span>
+                                )}
+                              </>
                             ) : (
-                              (item.unit_price || 0) > 0 ? fmt(item.unit_price) : "—"
+                              "—"
                             )}
                           </td>
                           <td className="py-1.5 pl-3 text-right font-mono text-gray-800 tabular-nums">
