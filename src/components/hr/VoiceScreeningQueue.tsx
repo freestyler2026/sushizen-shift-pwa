@@ -337,12 +337,18 @@ function mmss(sec: number | null): string {
   return m ? `${m}:${String(s).padStart(2, "0")}` : `0:${String(s).padStart(2, "0")}`;
 }
 
-export default function VoiceScreeningQueue({ city = "manila", focusScreeningId = 0, onFocusHandled }: {
+export default function VoiceScreeningQueue({ city = "manila", focusScreeningId = 0,
+                                              onFocusHandled, onApplicantMoved }: {
   city?: string;
   /** Open this screening on arrival, whichever bucket it is in. Set when the
    *  calendar sends somebody here from a booked interview. */
   focusScreeningId?: number;
   onFocusHandled?: () => void;
+  /** A decision here moves the applicant on the server -- shortlist sends them
+   *  from New to Screened. The board and the counts above the tabs were built
+   *  from a list fetched when the page opened, so without this they keep
+   *  showing the old stage, and the next person does the work again. */
+  onApplicantMoved?: () => void;
 } = {}) {
   // Arriving with a specific person means the bucket is not known -- and
   // guessing it ("anyone booked has a decision, so Done") bakes a rule into
@@ -658,6 +664,9 @@ export default function VoiceScreeningQueue({ city = "manila", focusScreeningId 
       setNote("");
       setOpenId(null);
       setDetail(null);
+      // Tell the page the applicant is somewhere else now, so the board and
+      // the counts above the tabs stop describing where they used to be.
+      onApplicantMoved?.();
       if (decision === "shortlist") {
         // The link is fetched here rather than behind another button: a second
         // press is a second chance to not press it.

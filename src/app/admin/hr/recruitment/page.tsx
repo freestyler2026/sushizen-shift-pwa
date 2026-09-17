@@ -3950,6 +3950,31 @@ export default function HRRecruitmentPage() {
     if (accessReady && view === "plans") void loadOverview();
   }, [accessReady, view, loadOverview]);
 
+  /** Coming back to the board reloads it.
+   *
+   *  The other tabs move people. Shortlisting in Voice screening sends the
+   *  applicant from New to Screened on the server and issues their booking
+   *  link in the same breath -- but the board was still holding the list it
+   *  fetched when the page opened, so switching back showed them sitting in
+   *  New as though nothing had happened. Maevelyn Teanchon was screened and
+   *  invited at 07:32:31 on 17 Sep and still drawn in the New column
+   *  afterwards.
+   *
+   *  That is worse than a stale number: the next person reads "New" and does
+   *  the work again -- sends a second link, or scores a second time. The board
+   *  has to be true the moment it is looked at, and a reload on arrival is the
+   *  only version of that which cannot miss a change made in a tab that does
+   *  not know this one exists.
+   *
+   *  Skipped on the first mount, where the effect above has just loaded it. */
+  const boardLoadedOnce = useRef(false);
+  useEffect(() => {
+    if (!accessReady) return;
+    if (view !== "pipeline") { boardLoadedOnce.current = true; return; }
+    if (!boardLoadedOnce.current) return;
+    void loadData();
+  }, [accessReady, view, loadData]);
+
   // Fetched rather than hard-coded, so the chips shown here are exactly the
   // values the database will accept.
   useEffect(() => {
@@ -4563,6 +4588,7 @@ export default function HRRecruitmentPage() {
         <VoiceScreeningQueue
           focusScreeningId={focusVoice}
           onFocusHandled={() => setFocusVoice(0)}
+          onApplicantMoved={() => void loadData()}
         />
       ) : view === "plans" ? (
         <PlansView
