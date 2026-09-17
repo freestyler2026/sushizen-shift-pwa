@@ -1033,6 +1033,23 @@ function InterviewForm({
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
 
+  /* The list above is where a time normally comes from. It is not every time an
+     interview can be held: weekends, and hours outside the interviewer's roster,
+     are missing from it by design. Those cases are real -- on 2026-09-18 we
+     offered a Saturday phone call to somebody whose interview call we missed --
+     and until now there was no way to enter one, so it would have been agreed on
+     the phone and then never appear anywhere.
+
+     Kept behind a link so the list stays the obvious path, and the reason is
+     required: somebody is being asked to work outside their shift. */
+  const [special, setSpecial] = useState(false);
+  const [people, setPeople] = useState<string[]>([]);
+  const [sDate, setSDate] = useState("");
+  const [sTime, setSTime] = useState("");
+  const [sWho, setSWho] = useState("");
+  const [sReason, setSReason] = useState("");
+  const [sErr, setSErr] = useState("");
+
   useEffect(() => {
     let alive = true;
     void (async () => {
@@ -1049,6 +1066,57 @@ function InterviewForm({
     })();
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (!special || people.length) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/hr/interviews/interviewers",
+          { cache: "no-store" });
+        if (!alive || !res.ok) return;
+        const j = await res.json();
+        const rows: string[] = j.rows || [];
+        setPeople(rows);
+        // 並び順が優先順位なので、既定は先頭。
+        setSWho((w) => w || rows[0] || "");
+      } catch { /* the panel still works if they type nothing; Book will say so */ }
+    })();
+    return () => { alive = false; };
+  }, [special, people.length]);
+
+  async function bookSpecial() {
+    if (saving) return;
+    if (!sDate || !sTime) { setSErr("Pick the date and the time you agreed."); return; }
+    if (!sWho) { setSErr("Pick who is taking it."); return; }
+    if (!sReason.trim()) { setSErr("Say in one line why it is outside the usual times."); return; }
+    setSaving(true);
+    setSErr("");
+    try {
+      const res = await fetch(`/api/admin/hr/applicants/${applicantId}/book`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // Manila wall clock -- the server reads it in the store's timezone.
+          starts_at: `${sDate}T${sTime}:00`,
+          interviewer: sWho,
+          reason: sReason.trim(),
+        }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text;
+        try { msg = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
+        setSErr(String(msg).slice(0, 240));
+        return;
+      }
+      onBooked();
+    } catch {
+      setSErr("Could not book it. Nothing changed — try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function take(s: { starts_at: string; interviewer: string }) {
     if (saving) return;
@@ -1127,6 +1195,77 @@ function InterviewForm({
           ))}
         </div>
       )}
+      {!special && (
+        <button
+          onClick={() => { setSpecial(true); setSErr(""); }}
+          className="text-left text-xs text-violet-300 underline underline-offset-2 hover:text-violet-200"
+        >
+          The time we agreed is not on this list
+        </button>
+      )}
+
+      {special && (
+        <div className="space-y-2 rounded-lg border border-amber-400/25 bg-amber-400/5 p-3">
+          <p className={T_SECTION}>Outside the usual times</p>
+          <p className={T_CAPTION}>
+            Use this for an arrangement made by hand — a weekend phone call, or an
+            hour outside the interviewer&apos;s shift. It books exactly like any other
+            interview: the interviewer is told, and it shows on Interviews and
+            Calendar. They are being asked to work outside their roster, so say why.
+          </p>
+          {sErr && <p className="text-sm text-amber-300">{sErr}</p>}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={T_LABEL}>Date</label>
+              <input
+                type="date"
+                min={isoToday()}
+                value={sDate}
+                onChange={(e) => setSDate(e.target.value)}
+                className={`${INPUT_CLASS} mt-1`}
+              />
+            </div>
+            <div>
+              <label className={T_LABEL}>Time (Manila)</label>
+              <input
+                type="time"
+                value={sTime}
+                onChange={(e) => setSTime(e.target.value)}
+                className={`${INPUT_CLASS} mt-1`}
+              />
+            </div>
+          </div>
+          <div>
+            <label className={T_LABEL}>Interviewer</label>
+            <SelectDark
+              value={sWho}
+              onChange={setSWho}
+              aria-label="Interviewer"
+              options={people.map((n) => ({ value: n, label: n }))}
+            />
+          </div>
+          <div>
+            <label className={T_LABEL}>Why this time</label>
+            <input
+              value={sReason}
+              onChange={(e) => setSReason(e.target.value)}
+              placeholder="e.g. we missed her interview call, offered Saturday"
+              className={`${INPUT_CLASS} mt-1`}
+            />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button className={PRIMARY_BUTTON} disabled={saving}
+                    onClick={() => void bookSpecial()}>
+              {saving ? "Booking…" : "Book this time"}
+            </button>
+            <button className={SECONDARY_BUTTON} disabled={saving}
+                    onClick={() => { setSpecial(false); setSErr(""); }}>
+              Back to the open times
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-2 pt-1">
         <button className={SECONDARY_BUTTON} onClick={onCancel}>
           Close
