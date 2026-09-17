@@ -511,6 +511,103 @@ function StaffReportTab({ city }: { city: string }) {
 
 type GpsEditState = { lat: string; lng: string; radius_m: string; label: string };
 
+/** How often a clock-in ends without writing anything.
+ *
+ *  The passkey check leaves no trace on the server when it does not finish,
+ *  so until now the only way to learn about it was somebody noticing hours
+ *  later that they had no time in. Peter Villafuerte lost a morning that way
+ *  on 17 Sep 2026 and found out at 16:21.
+ *
+ *  Silence here means nobody has been stopped since recording began, which is
+ *  the answer we want — but it is also what an unconnected feature looks like,
+ *  so the panel says which it is.
+ */
+function GaveUpPanel({ city }: { city: string }) {
+  const [rows, setRows] = useState<{
+    staff_name: string; action: string; outcome: string; n: number; last_at: string;
+  }[]>([]);
+  const [total, setTotal] = useState(0);
+  const [people, setPeople] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    setBusy(true); setErr("");
+    try {
+      const r = await apiFetch(`${API}/gave-up?city=${city}&days=14`);
+      if (!r.ok) { setErr(await extractApiError(r, "Could not load")); return; }
+      const d = await r.json() as { rows?: typeof rows; total?: number; people?: number };
+      setRows(d.rows ?? []); setTotal(d.total ?? 0); setPeople(d.people ?? 0);
+    } catch { setErr("Could not load"); }
+    finally { setBusy(false); }
+  }, [city]);
+  useEffect(() => { void load(); }, [load]);
+
+  const LABEL: Record<string, string> = {
+    cancelled: "passkey sheet closed without finishing",
+    timed_out: "passkey check ran out of time",
+    passkey_missing: "no passkey on that device",
+    error: "other error",
+  };
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">Clock-ins that recorded nothing</p>
+          <p className="text-xs text-white/50">
+            Last 14 days. The person tapped the button and the passkey check ended
+            without writing anything. Recording started 17 Sep 2026 — nothing before
+            that was counted.
+          </p>
+        </div>
+        <button onClick={() => { void load(); }} disabled={busy}
+          className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
+          <RefreshCw size={12} />Refresh
+        </button>
+      </div>
+      {err && <p className="text-xs text-amber-300">{err}</p>}
+      {!err && total === 0 && (
+        <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+          Nobody has been stopped this way since recording began.
+        </p>
+      )}
+      {total > 0 && (
+        <>
+          <p className="text-xs text-white/70">
+            <span className="font-semibold text-amber-300">{total}</span> attempts
+            from <span className="font-semibold text-amber-300">{people}</span> people.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-white/40">
+                  <th className="px-2 py-1 text-left font-medium">Who</th>
+                  <th className="px-2 py-1 text-left font-medium">Doing</th>
+                  <th className="px-2 py-1 text-left font-medium">What happened</th>
+                  <th className="px-2 py-1 text-right font-medium">Times</th>
+                  <th className="px-2 py-1 text-left font-medium">Last</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className="border-t border-white/5 text-white/80">
+                    <td className="px-2 py-1">{r.staff_name}</td>
+                    <td className="px-2 py-1">{r.action}</td>
+                    <td className="px-2 py-1 text-white/60">{LABEL[r.outcome] ?? r.outcome}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{r.n}</td>
+                    <td className="px-2 py-1 text-white/50">{String(r.last_at).slice(0, 16).replace("T", " ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function GpsTab({ city }: { city: string }) {
   const [list, setList] = useState<BranchGps[]>([]);
   const [busy, setBusy] = useState(false);
@@ -625,6 +722,7 @@ function GpsTab({ city }: { city: string }) {
 
   return (
     <div className="space-y-4">
+      <GaveUpPanel city={city} />
       <div className="flex items-center justify-between">
         <p className="text-sm text-white/50">Set GPS coordinates and geofence radius per branch. Branches without GPS configured skip the location check.</p>
         <div className="flex gap-2">

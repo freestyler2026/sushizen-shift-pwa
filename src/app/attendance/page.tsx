@@ -699,6 +699,22 @@ export default function AttendancePage() {
         const isPasskeyMissing =
           eName === "NotImplementedError" || eName === "NotSupportedError" ||
           msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not supported");
+        // Tell the server the attempt ended with nothing written. Fire and
+        // forget: the person is standing there and must not wait on a report
+        // about their own failure, and a failure to record must never become
+        // a second failure they can see.
+        void fetch("/api/attendance/action/gave-up", {
+          method: "POST", credentials: "same-origin",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
+          body: JSON.stringify({
+            action,
+            outcome: timedOut ? "timed_out"
+              : isPasskeyMissing ? "passkey_missing"
+              : isUserCancelled ? "cancelled" : "error",
+            detail: msg.slice(0, 200),
+          }),
+        }).catch(() => { /* nothing to do about it here */ });
+
         if (timedOut) {
           // Distinct from a cancel: nothing was recorded, and saying so is the
           // difference between trying again and standing there.
