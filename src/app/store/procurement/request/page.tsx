@@ -68,6 +68,110 @@ type CatalogResponse = {
   categories?: string[];
 };
 
+type MasterHit = { source: string; id: string; name: string; category: string };
+
+/**
+ * Pick an item name from Cost Calculation.
+ *
+ * Typing a name here used to create a catalogue row on the spot, so the same
+ * tin could be entered as "Century Tuna Chunk", "Century Tuna Chunk 420g" and
+ * "Century Tuna" by three people on three days, each with its own price -- and
+ * an order that matched none of them carried no price at all. Cost Calculation
+ * is where an item is registered; this only finds what is already there.
+ *
+ * Only the name comes back. The master's unit and price are the recipe unit and
+ * cost, which are not a pack and a supplier price, so the buyer still fills those.
+ */
+function MasterItemPicker({
+  city, pin, requestedBy, value, onPick, inputClassName,
+}: {
+  city: string; pin: string; requestedBy: string;
+  value: string; onPick: (name: string) => void; inputClassName: string;
+}) {
+  const [term, setTerm] = useState("");
+  const [hits, setHits] = useState<MasterHit[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+
+  useEffect(() => {
+    const q = term.trim();
+    if (value) return;            // already picked — stop searching
+    if (q.length < 2) { setHits([]); setFailed(""); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      setBusy(true); setFailed("");
+      try {
+        const qs = new URLSearchParams({ city, q, limit: "25" });
+        const data = await procurementJson<{ items?: MasterHit[]; master_total?: number }>(
+          `/api/admin/procurement/catalog/master-search?${qs.toString()}`,
+          { method: "GET" }, requestedBy, pin,
+        );
+        if (!alive) return;
+        setHits(Array.isArray(data?.items) ? data.items : []);
+        setTotal(typeof data?.master_total === "number" ? data.master_total : null);
+      } catch (e: unknown) {
+        if (alive) setFailed(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (alive) setBusy(false);
+      }
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [term, city, pin, requestedBy, value]);
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className={`flex-1 truncate rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-3 py-1.5 text-xs text-emerald-100`}>
+          {value}
+        </span>
+        <button
+          type="button"
+          onClick={() => { onPick(""); setTerm(""); setHits([]); }}
+          className="rounded-lg border border-white/10 px-2 py-1.5 text-[11px] text-neutral-400 hover:text-white"
+        >
+          Change
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <input
+        value={term}
+        onChange={(e) => setTerm(e.target.value)}
+        placeholder="Search Cost Calculation…"
+        className={inputClassName}
+      />
+      {term.trim().length >= 2 && (
+        <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-neutral-900/95">
+          {busy && <div className="px-3 py-2 text-[11px] text-neutral-400">Searching…</div>}
+          {!busy && failed && <div className="px-3 py-2 text-[11px] text-red-400">{failed}</div>}
+          {!busy && !failed && hits.length === 0 && (
+            <div className="px-3 py-2 text-[11px] text-amber-300">
+              No match in Cost Calculation{total !== null ? ` (searched ${total} items)` : ""}.
+              Register it there first, or try a shorter word — the same item is often
+              spelt differently here.
+            </div>
+          )}
+          {!busy && hits.map((h) => (
+            <button
+              key={`${h.source}-${h.id}`}
+              type="button"
+              onClick={() => { onPick(h.name); setTerm(""); setHits([]); }}
+              className="block w-full px-3 py-1.5 text-left text-xs text-white hover:bg-white/10"
+            >
+              {h.name}
+              <span className="ml-2 text-[10px] text-neutral-500">{h.category || h.source}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const DUBAI_CURATED_STORES = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City", "Central Kitchen", "Warehouse"];
 
 // Map branch codes (from localStorage / URL params) to the curated store names above.
@@ -165,8 +269,12 @@ export default function StoreProcurementRequestPage() {
   const draftAppliedRef = useRef(false);
   const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const addCatalogItemFn = async () => {
-    if (!addItemName.trim()) { setAddCatalogError("Item name is required."); return; }
+    if (!addItemName.trim()) { setAddCatalogError("Pick the item from Cost Calculation first."); return; }
     if (!addSupplier.trim()) { setAddCatalogError("Supplier is required."); return; }
+    // A row saved at 0 looks the same as a priced one in the list, and the
+    // order it goes on carries no figure. 441 of Manila's rows are sitting at
+    // zero for exactly this reason.
+    if (!(Number(addUnitPrice) > 0)) { setAddCatalogError("Enter the price you pay for one unit."); return; }
     if (!pin.trim()) { setAddCatalogError("PIN is required."); return; }
     setAddCatalogBusy(true); setAddCatalogError(""); setAddCatalogSuccess("");
     try {
@@ -1743,12 +1851,16 @@ export default function StoreProcurementRequestPage() {
                   <div className="border-t border-emerald-500/20 bg-emerald-950/10 px-4 py-3">
                     <div className="mb-2 text-[11px] font-semibold text-emerald-300">Add Item — {section.supplier}</div>
                     <div className="flex flex-wrap gap-2">
-                      <input
-                        value={addItemName}
-                        onChange={(e) => setAddItemName(e.target.value)}
-                        placeholder="Item name *"
-                        className="min-w-[160px] flex-1 rounded-lg border border-white/8 bg-black/20 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
-                      />
+                      <div className="min-w-[200px] flex-1">
+                        <MasterItemPicker
+                          city={city}
+                          pin={pin}
+                          requestedBy={requestedBy}
+                          value={addItemName}
+                          onPick={setAddItemName}
+                          inputClassName="w-full rounded-lg border border-white/8 bg-black/20 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                        />
+                      </div>
                       <input
                         value={addUnit}
                         onChange={(e) => setAddUnit(e.target.value)}
@@ -2260,12 +2372,14 @@ export default function StoreProcurementRequestPage() {
             {/* Form fields */}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs font-medium text-neutral-400">Item Name *</label>
-                <input
+                <label className="mb-1 block text-xs font-medium text-neutral-400">Item Name * <span className="text-neutral-500">— from Cost Calculation</span></label>
+                <MasterItemPicker
+                  city={city}
+                  pin={pin}
+                  requestedBy={requestedBy}
                   value={addItemName}
-                  onChange={(e) => setAddItemName(e.target.value)}
-                  placeholder="e.g. Salmon Fillet 1kg"
-                  className={`w-full ${FIELD_CLASS}`}
+                  onPick={setAddItemName}
+                  inputClassName={`w-full ${FIELD_CLASS}`}
                 />
               </div>
               <div>

@@ -14,10 +14,16 @@ type DeliveryItem = {
   unit_price: number;
   notes: string;
   source: "auto" | "manual";
+  // "order"   = the price the order carried
+  // "catalog" = blank on the order, shown from the catalogue while still pending
+  // "none"    = no price anywhere
+  price_source?: "order" | "catalog" | "none";
 };
 
 type Delivery = {
   id: number;
+  city?: string;
+  items_priced_from_catalog?: number;
   delivery_date: string;
   to_branch: string;
   status: string;
@@ -40,8 +46,14 @@ function fmt(n: number) {
   return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Who may correct a price on this note. A role-name list refuses every custom
+// role, so a branch manager could never be given this no matter what Role
+// Management showed. The permission is the real gate (the server checks the
+// same one); the names stay as a fallback so nobody who had it loses it.
 function canEditPrices(auth: ReturnType<typeof getAuth>) {
   if (!auth) return false;
+  const perms = auth.permissions || [];
+  if (perms.includes("*") || perms.includes("channel.store_ck_delivery.manage")) return true;
   return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT"].includes(auth.role || "");
 }
 
@@ -334,6 +346,16 @@ export default function CKDeliveryNotePage() {
               <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-6">Delivery Total (PHP)</span>
               <span className="text-base font-bold text-gray-900 tabular-nums">₱ {fmt(grandTotal)}</span>
             </div>
+          </div>
+        )}
+
+        {/* Where a figure came from. A catalogue price is today's, not the
+            price on the day the order was placed, so the total must not
+            present the two as the same thing. */}
+        {!editMode && (delivery.items_priced_from_catalog || 0) > 0 && (
+          <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {delivery.items_priced_from_catalog} line(s) show the <strong>current catalogue price</strong> because
+            the order was placed without one. Confirming this delivery stores these figures.
           </div>
         )}
 
