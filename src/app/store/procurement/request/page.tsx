@@ -150,9 +150,22 @@ function MasterItemPicker({
           {!busy && failed && <div className="px-3 py-2 text-[11px] text-red-400">{failed}</div>}
           {!busy && !failed && hits.length === 0 && (
             <div className="px-3 py-2 text-[11px] text-amber-300">
-              No match in Cost Calculation{total !== null ? ` (searched ${total} items)` : ""}.
-              Register it there first, or try a shorter word — the same item is often
-              spelt differently here.
+              <div>
+                No match in Cost Calculation{total !== null ? ` (searched ${total} items)` : ""}.
+                Try a shorter word first — the same item is often already there spelt
+                differently.
+              </div>
+              {/* Not a dead end. Cost Calculation holds recipe ingredients and menu
+                  items; it does not hold the purchasing vocabulary -- packaging,
+                  cleaning supplies, drinks by the case. 71% of the catalogue has no
+                  master entry, so refusing here would block most real additions. */}
+              <button
+                type="button"
+                onClick={() => { onPick(term.trim()); setHits([]); }}
+                className="mt-1.5 rounded-lg border border-amber-500/40 bg-amber-950/30 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-900/40"
+              >
+                Use &ldquo;{term.trim()}&rdquo; as a new name
+              </button>
             </div>
           )}
           {!busy && hits.map((h) => (
