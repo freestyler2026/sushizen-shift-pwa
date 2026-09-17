@@ -26779,3 +26779,57 @@ Procurement → Catalog (proc_curated_catalog_items)
 - 名前の正規化（990行→478名）は未着手。打ち間違いまで寄せると別の仕入先の金額を
   当てずっぽうで決めることになるので、一覧を出してオーナー確認を取ってから
 - **Procurement Manual の HTML は更新済み・artifact の republish は未了**
+
+### 追記（同日・残っていた判断をデータで決着）
+
+**重複の数え方を訂正する。** 前段で「990行 / 478名 → 512行が重複」と書いたが誤り。
+`order_type` が**1品目の2つの取引を分けている**:
+
+| order_type | 意味 | 読む画面 |
+|---|---|---|
+| `CK` / `WH` | CKが店舗に出す（振替） | 店舗の発注フォーム |
+| `Supplier` / `CK_WH_to_supplier` / `WH_to_supplier` | CK・WHが外部から買う | **CK Par Level**（`_catalog_prices` がこの2つだけを読む） |
+
+**同じ品名で order_type が違う行は重複ではない。** 正しくは
+990行 / 479名 / **736（品名×order_type）**、active の真の重複は **130グループ・169行**。
+
+**9/8〜9/17の重複整理が、CKの仕入価格を2件壊していた。**
+`Century Tuna`（Cash & Carry・CK_WH_to_supplier・₱100.50）と
+`Daily Quezo 2KG`（Restaurant Depot・同・₱398）は**買う側の行**で、
+店舗側の行（`Century Tuna Chunk 420g` 等）の重複ではない。OFFにした結果
+Par Level が価格を引けなくなっていた。
+
+**Par Level で価格が出ない supplier 行: 7 → 1 に。**
+
+| 品目 | 原因 | 対処 |
+|---|---|---|
+| Daily Quezo Cheese (2kilo) | 参照先が今日OFFにされた | 行を再有効化 |
+| Century Tuna Chunk | 参照先が**店舗側の行**を指していた | `catalog_item_name` を `Century Tuna`（買う側）へ |
+| SUGAR | par の仕入先 `Jubilee Commodities Trader` ≠ カタログ `Jubilee Commodities in Cubao` | par 側を実績の表記へ → ₱3,650 |
+| Pork Ground Regular | par `JB Frozen Meat Foods Co.` ≠ カタログ `JB Frozen Meat` | 同 → ₱230 |
+| Pork Belly BLSO (Imported) | 同上 | 同 → ₱305 |
+| Canned Pineapple | 買う側の行が存在しなかった | ₱77.75 で作成（9/5・7/15・7/10 の実績） |
+| **Cheese Spread** | **CKの仕入記録が1件も無い** | **未解決。価格の根拠がデータに無い** |
+
+**`order_type` 空欄の active 19行を補完（仕入先の最多値から）。** 0行になった。
+そのうち6行は**9月に Add Item から作られたもの** — フォームが `order_type` を
+送っていなかったため。`upsert_proc_curated_catalog_items` で
+**新規行は仕入先の既存 order_type を継承**するようにした（`_order_type_for_supplier`）。
+実測で検証: J&J→Supplier / Richcath's→CK_WH_to_supplier / Central Kitchen→CK /
+未知の仕入先→Supplier。本番で1行 insert して確認し、id 指定で削除。
+
+**Resync System Channels は不要だった** — 起動時シードで権限も5ロールへの付与も
+既にDBに入っていた（ADMIN / MANAGER / MANAGEMENT / DUBAI_MANAGEMENT /
+MANILA_MANAGEMENT。HQ は `["*"]` で通る）。
+
+**0円の重複2行を無効化**: `Chicken teriyaki sauce` CK/Paranaque・CK/Taft
+（`Chicken Teriyaki Sauce` ₱117.83 が別にあり、この名前での発注は 2026-07-12 が最後）。
+
+**Multi Purpose Plastic は別の問題。** 店舗の発注名は
+`Multi Purpose Plastic (10x14 Calypso )`（**末尾に空白・38文字**）で、
+カタログに同名の行は**存在しない**（最も近いのは37文字・末尾空白なしの₱0行）。
+`(1PKT = 100pcs)` と `(1PKT = 175pcs)` は**包装違いの別物**なので統合してはいけない。
+納品書のフォールバックは両辺 `BTRIM` で突合するので末尾空白は吸収するが、
+₱0 の行に価格が無い限り埋まらない。**未解決。**
+
+退避: `_proc_catalog_bk2_20260917`（23行）/ `_ck_par_levels_bk_20260917`（4行）
