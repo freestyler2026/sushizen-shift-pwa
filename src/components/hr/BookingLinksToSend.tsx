@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { markBookingCopied, markBookingSent } from "@/lib/booking-mark";
 import { Link2, Send, Copy, Check, Clock, RefreshCw, Phone } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS,
@@ -345,17 +346,11 @@ export default function BookingLinksToSend({
     // is the whole point of the marker. Only recording the successful path
     // would leave exactly those people invisible, which is the failure this
     // marker exists to prevent.
-    try {
-      await fetch(`/api/admin/hr/applicants/${applicantId}/booking-invite/copied`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ what: clipboardWorked ? what : `${what} (by hand)`, lang }),
-      });
-      setRows((rs) => rs.map((r) => r.id === applicantId
-        ? { ...r, copied_at: new Date().toISOString(), copied_by: "you" }
-        : r));
-      setCopiedOnce(true);
-    } catch { /* the trace is a convenience, the copy is the job */ }
+    await markBookingCopied(applicantId, what, lang, clipboardWorked);
+    setRows((rs) => rs.map((r) => r.id === applicantId
+      ? { ...r, copied_at: new Date().toISOString(), copied_by: "you" }
+      : r));
+    setCopiedOnce(true);
   }
 
   /** Close the panel, and when the wording was copied out of it first, record
@@ -368,17 +363,13 @@ export default function BookingLinksToSend({
     if (!copiedOnce) { close(); return; }
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/hr/applicants/${applicantId}/booking-invite/sent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ how: "copied the message and sent it" }),
-      });
+      const ok = await markBookingSent(applicantId);
       // ⚠️ Do not close on a failure. The first version swallowed it, and the
       // panel closing looked exactly like it had worked -- a mark that did not
       // land, on a row that then reads "not sent", with nobody any the wiser
       // (lesson 46). Caught in testing when a deploy restart 500'd this call
       // and the screen said nothing at all.
-      if (!res.ok) {
+      if (!ok) {
         setErr("Marked nothing — the send was not recorded. Press Done again.");
         return;
       }
