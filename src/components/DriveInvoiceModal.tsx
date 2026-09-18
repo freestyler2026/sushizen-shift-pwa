@@ -189,6 +189,28 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
     net !== null && vat !== null && gross !== null ? round2(net + vat - gross) : null;
   const linesOff = lineSum !== null && net !== null ? round2(lineSum - net) : null;
 
+  // What the column would come to if every line used its own qty x price,
+  // and which lines that would change. Where that lands on the printed net,
+  // the invoice has checked the answer and one press applies it.
+  const recomputable = lineItems.every(
+    (li) => li.qty !== null && li.qty !== undefined && li.unit_price !== null && li.unit_price !== undefined,
+  );
+  const recomputed = recomputable
+    ? lineItems.map((li) => round2(Number(li.qty) * Number(li.unit_price)))
+    : null;
+  const wouldChange = recomputed
+    ? recomputed.filter((v, i) => Math.abs(v - Number(lineItems[i].amount ?? NaN)) > 0.02 || lineItems[i].amount == null).length
+    : 0;
+  const recomputedSum = recomputed ? round2(recomputed.reduce((a, b) => a + b, 0)) : null;
+  const recomputeReconciles =
+    recomputedSum !== null && net !== null && Math.abs(recomputedSum - net) <= 0.02;
+  const applyQtyTimesPrice = () => {
+    if (!recomputed) return;
+    setLineItems((prev) =>
+      prev.map((li, i) => ({ ...li, amount: recomputed[i] })),
+    );
+  };
+
   const buildPayload = (reviewStatus: string) => ({
     vendor_name: vendorName,
     invoice_number: invoiceNumber,
@@ -788,9 +810,9 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                                   updateLineItem(i, "amount",
                                     String(round2(Number(item.qty) * Number(item.unit_price))))
                                 }
-                                className="block w-full text-right text-[10px] text-amber-300/80 hover:text-amber-300"
+                                className="block w-full text-right text-[10px] text-amber-300/80 underline decoration-dotted underline-offset-2 hover:text-amber-300"
                               >
-                                ⚠ {item.qty} × {item.unit_price} = {round2(Number(item.qty) * Number(item.unit_price))}
+                                ⚠ use {item.qty} × {item.unit_price} = {round2(Number(item.qty) * Number(item.unit_price))}
                               </button>
                             ) : null}
                           </td>
@@ -811,13 +833,36 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     <tfoot>
                       <tr className="border-t border-white/10 bg-white/5">
                         <td className="px-2 py-1.5 text-white/40" colSpan={4}>
-                          {lineSum === null
-                            ? "Some lines have no amount, so they cannot be added up."
-                            : linesOff === null
-                              ? "Lines add up to"
-                              : linesOff === 0
-                                ? "✓ Lines add up to the net"
-                                : `⚠ Lines are out by ${linesOff} against the net ${net}`}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>
+                              {lineSum === null
+                                ? "Some lines have no amount, so they cannot be added up."
+                                : linesOff === null
+                                  ? "Lines add up to"
+                                  : linesOff === 0
+                                    ? "✓ Lines add up to the net"
+                                    : `⚠ Lines are out by ${linesOff} against the net ${net}`}
+                            </span>
+                            {/* The reading gets the quantity and the price right
+                                far more often than the line total. Where using
+                                them lands exactly on the net the invoice prints,
+                                the invoice has checked the answer itself. */}
+                            {linesOff !== 0 && wouldChange > 0 && recomputedSum !== null ? (
+                              <button
+                                type="button"
+                                onClick={applyQtyTimesPrice}
+                                className={`rounded-md border px-2 py-0.5 text-[11px] ${
+                                  recomputeReconciles
+                                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+                                    : "border-white/15 bg-white/5 text-white/70"
+                                }`}
+                              >
+                                {recomputeReconciles
+                                  ? `Use qty × price on ${wouldChange} line${wouldChange === 1 ? "" : "s"} → ${recomputedSum} ✓`
+                                  : `Use qty × price on ${wouldChange} line${wouldChange === 1 ? "" : "s"} → ${recomputedSum}`}
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                         <td className={`px-2 py-1.5 text-right font-mono ${
                           linesOff === 0 ? "text-emerald-300" : linesOff === null ? "text-white/60" : "text-amber-300"
