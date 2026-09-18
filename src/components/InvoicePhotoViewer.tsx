@@ -76,8 +76,7 @@ export default function InvoicePhotoViewer({
   const dragRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const [loupe, setLoupe] = useState(false);
   const [loupeFactor, setLoupeFactor] = useState(2.5);
-  const [loupePoint, setLoupePoint] =
-    useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const photoPaneRef = useRef<HTMLDivElement | null>(null);
 
   const resetView = useCallback(() => {
     setZoom(1); setRot(0); setPan({ x: 0, y: 0 });
@@ -135,7 +134,7 @@ export default function InvoicePhotoViewer({
       if (e.key === "+" || e.key === "=") { zoomTo(zoom * 1.4); return; }
       if (e.key === "-") { zoomTo(zoom / 1.4); return; }
       if (e.key === "0") { resetView(); return; }
-      if (e.key === "m" || e.key === "M") { setLoupe((v) => !v); setLoupePoint(null); }
+      if (e.key === "m" || e.key === "M") setLoupe((v) => !v);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -182,6 +181,7 @@ export default function InvoicePhotoViewer({
             </div>
           ) : photo ? (
             <div
+              ref={photoPaneRef}
               className={`absolute inset-0 overflow-hidden ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
               onWheel={(e) => { e.preventDefault(); zoomTo(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }}
               onDoubleClick={() => (zoom > 1 ? resetView() : zoomTo(3))}
@@ -191,19 +191,12 @@ export default function InvoicePhotoViewer({
                 dragRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
               }}
               onPointerMove={(e) => {
-                if (loupe) {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  setLoupePoint({
-                    x: e.clientX - r.left, y: e.clientY - r.top,
-                    w: r.width, h: r.height,
-                  });
-                }
                 const d = dragRef.current;
                 if (!d) return;
                 setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) });
               }}
               onPointerUp={() => { dragRef.current = null; }}
-              onPointerLeave={() => { dragRef.current = null; setLoupePoint(null); }}
+              onPointerLeave={() => { dragRef.current = null; }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -217,7 +210,7 @@ export default function InvoicePhotoViewer({
                 }}
               />
               {loupe ? (
-                <PhotoLoupe point={loupePoint} factor={loupeFactor} size={320}>
+                <PhotoLoupe containerRef={photoPaneRef} active={loupe} factor={loupeFactor} size={320}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={photo}
@@ -251,7 +244,7 @@ export default function InvoicePhotoViewer({
               className="rounded px-3 py-1 text-base text-white/80 hover:bg-white/10">↻</button>
             <button
               type="button"
-              onClick={() => { setLoupe((v) => !v); setLoupePoint(null); }}
+              onClick={() => setLoupe((v) => !v)}
               title="Magnifier — enlarges what is under the pointer (M)"
               className={`rounded px-3 py-1 text-base ${
                 loupe ? "bg-amber-400/20 text-amber-300" : "text-white/80 hover:bg-white/10"

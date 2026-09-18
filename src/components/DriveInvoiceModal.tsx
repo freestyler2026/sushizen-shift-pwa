@@ -129,8 +129,7 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
   // follows the pointer unasked is in the way when you are not using it.
   const [loupe, setLoupe] = useState(false);
   const [loupeFactor, setLoupeFactor] = useState(2.5);
-  const [loupePoint, setLoupePoint] =
-    useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const photoPaneRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
 
   const resetView = () => { setZoom(1); setRot(0); setPan({ x: 0, y: 0 }); };
@@ -420,6 +419,7 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
             {photo ? (
               <>
                 <div
+                  ref={photoPaneRef}
                   className={`relative flex-1 min-h-0 overflow-hidden ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
                   onWheel={(e) => { e.preventDefault(); zoomTo(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }}
                   onDoubleClick={() => (zoom > 1 ? resetView() : zoomTo(2.5))}
@@ -429,19 +429,12 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     dragRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
                   }}
                   onPointerMove={(e) => {
-                    if (loupe) {
-                      const r = e.currentTarget.getBoundingClientRect();
-                      setLoupePoint({
-                        x: e.clientX - r.left, y: e.clientY - r.top,
-                        w: r.width, h: r.height,
-                      });
-                    }
                     const d = dragRef.current;
                     if (!d) return;
                     setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) });
                   }}
                   onPointerUp={() => { dragRef.current = null; }}
-                  onPointerLeave={() => { dragRef.current = null; setLoupePoint(null); }}
+                  onPointerLeave={() => { dragRef.current = null; }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -455,7 +448,7 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     }}
                   />
                   {loupe ? (
-                    <PhotoLoupe point={loupePoint} factor={loupeFactor}>
+                    <PhotoLoupe containerRef={photoPaneRef} active={loupe} factor={loupeFactor}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={photo}
@@ -485,7 +478,7 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     className="rounded px-2 py-0.5 text-sm text-white/70 hover:bg-white/10 hover:text-white">↻</button>
                   <button
                     type="button"
-                    onClick={() => { setLoupe((v) => !v); setLoupePoint(null); }}
+                    onClick={() => setLoupe((v) => !v)}
                     title="Magnifier — enlarges what is under the pointer"
                     className={`rounded px-2 py-0.5 text-sm ${
                       loupe ? "bg-amber-400/20 text-amber-300" : "text-white/70 hover:bg-white/10 hover:text-white"
