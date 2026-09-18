@@ -40,6 +40,12 @@ interface ParLevelRow {
   // this the order quantity has to be typed by hand every single time.
   unit_size?: number | null;
   unit_size_uom?: string | null;
+  // 作る単位。par を下回ったぶんをこの倍数に切り上げて生産計画へ出す。
+  order_step?: number | null;
+  // その品の CK カタログに入っている刻み。押されるまで書き込まない。
+  catalog_order_step?: number | null;
+  to_produce?: number | null;
+  to_produce_raw?: number | null;
   price_source?: string | null;
   // 発注カタログでの品名。item_name とは別に持つ — item_name は棚卸しの鍵で、
   // 変えると現在庫が引けなくなり、その品が発注対象から消える。
@@ -205,6 +211,8 @@ export default function CkParLevelsPage() {
   const [createPin, setCreatePin] = useState("");
   const [creatingOrders, setCreatingOrders] = useState(false);
   const [showNotCounted, setShowNotCounted] = useState(false);
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [stepVal, setStepVal] = useState("");
   const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null);
   // What will actually be ordered. The modal used to render par − stock straight
   // from the rows, so the only way to change a quantity was to leave, edit the
@@ -821,6 +829,39 @@ export default function CkParLevelsPage() {
     setEditVal(row.par_level != null ? String(row.par_level) : "");
   };
 
+  // How much of this the kitchen makes at a time. Blank or 0 means no
+  // rounding, which is what every row does until somebody sets one.
+  const saveStep = async (row: ParLevelRow, value: string) => {
+    const txt = value.trim();
+    const n = txt === "" ? null : parseFloat(txt);
+    if (txt !== "" && (isNaN(n as number) || (n as number) < 0)) {
+      alert("Enter how much is made at a time, or leave it blank for no rounding.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({ order_step: n }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Save failed");
+      setEditingStepId(null);
+      // The server works out what to produce from the step, so take the row
+      // back from it rather than recomputing the same sum in two places.
+      await loadRows();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveEdit = async (row: ParLevelRow) => {
     setSaving(true);
     try {
@@ -1207,6 +1248,11 @@ export default function CkParLevelsPage() {
                     <th className="px-4 py-3 text-center">Unit</th>
                     <th className="px-4 py-3 text-center">Par Level</th>
                     <th className="px-4 py-3 text-center">Stock</th>
+                    {tab === "ck_produced" && (
+                      <th className="px-4 py-3 text-center" title="How much the kitchen makes at a time. What is short gets rounded up to a multiple of this.">
+                        Order Step
+                      </th>
+                    )}
                     <th className="px-4 py-3 text-center">{gapLabel}</th>
                     {tab === "supplier" && (
                       <th className="px-4 py-3 text-left">Supplier</th>
@@ -1219,11 +1265,19 @@ export default function CkParLevelsPage() {
                   {filtered.map((row, idx) => {
                     const isEditing = editingId === row.id;
 
-                    // Gap calculation
+                    // What to make. The server works this out from the step so
+                    // that this column, the pushed plan and the spreadsheet all
+                    // say the same number; falling back to the raw subtraction
+                    // only covers a response from before the step existed.
                     const gap =
-                      row.par_level != null && row.current_stock != null
+                      row.to_produce !== undefined
+                        ? row.to_produce
+                        : row.par_level != null && row.current_stock != null
                         ? Math.max(0, row.par_level - row.current_stock)
                         : null;
+                    const gapRaw = row.to_produce_raw ?? null;
+                    const rounded =
+                      gap != null && gapRaw != null && Math.abs(gap - gapRaw) > 1e-9;
 
                     const gapColor =
                       gap == null
@@ -1458,11 +1512,74 @@ export default function CkParLevelsPage() {
                           )}
                         </td>
 
+                        {/* Order Step — how much the kitchen makes at a time */}
+                        {tab === "ck_produced" && (
+                          <td className="px-4 py-2.5 text-center">
+                            {editingStepId === row.id ? (
+                              <input
+                                autoFocus
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                value={stepVal}
+                                onChange={(e) => setStepVal(e.target.value)}
+                                onBlur={() => saveStep(row, stepVal)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveStep(row, stepVal);
+                                  if (e.key === "Escape") setEditingStepId(null);
+                                }}
+                                disabled={saving}
+                                className="w-20 rounded-md border border-indigo-500/40 bg-white/5 px-2 py-0.5 text-center text-sm text-white focus:outline-none focus:border-indigo-400"
+                              />
+                            ) : row.order_step != null ? (
+                              <button
+                                onClick={() => {
+                                  setEditingStepId(row.id);
+                                  setStepVal(String(row.order_step ?? ""));
+                                }}
+                                className="rounded-md bg-indigo-500/10 px-2 py-0.5 text-sm font-semibold text-indigo-300 hover:bg-indigo-500/20"
+                                title={`Made ${fmtNum(row.order_step)} ${row.unit} at a time. What is short is rounded up to a multiple of this.`}
+                              >
+                                {fmtNum(row.order_step)}
+                              </button>
+                            ) : row.catalog_order_step != null ? (
+                              /* The kitchen already orders this in that step. Offered,
+                                 not applied — this number decides how much gets cooked. */
+                              <button
+                                onClick={() => saveStep(row, String(row.catalog_order_step))}
+                                disabled={saving}
+                                className="rounded-md border border-dashed border-indigo-400/40 px-2 py-0.5 text-[11px] text-indigo-300/80 hover:bg-indigo-500/10"
+                                title={`The CK catalogue orders this in ${fmtNum(row.catalog_order_step)} ${row.unit}. Press to use the same step for production.`}
+                              >
+                                use {fmtNum(row.catalog_order_step)}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setEditingStepId(row.id);
+                                  setStepVal("");
+                                }}
+                                className="text-zinc-600 hover:text-zinc-400 text-xs"
+                                title="No rounding — the plan asks for exactly what is short."
+                              >
+                                —
+                              </button>
+                            )}
+                          </td>
+                        )}
+
                         {/* Gap: To Produce / To Order */}
                         <td className={`px-4 py-2.5 text-center text-sm font-semibold ${gapColor}`}>
                           {gap != null ? (
                             gap === 0 ? (
                               <span className="text-emerald-400 text-xs">✓ OK</span>
+                            ) : rounded ? (
+                              <span title={`${fmtNum(gapRaw as number)} short, rounded up to a multiple of ${fmtNum(row.order_step as number)}`}>
+                                {fmtNum(gap)}
+                                <span className="ml-1 text-[10px] font-normal text-zinc-500">
+                                  ({fmtNum(gapRaw as number)})
+                                </span>
+                              </span>
                             ) : (
                               fmtNum(gap)
                             )
