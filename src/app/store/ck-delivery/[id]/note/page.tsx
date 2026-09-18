@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, Pencil, Save, X } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { money, currencyOf } from "@/lib/currency";
 
 type DeliveryItem = {
   id: number;
@@ -156,6 +157,7 @@ export default function CKDeliveryNotePage() {
   const displayGrouped = groupBy(displayItems, i => i.category || "Other");
 
   const grandTotal = displayItems.reduce((sum, i) => sum + (i.qty || 0) * (i.unit_price || 0), 0);
+  const cur = currencyOf(delivery?.city);
   const hasPrices = displayItems.some(i => (i.unit_price || 0) > 0);
 
   return (
@@ -360,8 +362,13 @@ export default function CKDeliveryNotePage() {
         {(showPrices || editMode) && hasPrices && grandTotal > 0 && (
           <div className="mt-3 flex justify-end border-t-2 border-gray-900 pt-2">
             <div className="text-right">
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-6">Delivery Total (PHP)</span>
-              <span className="text-base font-bold text-gray-900 tabular-nums">₱ {fmt(grandTotal)}</span>
+              {/* The note is signed by the branch that receives it. A Dubai
+                  branch handed a total headed PHP is being given the wrong
+                  currency on a document it signs. */}
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-6">
+                Delivery Total ({cur.code})
+              </span>
+              <span className="text-base font-bold text-gray-900 tabular-nums">{money(delivery?.city, grandTotal)}</span>
             </div>
           </div>
         )}

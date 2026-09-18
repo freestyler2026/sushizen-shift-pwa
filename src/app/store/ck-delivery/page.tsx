@@ -1,6 +1,8 @@
 "use client";
 
 import { isoDate } from "@/lib/date";
+import { BRANCHES, type City } from "@/lib/branches";
+import { money, currencyOf } from "@/lib/currency";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -80,8 +82,16 @@ type QcPassedItem = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MANILA_BRANCHES = ["Paranaque", "Taft", "Cubao"];
-const DUBAI_BRANCHES = ["AL BARSHA", "M CITY"];
+// The branches a delivery can go TO, taken from the one list the rest of the
+// OS uses. This file carried its own, and Dubai's had two entries — "AL BARSHA"
+// and "M CITY" — while the city runs five restaurants. Business Bay, Al Mina,
+// Arjan and JLT could not be chosen at all, which is most of why the module is
+// unused there. (M City is Motor City, which branches.ts already folds into
+// Arjan.)
+const DESTINATIONS = (city: City) =>
+  BRANCHES[city].filter((b) => !["CK", "WH", "BO", "HQ", "DRIVER"].includes(b.code)).map((b) => b.name);
+const MANILA_BRANCHES = DESTINATIONS("manila");
+const DUBAI_BRANCHES = DESTINATIONS("dubai");
 
 const STATUS_BADGE: Record<DeliveryStatus, string> = {
   PENDING: "inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-xs font-semibold text-amber-400",
@@ -849,15 +859,15 @@ export default function CKDeliveryPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className={KPI_CARD}>
                 <p className={KPI_LABEL}>CK Deliveries Cost</p>
-                <p className={KPI_VALUE}>₱ {costGrandTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className={KPI_VALUE}>{money(city, costGrandTotal)}</p>
               </div>
               <div className={KPI_CARD}>
                 <p className={KPI_LABEL}>Emergency Fees</p>
-                <p className={`${KPI_VALUE} ${eprDeliveryTotal > 0 ? "text-amber-400" : ""}`}>₱ {eprDeliveryTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className={`${KPI_VALUE} ${eprDeliveryTotal > 0 ? "text-amber-400" : ""}`}>{money(city, eprDeliveryTotal)}</p>
               </div>
               <div className={KPI_CARD}>
                 <p className={KPI_LABEL}>Combined Total</p>
-                <p className={`${KPI_VALUE} text-emerald-300`}>₱ {combinedTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p className={`${KPI_VALUE} text-emerald-300`}>{money(city, combinedTotal)}</p>
               </div>
               <div className={KPI_CARD}>
                 <p className={KPI_LABEL}>Deliveries</p>
@@ -883,7 +893,7 @@ export default function CKDeliveryPage() {
                       <th className={`${TABLE_HEADER} text-left`}>Branch</th>
                       <th className={`${TABLE_HEADER} text-left`}>Order #</th>
                       <th className={`${TABLE_HEADER} text-right`}>Items</th>
-                      <th className={`${TABLE_HEADER} text-right`}>Total Cost (PHP)</th>
+                      <th className={`${TABLE_HEADER} text-right`}>{`Total Cost (${currencyOf(city).code})`}</th>
                       <th className={`${TABLE_HEADER} text-left`}>Status</th>
                     </tr>
                   </thead>
@@ -896,7 +906,7 @@ export default function CKDeliveryPage() {
                         <td className={`${TABLE_CELL} text-right tabular-nums`}>{row.item_count}</td>
                         <td className={`${TABLE_CELL} text-right tabular-nums font-medium ${row.total_cost > 0 ? "text-emerald-400" : "text-zinc-500"}`}>
                           {row.total_cost > 0
-                            ? `₱ ${row.total_cost.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            ? money(city, row.total_cost)
                             : "—"}
                         </td>
                         <td className={TABLE_CELL}>
@@ -910,7 +920,7 @@ export default function CKDeliveryPage() {
                     <tr className="border-t border-white/10">
                       <td className={`${TABLE_CELL} font-semibold text-zinc-300`} colSpan={4}>CK Subtotal</td>
                       <td className={`${TABLE_CELL} text-right tabular-nums font-semibold text-emerald-400`}>
-                        ₱ {costGrandTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {money(city, costGrandTotal)}
                       </td>
                       <td className={TABLE_CELL} />
                     </tr>
@@ -934,7 +944,7 @@ export default function CKDeliveryPage() {
                       <th className={`${TABLE_HEADER} text-left`}>Store</th>
                       <th className={`${TABLE_HEADER} text-left`}>Items</th>
                       <th className={`${TABLE_HEADER} text-left`}>Method</th>
-                      <th className={`${TABLE_HEADER} text-right`}>Fee (PHP)</th>
+                      <th className={`${TABLE_HEADER} text-right`}>{`Fee (${currencyOf(city).code})`}</th>
                       <th className={`${TABLE_HEADER} text-left`}>Status</th>
                     </tr>
                   </thead>
@@ -961,7 +971,7 @@ export default function CKDeliveryPage() {
                           <td className={`${TABLE_CELL} max-w-xs truncate`} title={Array.isArray(row.items) ? row.items.map(i => `${i.item_name} ×${i.qty}${i.unit}`).join(", ") : ""}>{itemSummary}</td>
                           <td className={TABLE_CELL}><span className="capitalize">{row.delivery_method}</span></td>
                           <td className={`${TABLE_CELL} text-right tabular-nums font-medium text-amber-400`}>
-                            ₱ {(row.delivery_cost || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {money(city, (row.delivery_cost || 0))}
                           </td>
                           <td className={TABLE_CELL}>
                             <span className={`capitalize text-xs font-semibold ${statusColors[row.status] || "text-zinc-400"}`}>{row.status}</span>
@@ -972,7 +982,7 @@ export default function CKDeliveryPage() {
                     <tr className="border-t border-white/10">
                       <td className={`${TABLE_CELL} font-semibold text-zinc-300`} colSpan={4}>EPR Subtotal</td>
                       <td className={`${TABLE_CELL} text-right tabular-nums font-semibold text-amber-400`}>
-                        ₱ {eprDeliveryTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {money(city, eprDeliveryTotal)}
                       </td>
                       <td className={TABLE_CELL} />
                     </tr>
@@ -988,7 +998,7 @@ export default function CKDeliveryPage() {
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-6 py-3 flex items-center gap-6">
                 <span className="text-sm font-semibold text-zinc-300">Combined Grand Total</span>
                 <span className="text-xl font-bold tabular-nums text-emerald-300">
-                  ₱ {combinedTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {money(city, combinedTotal)}
                 </span>
               </div>
             </div>
