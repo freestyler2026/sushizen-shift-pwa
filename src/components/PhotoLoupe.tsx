@@ -94,7 +94,11 @@ export default function PhotoLoupe({
     <div
       ref={glassRef}
       className="pointer-events-none absolute z-20 overflow-hidden rounded-full border-2 border-white/70 shadow-[0_0_0_1px_rgba(0,0,0,0.6),0_8px_30px_rgba(0,0,0,0.6)]"
-      style={{ width: size, height: size, display: "none", background: "#000" }}
+      // border-box so the 2px rim does not push the glass two pixels off the
+      // point it is meant to be centred on — verified against a grid: at 1x
+      // the glass is seamless with what is under it.
+      style={{ width: size, height: size, display: "none", background: "#000",
+               boxSizing: "border-box" }}
     >
       <div ref={innerRef} style={{ position: "absolute" }}>
         {children}
