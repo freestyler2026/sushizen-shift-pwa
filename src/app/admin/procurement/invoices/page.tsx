@@ -5,7 +5,7 @@ import { prepareIfImage } from "@/lib/image-compress";
 import { TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER } from "@/lib/ui-tokens";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
+import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
 import DriveInvoiceInbox from "@/components/DriveInvoiceInbox";
@@ -39,7 +39,21 @@ type InvoiceRow = {
   verify_by?: string;
   verify_at?: string | null;
   verify_note?: string;
+  /** How many photographs somebody has attached. Shown on the closed row so
+   *  the ones still missing one can be found without opening each. */
+  photo_count?: number;
   created_at: string;
+};
+
+/** One photograph in the city, as the search returns it. */
+type PhotoHit = {
+  source_table: string;
+  source_id: string;
+  vendor_name?: string | null;
+  store_code?: string | null;
+  file_name?: string | null;
+  photo_date?: string | null;
+  linked_invoice_no?: string | null;
 };
 
 type InvoiceSummary = Partial<InvoiceRow> & {
@@ -473,16 +487,36 @@ export default function ProcurementInvoicesPage() {
     photo_vendor?: string | null;
     photo_date?: string | null;
     photo_store?: string | null;
+    photo_file_name?: string | null;
     showing?: string | null;
+    /** True when the picture on screen is the one attached to this invoice,
+     *  rather than one the server guessed from supplier and date. */
+    linked?: boolean;
+    linked_count?: number;
     candidates?: {
       source: string; vendor_name?: string | null; photo_date?: string | null;
       store_code?: string | null; supplier_matches?: boolean;
+      file_name?: string | null; linked?: boolean; linked_by?: string | null;
     }[];
   } | null>(null);
   /** Which of the day's photographs is on screen, when the first one was not
    *  this supplier's. Empty means "whichever the server picks". */
   const [photoSource, setPhotoSource] = useState<string>("");
   const [invoicePhotoBusy, setInvoicePhotoBusy] = useState(false);
+  /** Bumped after attaching or detaching, so the panel re-reads rather than
+   *  showing what it fetched before the change. */
+  const [photoRefresh, setPhotoRefresh] = useState(0);
+  const [linkBusy, setLinkBusy] = useState("");
+  /** The invoice whose "find another photograph" panel is open. */
+  const [photoPickerFor, setPhotoPickerFor] = useState<string | null>(null);
+  const [photoQuery, setPhotoQuery] = useState("");
+  const [photoFrom, setPhotoFrom] = useState("");
+  const [photoTo, setPhotoTo] = useState("");
+  const [photoHits, setPhotoHits] = useState<PhotoHit[] | null>(null);
+  const [photoHitTotal, setPhotoHitTotal] = useState(0);
+  const [photoSearchBusy, setPhotoSearchBusy] = useState(false);
+  /** "" every invoice · "no" those with no photograph yet · "yes" those with one. */
+  const [photoFilter, setPhotoFilter] = useState<"" | "no" | "yes">("");
   const [verifyBusy, setVerifyBusy] = useState<string | null>(null);
   const [verifyNote, setVerifyNote] = useState("");
 
@@ -560,6 +594,7 @@ export default function ProcurementInvoicesPage() {
       invoiceQs.set("limit", String(PAGE_SIZE));
       invoiceQs.set("offset", String(page * PAGE_SIZE));
       if (uncheckedOnly) invoiceQs.set("verified", "no");
+      if (photoFilter) invoiceQs.set("photo", photoFilter);
       if (invoiceNo.trim()) invoiceQs.set("invoice_no", invoiceNo.trim());
       if (vendorName.trim()) invoiceQs.set("vendor_name", vendorName.trim());
       if (dateFrom) invoiceQs.set("date_from", dateFrom);
@@ -722,7 +757,7 @@ export default function ProcurementInvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, dateFrom, dateTo, invoiceNo, page, pin, requestedBy, uncheckedOnly, vendorName]);
+  }, [city, dateFrom, dateTo, invoiceNo, page, photoFilter, pin, requestedBy, uncheckedOnly, vendorName]);
 
   const recordVerification = useCallback(
     async (row: InvoiceRow, verdict: "matches" | "mismatch" | "unclear") => {
@@ -770,11 +805,103 @@ export default function ProcurementInvoicesPage() {
     [city, load, pin, requestedBy, rows, verifyNote],
   );
 
+  /** Attach a photograph to this invoice, for good.
+   *
+   *  Until this existed the panel guessed the picture afresh on every open,
+   *  so finding the right one among the candidates left no trace and the next
+   *  person did the same search again. Nothing recorded means nothing can be
+   *  checked afterwards, which is the whole reason the photograph is shown.
+   */
+  const attachPhoto = useCallback(async (row: InvoiceRow, source: string) => {
+    setLinkBusy(source);
+    try {
+      await procurementJson(
+        `/api/admin/procurement/invoices/${encodeURIComponent(row.invoice_no)}/photo/link`,
+        { method: "POST", body: JSON.stringify({ city, source }) },
+        requestedBy,
+        pin,
+      );
+      // Open on what was just attached, and re-read rather than guess at the
+      // new state from here.
+      setPhotoSource(source);
+      setPhotoRefresh((n) => n + 1);
+      setPhotoPickerFor(null);
+      await load();
+    } catch (e) {
+      setError(friendlyProcurementError(e));
+    } finally {
+      setLinkBusy("");
+    }
+  }, [city, load, pin, requestedBy]);
+
+  /** Undo one attachment. Named in the same panel that made it. */
+  const detachPhoto = useCallback(async (row: InvoiceRow, source: string) => {
+    setLinkBusy(source);
+    try {
+      const qs = new URLSearchParams({ city, source });
+      await procurementJson(
+        `/api/admin/procurement/invoices/${encodeURIComponent(row.invoice_no)}/photo/link?${qs.toString()}`,
+        { method: "DELETE" },
+        requestedBy,
+        pin,
+      );
+      setPhotoSource("");
+      setPhotoRefresh((n) => n + 1);
+      await load();
+    } catch (e) {
+      setError(friendlyProcurementError(e));
+    } finally {
+      setLinkBusy("");
+    }
+  }, [city, load, pin, requestedBy]);
+
+  /** Search every photograph in the city.
+   *
+   *  Not only the ones near this invoice's date: when the date is what was
+   *  read wrong, the right photograph is by definition outside that window.
+   *  The files are named `<date>_<invoice number>`, so the number off the
+   *  paper finds the picture even then.
+   */
+  const searchPhotos = useCallback(async (opts?: { offset?: number }) => {
+    setPhotoSearchBusy(true);
+    try {
+      const qs = new URLSearchParams({ city, limit: "24" });
+      if (photoQuery.trim()) qs.set("q", photoQuery.trim());
+      if (photoFrom) qs.set("date_from", photoFrom);
+      if (photoTo) qs.set("date_to", photoTo);
+      if (opts?.offset) qs.set("offset", String(opts.offset));
+      const d = await procurementJson<{ rows?: PhotoHit[]; total?: number }>(
+        `/api/admin/procurement/invoices/photo-search?${qs.toString()}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      setPhotoHits(d?.rows ?? []);
+      setPhotoHitTotal(Number(d?.total || 0));
+    } catch (e) {
+      setError(friendlyProcurementError(e));
+      setPhotoHits([]);
+    } finally {
+      setPhotoSearchBusy(false);
+    }
+  }, [city, photoFrom, photoQuery, photoTo, pin, requestedBy]);
+
+  /** Open the picker already looking at this invoice's own supplier and month.
+   *  An empty search box over 1,300 photographs is a search nobody runs. */
+  const openPhotoPicker = useCallback((row: InvoiceRow) => {
+    setPhotoPickerFor(row.invoice_no);
+    setPhotoQuery(row.invoice_no);
+    setPhotoFrom("");
+    setPhotoTo("");
+    setPhotoHits(null);
+    setPhotoHitTotal(0);
+  }, []);
+
   // A filter changes what is being asked, so page 4 of the old answer is not
   // page 4 of the new one.
   useEffect(() => {
     setPage(0);
-  }, [city, dateFrom, dateTo, invoiceNo, uncheckedOnly, vendorName]);
+  }, [city, dateFrom, dateTo, invoiceNo, photoFilter, uncheckedOnly, vendorName]);
 
   const loadBranchOptions = useCallback(async () => {
     try {
@@ -1016,9 +1143,11 @@ export default function ProcurementInvoicesPage() {
       photo?: string | null; reason?: string;
       photo_vendor?: string | null; photo_date?: string | null;
       photo_store?: string | null; showing?: string | null;
+      photo_file_name?: string | null; linked?: boolean; linked_count?: number;
       candidates?: {
         source: string; vendor_name?: string | null; photo_date?: string | null;
         store_code?: string | null; supplier_matches?: boolean;
+        file_name?: string | null; linked?: boolean; linked_by?: string | null;
       }[];
     }>(
       `/api/admin/procurement/invoices/${encodeURIComponent(expandedInvoiceNo)}/photo?${qs.toString()}`,
@@ -1034,18 +1163,25 @@ export default function ProcurementInvoicesPage() {
           photo_vendor: d?.photo_vendor ?? null,
           photo_date: d?.photo_date ?? null,
           photo_store: d?.photo_store ?? null,
+          photo_file_name: d?.photo_file_name ?? null,
           showing: d?.showing ?? null,
+          linked: Boolean(d?.linked),
+          linked_count: Number(d?.linked_count || 0),
           candidates: d?.candidates ?? [],
         });
       })
       .catch(() => { if (alive) setInvoicePhoto({ photo: null, reason: "the photograph could not be loaded" }); })
       .finally(() => { if (alive) setInvoicePhotoBusy(false); });
     return () => { alive = false; };
-  }, [city, expandedInvoiceNo, photoSource, pin, requestedBy, rows]);
+  }, [city, expandedInvoiceNo, photoRefresh, photoSource, pin, requestedBy, rows]);
 
   // Opening a different invoice starts from whichever photograph the server
   // picks, not the one that was being stepped through on the last row.
-  useEffect(() => { setPhotoSource(""); }, [expandedInvoiceNo]);
+  useEffect(() => {
+    setPhotoSource("");
+    setPhotoPickerFor(null);
+    setPhotoHits(null);
+  }, [expandedInvoiceNo]);
 
   const exportQualityCsv = useCallback(() => {
     if (!qualityRows.length) return;
@@ -2192,6 +2328,18 @@ export default function ProcurementInvoicesPage() {
               >
                 {uncheckedOnly ? "Showing not yet checked" : "Show not yet checked"}
               </button>
+              {/* Attaching photographs is a queue like checking is, and a queue
+                  with no way to see what is left gets started from the top
+                  again by whoever picks it up next. */}
+              <button
+                type="button"
+                onClick={() => setPhotoFilter((v) => (v === "no" ? "" : "no"))}
+                className={photoFilter === "no"
+                  ? "rounded-lg border border-sky-500/40 bg-sky-500/20 px-3 py-1.5 text-sm text-sky-200"
+                  : "rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300"}
+              >
+                {photoFilter === "no" ? "Showing without a photo" : "Show without a photo"}
+              </button>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -2236,6 +2384,16 @@ export default function ProcurementInvoicesPage() {
                       {newSupplierNames.has(row.supplier_name) && (
                         <span className="rounded-full border border-violet-700/60 bg-violet-900/20 px-2 py-0.5 text-[10px] font-bold text-violet-300">✦ new supplier</span>
                       )}
+                      {/* Which invoices can be checked against a document, on the
+                          closed row. Opening 452 of them to find out is the work
+                          this badge exists to remove. */}
+                      {Number(row.photo_count || 0) > 0 ? (
+                        <span className="rounded-full border border-sky-700/60 bg-sky-900/20 px-2 py-0.5 text-[10px] font-bold text-sky-300">
+                          📎 photo{Number(row.photo_count) > 1 ? ` ×${row.photo_count}` : ""}
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-500">no photo</span>
+                      )}
                     </div>
                     <div className="mt-2 text-xs text-zinc-400">
                       {row.supplier_name || "-"} | Invoice {formatDate(row.invoice_date)} | Due {formatDate(row.due_date)} | Branch {row.branch || "-"} | PO {row.po_number || "-"}
@@ -2270,9 +2428,51 @@ export default function ProcurementInvoicesPage() {
                             {invoicePhoto.photo_store ? ` · ${invoicePhoto.photo_store}` : ""}
                             <span className="text-zinc-600"> — this is what the store typed when it took the picture, not a reading. Compare the picture with the figures below.</span>
                           </div>
+                          {/* Attached, or only a guess. The difference decides
+                              whether anything can be traced back to a document
+                              later, so it is said in words and not left to the
+                              reader to infer from the picture being there. */}
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            {invoicePhoto.linked ? (
+                              <>
+                                <span className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200">
+                                  📎 Attached to this invoice
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={linkBusy === invoicePhoto.showing}
+                                  onClick={() => void detachPhoto(row, String(invoicePhoto.showing || ""))}
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-400 disabled:opacity-40"
+                                >
+                                  Detach
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-zinc-500">
+                                  Not attached — this is the closest photograph, not a recorded answer.
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={linkBusy === invoicePhoto.showing}
+                                  onClick={() => void attachPhoto(row, String(invoicePhoto.showing || ""))}
+                                  className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200 disabled:opacity-40"
+                                >
+                                  {linkBusy === invoicePhoto.showing ? "Attaching…" : "📎 This is the one — attach it"}
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openPhotoPicker(row)}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-300"
+                            >
+                              Find another photograph…
+                            </button>
+                          </div>
                           {(invoicePhoto.candidates?.length || 0) > 1 ? (
                             <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                              <span>{invoicePhoto.candidates?.length} photographs were taken around this date:</span>
+                              <span>{invoicePhoto.candidates?.length} photographs to choose between:</span>
                               {invoicePhoto.candidates?.map((cand) => (
                                 <button
                                   key={cand.source}
@@ -2284,6 +2484,7 @@ export default function ProcurementInvoicesPage() {
                                       : "border-white/10 bg-white/5 text-zinc-300"
                                   }`}
                                 >
+                                  {cand.linked ? "📎 " : ""}
                                   {cand.vendor_name || "unnamed"}
                                   {cand.photo_date ? ` · ${String(cand.photo_date).slice(0, 10)}` : ""}
                                 </button>
@@ -2351,14 +2552,140 @@ export default function ProcurementInvoicesPage() {
                                   onClick={() => setPhotoSource(cand.source)}
                                   className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-300"
                                 >
+                                  {cand.linked ? "📎 " : ""}
                                   {cand.vendor_name || "unnamed"}
                                   {cand.photo_date ? ` · ${String(cand.photo_date).slice(0, 10)}` : ""}
                                 </button>
                               ))}
                             </div>
                           ) : null}
+                          {/* The guess looks at this invoice's date, plus or minus
+                              three days. When the date is the thing that was read
+                              wrong, the right photograph can only be outside that
+                              window — so the way out of an empty panel is a search
+                              of the whole city, not a dead end. */}
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => openPhotoPicker(row)}
+                              className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-3 py-1.5 text-xs text-sky-200"
+                            >
+                              Search every photograph…
+                            </button>
+                          </div>
                         </div>
                       )}
+                      {photoPickerFor === row.invoice_no ? (
+                        <div className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="text-xs text-zinc-400">
+                              <div className="mb-1">Supplier, file name or invoice number</div>
+                              <input
+                                value={photoQuery}
+                                onChange={(e) => setPhotoQuery(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") void searchPhotos(); }}
+                                placeholder="e.g. MIY366442535"
+                                className="w-64 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600"
+                              />
+                            </label>
+                            <label className="text-xs text-zinc-400">
+                              <div className="mb-1">From</div>
+                              <input
+                                type="date"
+                                value={photoFrom}
+                                onChange={(e) => setPhotoFrom(e.target.value)}
+                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-zinc-200"
+                              />
+                            </label>
+                            <label className="text-xs text-zinc-400">
+                              <div className="mb-1">To</div>
+                              <input
+                                type="date"
+                                value={photoTo}
+                                onChange={(e) => setPhotoTo(e.target.value)}
+                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-zinc-200"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              disabled={photoSearchBusy}
+                              onClick={() => void searchPhotos()}
+                              className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-3 py-1.5 text-sm text-sky-200 disabled:opacity-40"
+                            >
+                              {photoSearchBusy ? "Searching…" : "Search"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setPhotoPickerFor(null); setPhotoHits(null); }}
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-400"
+                            >
+                              Close
+                            </button>
+                          </div>
+                          {/* The files were renamed to date_invoicenumber when they
+                              were approved, so the number printed on the paper finds
+                              the picture — which is the one search that still works
+                              when the date was read wrong. */}
+                          <div className="mt-2 text-[11px] text-zinc-500">
+                            Searches every photograph in {city} — receiving, PO match and the Invoice Inbox.
+                            Approved Inbox files are named <span className="text-zinc-400">date_invoicenumber</span>.
+                          </div>
+                          {photoHits === null ? null : photoHits.length === 0 ? (
+                            <div className="mt-3 text-sm text-zinc-500">
+                              Nothing matched. Try the supplier name, or clear the dates.
+                            </div>
+                          ) : (
+                            <div className="mt-3 space-y-1">
+                              <div className="text-xs text-zinc-500">
+                                {photoHitTotal.toLocaleString()} photograph{photoHitTotal === 1 ? "" : "s"} matched
+                                {photoHits.length < photoHitTotal ? ` · showing the newest ${photoHits.length}` : ""}
+                              </div>
+                              {photoHits.map((hit) => {
+                                const key = `${hit.source_table}:${hit.source_id}`;
+                                const takenElsewhere = hit.linked_invoice_no
+                                  && hit.linked_invoice_no !== row.invoice_no;
+                                return (
+                                  <div
+                                    key={key}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs"
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="truncate text-zinc-200">
+                                        {hit.file_name || hit.vendor_name || "unnamed"}
+                                      </div>
+                                      <div className="text-zinc-500">
+                                        {hit.photo_date ? String(hit.photo_date).slice(0, 10) : "no date"}
+                                        {hit.vendor_name ? ` · ${hit.vendor_name}` : ""}
+                                        {hit.store_code ? ` · ${hit.store_code}` : ""}
+                                        {/* Saying so is not a block: a delivery split
+                                            over two invoices is photographed once. */}
+                                        {takenElsewhere ? ` · already attached to ${hit.linked_invoice_no}` : ""}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setPhotoSource(key)}
+                                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-300"
+                                      >
+                                        Look at it
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={linkBusy === key}
+                                        onClick={() => void attachPhoto(row, key)}
+                                        className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200 disabled:opacity-40"
+                                      >
+                                        {linkBusy === key ? "Attaching…" : "📎 Attach"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                       {/* Correcting an invoice needed the Problem Data tab, which
                           holds one. Ten Dubai and thirty-nine Manila invoices whose
                           lines do not add up to their total could be found here and
