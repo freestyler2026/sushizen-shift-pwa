@@ -1,5 +1,56 @@
 # CURRENT_TASKS.md
 
+## 2026-09-18 — CK Par Level に Order Step（作る単位）を追加（実装済み・CKからの要望）
+
+**要望（マニラCK）**: CK Par Level から Production Plan を作るとき、キッチン→CK発注と
+同じように Order Step を入れてほしい。Par を下回ったら Order Step の数量で計画が出るように。
+「数字は僕の方で入力します」。
+
+### 実装
+
+**`ck_par_levels.order_step`**（NUMERIC・既定 NULL＝丸めない）を新設。
+`_round_to_step(qty, step)` を1つ置き、**一覧 / Push to Production Plan / XLSX の3か所**が
+これを呼ぶ（教訓62）。`math.ceil(round(q/st, 9)) * st` — `round` を挟むのは
+`0.1+0.2 = 0.30000000000000004` で `0.3` が 0.1刻みで 0.4 に切り上がるのを防ぐため
+（同じガードが `daily_inventory_api._apply_order_constraints` にもある）。
+
+**カタログ側とは別の列にした。** カタログの `order_step` は「店舗が発注できる刻み」、
+こちらは「厨房が一度に作る量」で、一致する義務がない。
+
+### 「数字は僕が入力します」— 実測すると45件は入力済みだった
+
+マニラの CK-Produced 58行のうち、**CK カタログ行に order_step があるのは45件**
+（複数値で決まらない行は0件）。ただし**自動で流し込まない** — この数字は「何kg炊くか」を
+決めるので、黙って入れると生産量が誰の判断も経ずに変わる。画面に
+**`use 0.5` の点線ボタン**として出し、1押しで書き込む形にした。
+
+候補を出すのは44件。`Shoyu Ramen Soup` だけ除外（par は `g`、カタログは `KG` で
+0.5 は1000倍の誤り）。カタログの単位が空欄なのは「矛盾」ではなく「未記入」なので通す。
+
+### 検証（本番で1行だけ設定→確認→復元）
+
+```
+BEFORE  step=なし  par=1.0 stock=0.25 → 作る 0.75
+PUT order_step=0.5 → 200
+AFTER   step=0.5   素の差 0.75      → 作る 1.0
+XLSX行  [3, 'Cajun Mayo', 'KG', Par 1, Stock 0.25, To Produce 1]   ← 画面と一致
+RESTORED step=なし → 作る 0.75
+```
+
+他に `PUT null`（解除）/ `PUT 0`（刻みなし扱い）/ `par_level だけ保存しても step が消えない`
+を確認。**本番の order_step 設定は0件**のまま（検証の書き残しなし）。
+
+⚠️ 検証中に `PUT` の応答が `order_step: null` を返していた（書き込みは成功）。
+`RETURNING` に列を足していなかったため。画面は一覧を読み直すので見えなかったが、
+**書いた値と違う値を返すAPIは次に読む人に信じられる**ので直した。
+
+### 画面
+
+CK-Produced タブに **Order Step** 列。To Produce は**サーバが返す丸め済みの値**を表示し、
+丸めた行は素の不足量を括弧で併記する（`1.0 (0.75)`）。ブラウザ側で引き算をやり直さないので、
+列・計画・XLSX が食い違わない。
+
+
 ## 2026-09-18 — CK Par Level の発注に Pork Back Bones が出ない（修正済み）
 
 **報告（マニラCK）**: CK Inventory で Leg Bones / Back Bones ともに 0 で数えたのに、
