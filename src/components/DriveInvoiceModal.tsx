@@ -71,6 +71,15 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
   const [totalAmount, setTotalAmount] = useState(
     invoice.total_amount != null ? String(invoice.total_amount) : ""
   );
+  const [amountExclTax, setAmountExclTax] = useState(
+    invoice.amount_excl_tax != null ? String(invoice.amount_excl_tax) : ""
+  );
+  const [taxAmount, setTaxAmount] = useState(
+    invoice.tax_amount != null ? String(invoice.tax_amount) : ""
+  );
+  const [taxRatePct, setTaxRatePct] = useState(
+    invoice.tax_rate_pct != null ? String(invoice.tax_rate_pct) : ""
+  );
   const [currency, setCurrency] = useState(invoice.currency || "AED");
   const [notes, setNotes] = useState(invoice.notes || "");
   const [lineItems, setLineItems] = useState<LineItem[]>(invoice.line_items || []);
@@ -150,12 +159,39 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
     return () => { alive = false; };
   }, [invoice.id, isPdf, authHeaders]);
 
+  // The three figures the invoice prints, and whether they agree.
+  //
+  // Reported with a screenshot of a Chef Middle East invoice: net 163.50,
+  // VAT 8.18, total 171.68, two lines of 96.00 and 67.50 — and a panel
+  // showing only "Total Amount 171.68" above two line amounts that could
+  // never add up to it. Nothing was wrong with the figures; there was no VAT
+  // on the screen to put between them.
+  const num = (v: string) => {
+    const n = Number(v);
+    return v.trim() === "" || Number.isNaN(n) ? null : n;
+  };
+  const net = num(amountExclTax);
+  const vat = num(taxAmount);
+  const gross = num(totalAmount);
+  const lineSum = lineItems.reduce<number | null>((acc, li) => {
+    if (acc === null) return null;
+    const v = li.amount;
+    return v === null || v === undefined ? null : acc + Number(v);
+  }, 0);
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const headerOff =
+    net !== null && vat !== null && gross !== null ? round2(net + vat - gross) : null;
+  const linesOff = lineSum !== null && net !== null ? round2(lineSum - net) : null;
+
   const buildPayload = (reviewStatus: string) => ({
     vendor_name: vendorName,
     invoice_number: invoiceNumber,
     invoice_date: invoiceDate || null,
     due_date: dueDate || null,
     total_amount: totalAmount ? Number(totalAmount) : null,
+    amount_excl_tax: amountExclTax ? Number(amountExclTax) : null,
+    tax_amount: taxAmount ? Number(taxAmount) : null,
+    tax_rate_pct: taxRatePct ? Number(taxRatePct) : null,
     currency,
     line_items: lineItems,
     notes,
@@ -488,8 +524,33 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
               </div>
               <Field label="Invoice Date" value={invoiceDate} onChange={setInvoiceDate} type="date" />
               <Field label="Due Date" value={dueDate} onChange={setDueDate} type="date" />
+              {/* Net, tax, total — in the order the invoice prints them, so the
+                  sum can be followed down the column. */}
+              <Field label="Total excl. VAT" value={amountExclTax} onChange={setAmountExclTax} type="number" />
+              <div className="grid grid-cols-[1fr_auto] gap-1 items-end">
+                <Field label="VAT" value={taxAmount} onChange={setTaxAmount} type="number" />
+                <div className="w-16">
+                  <Field label="Rate %" value={taxRatePct} onChange={setTaxRatePct} type="number" />
+                </div>
+              </div>
               <div className="col-span-2">
-                <Field label="Total Amount" value={totalAmount} onChange={setTotalAmount} type="number" />
+                <Field label="Total (incl. VAT)" value={totalAmount} onChange={setTotalAmount} type="number" />
+              </div>
+              <div className="col-span-2">
+                {headerOff === null ? (
+                  <p className="text-white/30 text-[11px]">
+                    Enter the net and the VAT and this line checks the total for you.
+                  </p>
+                ) : headerOff === 0 ? (
+                  <p className="text-emerald-300/80 text-[11px]">
+                    ✓ {net} + {vat} = {gross}
+                  </p>
+                ) : (
+                  <p className="text-amber-300 text-[11px]">
+                    ⚠ {net} + {vat} = {round2((net ?? 0) + (vat ?? 0))}, not {gross}
+                    <span className="text-amber-300/60"> — out by {headerOff}</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -633,7 +694,7 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                         <th className="text-right px-2 py-1.5 w-16">Qty</th>
                         <th className="text-left px-2 py-1.5 w-16">Unit</th>
                         <th className="text-right px-2 py-1.5 w-20">Price</th>
-                        <th className="text-right px-2 py-1.5 w-20">Amount</th>
+                        <th className="text-right px-2 py-1.5 w-24">Amount excl. VAT</th>
                         <th className="w-8"></th>
                       </tr>
                     </thead>
@@ -677,6 +738,23 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                               onChange={(e) => updateLineItem(i, "amount", e.target.value)}
                               className="w-full bg-transparent text-white text-right focus:outline-none"
                             />
+                            {/* Where all three were read, say so when they
+                                disagree — one line came back 12 x 10.63 =
+                                127.56 for a line printed 8 x 12.000 = 96.00. */}
+                            {item.qty != null && item.unit_price != null && item.amount != null
+                              && Math.abs(Number(item.qty) * Number(item.unit_price) - Number(item.amount)) > 0.02 ? (
+                              <button
+                                type="button"
+                                title="Use qty × price"
+                                onClick={() =>
+                                  updateLineItem(i, "amount",
+                                    String(round2(Number(item.qty) * Number(item.unit_price))))
+                                }
+                                className="block w-full text-right text-[10px] text-amber-300/80 hover:text-amber-300"
+                              >
+                                ⚠ {item.qty} × {item.unit_price} = {round2(Number(item.qty) * Number(item.unit_price))}
+                              </button>
+                            ) : null}
                           </td>
                           <td className="px-2 py-1">
                             <button
@@ -689,6 +767,28 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                         </tr>
                       ))}
                     </tbody>
+                    {/* The column has to add to the net. This is the row that
+                        makes a misread line visible without opening a
+                        calculator. */}
+                    <tfoot>
+                      <tr className="border-t border-white/10 bg-white/5">
+                        <td className="px-2 py-1.5 text-white/40" colSpan={4}>
+                          {lineSum === null
+                            ? "Some lines have no amount, so they cannot be added up."
+                            : linesOff === null
+                              ? "Lines add up to"
+                              : linesOff === 0
+                                ? "✓ Lines add up to the net"
+                                : `⚠ Lines are out by ${linesOff} against the net ${net}`}
+                        </td>
+                        <td className={`px-2 py-1.5 text-right font-mono ${
+                          linesOff === 0 ? "text-emerald-300" : linesOff === null ? "text-white/60" : "text-amber-300"
+                        }`}>
+                          {lineSum === null ? "—" : round2(lineSum)}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               )}

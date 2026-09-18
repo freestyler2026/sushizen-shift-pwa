@@ -18,6 +18,12 @@ export interface DriveInvoice {
   invoice_date: string | null;
   due_date: string | null;
   total_amount: number | null;
+  /** What the invoice prints before tax, the tax, and the rate. Held by the
+   *  reading all along; the review panel had nowhere to show them, so a
+   *  two-line invoice could not be made to add up. */
+  amount_excl_tax?: number | null;
+  tax_amount?: number | null;
+  tax_rate_pct?: number | null;
   currency: string;
   line_items: LineItem[];
   confidence_notes: string[];
@@ -41,7 +47,12 @@ export interface LineItem {
   qty: number | null;
   unit: string;
   unit_price: number | null;
+  /** The line total EXCLUDING tax — the column the invoice heads Amount or
+   *  Amount Excl. VAT. */
   amount: number | null;
+  /** Only where the invoice prints tax per line. */
+  tax_amount?: number | null;
+  amount_incl_tax?: number | null;
 }
 
 interface Props {
