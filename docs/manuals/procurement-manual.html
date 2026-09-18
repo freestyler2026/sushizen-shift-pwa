@@ -1229,6 +1229,17 @@ td.muted { color:var(--muted); font-size:12px; }
     </ol>
   </div>
 
+  <!-- INTERNAL INVOICES -->
+  <div class="card red-border">
+    <div class="card-title" data-en="Our own kitchen and warehouse — never Approve" data-ja="社内（CK・倉庫）の請求書 — Approve しない">Our own kitchen and warehouse &mdash; never Approve</div>
+    <p data-en="Dubai's Central Kitchen and Warehouse hand each branch a printed <b>Internal Invoice</b>, and the branch photographs it into this Inbox alongside the suppliers'. It is not a purchase: the food was already bought from an outside supplier and paid for once. Approving it puts the same money into supplier spend a second time." data-ja="ドバイのCKと倉庫は各店舗に<b>Internal Invoice</b>を印刷して渡し、店舗はそれを仕入先の請求書と一緒にこのInboxへ写真で送っています。これは仕入ではありません。食材は既に社外の仕入先から買って一度支払っています。Approve すると同じ金額が仕入先支出に二度乗ります。">Not a purchase &mdash; the food was already bought and paid for once. Approving it counts the same money twice.</p>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Fill in the Vendor Name first" data-ja="先に Vendor Name を入れる"></strong><p data-en="Sushi ZEN Centrak Kitchen, Sushi ZEN Central Kitchen or Sushi ZEN Warehouse, as printed. The receipt ledger decides internal-or-not from that name, so a blank one leaves the document unfiled." data-ja="印字どおり Sushi ZEN Centrak Kitchen / Sushi ZEN Central Kitchen / Sushi ZEN Warehouse を入れます。証憑台帳はこの名前で社内かどうかを判定するので、空欄だと台帳に登録されません。">The receipt ledger decides internal-or-not from the name. A blank one leaves the document unfiled.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Press “Not a supplier invoice”" data-ja="「Not a supplier invoice」を押す"></strong><p data-en="Nothing is thrown away. The document keeps its place in the receipt ledger at Money &amp; Reports → Documents, marked <b>Internal transfer</b>, with its supplier, date, amount, tax and photograph &mdash; 112 Dubai documents worth AED 54,952 are there already. It is simply kept out of supplier spend and out of payments." data-ja="捨てられるわけではありません。証憑台帳（Money &amp; Reports → Documents）に<b>Internal transfer</b>の印つきで残り、仕入先・日付・金額・税額・写真が保持されます（ドバイで既に112件・AED 54,952）。仕入先支出と支払いから外れるだけです。">Nothing is lost. It stays in the receipt ledger marked <b>Internal transfer</b> &mdash; 112 Dubai documents, AED 54,952, are there already.</p></div></li>
+    </ol>
+    <div class="tip" style="margin-top:8px"><span class="tip-icon">&#128274;</span><span data-en="Since 2026-09-18 the sync refuses an internal supplier even if Approve is pressed by mistake, using the internal flag on the vendor record. Three had already reached the Hub (AED 1,924.27) and have been removed." data-ja="2026-09-18 以降、誤って Approve を押しても、取引先マスタの社内フラグで同期が拒否します。既にHubへ入っていた3件（AED 1,924.27）は削除済みです。">Since 2026-09-18 the sync refuses an internal supplier even if Approve is pressed by mistake. Three that had reached the Hub (AED 1,924.27) were removed.</span></div>
+  </div>
+
   <!-- PO MATCHING -->
   <div class="card green-border">
     <div class="card-title" data-en="Purchase Order Matching" data-ja="POマッチング">Purchase Order Matching</div>
