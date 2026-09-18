@@ -142,7 +142,9 @@ export default function InvoicePhotoViewer({
     v === null || v === undefined ? "" : `${c || ""} ${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-black/92">
+    // Above both navs: the sidebar is z-[60] and the phone's bottom bar is
+    // z-[70], and a viewer with a menu across it is not full screen.
+    <div className="fixed inset-0 z-[80] flex flex-col bg-black/95">
       {/* What we are comparing against. Without it on screen, the person is
           holding the invoice total in their head while reading the picture. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-white/10 px-4 py-2 text-sm text-zinc-300">
