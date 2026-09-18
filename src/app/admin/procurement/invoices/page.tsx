@@ -2359,6 +2359,25 @@ export default function ProcurementInvoicesPage() {
                           ) : null}
                         </div>
                       )}
+                      {/* Correcting an invoice needed the Problem Data tab, which
+                          holds one. Ten Dubai and thirty-nine Manila invoices whose
+                          lines do not add up to their total could be found here and
+                          not fixed, and only two Dubai invoices of 375 have a
+                          photograph to check against -- so the correction cannot
+                          hang off the photograph either. */}
+                      <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+                        <button
+                          type="button"
+                          disabled={problemBusy === row.invoice_no}
+                          onClick={() => void openProblemEditor({ invoice_no: row.invoice_no } as QualityRow)}
+                          className="rounded-lg border border-violet-500/30 bg-violet-500/15 px-3 py-1.5 text-sm text-violet-200 disabled:opacity-40"
+                        >
+                          {problemBusy === row.invoice_no ? "Opening…" : "✎ Correct this invoice"}
+                        </button>
+                        <span className="text-xs text-zinc-500">
+                          Opens the editor below the list — header fields and every line.
+                        </span>
+                      </div>
                     </div>
                     {detailBusy === row.invoice_no && !detail ? (
                       <div className="text-sm text-zinc-500">Loading invoice detail...</div>
@@ -2575,107 +2594,113 @@ export default function ProcurementInvoicesPage() {
             </div>
           </div>
 
-          {problemDraft ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-white">Problem Invoice Editor</div>
-                  <div className="mt-1 text-sm text-zinc-400">
-                    Invoice <span className="font-medium text-white">{problemDraft.invoice_no}</span>. Fields not present in the source tab structure are ignored automatically on save.
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProblemDraft(null);
-                      setProblemBaseDraft(null);
-                      setSelectedProblemInvoiceNo(null);
-                    }}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
-                  >
-                    <X className="h-4 w-4" />
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProblemDraft(problemBaseDraft)}
-                    disabled={!problemDirty || problemSaveBusy}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5 disabled:opacity-50"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Cancel Changes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void saveProblemEdits()}
-                    disabled={!problemDirty || problemSaveBusy}
-                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-900/30 disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" />
-                    {problemSaveBusy ? "Saving..." : "Save Correction"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {SUMMARY_EDIT_FIELDS.map((field) => (
-                  <label key={field.key} className={`block ${field.className || ""}`}>
-                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{field.label}</div>
-                    {field.type === "textarea" ? (
-                      <textarea
-                        value={problemDraft.summary[field.key] || ""}
-                        onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
-                        rows={3}
-                        className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
-                      />
-                    ) : (
-                      <input
-                        type={field.type}
-                        step={field.type === "number" ? "0.01" : undefined}
-                        value={problemDraft.summary[field.key] || ""}
-                        onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
-                      />
-                    )}
-                  </label>
-                ))}
-              </div>
-
-              <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
-                <table className="min-w-[1700px] w-full text-sm">
-                  <thead className="bg-white/4">
-                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                      <th className="px-3 py-2">Line</th>
-                      {LINE_EDIT_FIELDS.map((field) => (
-                        <th key={field.key} className="px-3 py-2">{field.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-800">
-                    {problemDraft.line_items.map((line) => (
-                      <tr key={`${problemDraft.invoice_no}-${line.line_no}`} className="align-top">
-                        <td className="px-3 py-2 font-mono text-zinc-500">{line.line_no}</td>
-                        {LINE_EDIT_FIELDS.map((field) => (
-                          <td key={`${line.line_no}-${field.key}`} className="px-3 py-2">
-                            <input
-                              type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
-                              step={field.type === "number" ? "0.01" : undefined}
-                              value={line.updates[field.key] || ""}
-                              onChange={(e) => updateProblemLineField(line.line_no, field.key, e.target.value)}
-                              className="w-full min-w-[120px] rounded-lg border border-white/10 bg-white/6 px-2.5 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
-                            />
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
         </div>
       )}
+
+      {/* The editor belongs to neither tab. Only Problem Data carried an Edit
+          button and Problem Data holds one invoice, so the ten Dubai and
+          thirty-nine Manila invoices whose lines do not add up to their total
+          could be found and not corrected. The endpoint always accepted any
+          invoice_no; the screen never offered it. */}
+      {problemDraft ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold text-white">Problem Invoice Editor</div>
+              <div className="mt-1 text-sm text-zinc-400">
+                Invoice <span className="font-medium text-white">{problemDraft.invoice_no}</span>. Fields not present in the source tab structure are ignored automatically on save.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setProblemDraft(null);
+                  setProblemBaseDraft(null);
+                  setSelectedProblemInvoiceNo(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
+              >
+                <X className="h-4 w-4" />
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => setProblemDraft(problemBaseDraft)}
+                disabled={!problemDirty || problemSaveBusy}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5 disabled:opacity-50"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Cancel Changes
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveProblemEdits()}
+                disabled={!problemDirty || problemSaveBusy}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-900/30 disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {problemSaveBusy ? "Saving..." : "Save Correction"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {SUMMARY_EDIT_FIELDS.map((field) => (
+              <label key={field.key} className={`block ${field.className || ""}`}>
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{field.label}</div>
+                {field.type === "textarea" ? (
+                  <textarea
+                    value={problemDraft.summary[field.key] || ""}
+                    onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
+                  />
+                ) : (
+                  <input
+                    type={field.type}
+                    step={field.type === "number" ? "0.01" : undefined}
+                    value={problemDraft.summary[field.key] || ""}
+                    onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+            <table className="min-w-[1700px] w-full text-sm">
+              <thead className="bg-white/4">
+                <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                  <th className="px-3 py-2">Line</th>
+                  {LINE_EDIT_FIELDS.map((field) => (
+                    <th key={field.key} className="px-3 py-2">{field.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-800">
+                {problemDraft.line_items.map((line) => (
+                  <tr key={`${problemDraft.invoice_no}-${line.line_no}`} className="align-top">
+                    <td className="px-3 py-2 font-mono text-zinc-500">{line.line_no}</td>
+                    {LINE_EDIT_FIELDS.map((field) => (
+                      <td key={`${line.line_no}-${field.key}`} className="px-3 py-2">
+                        <input
+                          type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
+                          step={field.type === "number" ? "0.01" : undefined}
+                          value={line.updates[field.key] || ""}
+                          onChange={(e) => updateProblemLineField(line.line_no, field.key, e.target.value)}
+                          className="w-full min-w-[120px] rounded-lg border border-white/10 bg-white/6 px-2.5 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
