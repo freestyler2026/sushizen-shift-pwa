@@ -27362,3 +27362,42 @@ Hub は5月までの世界を、Inbox は6月以降の世界を見ている。
   （写真に一本化済みという意味）。止めたつもりが無いなら誰が止めたか要確認
 - 今後の切替は**期間を重ねる**か、少なくとも切替日を決める。
   今回はどちらも「片方を止めてから、しばらくして片方を始めた」形になっている
+
+### 遡り登録のテスト手順を出すために辿った経路（2026-09-18）
+
+**Invoice Inbox に行を作るのは Discord Bot だけ。**
+`create_drive_invoice()` の呼び出し元は `discord_invoice_uploader.py` **1箇所のみ**。
+
+⚠️ **Hub の「Upload Invoice」ボタンは Drive に置くだけで登録しない。**
+`upload_supplier_invoice_to_market_folder()` を呼ぶが `create_drive_invoice()` を呼ばないので、
+**OCRもされず Invoice Inbox にも出ない。** 請求日と支店を入力させるので
+「遡り登録はこれだ」と読めるが、ファイルは Drive に落ちるだけ。
+
+**Discord チャンネル → 店舗（これが唯一の入口）**
+```
+Dubai : Business Bay / JLT / Arjan / Al Mina / Al Barsha
+Manila: paranaque-invoice, paranaque-invoice-wh-and-ck
+        taft-invoice, taft-invoice-wh-and-ck
+        ck-invoice, ck-invoice-wh
+```
+チャンネルが店舗を決める。`MANILA_INVOICE_CAPTURE=1`（有効）。
+
+**所要時間**: OCR待ち行列はほぼ空（pending 1 / processing 1）。
+実測で撮影→OCR完了が **0.3〜4分**（稀に30分）。Inbox は `created_at DESC` なので**先頭に出る**。
+
+### ⚠️ 空白期間の請求書は「撮られていない」わけではなかった
+Drive の root 配下でDBに無いファイル **1,088件**（マニラ551・ドバイ537）は
+すべて `/PO Match Invoices/<日付>/` — **受領照合で撮られた請求書写真**。
+
+**ドバイの空白 2026-05-31〜08-17 に `proc_po_invoice_checks` が 227件**、
+うち **114件が invoice_no と invoice_date を持ち**、115件が金額、45件が写真。
+マニラの空白 09-05〜09-15 は 120件（invoice_no 28 / 写真 58）。
+
+**つまりスタッフは請求書の情報を入力していた。Hub が読まない場所に入っているだけ。**
+同じ請求書の情報が `proc_po_invoice_checks` / `proc_receivings` / `drive_invoices` /
+`invoice_line_items` の4箇所に散らばり、互いに繋がっていない。
+
+### 次にやるべきこと（未実装）
+- `proc_po_invoice_checks` の114件（ドバイ）+28件（マニラ）を Hub に流せば、
+  **撮り直しも打ち直しもせずに空白の相当部分が埋まる**
+- 「Upload Invoice」を Invoice Inbox に登録するよう直す（現状は無言の行き止まり）
