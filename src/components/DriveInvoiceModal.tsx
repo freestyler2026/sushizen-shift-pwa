@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { DriveInvoice, LineItem } from "./DriveInvoiceInbox";
 import PhotoLoupe from "./PhotoLoupe";
+import { money } from "@/lib/currency";
 
 interface Props {
   invoice: DriveInvoice;
@@ -672,7 +673,7 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                   <div className="text-right shrink-0">
                     {matchedPoAmount != null && (
                       <p className="text-white/80 text-xs font-mono">
-                        AED {Number(matchedPoAmount).toLocaleString()}
+                        {money(invoice.city, matchedPoAmount)}
                       </p>
                     )}
                     <div className="flex items-center gap-1 justify-end mt-0.5">
@@ -697,7 +698,7 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     autoFocus
                     value={poQuery}
                     onChange={(e) => setPoQuery(e.target.value)}
-                    placeholder="Search vendor or PO number…"
+                    placeholder="Search vendor, PO number or case number…"
                     className="w-full rounded-lg bg-white/5 border border-blue-500/30 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-400/60 placeholder:text-white/30"
                   />
                   {poCandidates.length > 0 && (poCandidates[0].total_matches ?? 0) > poCandidates.length && (
@@ -727,7 +728,7 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                           <div className="text-right shrink-0">
                             {c.amount != null && (
                               <p className="text-white/70 text-[10px] font-mono">
-                                AED {Number(c.amount).toLocaleString()}
+                                {money(invoice.city, c.amount)}
                               </p>
                             )}
                             {(c.delivery_date || c.created_on) && (
