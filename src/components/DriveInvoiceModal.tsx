@@ -19,6 +19,12 @@ interface POCandidate {
   delivery_date: string | null;
   status: string;
   score?: number;
+  /** The day the PO was raised — the newest are listed first, so this is how
+   *  you see how far back the list reaches. */
+  created_on?: string | null;
+  city?: string;
+  /** How many POs match, against however many are being shown. */
+  total_matches?: number;
 }
 
 function ConfidenceWarnings({ notes }: { notes: string[] }) {
@@ -319,7 +325,9 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
       try {
         const q = encodeURIComponent(poQuery);
         const res = await fetch(
-          `/api/admin/drive-invoices/${invoice.id}/po-candidates?q=${q}&limit=10`,
+          // Dubai raises about twenty POs a day, so ten rows was half a day
+          // of them and anything older looked as though it had gone.
+          `/api/admin/drive-invoices/${invoice.id}/po-candidates?q=${q}&limit=25`,
           { headers: authHeaders }
         );
         if (res.ok) {
@@ -692,7 +700,14 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     placeholder="Search vendor or PO number…"
                     className="w-full rounded-lg bg-white/5 border border-blue-500/30 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-400/60 placeholder:text-white/30"
                   />
-                  <div className="max-h-48 overflow-y-auto rounded-lg border border-white/10 divide-y divide-white/5">
+                  {poCandidates.length > 0 && (poCandidates[0].total_matches ?? 0) > poCandidates.length && (
+                    <p className="text-white/40 text-[10px] px-1">
+                      Showing the newest {poCandidates.length} of{" "}
+                      {poCandidates[0].total_matches?.toLocaleString()} — type part of the PO
+                      number to reach an older one.
+                    </p>
+                  )}
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-white/10 divide-y divide-white/5">
                     {poSearching ? (
                       <p className="text-white/40 text-xs px-3 py-2 text-center">Searching…</p>
                     ) : poCandidates.length === 0 ? (
@@ -715,8 +730,10 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                                 AED {Number(c.amount).toLocaleString()}
                               </p>
                             )}
-                            {c.delivery_date && (
-                              <p className="text-white/30 text-[10px]">{c.delivery_date}</p>
+                            {(c.delivery_date || c.created_on) && (
+                              <p className="text-white/30 text-[10px]">
+                                {c.delivery_date || c.created_on}
+                              </p>
                             )}
                           </div>
                         </button>
