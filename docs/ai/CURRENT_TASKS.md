@@ -44,6 +44,46 @@ RESTORED step=なし → 作る 0.75
 `RETURNING` に列を足していなかったため。画面は一覧を読み直すので見えなかったが、
 **書いた値と違う値を返すAPIは次に読む人に信じられる**ので直した。
 
+### 検証中に露出した本物の問題 — 画面を開くたびに ALTER TABLE が走っていた
+
+`ensure_ck_par_level_tables()` は `_list_par_levels` から呼ばれる＝**ページ表示・発注モーダル・
+生産計画のPush・XLSX のすべての裏で毎回**走る。Postgres は `ADD COLUMN IF NOT EXISTS` が
+何もしない場合でも **ACCESS EXCLUSIVE ロック**を取るので、2人が同時に読むだけで詰まる。
+
+実測（4本目を足している最中に踏んだ）:
+
+```
+PID 3133007  idle in transaction (6分47秒)   ← このテーブルを読んだまま開いている接続
+PID 3133008  active wait=Lock/relation       ← ALTER TABLE ... catalog_item_name が待機
+```
+
+`_PAR_LEVEL_TABLES_READY` でプロセス1回に抑えた。**フラグはDDLがコミットした後に立てる** —
+先に立てると、失敗した移行を「済み」と記録して、その dyno の生存中ずっと列が無いままになる。
+修正後の実測: 初回 0.07s → 2回目以降 0.02〜0.03s、ロック待ち0。教訓85と同型。
+
+### Push to Production Plan（実計画の生成）の検証
+
+```
+PUSH 200  plan_id=121  items_added=26
+ITEM Cajun Mayo  qty=1.0 KG  notes='0.75 short, rounded up to 0.5 steps'
+ITEM Akadama     qty=1.0 KG  notes=''        ← step 未設定の行は従来どおり
+DELETED True   AFTER_DELETE {p:0, i:0}       ← 計画・明細とも完全に削除
+STEPS_LEFT 0   PLANS_AFTER 77                ← 書き残しなし
+```
+
+⚠️ **最初の検証は自分のスクリプトで自分を止めた。** 同じ接続で `ck_par_levels` を
+SELECT したまま TestClient を使ったので、`ensure_*` の ALTER が自分の
+idle in transaction を待って6分47秒止まった。**本番のDBを触る検証スクリプトは、
+読み終わった接続を閉じてから（または autocommit で）アプリを呼ぶこと。**
+
+### 影響がないことの確認
+
+| 対象 | 結果 |
+|---|---|
+| Dubai / ck_produced 54行 | 200・step 0・候補 0（Dubaiのカタログに CK の order_step が無い） |
+| Dubai / supplier 291行 | 200 |
+| マニラ / supplier タブ | 丸めが効いた行 **0件**（order_step は CK-Produced 専用） |
+
 ### 画面
 
 CK-Produced タブに **Order Step** 列。To Produce は**サーバが返す丸め済みの値**を表示し、
