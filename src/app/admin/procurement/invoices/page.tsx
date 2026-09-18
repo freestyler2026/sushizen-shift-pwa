@@ -2677,6 +2677,7 @@ export default function ProcurementInvoicesPage() {
                                 const key = `${hit.source_table}:${hit.source_id}`;
                                 const takenElsewhere = hit.linked_invoice_no
                                   && hit.linked_invoice_no !== row.invoice_no;
+                                const alreadyHere = hit.linked_invoice_no === row.invoice_no;
                                 return (
                                   <div
                                     key={key}
@@ -2703,14 +2704,23 @@ export default function ProcurementInvoicesPage() {
                                       >
                                         Look at it
                                       </button>
-                                      <button
-                                        type="button"
-                                        disabled={linkBusy === key}
-                                        onClick={() => void attachPhoto(row, key)}
-                                        className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200 disabled:opacity-40"
-                                      >
-                                        {linkBusy === key ? "Attaching…" : "📎 Attach"}
-                                      </button>
+                                      {alreadyHere ? (
+                                        /* Offering "Attach" on the picture that is
+                                           already attached reads as though the last
+                                           attach did not take. */
+                                        <span className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200">
+                                          📎 Attached
+                                        </span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={linkBusy === key}
+                                          onClick={() => void attachPhoto(row, key)}
+                                          className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200 disabled:opacity-40"
+                                        >
+                                          {linkBusy === key ? "Attaching…" : "📎 Attach"}
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 );
