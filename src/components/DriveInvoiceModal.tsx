@@ -103,6 +103,30 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(false);
 
+  // Reading the invoice while correcting the fields.
+  //
+  // The server already sends this at 2000px on the long edge precisely so the
+  // number, the date and the total can be read. The panel then drew it at about
+  // 460px wide with no way to look closer, so a reviewer who needed to check a
+  // twelve-digit invoice number opened the Drive folder instead -- where the
+  // files are called IMG_5142.jpg and the only way to find the right one is to
+  // open them until it appears. The zoom is what they were going to Drive for.
+  const [zoom, setZoom] = useState(1);
+  const [rot, setRot] = useState(0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [wide, setWide] = useState(false);
+  const dragRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+
+  const resetView = () => { setZoom(1); setRot(0); setPan({ x: 0, y: 0 }); };
+  // A new invoice starts fitted, not wherever the last one was left.
+  useEffect(() => { resetView(); }, [invoice.id]);
+
+  const zoomTo = (z: number) => {
+    const next = Math.min(8, Math.max(1, Math.round(z * 100) / 100));
+    setZoom(next);
+    if (next === 1) setPan({ x: 0, y: 0 });
+  };
+
   // The Drive embed asks the person at the screen for their own access to the
   // file, and only the upload service account has it. Fetch it through the
   // server, which does.
@@ -349,14 +373,59 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
         {/* Body */}
         <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
           {/* Left: file preview */}
-          <div className="w-full lg:w-[45%] border-b lg:border-b-0 lg:border-r border-white/10 bg-black/20 shrink-0 h-48 lg:h-auto flex flex-col">
+          <div className={`w-full ${wide ? "lg:w-[72%]" : "lg:w-[45%]"} border-b lg:border-b-0 lg:border-r border-white/10 bg-black/20 shrink-0 h-64 lg:h-auto flex flex-col transition-[width]`}>
             {photo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={photo}
-                alt="Invoice"
-                className="w-full flex-1 object-contain min-h-0"
-              />
+              <>
+                <div
+                  className={`relative flex-1 min-h-0 overflow-hidden ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in"}`}
+                  onWheel={(e) => { e.preventDefault(); zoomTo(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15)); }}
+                  onDoubleClick={() => (zoom > 1 ? resetView() : zoomTo(2.5))}
+                  onPointerDown={(e) => {
+                    if (zoom <= 1) return;
+                    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                    dragRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+                  }}
+                  onPointerMove={(e) => {
+                    const d = dragRef.current;
+                    if (!d) return;
+                    setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) });
+                  }}
+                  onPointerUp={() => { dragRef.current = null; }}
+                  onPointerLeave={() => { dragRef.current = null; }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo}
+                    alt="Invoice"
+                    draggable={false}
+                    className="absolute inset-0 h-full w-full object-contain select-none"
+                    style={{
+                      transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rot}deg)`,
+                      transformOrigin: "center",
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-1 border-t border-white/10 bg-black/30 px-2 py-1.5">
+                  <button type="button" onClick={() => zoomTo(zoom / 1.4)} disabled={zoom <= 1}
+                    title="Zoom out"
+                    className="rounded px-2 py-0.5 text-sm text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30">−</button>
+                  <button type="button" onClick={resetView} title="Fit"
+                    className="rounded px-2 py-0.5 text-[11px] tabular-nums text-white/70 hover:bg-white/10 hover:text-white">
+                    {Math.round(zoom * 100)}%
+                  </button>
+                  <button type="button" onClick={() => zoomTo(zoom * 1.4)} disabled={zoom >= 8}
+                    title="Zoom in"
+                    className="rounded px-2 py-0.5 text-sm text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30">+</button>
+                  <button type="button" onClick={() => setRot((r) => (r + 90) % 360)} title="Rotate"
+                    className="rounded px-2 py-0.5 text-sm text-white/70 hover:bg-white/10 hover:text-white">↻</button>
+                  <button type="button" onClick={() => setWide((w) => !w)}
+                    title={wide ? "Narrow the preview" : "Widen the preview"}
+                    className="ml-auto hidden rounded px-2 py-0.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white lg:block">
+                    {wide ? "◧ Narrow" : "◨ Wider"}
+                  </button>
+                  <span className="hidden text-[10px] text-white/30 lg:block">scroll to zoom · drag to move · double-click to fit</span>
+                </div>
+              </>
             ) : isPdf && !previewError ? (
               <iframe
                 src={previewUrl}
