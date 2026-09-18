@@ -43,6 +43,44 @@ Par Level の発注では Leg Bones だけ 0 が反映されて発注が入り�
 修正後は `par 5.0 − 在庫 0.0 = 5.0 kg` の発注が出る（Leg Bones は 20.0 kg のまま変わらず）。
 発注対象は 21 → 22 件。
 
+### 端から端まで検証（画面のロジックを再現、POSTはしない）
+
+デプロイ済みAPIの実レスポンスに対して orderGroups → buildDraft → handleCreateOrders を
+そのまま再現したところ、**JWE Meat Dealer に送られる明細に Pork Back Bones が入った**:
+
+```
+PORK BACK BONE   qty 5.0  KG  ₱280   ← 出るようになった
+PORK LEG BONES   qty 20.0 KG  ₱200   ← 変わらず
+Pork Fat         qty 2.0  KG  ₱280
+```
+
+### 同時に見つけた2つ目 — 棚卸し画面が「数えた0」を未入力として表示していた
+
+スタッフは「0でカウントした」と書き、スクリーンショットは `—`／「7/10 filled」だった。
+**どちらも正しい。** `src/app/store/ck-inventory/page.tsx:236` が
+
+```js
+quantity: entry.quantity > 0 ? String(entry.quantity) : "",
+```
+
+で、**保存済みの 0 を空文字として読み戻していた。** 結果、数量が `—`、filled の数から外れ、
+確定時の警告が「still blank」と言う。9/18 のセッションでは**3名が19件の0を入力**しており、
+`filled_by` に全員の名前が入っているのに、全部が未入力に見えていた。
+`entry.quantity == null ? "" : String(...)` に修正（未入力の品目はそもそも行が無いので、
+空文字の意味は保たれる）。修正後 Pork Leg Bones は `0` とデルタ `−12` を表示する。
+
+⚠️ **セッション作成時に0の行が自動生成されているのではないことを確認済み。**
+19件すべて `filled_by` に実名があり、保存も「自分が触った＆空でない行」だけを送る。
+つまり par 側が読む在庫0は実際に数えた0で、データは正しい。
+
+### 在庫不明の14件は見落としではない（実測）
+
+par も仕入先も設定済みだが CK の棚卸しに無い14件（Richcath's の野菜12・ガス・Red Apple）は、
+**Store Procurement / Direct Purchase で実際に発注されている**（Green Papaya 20回・最終 2026-09-18）。
+したがってモーダルで毎回14件を並べるとノイズになり、次の Pork Back Bones が埋まる（教訓39）。
+**件数だけ常時表示し、名前は「Which ones?」の1押しの裏**に置いた。行単位の
+`not counted` タグ（Stock列）が、探している1件に届く経路。
+
 ### 残っていること
 
 `PORK BACK BONE`（単数）という**表示名が棚卸しの `Pork Back Bones` と違う**ままなので、
