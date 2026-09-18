@@ -7,6 +7,7 @@ import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } f
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import { isoDate } from "@/lib/date";
+import InvoicePhotoViewer from "@/components/InvoicePhotoViewer";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
 import DriveInvoiceInbox from "@/components/DriveInvoiceInbox";
@@ -498,6 +499,9 @@ export default function ProcurementInvoicesPage() {
       source: string; vendor_name?: string | null; photo_date?: string | null;
       store_code?: string | null; supplier_matches?: boolean;
       file_name?: string | null; linked?: boolean; linked_by?: string | null;
+      read_invoice_no?: string | null; read_amount?: number | null;
+      read_currency?: string | null; number_matches?: boolean;
+      ocr_confirmed?: boolean;
     }[];
   } | null>(null);
   /** Which of the day's photographs is on screen, when the first one was not
@@ -508,6 +512,8 @@ export default function ProcurementInvoicesPage() {
    *  showing what it fetched before the change. */
   const [photoRefresh, setPhotoRefresh] = useState(0);
   const [linkBusy, setLinkBusy] = useState("");
+  /** The invoice whose photograph is open full screen. */
+  const [viewerFor, setViewerFor] = useState<string | null>(null);
   /** The invoice whose "find another photograph" panel is open. */
   const [photoPickerFor, setPhotoPickerFor] = useState<string | null>(null);
   const [photoQuery, setPhotoQuery] = useState("");
@@ -895,6 +901,24 @@ export default function ProcurementInvoicesPage() {
     }
   }, [city, photoFrom, photoQuery, photoTo, pin, requestedBy]);
 
+  /** One candidate, small enough to sit in a grid of six.
+   *
+   *  The full files run to 2MB each; the strip would pull twelve of them. */
+  const fetchThumb = useCallback(async (source: string) => {
+    try {
+      const qs = new URLSearchParams({ city, source });
+      const d = await procurementJson<{ photo?: string | null }>(
+        `/api/admin/procurement/invoices/photo-thumb?${qs.toString()}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      return d?.photo ?? null;
+    } catch {
+      return null;
+    }
+  }, [city, pin, requestedBy]);
+
   /** Open the picker with an answer already on screen.
    *
    *  An empty box over 1,300 photographs is a search nobody runs. The invoice
@@ -1178,6 +1202,9 @@ export default function ProcurementInvoicesPage() {
         source: string; vendor_name?: string | null; photo_date?: string | null;
         store_code?: string | null; supplier_matches?: boolean;
         file_name?: string | null; linked?: boolean; linked_by?: string | null;
+        read_invoice_no?: string | null; read_amount?: number | null;
+        read_currency?: string | null; number_matches?: boolean;
+        ocr_confirmed?: boolean;
       }[];
     }>(
       `/api/admin/procurement/invoices/photo?${qs.toString()}`,
@@ -2445,12 +2472,25 @@ export default function ProcurementInvoicesPage() {
                         <div className="text-sm text-zinc-500">Looking for the invoice photograph...</div>
                       ) : invoicePhoto?.photo ? (
                         <div className="space-y-2">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={invoicePhoto.photo}
-                            alt={`Invoice ${row.invoice_no}`}
-                            className="max-h-[26rem] w-auto rounded-xl border border-white/10"
-                          />
+                          {/* Drawn small here and opened large on click. The
+                              number and the total are what has to be read, and
+                              at this size neither can be. */}
+                          <button
+                            type="button"
+                            onClick={() => setViewerFor(row.invoice_no)}
+                            className="group relative block cursor-zoom-in"
+                            title="Open the photograph full screen"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={invoicePhoto.photo}
+                              alt={`Invoice ${row.invoice_no}`}
+                              className="max-h-[26rem] w-auto rounded-xl border border-white/10"
+                            />
+                            <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-2 py-1 text-xs text-white opacity-90 group-hover:opacity-100">
+                              🔍 Open large
+                            </span>
+                          </button>
                           <div className="text-xs text-zinc-500">
                             Recorded with this photograph:
                             {invoicePhoto.photo_vendor ? ` ${invoicePhoto.photo_vendor}` : " supplier not noted"}
@@ -2503,19 +2543,27 @@ export default function ProcurementInvoicesPage() {
                           {(invoicePhoto.candidates?.length || 0) > 1 ? (
                             <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                               <span>{invoicePhoto.candidates?.length} photographs to choose between:</span>
+                              {/* The supplier name and the date were the whole
+                                  label, so six photographs of one supplier's
+                                  week rendered as six identical buttons. What
+                                  separates them is what is printed on them. */}
                               {invoicePhoto.candidates?.map((cand) => (
                                 <button
                                   key={cand.source}
                                   type="button"
                                   onClick={() => setPhotoSource(cand.source)}
-                                  className={`rounded-lg border px-2 py-1 ${
+                                  className={`rounded-lg border px-2 py-1 font-mono ${
                                     invoicePhoto.showing === cand.source
                                       ? "border-violet-400/40 bg-violet-500/15 text-violet-200"
                                       : "border-white/10 bg-white/5 text-zinc-300"
                                   }`}
                                 >
                                   {cand.linked ? "📎 " : ""}
-                                  {cand.vendor_name || "unnamed"}
+                                  {cand.number_matches ? "✓ " : ""}
+                                  {cand.read_invoice_no || cand.vendor_name || "unnamed"}
+                                  {cand.read_amount !== null && cand.read_amount !== undefined
+                                    ? ` · ${Number(cand.read_amount).toFixed(2)}`
+                                    : ""}
                                   {cand.photo_date ? ` · ${String(cand.photo_date).slice(0, 10)}` : ""}
                                 </button>
                               ))}
@@ -2580,10 +2628,10 @@ export default function ProcurementInvoicesPage() {
                                   key={cand.source}
                                   type="button"
                                   onClick={() => setPhotoSource(cand.source)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-300"
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-zinc-300"
                                 >
                                   {cand.linked ? "📎 " : ""}
-                                  {cand.vendor_name || "unnamed"}
+                                  {cand.read_invoice_no || cand.vendor_name || "unnamed"}
                                   {cand.photo_date ? ` · ${String(cand.photo_date).slice(0, 10)}` : ""}
                                 </button>
                               ))}
@@ -2605,6 +2653,26 @@ export default function ProcurementInvoicesPage() {
                           </div>
                         </div>
                       )}
+                      {viewerFor === row.invoice_no ? (
+                        <InvoicePhotoViewer
+                          open
+                          onClose={() => setViewerFor(null)}
+                          invoiceNo={row.invoice_no}
+                          invoiceDate={row.invoice_date}
+                          supplierName={row.supplier_name}
+                          invoiceAmount={row.invoice_amount}
+                          currency={row.currency}
+                          photo={invoicePhoto?.photo ?? null}
+                          busy={invoicePhotoBusy}
+                          showing={String(invoicePhoto?.showing || "")}
+                          candidates={invoicePhoto?.candidates ?? []}
+                          onSelect={(src) => setPhotoSource(src)}
+                          onAttach={(src) => void attachPhoto(row, src)}
+                          onDetach={(src) => void detachPhoto(row, src)}
+                          attachBusy={linkBusy}
+                          fetchThumb={fetchThumb}
+                        />
+                      ) : null}
                       {photoPickerFor === row.invoice_no ? (
                         <div className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
                           <div className="flex flex-wrap items-end gap-2">
