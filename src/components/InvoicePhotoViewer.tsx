@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLockBodyScroll } from "@/components/ModalScrim";
+import PhotoLoupe from "@/components/PhotoLoupe";
 
 export type PhotoCandidate = {
   source: string;
@@ -73,6 +74,10 @@ export default function InvoicePhotoViewer({
   const [rot, setRot] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+  const [loupe, setLoupe] = useState(false);
+  const [loupeFactor, setLoupeFactor] = useState(2.5);
+  const [loupePoint, setLoupePoint] =
+    useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
   const resetView = useCallback(() => {
     setZoom(1); setRot(0); setPan({ x: 0, y: 0 });
@@ -129,7 +134,8 @@ export default function InvoicePhotoViewer({
       if (e.key === "ArrowLeft") { step(-1); return; }
       if (e.key === "+" || e.key === "=") { zoomTo(zoom * 1.4); return; }
       if (e.key === "-") { zoomTo(zoom / 1.4); return; }
-      if (e.key === "0") resetView();
+      if (e.key === "0") { resetView(); return; }
+      if (e.key === "m" || e.key === "M") { setLoupe((v) => !v); setLoupePoint(null); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -157,7 +163,7 @@ export default function InvoicePhotoViewer({
         {invoiceDate ? <span className="text-zinc-400">{invoiceDate}</span> : null}
         {supplierName ? <span className="truncate text-zinc-400">{supplierName}</span> : null}
         <span className="ml-auto text-[11px] text-zinc-500">
-          scroll to zoom · drag to move · ← → to change photograph · Esc to close
+          scroll to zoom · drag to move · M for the magnifier · ← → to change photograph · Esc to close
         </span>
         <button
           type="button"
@@ -185,12 +191,19 @@ export default function InvoicePhotoViewer({
                 dragRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
               }}
               onPointerMove={(e) => {
+                if (loupe) {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setLoupePoint({
+                    x: e.clientX - r.left, y: e.clientY - r.top,
+                    w: r.width, h: r.height,
+                  });
+                }
                 const d = dragRef.current;
                 if (!d) return;
                 setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) });
               }}
               onPointerUp={() => { dragRef.current = null; }}
-              onPointerLeave={() => { dragRef.current = null; }}
+              onPointerLeave={() => { dragRef.current = null; setLoupePoint(null); }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -203,6 +216,21 @@ export default function InvoicePhotoViewer({
                   transformOrigin: "center",
                 }}
               />
+              {loupe ? (
+                <PhotoLoupe point={loupePoint} factor={loupeFactor} size={320}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo}
+                    alt=""
+                    draggable={false}
+                    className="absolute inset-0 h-full w-full select-none object-contain"
+                    style={{
+                      transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rot}deg)`,
+                      transformOrigin: "center",
+                    }}
+                  />
+                </PhotoLoupe>
+              ) : null}
             </div>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-zinc-500">
@@ -221,6 +249,21 @@ export default function InvoicePhotoViewer({
               className="rounded px-3 py-1 text-lg text-white/80 hover:bg-white/10 disabled:opacity-30">+</button>
             <button type="button" onClick={() => setRot((r) => (r + 90) % 360)}
               className="rounded px-3 py-1 text-base text-white/80 hover:bg-white/10">↻</button>
+            <button
+              type="button"
+              onClick={() => { setLoupe((v) => !v); setLoupePoint(null); }}
+              title="Magnifier — enlarges what is under the pointer (M)"
+              className={`rounded px-3 py-1 text-base ${
+                loupe ? "bg-amber-400/20 text-amber-300" : "text-white/80 hover:bg-white/10"
+              }`}
+            >🔎</button>
+            {loupe && (
+              <button
+                type="button"
+                onClick={() => setLoupeFactor((f) => (f >= 5 ? 1.5 : Math.round((f + 0.5) * 10) / 10))}
+                className="rounded px-2 py-1 text-xs tabular-nums text-amber-300 hover:bg-white/10"
+              >{loupeFactor}x</button>
+            )}
           </div>
         </div>
 

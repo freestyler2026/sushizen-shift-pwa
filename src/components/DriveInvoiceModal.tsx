@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { DriveInvoice, LineItem } from "./DriveInvoiceInbox";
+import PhotoLoupe from "./PhotoLoupe";
 
 interface Props {
   invoice: DriveInvoice;
@@ -124,6 +125,12 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
   const [rot, setRot] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [wide, setWide] = useState(false);
+  // The glass. Off by default: it follows the pointer, and something that
+  // follows the pointer unasked is in the way when you are not using it.
+  const [loupe, setLoupe] = useState(false);
+  const [loupeFactor, setLoupeFactor] = useState(2.5);
+  const [loupePoint, setLoupePoint] =
+    useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const dragRef = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
 
   const resetView = () => { setZoom(1); setRot(0); setPan({ x: 0, y: 0 }); };
@@ -422,12 +429,19 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     dragRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
                   }}
                   onPointerMove={(e) => {
+                    if (loupe) {
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setLoupePoint({
+                        x: e.clientX - r.left, y: e.clientY - r.top,
+                        w: r.width, h: r.height,
+                      });
+                    }
                     const d = dragRef.current;
                     if (!d) return;
                     setPan({ x: d.px + (e.clientX - d.x), y: d.py + (e.clientY - d.y) });
                   }}
                   onPointerUp={() => { dragRef.current = null; }}
-                  onPointerLeave={() => { dragRef.current = null; }}
+                  onPointerLeave={() => { dragRef.current = null; setLoupePoint(null); }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -440,6 +454,21 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                       transformOrigin: "center",
                     }}
                   />
+                  {loupe ? (
+                    <PhotoLoupe point={loupePoint} factor={loupeFactor}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo}
+                        alt=""
+                        draggable={false}
+                        className="absolute inset-0 h-full w-full object-contain select-none"
+                        style={{
+                          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rot}deg)`,
+                          transformOrigin: "center",
+                        }}
+                      />
+                    </PhotoLoupe>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-1 border-t border-white/10 bg-black/30 px-2 py-1.5">
                   <button type="button" onClick={() => zoomTo(zoom / 1.4)} disabled={zoom <= 1}
@@ -454,6 +483,22 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     className="rounded px-2 py-0.5 text-sm text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-30">+</button>
                   <button type="button" onClick={() => setRot((r) => (r + 90) % 360)} title="Rotate"
                     className="rounded px-2 py-0.5 text-sm text-white/70 hover:bg-white/10 hover:text-white">↻</button>
+                  <button
+                    type="button"
+                    onClick={() => { setLoupe((v) => !v); setLoupePoint(null); }}
+                    title="Magnifier — enlarges what is under the pointer"
+                    className={`rounded px-2 py-0.5 text-sm ${
+                      loupe ? "bg-amber-400/20 text-amber-300" : "text-white/70 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >🔎</button>
+                  {loupe && (
+                    <button
+                      type="button"
+                      onClick={() => setLoupeFactor((f) => (f >= 5 ? 1.5 : Math.round((f + 0.5) * 10) / 10))}
+                      title="Change the magnification"
+                      className="rounded px-1.5 py-0.5 text-[11px] tabular-nums text-amber-300 hover:bg-white/10"
+                    >{loupeFactor}x</button>
+                  )}
                   <button type="button" onClick={() => setWide((w) => !w)}
                     title={wide ? "Narrow the preview" : "Widen the preview"}
                     className="ml-auto hidden rounded px-2 py-0.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white lg:block">
