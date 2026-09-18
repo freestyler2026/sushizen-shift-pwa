@@ -271,16 +271,31 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
 
   const updateLineItem = (i: number, field: keyof LineItem, value: string) => {
     setLineItems((prev) =>
-      prev.map((item, idx) =>
-        idx === i
-          ? {
-              ...item,
-              [field]: field === "qty" || field === "unit_price" || field === "amount"
-                ? value === "" ? null : Number(value)
-                : value,
-            }
-          : item
-      )
+      prev.map((item, idx) => {
+        if (idx !== i) return item;
+        const numeric = field === "qty" || field === "unit_price" || field === "amount";
+        const next: LineItem = {
+          ...item,
+          [field]: numeric ? (value === "" ? null : Number(value)) : value,
+        };
+        // Correcting the quantity or the price carries the amount with it.
+        //
+        // Reported twice on one invoice: the reading had 12 x 10.63 = 127.56
+        // for a line printed 8 x 12.000 = 96.00. Typing 8 and 12 left 127.56
+        // sitting there, so the invoice still did not add up and the person
+        // had to go and change a third figure that the first two determine.
+        // Type over the amount afterwards where the invoice really does say
+        // something else — a discount, a rounding — and that stands.
+        if (field === "qty" || field === "unit_price") {
+          const q = Number(next.qty);
+          const p = Number(next.unit_price);
+          if (next.qty !== null && next.unit_price !== null
+              && Number.isFinite(q) && Number.isFinite(p)) {
+            next.amount = Math.round(q * p * 100) / 100;
+          }
+        }
+        return next;
+      })
     );
   };
 
