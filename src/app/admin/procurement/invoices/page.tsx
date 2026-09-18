@@ -6,6 +6,7 @@ import { TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER } from "@/lib/ui-tokens";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
+import { isoDate } from "@/lib/date";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
 import DriveInvoiceInbox from "@/components/DriveInvoiceInbox";
@@ -863,13 +864,20 @@ export default function ProcurementInvoicesPage() {
    *  The files are named `<date>_<invoice number>`, so the number off the
    *  paper finds the picture even then.
    */
-  const searchPhotos = useCallback(async (opts?: { offset?: number }) => {
+  const searchPhotos = useCallback(async (opts?: {
+    offset?: number; q?: string; from?: string; to?: string;
+  }) => {
     setPhotoSearchBusy(true);
     try {
+      // Overrides, because opening the picker searches straight away and the
+      // state it just set is not readable yet.
+      const q = opts?.q ?? photoQuery;
+      const from = opts?.from ?? photoFrom;
+      const to = opts?.to ?? photoTo;
       const qs = new URLSearchParams({ city, limit: "24" });
-      if (photoQuery.trim()) qs.set("q", photoQuery.trim());
-      if (photoFrom) qs.set("date_from", photoFrom);
-      if (photoTo) qs.set("date_to", photoTo);
+      if (q.trim()) qs.set("q", q.trim());
+      if (from) qs.set("date_from", from);
+      if (to) qs.set("date_to", to);
       if (opts?.offset) qs.set("offset", String(opts.offset));
       const d = await procurementJson<{ rows?: PhotoHit[]; total?: number }>(
         `/api/admin/procurement/invoices/photo-search?${qs.toString()}`,
@@ -887,16 +895,33 @@ export default function ProcurementInvoicesPage() {
     }
   }, [city, photoFrom, photoQuery, photoTo, pin, requestedBy]);
 
-  /** Open the picker already looking at this invoice's own supplier and month.
-   *  An empty search box over 1,300 photographs is a search nobody runs. */
+  /** Open the picker with an answer already on screen.
+   *
+   *  An empty box over 1,300 photographs is a search nobody runs. The invoice
+   *  number looks like the sharpest opening term but is the wrong default:
+   *  only the approved Inbox files carry it in their name, and everything
+   *  else is IMG_9227.jpg -- so it comes up empty on most rows and reads as
+   *  a broken search. The supplier and a fortnight either side is what
+   *  actually has something in it; the number still works when typed.
+   */
   const openPhotoPicker = useCallback((row: InvoiceRow) => {
+    const shift = (iso: string, days: number) => {
+      const d = new Date(`${iso}T00:00:00`);
+      if (Number.isNaN(d.getTime())) return "";
+      d.setDate(d.getDate() + days);
+      return isoDate(d);
+    };
+    const q = row.supplier_name || row.invoice_no;
+    const from = row.invoice_date ? shift(row.invoice_date, -14) : "";
+    const to = row.invoice_date ? shift(row.invoice_date, 14) : "";
     setPhotoPickerFor(row.invoice_no);
-    setPhotoQuery(row.invoice_no);
-    setPhotoFrom("");
-    setPhotoTo("");
+    setPhotoQuery(q);
+    setPhotoFrom(from);
+    setPhotoTo(to);
     setPhotoHits(null);
     setPhotoHitTotal(0);
-  }, []);
+    void searchPhotos({ q, from, to });
+  }, [searchPhotos]);
 
   // A filter changes what is being asked, so page 4 of the old answer is not
   // page 4 of the new one.
@@ -2637,7 +2662,10 @@ export default function ProcurementInvoicesPage() {
                           </div>
                           {photoHits === null ? null : photoHits.length === 0 ? (
                             <div className="mt-3 text-sm text-zinc-500">
-                              Nothing matched. Try the supplier name, or clear the dates.
+                              Nothing matched
+                              {photoQuery.trim() ? ` “${photoQuery.trim()}”` : ""}
+                              {photoFrom || photoTo ? ` between ${photoFrom || "the start"} and ${photoTo || "now"}` : ""}.
+                              Clear the dates to search the whole city, or try part of the supplier name.
                             </div>
                           ) : (
                             <div className="mt-3 space-y-1">
