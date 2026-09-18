@@ -233,7 +233,14 @@ export default function CKInventoryPage() {
           const isDirty = dirtyItemIdsRef.current.has(entry.item_id);
           if (!isDirty) {
             draft[entry.item_id] = {
-              quantity: entry.quantity > 0 ? String(entry.quantity) : "",
+              // A counted zero is a count. Reading it back as "" made the row
+              // show a dash, dropped it out of "7/10 filled", and made the
+              // finalize warning say the item was still blank — for an item
+              // somebody had entered and whose name is on it. Three staff
+              // entered nineteen zeros in the 18 September session and every
+              // one of them read as untouched. An item nobody has counted has
+              // no entry row at all, so "" still means exactly that.
+              quantity: entry.quantity == null ? "" : String(entry.quantity),
               unit: entry.unit || "pc",
               notes: entry.notes || "",
               version: entry.version ?? 0,
