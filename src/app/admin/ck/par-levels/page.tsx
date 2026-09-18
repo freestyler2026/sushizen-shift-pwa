@@ -947,6 +947,20 @@ export default function CkParLevelsPage() {
   const withPar = rows.filter((r) => r.par_level != null).length;
   const withoutPar = rows.length - withPar;
   const withStock = rows.filter((r) => r.current_stock != null).length;
+  // Rows the ordering screen cannot act on: a par is set and a supplier is
+  // named, but the last CK count has no line for that item, so par − stock is
+  // unknowable and the row is left out of the order. That exclusion was
+  // silent, and it is how Pork Back Bones went ten days without an order
+  // while Pork Leg Bones beside it ordered every time.
+  const notCounted = rows.filter(
+    (r) =>
+      tab === "supplier" &&
+      r.current_stock == null &&
+      r.par_level != null &&
+      !!(r.supplier || "").trim() &&
+      (r.supplier || "").trim() !== "—" &&
+      (r.supplier || "").trim() !== "-"
+  );
 
   const gapLabel = tab === "ck_produced" ? "To Produce" : "To Order";
 
@@ -1434,7 +1448,12 @@ export default function CkParLevelsPage() {
                               {fmtNum(row.current_stock)}
                             </span>
                           ) : (
-                            <span className="text-zinc-700 text-xs">—</span>
+                            <span
+                              className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300/90"
+                              title={`The last CK count has no line named "${row.item_name}", so we cannot tell how much is on hand. This item is left out of the order. Check the name matches the inventory sheet.`}
+                            >
+                              not counted
+                            </span>
                           )}
                         </td>
 
@@ -1944,6 +1963,16 @@ export default function CkParLevelsPage() {
                     no price on file and will be created at 0. Hover the dash to see why — usually
                     the item is under a different name in the Procurement catalogue, or is not in
                     it at all. Fill those in on the order before approving.
+                  </p>
+                )}
+                {notCounted.length > 0 && (
+                  <p className="mt-3 text-xs text-amber-300/90">
+                    {notCounted.length} item{notCounted.length !== 1 ? "s" : ""} with a par level
+                    and a supplier {notCounted.length !== 1 ? "are" : "is"} not on this order,
+                    because the last CK count has no line for {notCounted.length !== 1 ? "them" : "it"}:{" "}
+                    {notCounted.map((r) => r.item_name).join(", ")}. Either the name differs from
+                    the inventory sheet, or the item is not counted at all. Add them below if they
+                    need ordering.
                   </p>
                 )}
                 {draftLineCount === 0 && (
