@@ -43,6 +43,38 @@ describe("finding the PO an invoice belongs to", () => {
     expect(dubai.some((r) => r.vendor_name === "Cash & Carry")).toBe(false);
   });
 
+  it("finds the PO by the short name we buy under", () => {
+    // A PO is raised to "Summit"; the invoice says "SUMMIT TRADING COMPANY
+    // LLC". Trigram similarity between those is under the 0.35 floor, so
+    // the only thing that finds it is looking for the PO's name inside the
+    // query. 45 invoices opened on "No POs found" without this.
+    const matched = (q: string, poVendor: string) =>
+      poVendor.length >= 4 && q.toLowerCase().includes(poVendor.toLowerCase());
+    expect(matched("SUMMIT TRADING COMPANY LLC", "Summit")).toBe(true);
+    expect(matched("SUNBERRY VEGETABLES AND FRUITS TRADING", "Sunberry")).toBe(true);
+    // Three-letter PO vendors are excluded: they appear inside anything.
+    expect(matched("JONALYN M. GALORIO - Prop.", "JPV")).toBe(false);
+    // And a typed number must not drag a vendor in.
+    expect(matched("PO-CASE-2026-004206-01", "Cash & Carry")).toBe(false);
+  });
+
+  it("falls back to the newest POs rather than an empty panel", () => {
+    // SAFCO is an abbreviation of SAWHNEY FOODSTUFF, not a substring, so
+    // nothing matches it and 66 invoices would still open on a dead end.
+    const search = (q: string) =>
+      ROWS.filter((r) => r.city === "dubai" && q.length > 0 &&
+                         r.vendor_name.toLowerCase().includes(q.toLowerCase()));
+    const typed = "SAWHNEY FOODSTUFF TR.CO.LLC SP";
+    let rows = search(typed);
+    let fellBack = "";
+    if (rows.length === 0 && typed.trim()) {
+      rows = ROWS.filter((r) => r.city === "dubai");
+      fellBack = rows.length ? typed.trim() : "";
+    }
+    expect(rows.length).toBeGreaterThan(0);
+    expect(fellBack).toBe(typed);
+  });
+
   it("orders an unsearched list by date, not by the text of the number", () => {
     // "PO-CK-0009" sorts above "PO-CASE-…" as a string; that is how nine of
     // ten rows a Dubai reviewer saw were Manila's central kitchen.

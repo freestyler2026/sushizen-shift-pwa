@@ -109,6 +109,9 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
   const [matchMethod, setMatchMethod] = useState(invoice.match_method || "");
   const [showPoSearch, setShowPoSearch] = useState(false);
   const [poQuery, setPoQuery] = useState("");
+  // Set when the typed vendor found nothing and the list below is the
+  // city's newest POs instead of an answer to what was typed.
+  const [poFellBack, setPoFellBack] = useState("");
   const [poCandidates, setPoCandidates] = useState<POCandidate[]>([]);
   const [poSearching, setPoSearching] = useState(false);
   const [poSaving, setPoSaving] = useState(false);
@@ -333,7 +336,25 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
         );
         if (res.ok) {
           const data = await res.json();
-          setPoCandidates(data.candidates ?? []);
+          let rows = data.candidates ?? [];
+          setPoFellBack("");
+          // SAFCO is how we buy from SAWHNEY FOODSTUFF -- an abbreviation,
+          // not a substring, so no amount of matching finds it. The box
+          // opens pre-filled with the invoice's vendor, so that reviewer
+          // met "No POs found" before touching anything. Show this city's
+          // newest POs instead and say why: the case number is one field
+          // away, and an empty panel does not say that.
+          if (rows.length === 0 && poQuery.trim()) {
+            const back = await fetch(
+              `/api/admin/drive-invoices/${invoice.id}/po-candidates?q=&limit=25`,
+              { headers: authHeaders }
+            );
+            if (back.ok) {
+              rows = (await back.json()).candidates ?? [];
+              setPoFellBack(rows.length ? poQuery.trim() : "");
+            }
+          }
+          setPoCandidates(rows);
         }
       } catch {
         // silent
@@ -701,7 +722,14 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                     placeholder="Search vendor, PO number or case number…"
                     className="w-full rounded-lg bg-white/5 border border-blue-500/30 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-400/60 placeholder:text-white/30"
                   />
-                  {poCandidates.length > 0 && (poCandidates[0].total_matches ?? 0) > poCandidates.length && (
+                  {poFellBack && (
+                    <p className="text-amber-300/80 text-[10px] px-1">
+                      No PO is raised to “{poFellBack}” — we buy from that
+                      supplier under a shorter name. Showing this city&apos;s newest
+                      POs; type the case number to go straight to one.
+                    </p>
+                  )}
+                  {!poFellBack && poCandidates.length > 0 && (poCandidates[0].total_matches ?? 0) > poCandidates.length && (
                     <p className="text-white/40 text-[10px] px-1">
                       Showing the newest {poCandidates.length} of{" "}
                       {poCandidates[0].total_matches?.toLocaleString()} — type part of the PO
