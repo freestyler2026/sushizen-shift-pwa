@@ -772,11 +772,12 @@ export default function ProcurementInvoicesPage() {
         .find((r) => !r.verify_verdict && r.invoice_no !== row.invoice_no)?.invoice_no ?? null;
       try {
         await procurementJson(
-          `/api/admin/procurement/invoices/${encodeURIComponent(row.invoice_no)}/verify`,
+          `/api/admin/procurement/invoices/verify`,
           {
             method: "POST",
             body: JSON.stringify({
               city,
+              invoice_no: row.invoice_no,
               verdict,
               note: verifyNote,
               invoice_date: row.invoice_date || "",
@@ -816,8 +817,8 @@ export default function ProcurementInvoicesPage() {
     setLinkBusy(source);
     try {
       await procurementJson(
-        `/api/admin/procurement/invoices/${encodeURIComponent(row.invoice_no)}/photo/link`,
-        { method: "POST", body: JSON.stringify({ city, source }) },
+        `/api/admin/procurement/invoices/photo/link`,
+        { method: "POST", body: JSON.stringify({ city, invoice_no: row.invoice_no, source }) },
         requestedBy,
         pin,
       );
@@ -838,9 +839,9 @@ export default function ProcurementInvoicesPage() {
   const detachPhoto = useCallback(async (row: InvoiceRow, source: string) => {
     setLinkBusy(source);
     try {
-      const qs = new URLSearchParams({ city, source });
+      const qs = new URLSearchParams({ city, source, invoice_no: row.invoice_no });
       await procurementJson(
-        `/api/admin/procurement/invoices/${encodeURIComponent(row.invoice_no)}/photo/link?${qs.toString()}`,
+        `/api/admin/procurement/invoices/photo/link?${qs.toString()}`,
         { method: "DELETE" },
         requestedBy,
         pin,
@@ -1129,7 +1130,11 @@ export default function ProcurementInvoicesPage() {
     let alive = true;
     setInvoicePhoto(null);
     setInvoicePhotoBusy(true);
-    const qs = new URLSearchParams({ city });
+    // The number goes in the query string. A quarter of Dubai's invoice
+    // numbers contain a slash, and an encoded %2F is decoded before routing,
+    // so in the path it broke into extra segments and the request 405'd --
+    // which the panel reported as "the photograph could not be loaded".
+    const qs = new URLSearchParams({ city, invoice_no: expandedInvoiceNo });
     if (openRow.invoice_date) qs.set("invoice_date", openRow.invoice_date);
     // Without this the server has no supplier to match on, so every
     // photograph fails the "is this the same supplier" test and the panel
@@ -1150,7 +1155,7 @@ export default function ProcurementInvoicesPage() {
         file_name?: string | null; linked?: boolean; linked_by?: string | null;
       }[];
     }>(
-      `/api/admin/procurement/invoices/${encodeURIComponent(expandedInvoiceNo)}/photo?${qs.toString()}`,
+      `/api/admin/procurement/invoices/photo?${qs.toString()}`,
       { method: "GET" },
       requestedBy,
       pin,
