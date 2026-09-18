@@ -433,6 +433,19 @@ export default function ProcurementInvoicesPage() {
   const [page, setPage] = useState(0);
   const [uncheckedOnly, setUncheckedOnly] = useState(false);
   const [totalInvoices, setTotalInvoices] = useState(0);
+  // Rows arrive newest first, so the first one is the frontier -- but only
+  // where nothing has narrowed or re-ordered them.
+  const newestInvoiceDate = useMemo(() => {
+    if (page !== 0 || dateFrom || dateTo || invoiceNo.trim() || vendorName.trim()) return null;
+    const d = rows[0]?.invoice_date;
+    return d ? String(d).slice(0, 10) : null;
+  }, [dateFrom, dateTo, invoiceNo, page, rows, vendorName]);
+  const staleDays = useMemo(() => {
+    if (!newestInvoiceDate) return null;
+    const then = new Date(`${newestInvoiceDate}T00:00:00`);
+    if (Number.isNaN(then.getTime())) return null;
+    return Math.floor((Date.now() - then.getTime()) / 86400000);
+  }, [newestInvoiceDate]);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
   const [checkedCount, setCheckedCount] = useState(0);
   const [qualityRows, setQualityRows] = useState<QualityRow[]>([]);
@@ -2079,6 +2092,22 @@ export default function ProcurementInvoicesPage() {
           )}
         </div>
       )}
+
+      {/* How old the newest invoice on this screen is.
+          The Dubai sheet stopped receiving new invoices at the end of May and
+          kept being edited afterwards, so the hourly sync reported COMPLETED
+          every hour while the newest invoice aged past three months. The
+          screen said "370 invoices, AED 253,956" with nothing about when.
+          Rows come back newest first, so row zero is the frontier -- only on
+          the first page with no date filter, where that is true. */}
+      {staleDays !== null && staleDays > 21 ? (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-950/25 px-4 py-3 text-sm text-amber-200">
+          <span className="font-semibold">The newest invoice here is {staleDays} days old</span>
+          {newestInvoiceDate ? ` (${newestInvoiceDate})` : ""}. The spreadsheet
+          still syncs, so nothing has failed &mdash; it has not been given anything newer.
+          Figures on this page describe up to that date, not today.
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
