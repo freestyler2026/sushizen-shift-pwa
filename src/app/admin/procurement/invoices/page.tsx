@@ -442,6 +442,8 @@ export default function ProcurementInvoicesPage() {
   const [problemReportSummary, setProblemReportSummary] = useState<ProblemReportSummary>({ flagged_invoice_count: 0, flagged_line_count: 0, supplier_count: 0 });
   const [detailsByInvoiceNo, setDetailsByInvoiceNo] = useState<Record<string, InvoiceDetail>>({});
   const [expandedInvoiceNo, setExpandedInvoiceNo] = useState<string | null>(null);
+  // What was just recorded, so the person can see their own answer land.
+  const [verifyDone, setVerifyDone] = useState<{ invoice_no: string; verdict: string } | null>(null);
   // The photograph the store took of this invoice, where one was taken and
   // read. Fetched for the row that is open, never for the list — these are
   // whole images.
@@ -712,6 +714,14 @@ export default function ProcurementInvoicesPage() {
   const recordVerification = useCallback(
     async (row: InvoiceRow, verdict: "matches" | "mismatch" | "unclear") => {
       setVerifyBusy(row.invoice_no);
+      // Where to go once this one is answered. Worked out before the reload,
+      // because with "not yet checked" on, this row is about to leave the list
+      // and the positions after it all shift up by one.
+      const order = rows.map((r) => r.invoice_no);
+      const here = order.indexOf(row.invoice_no);
+      const nextUp = rows
+        .slice(here + 1)
+        .find((r) => !r.verify_verdict && r.invoice_no !== row.invoice_no)?.invoice_no ?? null;
       try {
         await procurementJson(
           `/api/admin/procurement/invoices/${encodeURIComponent(row.invoice_no)}/verify`,
@@ -728,6 +738,15 @@ export default function ProcurementInvoicesPage() {
           pin,
         );
         setVerifyNote("");
+        // Say what was recorded and move on.
+        //
+        // The verdict was being saved and the screen did not move: the same
+        // row stayed open showing the same photograph, so pressing "Does not
+        // match" looked like pressing nothing, and the same invoice appeared
+        // to come back again and again. The answer is written down; the queue
+        // has to advance for that to be visible.
+        setVerifyDone({ invoice_no: row.invoice_no, verdict });
+        setExpandedInvoiceNo(nextUp);
         await load();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -735,7 +754,7 @@ export default function ProcurementInvoicesPage() {
         setVerifyBusy(null);
       }
     },
-    [city, load, pin, requestedBy, verifyNote],
+    [city, load, pin, requestedBy, rows, verifyNote],
   );
 
   // A filter changes what is being asked, so page 4 of the old answer is not
@@ -2109,6 +2128,24 @@ export default function ProcurementInvoicesPage() {
 
       {activeTab === "valid" ? (
         <div className="space-y-3">
+          {verifyDone ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-200">
+              <span>
+                <span className="font-semibold">{verifyDone.invoice_no}</span> recorded as{" "}
+                {verifyDone.verdict === "matches" ? "matching the photo"
+                  : verifyDone.verdict === "mismatch" ? "not matching the photo"
+                  : "unclear"}.
+                {expandedInvoiceNo ? " Moved to the next one still to check." : " Nothing further on this page to check."}
+              </span>
+              <button
+                type="button"
+                onClick={() => setVerifyDone(null)}
+                className="ml-auto rounded-lg border border-emerald-500/30 px-2 py-1 text-xs text-emerald-200/80 hover:text-emerald-100"
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
           {totalInvoices > PAGE_SIZE && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <div className="text-sm text-zinc-400">
