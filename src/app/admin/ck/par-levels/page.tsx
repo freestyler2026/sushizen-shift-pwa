@@ -204,6 +204,7 @@ export default function CkParLevelsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createPin, setCreatePin] = useState("");
   const [creatingOrders, setCreatingOrders] = useState(false);
+  const [showNotCounted, setShowNotCounted] = useState(false);
   const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null);
   // What will actually be ordered. The modal used to render par − stock straight
   // from the rows, so the only way to change a quantity was to leave, edit the
@@ -1966,14 +1967,34 @@ export default function CkParLevelsPage() {
                   </p>
                 )}
                 {notCounted.length > 0 && (
-                  <p className="mt-3 text-xs text-amber-300/90">
-                    {notCounted.length} item{notCounted.length !== 1 ? "s" : ""} with a par level
-                    and a supplier {notCounted.length !== 1 ? "are" : "is"} not on this order,
-                    because the last CK count has no line for {notCounted.length !== 1 ? "them" : "it"}:{" "}
-                    {notCounted.map((r) => r.item_name).join(", ")}. Either the name differs from
-                    the inventory sheet, or the item is not counted at all. Add them below if they
-                    need ordering.
-                  </p>
+                  <div className="mt-3 text-xs text-amber-300/90">
+                    {/* The names are behind a press on purpose. Twelve of Manila's
+                        fourteen are Richcath's vegetables, ordered daily through
+                        Store Procurement and never through this screen — printing
+                        them on every order would be the wall of text a new one
+                        would hide in. The count is the signal; the row's own
+                        "not counted" tag in the Stock column is where you find it. */}
+                    <span>
+                      {notCounted.length} item{notCounted.length !== 1 ? "s" : ""} with a par level
+                      and a supplier {notCounted.length !== 1 ? "are" : "is"} not on this order —
+                      the last CK count has no line for {notCounted.length !== 1 ? "them" : "it"},
+                      so par − stock cannot be worked out.{" "}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowNotCounted((v) => !v)}
+                      className="underline underline-offset-2 hover:text-amber-200"
+                    >
+                      {showNotCounted ? "Hide" : "Which ones?"}
+                    </button>
+                    {showNotCounted && (
+                      <p className="mt-1 text-amber-300/70">
+                        {notCounted.map((r) => r.item_name).join(", ")}. Either the name differs
+                        from the inventory sheet, or the item is not counted at all. Add any that
+                        need ordering below.
+                      </p>
+                    )}
+                  </div>
                 )}
                 {draftLineCount === 0 && (
                   <p className="mt-3 text-xs text-orange-300">
