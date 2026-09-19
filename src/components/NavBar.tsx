@@ -487,6 +487,18 @@ export default function NavBar() {
   const [adminRequestBadge, setAdminRequestBadge] = useState(0);
   const [privateReportBadge, setPrivateReportBadge] = useState(0);
   const [inboxBadge, setInboxBadge] = useState(0);
+  // Day-off and leave requests waiting in the /request inbox.
+  //
+  // Nothing counted these. /api/admin/requests/badge reads a different table
+  // (shift_change_requests, the swap approval flow), so the nav was silent
+  // while fourteen requests sat unanswered -- six of them until the day
+  // passed with the person still rostered.
+  //
+  // Two numbers, because fourteen on its own would have read as normal:
+  // requestUrgent is the count whose day is within a week or already gone,
+  // and that is what turns the badge orange.
+  const [requestBadge, setRequestBadge] = useState(0);
+  const [requestUrgent, setRequestUrgent] = useState(0);
   const [otBadge, setOtBadge] = useState(0);
   const [nteBadge, setNteBadge] = useState(0);
   // Management Inbox: what is waiting on the person looking at this bar.
@@ -824,6 +836,54 @@ export default function NavBar() {
       cancelled = true;
       window.clearInterval(id);
       window.removeEventListener(BADGE_EVENTS.inbox, onRefresh);
+    };
+  }, []);
+
+  // Request badge — day-off / leave requests still pending review
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRequestBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.hasSession && !auth?.accessToken) {
+          if (!cancelled) { setRequestBadge(0); setRequestUrgent(0); }
+          return;
+        }
+        // The same condition the endpoint's own gate uses (_admin_auth_check),
+        // read from the token rather than guessed from a role-name list, so the
+        // badge and the inbox never disagree about who reviews these. The
+        // endpoint answers 0 rather than 403 either way -- this only keeps the
+        // other hundred and fifty phones from polling it every minute.
+        const perms = (auth?.permissions || []) as string[];
+        const canReview =
+          String(auth?.role || "").toUpperCase() === "HQ"
+          || perms.includes("*")
+          || perms.includes("channel.admin.payroll.view")
+          || perms.includes("channel.admin.payroll.manage");
+        if (!canReview) {
+          if (!cancelled) { setRequestBadge(0); setRequestUrgent(0); }
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/request/notifications/badge`, {
+          cache: "no-store",
+          headers: getAuthHeaders(auth),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setRequestBadge(Number(data?.badge_count ?? 0));
+          setRequestUrgent(Number(data?.urgent_count ?? 0));
+        }
+      } catch {}
+    };
+    void fetchRequestBadge();
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchRequestBadge(); }, 60_000);
+    const onRefresh = () => void fetchRequestBadge();
+    window.addEventListener(BADGE_EVENTS.requests, onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener(BADGE_EVENTS.requests, onRefresh);
     };
   }, []);
 
@@ -1342,7 +1402,17 @@ export default function NavBar() {
         return true;
       })
       .map((item) =>
-        item.href === "/incidents"
+        item.href === "/request"
+          ? {
+              ...item,
+              badgeCount: requestBadge,
+              // Orange once a request is within a week of its day, or past it;
+              // the plain grey pill otherwise, so "waiting" and "about to be
+              // too late" do not look the same. Orange also carries up to the
+              // group header when the group is collapsed (groupTone).
+              badgeWarning: requestUrgent > 0,
+            }
+          : item.href === "/incidents"
           ? { ...item, badgeCount: incidentBadge, badgeWarning: incidentBadge > 0 }
           : item.href === "/inbox"
           ? { ...item, badgeCount: inboxBadge, badgeWarning: inboxBadge > 0 }
@@ -1361,7 +1431,7 @@ export default function NavBar() {
             }
           : item,
       );
-  }, [resolvedAuth, incidentBadge, inboxBadge, nteBadge, myMgmtBadge, myMgmtOverdue]);
+  }, [resolvedAuth, incidentBadge, inboxBadge, nteBadge, myMgmtBadge, myMgmtOverdue, requestBadge, requestUrgent]);
 
   /**
    * Which groups are open.

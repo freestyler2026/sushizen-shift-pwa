@@ -679,7 +679,7 @@ describe("InboxTab — display and review", () => {
     );
     // Should show empty state
     await waitFor(() =>
-      expect(screen.getByText("No pending requests.")).toBeInTheDocument()
+      expect(screen.getByText("No pending requests in manila.")).toBeInTheDocument()
     );
   });
 
@@ -724,7 +724,7 @@ describe("InboxTab — display and review", () => {
     await renderPage();
     fireEvent.click(screen.getByText("Inbox"));
     await waitFor(() =>
-      expect(screen.getByText("No pending requests.")).toBeInTheDocument()
+      expect(screen.getByText("No pending requests in manila.")).toBeInTheDocument()
     );
   });
 });
@@ -767,5 +767,73 @@ describe("/request page — visibilitychange listener (bug regression)", () => {
     // visibilitychange should have been removed
     const removeCalls = removeSpy.mock.calls.map(c => c[0]);
     expect(removeCalls).toContain("visibilitychange");
+  });
+});
+
+/**
+ * The inbox opens on the city that has requests, not on the reviewer's own.
+ *
+ * Yuri reviews these and is registered in dubai. The inbox followed the form's
+ * city, which follows registration, so it opened empty while fourteen manila
+ * requests sat unanswered -- the oldest a hundred and four days, six of them
+ * until the day passed with the person still on the roster. Nothing on the
+ * screen said manila had anything in it.
+ */
+describe("InboxTab — opens on the city that has requests", () => {
+  const manilaItem = {
+    id: "mnl-1",
+    sender_name: "Rachelle Ann Caubat",
+    sender_city: "manila",
+    notification_type: "day_off",
+    request_date: "2026-09-01",
+    target_date: "2026-09-20",
+    leave_type: null,
+    leave_days: null,
+    overtime_hours: null,
+    reason: "Family matter",
+    status: "pending",
+    reviewed_by: null,
+    reviewed_at: null,
+    review_note: null,
+    created_at: "2026-09-01T09:00:00Z",
+  };
+
+  beforeEach(() => {
+    // A reviewer registered in dubai, where nothing is pending.
+    mockAuth = adminAuth({ city: "dubai" });
+    mockFetch.mockReset();
+    mockFetch.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/request/notifications/badge")) {
+        return okJson({
+          badge_count: 1,
+          urgent_count: 1,
+          soonest_city: "manila",
+          by_city: { manila: { badge_count: 1, urgent_count: 1 } },
+          can_review: true,
+        });
+      }
+      if (u.includes("/api/request/notifications/inbox")) {
+        return okJson({ items: u.includes("city=manila") ? [manilaItem] : [] });
+      }
+      return okJson({});
+    });
+  });
+
+  it("shows manila's pending request to a reviewer registered in dubai", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText("Inbox"));
+    await waitFor(() =>
+      expect(screen.getByText("Rachelle Ann Caubat")).toBeInTheDocument()
+    );
+  });
+
+  it("puts the waiting count on the tab, counting every city", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Inbox")).toBeInTheDocument());
+    // The count next to the tab label, not the one inside the list.
+    await waitFor(() =>
+      expect(screen.getByText("Inbox").parentElement?.textContent).toContain("1")
+    );
   });
 });

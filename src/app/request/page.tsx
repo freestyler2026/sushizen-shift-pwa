@@ -15,6 +15,7 @@ import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, refreshAuthFromApi, getUploadHeaders } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
+import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
   INPUT_CLASS, SELECT_CLASS, TEXTAREA_CLASS,
@@ -185,7 +186,15 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
 
 // ── Tab 3: Inbox ───────────────────────────────────────────────────────────────
 
-function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: number) => void }) {
+function InboxTab({
+  city,
+  onCityChange,
+  byCity,
+}: {
+  city: string;
+  onCityChange: (c: "dubai" | "manila") => void;
+  byCity: Record<string, number>;
+}) {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -206,14 +215,13 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
       const d = await r.json() as { items: Notification[] };
       const next = d.items ?? [];
       setItems(next);
-      onCountChange?.(next.length);
       setLastLoaded(new Date());
     } catch (e) {
       if (seq === loadRef.current) setError(String(e));
     } finally {
       if (seq === loadRef.current) setLoading(false);
     }
-  }, [city, onCountChange]);
+  }, [city]);
 
   useEffect(() => {
     void load();
@@ -222,6 +230,41 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [load]);
+
+  // Which city's requests these are.
+  //
+  // The inbox used to follow the form's city, which follows the reviewer's own
+  // registration. Yuri is HQ registered in dubai, so his inbox opened on dubai
+  // -- empty -- while fourteen manila requests sat unanswered behind a selector
+  // nobody had a reason to touch. The review permission is not scoped to a
+  // city, so neither is this: both are here, each with its own count.
+  const cityPicker = (
+    <div className="flex items-center gap-1.5">
+      {(["manila", "dubai"] as const).map((c) => {
+        const n = Number(byCity[c] || 0);
+        return (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onCityChange(c)}
+            className={[
+              "rounded-lg px-2.5 py-1 text-xs font-semibold capitalize transition",
+              city === c
+                ? "bg-violet-500/20 text-violet-200 border border-violet-500/40"
+                : "bg-white/5 text-neutral-400 border border-white/10 hover:text-white",
+            ].join(" ")}
+          >
+            {c}
+            {n > 0 && (
+              <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-black">
+                {n}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   async function review(id: string, action: "approved" | "rejected") {
     setReviewBusy(true);
@@ -237,11 +280,11 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
         }),
       });
       if (!r.ok) throw new Error(await r.text());
-      setItems(prev => {
-        const next = prev.filter(i => i.id !== id);
-        onCountChange?.(next.length);
-        return next;
-      });
+      setItems(prev => prev.filter(i => i.id !== id));
+      // The tab count and the left-nav badge both come from the badge endpoint,
+      // so one event refreshes both. Without it the number the reviewer just
+      // acted on stays on screen for up to thirty seconds.
+      dispatchBadgeRefresh("requests");
       setReviewingId(null);
       setReviewNote("");
     } catch (e) {
@@ -268,9 +311,12 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
             </p>
           )}
         </div>
-        <button onClick={load} className={SMALL_BUTTON + " flex items-center gap-1.5"}>
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {cityPicker}
+          <button onClick={load} className={SMALL_BUTTON + " flex items-center gap-1.5"}>
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -286,7 +332,19 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
       ) : items.length === 0 ? (
         <div className={GLASS_CARD + " p-10 text-center"}>
           <Bell size={36} className="mx-auto mb-3 text-zinc-600" />
-          <p className="text-sm text-zinc-500">No pending requests.</p>
+          <p className="text-sm text-zinc-500">No pending requests in {city}.</p>
+          {(["manila", "dubai"] as const)
+            .filter((c) => c !== city && Number(byCity[c] || 0) > 0)
+            .map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onCityChange(c)}
+                className="mt-3 text-sm font-semibold text-violet-300 underline underline-offset-4 hover:text-violet-200 capitalize"
+              >
+                {byCity[c]} waiting in {c}
+              </button>
+            ))}
         </div>
       ) : (
         <div className="space-y-3">
@@ -540,6 +598,12 @@ export default function RequestPage() {
   const [auth, setAuth] = useState(() => getAuth());
   const [activeTab, setActiveTab] = useState<Tab>("form");
   const [inboxCount, setInboxCount] = useState(0);
+  // The inbox's city, kept apart from the form's. They were one piece of state,
+  // which meant a reviewer could not look at manila's requests without also
+  // switching the city of the request he was about to file.
+  const [inboxCity, setInboxCity] = useState<"dubai" | "manila">("manila");
+  const [inboxByCity, setInboxByCity] = useState<Record<string, number>>({});
+  const inboxCityPinned = useRef(false);
 
   // Form state
   const [city, setCity] = useState<"dubai" | "manila">("manila");
@@ -622,19 +686,40 @@ export default function RequestPage() {
       .catch(() => setLeaveBalances([]));
   }, [staffName, city]);
 
-  // Poll inbox count so the badge is live on any tab
+  // Poll the pending count so the tab badge is live on any tab.
+  //
+  // This counts every city, not the reviewer's own, and so matches the badge in
+  // the left nav. It also decides which city the inbox opens on: the one
+  // holding the request whose day comes soonest. Opening on the reviewer's own
+  // city showed Yuri an empty dubai inbox while fourteen manila requests waited.
   useEffect(() => {
     if (!isInbox) return;
+    type BadgeResponse = {
+      badge_count?: number;
+      soonest_city?: string | null;
+      by_city?: Record<string, { badge_count?: number }>;
+    };
     const poll = () => {
-      apiFetch(`/api/request/notifications/inbox?city=${encodeURIComponent(city)}&status=pending&limit=100`)
-        .then(r => r.ok ? r.json() as Promise<{ items: unknown[] }> : Promise.resolve({ items: [] }))
-        .then(d => setInboxCount((d.items ?? []).length))
+      apiFetch(`/api/request/notifications/badge`)
+        .then(r => r.ok ? r.json() as Promise<BadgeResponse> : Promise.resolve({} as BadgeResponse))
+        .then((d: BadgeResponse) => {
+          setInboxCount(Number(d.badge_count ?? 0));
+          const per: Record<string, number> = {};
+          Object.entries(d.by_city ?? {}).forEach(([c, v]) => {
+            per[c] = Number(v?.badge_count ?? 0);
+          });
+          setInboxByCity(per);
+          // Only until the reviewer picks a city — after that it is his choice.
+          if (!inboxCityPinned.current && (d.soonest_city === "manila" || d.soonest_city === "dubai")) {
+            setInboxCity(d.soonest_city);
+          }
+        })
         .catch(() => {});
     };
     poll();
     const id = setInterval(poll, 30_000);
     return () => clearInterval(id);
-  }, [isInbox, city]);
+  }, [isInbox]);
 
   const branchOptions = BRANCHES[city] ?? [];
 
@@ -1037,7 +1122,11 @@ export default function RequestPage() {
 
           {/* ── Tab 3: Inbox ─────────────────────────────────────────── */}
           {activeTab === "inbox" && isInbox && (
-            <InboxTab city={city} onCountChange={setInboxCount} />
+            <InboxTab
+              city={inboxCity}
+              onCityChange={(c) => { inboxCityPinned.current = true; setInboxCity(c); }}
+              byCity={inboxByCity}
+            />
           )}
         </div>
       </div>
