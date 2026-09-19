@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
+import { otWindow } from "@/lib/ot-window";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -209,15 +210,32 @@ function formatHour(h: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
+/** The store's business day: before 05:00 local, the shift that is ending
+ *  belongs to yesterday.
+ *
+ *  Not `businessToday()` from lib/date, which reads the device clock — this
+ *  form is filled in on a phone whose timezone is not guaranteed to be the
+ *  store's, and the rest of this page already works from the city offset.
+ *  The 05:00 boundary is the one Cash Report established: closing work lands
+ *  between midnight and 01:00 and nothing is posted between 02:00 and 07:00.
+ */
+function storeBusinessDay(rawCity: string | undefined): string {
+  const tzOff = (rawCity || "dubai").toLowerCase() === "manila" ? 8 : 4;
+  const local = new Date(Date.now() + tzOff * 3600_000);
+  if (local.getUTCHours() < 5) local.setUTCDate(local.getUTCDate() - 1);
+  return local.toISOString().slice(0, 10);
+}
+
 function hourFromTime(t: string): number {
   const [hh, mm] = t.split(":").map(Number);
   return hh + mm / 60;
 }
 
 function calcMinutes(start: number, end: number): number {
-  const e = end > start ? end : end + 24;
-  return Math.round((e - start) * 60);
+  const [s, e] = otWindow(start, end);
+  return Math.round((e - s) * 60);
 }
+
 
 export default function OvertimeRequestPage() {
   const apiBase = "";
@@ -233,10 +251,7 @@ export default function OvertimeRequestPage() {
 
   // Form state
   const [branchCode, setBranchCode] = useState(staffBranch);
-  const [workDate, setWorkDate] = useState(() => {
-    const tzOff = (getAuth()?.city || "dubai").toLowerCase() === "manila" ? 8 : 4;
-    return new Date(Date.now() + tzOff * 3600_000).toISOString().slice(0, 10);
-  });
+  const [workDate, setWorkDate] = useState(() => storeBusinessDay(getAuth()?.city));
   const [requestType, setRequestType] = useState<"pre" | "post">("post");
   const [otStart, setOtStart] = useState("21:00");
   const [otEnd, setOtEnd] = useState("23:00");
@@ -352,8 +367,8 @@ export default function OvertimeRequestPage() {
           branch_code: branchCode,
           work_date: workDate,
           request_type: requestType,
-          ot_start_hour: hourFromTime(otStart),
-          ot_end_hour: hourFromTime(otEnd),
+          ot_start_hour: otWindow(hourFromTime(otStart), hourFromTime(otEnd))[0],
+          ot_end_hour: otWindow(hourFromTime(otStart), hourFromTime(otEnd))[1],
           reason: reason.trim(),
           causes,
         }),
@@ -483,7 +498,18 @@ export default function OvertimeRequestPage() {
                   <strong className="text-purple-300">
                     {Math.floor(otMinutes / 60)}h {otMinutes % 60 > 0 ? `${otMinutes % 60}m` : ""}
                   </strong>
-                  {" "}({formatHour(hourFromTime(otStart))} – {formatHour(hourFromTime(otEnd))})
+                  {" "}({formatHour(otWindow(hourFromTime(otStart), hourFromTime(otEnd))[0])} – {formatHour(otWindow(hourFromTime(otStart), hourFromTime(otEnd))[1])})
+                </span>
+                {otWindow(hourFromTime(otStart), hourFromTime(otEnd))[1] > 24 && (
+                  /* The hours ran past midnight, so they belong to this work
+                     date's shift and not to the next calendar day. Said out
+                     loud because the date is the thing that used to go wrong
+                     silently. */
+                  <span className="mt-0.5 block text-[11px] text-sky-300">
+                    ends after midnight — counted against the {workDate} shift
+                  </span>
+                )}
+                <span className="hidden">
                 </span>
               </div>
             )}
