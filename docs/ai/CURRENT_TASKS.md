@@ -28260,3 +28260,33 @@ Discord API でサーバーの invoice チャンネルを全件確認した結�
 
 デプロイ後に全13チャンネルの読み取り可否を実測:
 Warehouse=READABLE（次の投稿から収集開始）/ Dubai CK=**BLOCKED** / 他は全てREADABLE。
+
+## 2026-09-19（続き13） — ドバイ CK/WH の収集と過去分の遡及取り込み
+
+**収集**: `INVOICE_CHANNELS` に Dubai の `#ck-invoice` と `#warehouse-invoice` を追加済み。
+連携はマニラと同一の経路（Discord → Drive → `drive_invoices` → 30秒ごとのOCRスイープ →
+Invoice Inbox）で、追加実装は不要だった。
+
+**遡及取り込み**: `app/services/discord_invoice_backfill.py` を新設。
+- 日付フォルダは**メッセージの投稿日**から作る（今日ではない）
+- アップロード前に Drive の当日フォルダを読んで**同名ファイルをスキップ**
+  （`create_drive_invoice` の重複判定は Drive が採番する `drive_file_id` なので、
+  これが無いと再実行で全部二重になる）
+- `notes` に**元の投稿日**を記録（`created_at` は実行日になるため、そのままだと失われる）
+
+⚠️ **最初の実行は73件すべて失敗した。** `cdn.discordapp.com` は
+**User-Agent の無いリクエストに403を返す**。常時稼働側は aiohttp が自前のUAを送るので
+表面化していなかった。urllib は送らない。書き込みはゼロだったので巻き戻し不要。
+
+**実績**: warehouse-invoice は全履歴 472メッセージ・**624添付**（2025-01-02〜2026-09-18・304日）。
+2026-09分 19件を先行投入して連鎖を確認（OCRが自動で進行）。残りは
+`heroku run:detached`（run.2827）で実行中。
+
+⚠️ **Dubai `#ck-invoice` は bot が403のまま。** Discord 側で
+`SushiZEN Invoice Uploader` ロールに **View Channel + Read Message History** を付けるまで
+収集も遡及もできない。付与後は
+`backfill_channel(1309295849075114014)` を実行するだけ。
+
+⚠️ **レビュー待ちの列が倍増する**: 現在 `pending_review` 491件 → 624件追加で1,115件。
+日々の確認が埋もれる可能性がある（教訓39）。古い分を別ステータスに退避するか、
+`notes` の投稿日で並べ替えるかは要判断。
