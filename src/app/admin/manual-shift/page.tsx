@@ -14,6 +14,11 @@ import {
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
 import { useUnsavedGuard } from "@/lib/unsavedGuard";
+import {
+  countDayOffConflicts,
+  describeDayOffConflict,
+  type DayOffConflict,
+} from "@/lib/day-off-conflicts";
 
 // ─── White-mode card (overrides global GLASS_CARD for this page only) ────────
 // The shared drive the exports are filed in. Same id as SHIFT_SCHEDULE_DRIVE_ID
@@ -178,6 +183,8 @@ function getModalStyle(rect: DOMRect, modalW = 340): React.CSSProperties {
   return { position: "fixed", top, left, width: modalW, zIndex: 9999, maxHeight: vH - top - 16, overflowY: "auto" as const };
 }
 
+type ApiError = Error & { status?: number; detail?: Record<string, unknown> };
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const doFetch = () => {
     const auth = getAuth();
@@ -207,7 +214,10 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     const detailMsg = typeof detail === "string"
       ? detail
       : (detail && typeof detail === "object" ? String((detail as Record<string, unknown>).message ?? "") : "");
-    throw new Error(detailMsg || (j?.message as string) || text || `HTTP ${res.status}`);
+    const err = new Error(detailMsg || (j?.message as string) || text || `HTTP ${res.status}`) as ApiError;
+    err.status = res.status;
+    if (detail && typeof detail === "object") err.detail = detail as Record<string, unknown>;
+    throw err;
   }
   try {
     return (text ? JSON.parse(text) : {}) as T;
@@ -602,6 +612,8 @@ export default function ManualShiftPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Set only by a 409 from publish: the week rosters somebody on an approved day off.
+  const [publishBlockedBy, setPublishBlockedBy] = useState<DayOffConflict[]>([]);
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
 
@@ -942,6 +954,8 @@ export default function ManualShiftPage() {
   const loadExistingShifts = useCallback(async (forceOverwrite = false, cancelledRef?: { current: boolean }) => {
     setLoading(true);
     setError("");
+    // A different week's conflicts are not this week's.
+    setPublishBlockedBy([]);
     try {
       const data = await apiFetch<{ rows?: any[]; state_token?: string; content_hash?: string }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
@@ -1428,29 +1442,57 @@ export default function ManualShiftPage() {
     setDbImporting(true);
     setError("");
     try {
-      const loadFromDb = async (force: boolean) =>
+      // Two separate refusals, each with its own question for the user: someone
+      // else published this week recently, and the sheet rosters somebody on a day
+      // already approved off. Either can arrive first, and answering one must not
+      // silently answer the other.
+      let force = false;
+      let allowApprovedDayOff = false;
+      const loadFromDb = () =>
         apiFetch<{ ok: boolean; rows_copied: number }>(
           "/api/admin/shifts/publish_from_base",
           {
             method: "POST",
-            body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart, force }),
+            body: JSON.stringify({
+              city, branch_code: branchCode, week_start: weekStart,
+              force, allow_approved_day_off: allowApprovedDayOff,
+            }),
           }
         );
-      let res: { ok: boolean; rows_copied: number };
-      try {
-        res = await loadFromDb(false);
-      } catch (first: unknown) {
-        // The server refuses when someone else published this week in the last few
-        // hours, because loading from DB throws their corrections away. Name them and
-        // let the user decide rather than doing it silently.
-        const msg = first instanceof Error ? first.message : String(first);
-        if (!/published this week/i.test(msg)) throw first;
-        if (!window.confirm(`${msg}\n\nReplace the whole week anyway?`)) {
-          setError("");
-          return;
+      let res: { ok: boolean; rows_copied: number } | null = null;
+      for (let attempt = 0; attempt < 3 && res === null; attempt += 1) {
+        try {
+          res = await loadFromDb();
+        } catch (refused: unknown) {
+          const err = refused as ApiError;
+          const conflicts = err?.status === 409 && Array.isArray(err?.detail?.day_off_conflicts)
+            ? (err.detail!.day_off_conflicts as DayOffConflict[])
+            : [];
+          if (conflicts.length > 0 && !allowApprovedDayOff) {
+            const lines = conflicts.slice(0, 8).map(describeDayOffConflict).join("\n");
+            const more = conflicts.length > 8 ? `\n…and ${conflicts.length - 8} more` : "";
+            if (!window.confirm(
+              `The imported sheet rosters somebody on a day they have already been given off `
+              + `(${countDayOffConflicts(conflicts)}):\n\n${lines}${more}\n\n`
+              + `OK — load anyway, because the day off no longer stands.\n`
+              + `Cancel — leave the week alone and fix the sheet first.`
+            )) { setError(""); return; }
+            allowApprovedDayOff = true;
+            continue;
+          }
+          const msg = refused instanceof Error ? refused.message : String(refused);
+          if (!force && /published this week/i.test(msg)) {
+            if (!window.confirm(`${msg}\n\nReplace the whole week anyway?`)) {
+              setError("");
+              return;
+            }
+            force = true;
+            continue;
+          }
+          throw refused;
         }
-        res = await loadFromDb(true);
       }
+      if (!res) { setError("Load from DB failed"); return; }
       if (!res.ok) { setError("Load from DB failed"); return; }
       if (discardFirst) {
         await apiFetch("/api/admin/shifts/discard_week_cells", {
@@ -1550,8 +1592,9 @@ export default function ManualShiftPage() {
     return rows;
   }, [gridData]);
 
-  async function handlePublish() {
+  async function handlePublish(allowApprovedDayOff = false) {
     setError("");
+    setPublishBlockedBy([]);
     // Everything typed must be on the server before the server is asked to publish
     // it -- the browser no longer sends the week, so an unsent edit would simply
     // not be published.
@@ -1590,6 +1633,7 @@ export default function ManualShiftPage() {
             week_start: weekStart,
             auto_export: true,
             export_month: weekStart.slice(0, 7),
+            allow_approved_day_off: allowApprovedDayOff,
           }),
         }
       );
@@ -1605,7 +1649,17 @@ export default function ManualShiftPage() {
       markNeedsExport();
       setShowExportPrompt(true);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      const err = e as ApiError;
+      const blocked = err?.status === 409 && Array.isArray(err?.detail?.day_off_conflicts)
+        ? (err.detail!.day_off_conflicts as DayOffConflict[])
+        : [];
+      if (blocked.length > 0) {
+        // Not an error the person caused by publishing — a day off that was
+        // approved while this week was being edited. Name it, and leave the way out.
+        setPublishBlockedBy(blocked);
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setSaving(false);
     }
@@ -2578,11 +2632,48 @@ export default function ManualShiftPage() {
               </div>
             </div>
 
+            {/* A day off was approved for somebody this week still has a shift on. */}
+            {publishBlockedBy.length > 0 && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                <p className="text-sm font-semibold text-rose-700">
+                  Not published — already given off ({countDayOffConflicts(publishBlockedBy)})
+                </p>
+                <div className="mt-2 max-h-40 overflow-y-auto">
+                  {publishBlockedBy.map((c, i) => (
+                    <p key={`pb${i}`} className="text-xs text-rose-700/90">
+                      {describeDayOffConflict(c)}
+                    </p>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-rose-600/80">
+                  Set those cells to Day Off and publish again — nothing has been published yet,
+                  so the rest of your changes are still here.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPublishBlockedBy([])}
+                    className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                  >
+                    Let me fix the cells
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePublish(true)}
+                    disabled={saving}
+                    className="rounded-lg border border-rose-400 bg-rose-100 px-3 py-1.5 text-xs text-rose-700 transition hover:bg-rose-200 disabled:opacity-50"
+                  >
+                    {saving ? "Publishing…" : "Publish anyway — the day off no longer stands"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Publish footer */}
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={handlePublish}
+                onClick={() => handlePublish(false)}
                 disabled={saving || unpublishedCells.size === 0}
                 className={`${PRIMARY_BUTTON} min-w-[180px]`}
               >

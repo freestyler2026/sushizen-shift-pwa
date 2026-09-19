@@ -668,6 +668,19 @@ async function editOneCell() {
   await screen.findByText(/cell edited — not yet published/i, {}, { timeout: 3000 });
 }
 
+/** This week's Monday and Tuesday, in the device's own calendar -- the grid
+ *  labels its columns from those, so a UTC-derived date lands on the wrong one. */
+function thisWeek() {
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const d = new Date();
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  const weekStart = iso(d);
+  d.setDate(d.getDate() + 1);
+  return { weekStart, tuesday: iso(d) };
+}
+
 describe("ManualShiftPage — publish flow", () => {
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
@@ -736,6 +749,136 @@ describe("ManualShiftPage — publish flow", () => {
     await editOneCell();
     fireEvent.click(screen.getByRole("button", { name: /🚀/ }));
     await screen.findByText(/Permission denied/i, {}, { timeout: 5000 });
+  });
+
+  it("refuses to publish somebody onto a day they have been given off, and names it", async () => {
+    const { weekStart, tuesday } = thisWeek();
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: {
+          rows: [{ work_date: tuesday, staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }],
+        },
+      },
+      {
+        match: "/api/admin/shifts/publish_week_cells",
+        status: 409,
+        method: "POST",
+        body: {
+          detail: {
+            code: "approved_day_off",
+            message: "This publish rosters somebody on a day they have already been given off:",
+            day_off_conflicts: [
+              {
+                staff_name: "Alice Cohen",
+                work_date: tuesday,
+                request_type: "day_off",
+                start_hour: 9,
+                end_hour: 17,
+                branch_code: "BB",
+              },
+            ],
+          },
+        },
+      },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await waitFor(() => expect(screen.getByText("9:00–17:00")).toBeInTheDocument(), { timeout: 3000 });
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    // The person and the day, not a status code.
+    await screen.findByText(
+      new RegExp(`Alice Cohen — ${tuesday} is an approved day off`),
+      {},
+      { timeout: 5000 },
+    );
+    expect(screen.getByText(/Not published — already given off/i)).toBeInTheDocument();
+    // Nothing was published, so the week is still being edited.
+    expect(screen.queryByText(/Published Schedule/i)).not.toBeInTheDocument();
+    expect(weekStart).toBeTruthy();
+  });
+
+  it("publishes anyway once the person says the day off no longer stands", async () => {
+    const { tuesday } = thisWeek();
+    let allowedOnSecondCall: unknown = null;
+    let calls = 0;
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      const u = String(url);
+      const method = ((opts?.method as string) || "GET").toUpperCase();
+      if (u.includes("/api/admin/shifts/publish_week_cells") && method === "POST") {
+        calls += 1;
+        const body = JSON.parse(String(opts?.body || "{}"));
+        if (calls === 1) {
+          return new Response(
+            JSON.stringify({
+              detail: {
+                code: "approved_day_off",
+                message: "already given off",
+                day_off_conflicts: [
+                  { staff_name: "Alice Cohen", work_date: tuesday, request_type: "day_off", start_hour: 9, end_hour: 17, branch_code: "BB" },
+                ],
+              },
+            }),
+            { status: 409, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        allowedOnSecondCall = body.allow_approved_day_off;
+        return new Response(JSON.stringify({ ok: true, cells_applied: 1, rows_written: 1 }), {
+          status: 200, headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (u.includes("/api/admin/staff_master/names"))
+        return new Response(JSON.stringify({ names: STAFF_NAMES }), { status: 200, headers: { "Content-Type": "application/json" } });
+      if (u.includes("/api/published/week"))
+        return new Response(JSON.stringify({
+          rows: [{ work_date: tuesday, staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    await renderPage(fetchMock as any);
+    await loadStaff();
+    await waitFor(() => expect(screen.getByText("9:00–17:00")).toBeInTheDocument(), { timeout: 3000 });
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    const anyway = await screen.findByRole("button", { name: /Publish anyway/i }, { timeout: 5000 });
+    fireEvent.click(anyway);
+    await waitFor(() => expect(allowedOnSecondCall).toBe(true), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByText(/Published Schedule/i)).toBeInTheDocument(), { timeout: 5000 });
+  });
+
+  it("'Let me fix the cells' puts the week back in the person's hands without publishing", async () => {
+    const { tuesday } = thisWeek();
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: {
+          rows: [{ work_date: tuesday, staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }],
+        },
+      },
+      {
+        match: "/api/admin/shifts/publish_week_cells",
+        status: 409,
+        method: "POST",
+        body: {
+          detail: {
+            code: "approved_day_off",
+            message: "already given off",
+            day_off_conflicts: [
+              { staff_name: "Alice Cohen", work_date: tuesday, request_type: "day_off", start_hour: 9, end_hour: 17, branch_code: "BB" },
+            ],
+          },
+        },
+      },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await waitFor(() => expect(screen.getByText("9:00–17:00")).toBeInTheDocument(), { timeout: 3000 });
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    const dismiss = await screen.findByRole("button", { name: /Let me fix the cells/i }, { timeout: 5000 });
+    fireEvent.click(dismiss);
+    await waitFor(() =>
+      expect(screen.queryByText(/Not published — already given off/i)).not.toBeInTheDocument(),
+    );
+    // The edit is still unpublished, so the publish button still has something to do.
+    expect(screen.getByRole("button", { name: /🚀 Publish/ })).not.toBeDisabled();
   });
 
   it("Preview before publishing link appears when there are shifts", async () => {
