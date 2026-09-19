@@ -28149,3 +28149,44 @@ CK_MANILA の7名が CK の受入・出荷・クレーム・緊急依頼のチ�
 
 **ゲートをこれ以上広げてはいけない** — 足りないのは設定であって、例外ではない。
 チェックを入れてから、1チャンネルずつ enforce する。
+
+## 2026-09-19（続き9） — 実操作記録で測り直した（前回の数字は誤り）
+
+**前回の「実際に使っている経路を失うのは14名」は誤り。**
+根拠にした `api_authz_observations.staff_names` は **1行につき10名までしか記録しない**
+（`if len(row["names"]) < 10`）ので、利用者の一覧として使えない。
+`os_activity_log`（10日分・164,148件・screen と api_path を持つ）で測り直した。
+
+### 正しい数字
+enforce を模擬して**実際に発生した全リクエスト**を通すと:
+- **123名中90名**が拒否される
+- **Daisy Rose P. Javier (CK_MANILA): 1,359件中1,217件＝90%が拒否**
+- Victoria Lim (CK_MANILA) 65% / Francis Ibana (MANILA_MANAGER) 261件 /
+  MANILA_STAFF の多くが20〜50%
+- ADMIN 7名・HQ 4名は**ゼロ**（ここは前回と同じ）
+
+### 拒否される4,054件の内訳
+| | 件数 | 中身 |
+|---|---:|---|
+| NavBar のポーリング | **2,052** | `procurement/approvals/queue`・`exceptions`・`price-checks/catalog-drift` が各684件。`canAccessProcurementAdmin()` が `procurement.request.write` を「調達管理画面の権限」と見なすため、開けない人にもポーリングしている。**業務ではない** |
+| 実際の画面での作業 | **2,002** | 42名 |
+
+### 実際に止まる画面
+`/store/procurement/receiving` 1,037 / `/store/procurement` 267 /
+`/admin/management/back-office` 223 / `/admin/backup` 134 / `/admin/disposal` 79 /
+`/admin/finance/documents` 50 / `/admin/manual-shift` 45 / 以下小さいもの
+
+### 塞ぎ方（実使用から算出）
+**A. ロールに足りないチャンネルを付ける（業務が止まるのはここ）**
+- **CK_MANILA**（6名・1,540件）: `store_supplier_receiving`(623) /
+  `store_procurement`(617) / `store_ck_delivery`(74) / `store_emergency_request`(15)
+  → この4つで 1,329件が解消
+- **MANILA_STAFF**（28名）: `admin.backup`(83) / `admin.disposal`(47) /
+  `admin.finance_documents`(16) / `store.management_inbox` / `store_ck_receiving`
+- **MANILA_MANAGER**（Francis Ibana）: `admin.management_back_office`(245) ほかHR系
+- **HR_STAFF**（Camilla）: 97件
+
+**B. フロントを直す（業務ではないので権限を配ってはいけない）**
+`canAccessProcurementAdmin()` が受け入れる `procurement.request.write` を外す。
+**40名の STAFF と25名の MANILA_STAFF に `admin.procurement.view` を配ってはいけない** —
+彼らは調達管理画面を開けないし、開く必要もない。NavBar がポーリングしているだけ。
