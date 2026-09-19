@@ -1,0 +1,74 @@
+name: Dependency Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/security/**"
+      - ".github/workflows/dependency-audit.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/security/**"
+  # New advisories are published against code that has not changed, which is
+  # most of how this repo got to 47 findings without anyone touching it. The
+  # weekly run is the one that matters; the push triggers above only catch the
+  # case where somebody adds a dependency.
+  schedule:
+    - cron: "0 22 * * 0"          # Mondays 06:00 Manila / 02:00 Dubai
+  workflow_dispatch:
+
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: npm audit (production tree)
+    runs-on: ubuntu-latest
+    # A hung job holds a runner for GitHub's six-hour maximum and takes the
+    # shared Actions concurrency with it — the daily payout extractors queue
+    # behind it. Nothing here should take more than a minute.
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      # --package-lock-only: the audit reads the resolved tree, and there is no
+      # reason to build node_modules to answer a question about versions.
+      - name: Resolve the dependency tree
+        run: npm install --package-lock-only --no-audit --no-fund
+
+      - name: Audit
+        run: python3 scripts/security/audit-deps.py
+
+      # The job fails on anything at high or critical that is not in
+      # scripts/security/audit-allowlist.json, and on any allowlist entry whose
+      # review date has passed. The full report is in the step above either way.
+      - name: What to do when this fails
+        if: failure()
+        run: |
+          echo "A dependency has a high or critical advisory that nobody has judged yet."
+          echo
+          echo "Reproduce it locally:"
+          echo "    python3 scripts/security/audit-deps.py"
+          echo
+          echo "Then either:"
+          echo "  - fix it:    npm audit fix        (semver-compatible bumps only)"
+          echo "  - accept it: add an entry to scripts/security/audit-allowlist.json"
+          echo "               with a reason somebody can check and a review_by date"
+          echo
+          echo "The Python side is not run here: the backend repo has no GitHub"
+          echo "remote, so it is audited from a machine that has both checkouts:"
+          echo "    python3 scripts/security/audit-deps.py --skip-npm \\"
+          echo "        --requirements ../sushizen_shift_app_clean/requirements.txt"
