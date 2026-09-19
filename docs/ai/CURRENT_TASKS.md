@@ -28072,3 +28072,39 @@ payments history / attendance records は拒否される。ADMIN は全て通る
    これらは**専用チャンネル（store.operations 等）が要る**。免除ではない。
 
 ⚠️ 観測テーブルは累積なので、次の判断は **`last_seen` がこのデプロイ以降の行**で見ること。
+
+## 2026-09-19（続き7） — 「本人が見られなくなる経路が無いか」の検証
+
+**結論: 今日は壊れていない。ただし enforce にするのはまだ安全ではない。**
+前回「3番完了」と書いたが、**切り出しは必要だったが十分ではなかった**。
+
+### 今日（ADMIN_AUTHZ_MODE=log）の実測
+My Pay 6経路すべて、スタッフのトークンで **`step_up_required`（403）** を返す＝
+パスキーを要求する本来の動作で、**認可による拒否ではない**。トークン無しは 401。
+`staff_master/names`・`backend-version`・`branch-gps`・`badge-count` はすべて 200。
+
+### enforce にした場合の実測
+スタッフ向けページ＋全ページ共通コンポーネントが叩く admin 経路 **55件のうち42件が拒否**
+（MANILA_STAFF・INVENTORY_PURCHASING いずれも同数）。内訳:
+
+1. **`/api/admin/staff_master/names` → `admin.staff`（修正済み）**
+   **ログイン画面**が使う名前リスト。認証ゲート側では `_ADMIN_GATE_ALLOW` で
+   **セッション無しでも通す**設定なのに、認可ゲートはそれを知らず拒否していた。
+   「入口に鍵をかけて、鍵のない人には開ける」状態。
+   → 定義を `api_authz.PRE_AUTH_ALLOW` に一本化し、main.py がそれを読む形にした（6経路）。
+2. **店舗業務 32経路が `admin.procurement` / `admin.emergency_requests` の下にある**
+   （/store/procurement/*・/store/purchase・/store/receiving・/store/ck-production・
+   /store/emergency-request・/store/ck-delivery）。**専用チャンネルが要る。免除ではない。**
+3. **NavBar のバッジ7件** — conduct / petty-cash / transport / spot-purchase /
+   expense-requests / supplier-confirmations / emergency-requests。
+   `payments/badge-count` と同じ「権限が無ければ0を返す」で塞げる。影響ゼロ。
+4. `management/tasks`（InventoryDueBanner・全ページに出る）と `management/templates`
+   （店舗の Management Inbox）。
+5. HR の booking-mark 2経路 — HRしか使わないので拒否で正しい。
+
+`private_reports/my_inbox`・`activity/screen`・`backend-version` は
+チャンネル未マッピングなので拒否されない（「推測しない」の設計どおり）。
+
+### 次にやる順
+バッジ7件（影響ゼロ）→ 店舗チャンネルの新設 → そのうえで1チャンネルずつ enforce。
+**現時点で `ADMIN_AUTHZ_ENFORCE` を設定してはいけない。**
