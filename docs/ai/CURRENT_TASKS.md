@@ -27946,3 +27946,50 @@ https://claude.ai/code/artifact/f0f9ba8f-84f5-43a7-9b90-d446e0c25dd5
 食事手当の新旧対照・6時間の例外・cutoffと給与期間の違い・₱500の条件と遅刻の表・
 SILの発生日と申請手順・入社日未登録14名への注意・直した2つの画面・FAQ。
 **まだ共有していない（artifactは既定で非公開）。**
+
+## 2026-09-19（続き4） — 依存関係の監査を機能させた
+
+**`npm audit` も `pip-audit` も一度も読まれていなかった。**
+
+### フロントエンド: 本番ツリー 40件（critical 2）→ 1件
+- **`next` 15.5.12 に26件の勧告、うち2件が未認証のRCE**
+  （Image Optimization API の AVIF 経由、Windows ホスト）。
+  high には **middleware/proxy bypass** と **rewrites の SSRF** もあり、
+  このアプリは全APIコールが rewrite 経由なので直撃する位置だった。
+  → **15.5.25**（`^15.5.12` の範囲内のパッチ）。ビルド・tsc・2,624テスト全通過、本番5経路200を確認。
+- **`vercel` CLI・`playwright`・`@types/leaflet` が `dependencies` に入っていた**。
+  `src/` はどれも import していない。これが `@vercel/*` 20件超＋`tar`(critical)・
+  `sharp`・`undici`・`minimatch` を本番リスクとして数えさせていた。
+  → devDependencies へ移動。playwright を使う3ワークフローは自前で
+  `npm install playwright --no-save` しているので影響なし。
+- `postcss` は next 経由で 8.4.31 → `overrides` で `^8.5.22` に固定。
+- **残り1件 = `xlsx`**。SheetJS は npm への公開を 0.18.5 で停止しており、
+  npm 上に上げ先が無い（修正は cdn.sheetjs.com）。
+  `src/app/admin/draft/parseShiftMaster.ts` が**アップロードされた xlsx を解析**する
+  （ブラウザ内・管理者ログインの内側）。インストール元を第三者CDNに変えるかは**要判断**。
+
+### バックエンド: 3パッケージ・18件
+- `requests` 2.32.5 → **2.33.0**（PYSEC-2026-2275）、
+  `python-dotenv` 1.0.1 → **1.2.2**（PYSEC-2026-2270）。デプロイ済み・401確認。
+- **`starlette` 0.38.6 が残る。** `fastapi==0.115.0` が `starlette<0.39.0` で固定しており、
+  勧告の修正は 1.3.1 まで及ぶので **FastAPI を 0.115 → 0.141 に上げる以外に道が無い**
+  （latest は `starlette>=0.46.0`）。内容はマルチパートアップロード経路に直撃：
+  filename の無いパートがテキストフィールド扱い／`max_fields`・`max_part_size` が
+  実際には効かない／Host ヘッダとリクエストパスを検証せずURL再構築。
+  31,500行・1,781ルートの main.py なので**単独の検証付き作業として切り出すべき**。
+  `@app.on_event` を2箇所使っている点は事前確認が要る（教訓104: 起動失敗は全停止）。
+
+### CI
+`.github/workflows/dependency-audit.yml` — 毎週月曜 06:00(マニラ) ＋
+package.json/lock 変更時 ＋ 手動。`timeout-minutes: 10`（教訓50）。
+判定は `scripts/security/audit-deps.py`:
+- high/critical が allowlist に無ければ **exit 1**
+- **allowlist の `review_by` を過ぎても exit 1**（期限の無い allowlist は忘却の置き場になる）
+- 落ちることを実測確認: allowlist 無し→exit 1 / 期限切れ→exit 1 / 現状→exit 0
+- 本番でも実行され成功（run 35439903541）
+`scripts/security/audit-allowlist.json` に xlsx と starlette を理由と
+**2026-12-19 の再検討期限**付きで登録。
+
+⚠️ **バックエンドは GitHub remote を持たない**（heroku のみ）ので Python 側は自動化できない。
+両方の checkout があるマシンから:
+`python3 scripts/security/audit-deps.py --skip-npm --requirements ../sushizen_shift_app_clean/requirements.txt`
