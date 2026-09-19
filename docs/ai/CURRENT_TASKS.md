@@ -28214,3 +28214,27 @@ badge-count のみ挙動変化があるが、Payments を開ける11名全員が
 本日26件の403（10名）。`/inbox` は本人の通知を見る画面。ルートの実体は
 `/api/private_reports/my_inbox`（`/admin` 無し）で、フロントは `/admin` 付きを叩いている。
 leave-balance / notifications history と同じ「本人が自分の記録を見られない」型。未修正。
+
+## 2026-09-19（続き11） — /inbox（本人宛の通知）が一度も開けていなかった（修正済み）
+
+**原因はFastAPIのルート順（memory: fastapi-route-ordering の再発）。**
+`/api/admin/private_reports/{report_id}` が先に宣言されているため、
+`/api/admin/private_reports/my_inbox` の `my_inbox` が **report_id として解釈**されていた。
+- 一般スタッフ → **403**（他人の private report は読めないので当然）
+- HQ → **500**（`invalid input syntax for type uuid: "my_inbox"`）
+
+本日の403 31件中 **26件・10名がこれ**。`/inbox` はこの人たちにとって
+**一度も動いたことがない**。実体は `/api/private_reports/my_inbox`（`/admin` 無し）で、
+こちらは最初から200を返す。
+
+**修正（両方）**
+1. バックエンド: `/api/admin/private_reports/my_inbox` と `/my_inbox/read` を
+   **`{report_id}` より前に**別名として追加。PWAはJSをキャッシュするので、
+   まだ配信されていない修正は修正ではない。
+2. フロント: `src/app/inbox/page.tsx` を正しい `/api/private_reports/...` に変更。
+
+**検証**: 旧パス 403→**200**（Patrick・Francis、unread=5）、HQ 500→**200**、
+正規パス200、**実UUIDでの詳細取得は200のまま**（別名が既存ルートを壊していない）。
+
+⚠️ 同じファイルに `@app.post("/api/admin/private_reports/reply")` が `{report_id}` より
+後に宣言されている。今はメソッドが違う（GET vs POST）ので衝突していないだけ。
