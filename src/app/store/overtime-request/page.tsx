@@ -231,6 +231,13 @@ function hourFromTime(t: string): number {
   return hh + mm / 60;
 }
 
+/** Hours from midnight of the work date back to a clock face. 25.5 is 01:30. */
+function timeFromHour(h: number): string {
+  const mins = Math.round(h * 60);
+  const hh = Math.floor(mins / 60) % 24;
+  return `${String(hh).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
 function calcMinutes(start: number, end: number): number {
   const [s, e] = otWindow(start, end);
   return Math.round((e - s) * 60);
@@ -253,8 +260,22 @@ export default function OvertimeRequestPage() {
   const [branchCode, setBranchCode] = useState(staffBranch);
   const [workDate, setWorkDate] = useState(() => storeBusinessDay(getAuth()?.city));
   const [requestType, setRequestType] = useState<"pre" | "post">("post");
-  const [otStart, setOtStart] = useState("21:00");
-  const [otEnd, setOtEnd] = useState("23:00");
+  // Empty, not 21:00-23:00.
+  //
+  // The form used to open on those two hours, and 49 of Dubai's 78 requests
+  // since July are that exact window untouched — two hours for everybody,
+  // whatever they worked. One reviewer spent September shortening them by
+  // hand, and one of the requests says in its own reason "I extended my duty
+  // by 1 hour" while asking for two. A default nobody chose was reaching the
+  // approver as a claim.
+  //
+  // They are filled from the roster and the clock as soon as a date is picked
+  // (see the effect below). When that cannot be worked out they stay empty:
+  // an empty box asks a question, and answering it wrongly is the thing being
+  // fixed.
+  const [otStart, setOtStart] = useState("");
+  const [otEnd, setOtEnd] = useState("");
+  const [clockNote, setClockNote] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -270,7 +291,9 @@ export default function OvertimeRequestPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState("");
 
-  const otMinutes = calcMinutes(hourFromTime(otStart), hourFromTime(otEnd));
+  const otMinutes = otStart && otEnd
+    ? calcMinutes(hourFromTime(otStart), hourFromTime(otEnd))
+    : 0;
 
   const tokenHeaders = useCallback(async () => {
     const freshAuth = getAuth();
@@ -310,6 +333,49 @@ export default function OvertimeRequestPage() {
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+
+  /** Open the times on what the roster and the clock already show.
+   *
+   *  From the end of the shift to when they actually left. Nothing is filled
+   *  in when either is missing — a day not yet worked, a clock-out nobody
+   *  pressed — because a guess in these boxes is what the reviewer then has
+   *  to undo by hand.
+   */
+  useEffect(() => {
+    if (!workDate) return;
+    let dead = false;
+    (async () => {
+      try {
+        const headers = await tokenHeaders();
+        const res = await fetch(
+          `${apiBase}/api/store/overtime/clock-window?work_date=${encodeURIComponent(workDate)}`,
+          { headers: new Headers(headers), cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const d = await res.json() as {
+          suggested_start?: number | null; suggested_end?: number | null;
+          computed_minutes?: number | null; unavailable?: string | null;
+        };
+        if (dead) return;
+        if (d.suggested_start != null && d.suggested_end != null) {
+          setOtStart(timeFromHour(d.suggested_start));
+          setOtEnd(timeFromHour(d.suggested_end));
+          setClockNote("Filled in from your shift and your clock-out. Change it if it is wrong.");
+        } else {
+          setOtStart("");
+          setOtEnd("");
+          setClockNote(
+            d.unavailable === "no attendance record"
+              ? "No clock-out recorded for that day yet — type the hours you worked."
+              : "",
+          );
+        }
+      } catch {
+        // The form still works typed in by hand.
+      }
+    })();
+    return () => { dead = true; };
+  }, [workDate, apiBase, tokenHeaders]);
 
   /** Tell the manager the clock is wrong on this one.
    *
@@ -489,6 +555,10 @@ export default function OvertimeRequestPage() {
                 />
               </div>
             </div>
+
+            {clockNote && (
+              <p className="text-[11px] text-sky-300">{clockNote}</p>
+            )}
 
             {/* OT duration summary */}
             {otMinutes > 0 && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Clock, CheckCircle, XCircle, AlertCircle, Download, Banknote, UserCheck } from "lucide-react";
+import { AlertCircle, AlertTriangle, Banknote, CheckCircle, Clock, Download, UserCheck, XCircle } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import SelectDark from "@/components/SelectDark";
@@ -1299,6 +1299,46 @@ export default function AdminOvertimePage() {
                 <p><span className="text-white/50">Stage 1 by:</span> <span className="text-blue-300">{reviewing.manager_approved_by}</span></p>
               )}
             </div>
+            {/* More than the clock supports — said in full, at the moment of
+                deciding, with the company's money named.
+
+                The claim used to be the only number on this screen, and the
+                form arrives pre-filled with 21:00–23:00: 49 of Dubai's 78
+                requests are that exact window untouched. So "2h" is often the
+                default rather than a claim, and approving it as asked pays for
+                hours the record does not show. */}
+            {modalAction === "manager_approve"
+              && reviewing.ot_facts
+              && !reviewing.ot_facts.unavailable
+              && reviewing.ot_facts.computed_minutes !== null
+              && (reviewing.ot_facts.delta_minutes ?? 0) > CLOCK_TOLERANCE_MIN && (
+              <div className="rounded-lg border border-amber-500/50 bg-amber-950/30 p-3 space-y-2">
+                <div className="flex items-start gap-2 text-xs text-amber-200">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    They asked for <strong>{formatMinutes(reviewing.ot_minutes)}</strong>.
+                    The roster and the clock show{" "}
+                    <strong>{formatMinutes(reviewing.ot_facts.computed_minutes)}</strong>{" "}
+                    outside the shift. Approving as asked pays{" "}
+                    <strong>{formatMinutes(reviewing.ot_facts.delta_minutes ?? 0)}</strong>{" "}
+                    more than the record supports.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const m = reviewing.ot_facts?.computed_minutes ?? 0;
+                    setAdjH(String(Math.floor(m / 60)));
+                    setAdjM(String(m % 60));
+                    setAdjOpen(true);
+                    setActionError("");
+                  }}
+                  className="w-full rounded-lg border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-900/50 transition"
+                >
+                  Approve {formatMinutes(reviewing.ot_facts.computed_minutes)} instead — what the clock shows
+                </button>
+              </div>
+            )}
             {modalAction === "mark_paid" && (
               <div className="flex items-start gap-2 rounded-lg border border-green-800/40 bg-green-950/20 p-3 text-xs text-green-300">
                 <Banknote className="h-4 w-4 shrink-0 mt-0.5" />

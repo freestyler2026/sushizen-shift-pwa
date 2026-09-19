@@ -65,3 +65,41 @@ describe("overtime form — the work date it opens on", () => {
     expect(storeBusinessDay("manila", Date.parse("2026-09-17T16:30:00Z"))).toBe("2026-09-17");
   });
 });
+
+// The form opened on 21:00–23:00. Forty-nine of Dubai's seventy-eight requests
+// since July are that exact window untouched — two hours for everybody,
+// whatever they worked — and one of them says in its own reason "I extended my
+// duty by 1 hour" while asking for two. One hour was always available; the
+// form simply offered two first, and a default nobody chose reached the
+// approver as a claim.
+function timeFromHour(h: number): string {
+  const mins = Math.round(h * 60);
+  const hh = Math.floor(mins / 60) % 24;
+  return `${String(hh).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
+describe("overtime form — what the boxes open on", () => {
+  it("turns the clock's hours back into a clock face", () => {
+    expect(timeFromHour(21)).toBe("21:00");
+    expect(timeFromHour(21.93)).toBe("21:56");
+  });
+
+  it("wraps past midnight, so 25.5 reads 01:30", () => {
+    expect(timeFromHour(25.5)).toBe("01:30");
+    expect(timeFromHour(24)).toBe("00:00");
+  });
+
+  // Muskan Tamang, 2026-09-19: rostered 12:00–21:00, clocked out 21:56.
+  // She asked for two hours; the clock shows 64 minutes.
+  it("fills from the end of the shift to the clock-out", () => {
+    const start = timeFromHour(21);
+    const end = timeFromHour(21.93);
+    const [s, e] = otWindow(hourOf(start), hourOf(end));
+    expect(Math.round((e - s) * 60)).toBe(56);
+  });
+});
+
+function hourOf(t: string): number {
+  const [hh, mm] = t.split(":").map(Number);
+  return hh + mm / 60;
+}
