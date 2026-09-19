@@ -28290,3 +28290,92 @@ Invoice Inbox）で、追加実装は不要だった。
 ⚠️ **レビュー待ちの列が倍増する**: 現在 `pending_review` 491件 → 624件追加で1,115件。
 日々の確認が埋もれる可能性がある（教訓39）。古い分を別ステータスに退避するか、
 `notes` の投稿日で並べ替えるかは要判断。
+
+---
+
+## 2026-09-19（続き14） — Day Off リクエストがバッジに出ない件（A → C → B）
+
+店舗からの報告:「15日以上前に出したDAY OFFが休みになっていない。Requestチャンネルの
+リクエストがAdmin Dashboardに溜まっていて気づけない」。
+
+### 判明した構造 — 1つの申請が2つのテーブルに書かれている
+
+`/request` フォームの1クリックが **両方** に書く:
+
+| テーブル | 書く経路 | レビューする画面 |
+|---|---|---|
+| `shift_change_notifications` | `POST /api/request/notify` | `/request` の Inbox タブ |
+| `shift_change_requests` | `POST /api/shift_change/submit` | Admin Dashboard |
+
+**両者は一切連動していない。** 結果、`shift_change_notifications` は開設以来の
+**14件すべてが `pending`** のまま。実際には**13件が Admin Dashboard で承認/却下済み**
+（最古は6週間前）。私は最初「14件が未回答」というバッジを出してデプロイした。**誤り。**
+本当に回答が要るのは**2件**（Patrick 明日分がHQ待ち / Angelica 本日提出）。
+
+⚠️ CLAUDE.md の「反対側を数える」を最初にやらなかった。バッジを出した後に
+`shift_change_requests` と突き合わせて発覚した。
+
+### A — バッジ（実装済み・本番確認済み）
+
+- `GET /api/request/notifications/badge` を新設。**双子が未決着のものだけ**を数える
+  （どちらかが REJECTED、または両方 APPROVED＝決着）。双子が無いもの（残業申請は
+  notifications にしか書かれない）は未決着として数える。
+- `urgent_count` = 希望日が**7日以内または経過済み**。経過済みを urgent に入れるのは、
+  日が過ぎても回答は owed だから（実際6日分がそのまま過ぎ、全員が出勤していた）。
+- **都市を指定しないと全都市を数える。** レビューの認可は都市で絞られていないため。
+  Yuri は HQ・dubai 登録なので、自分の都市だけ数えると manila の14件がゼロに見える。
+- `/request` の Inbox は**独立した都市 state** を持ち、`soonest_city` で開く。
+  フォームの都市とは切り離した（従来は連動しており、manila を見るとフォームの都市も動いた）。
+- 決着済みの行は**一覧に残し**、`dashboard_status` を付けて末尾に薄く表示。件数には入れない。
+- NavBar の `/request` にバッジ（緊急＝オレンジ）。折りたたみ時はグループ見出しに集約。
+- **`/api/admin/requests/badge` が呼び出し元の都市固定だった**のを両都市に修正。
+  これが「Admin Dashboard に溜まって気づけない」の直接の原因
+  （HQ全員が dubai 登録 → dubai の0件を見ていた）。
+
+### C — 重複と滞留
+
+- **重複ガード**: 同一人物・同一日・同一種別で**未決着のものがあれば409**。
+  `/api/shift_change/submit` と `/api/request/notify` の**両方**に入れた（1クリックが両方に書くため）。
+  却下済みは塞がない（再申請は新しい申請）。
+  実データ: Rachelle 9/20 ×2、Samantha 7/5 ×2 の2組。本番で409を実測（書き込みゼロ）。
+- **滞留通知は既に存在していた**。`run_shift_request_digest()` が毎朝
+  （manila 08:10 / dubai 08:10）`DISCORD_SHIFT_APPROVAL_WEBHOOK_URL` に送っている。
+  新設せず、そこに B の結果を足した。
+  ⚠️ **この digest が読まれているかは未確認。** 3件が open のまま毎朝送られていたはず。
+
+### B — 承認済み Day Off とシフトの矛盾
+
+`day_off_shift_conflicts(city)`（`app/db.py`）。ロースターは **Manual Shift と同じ順で読む**
+（`shift_week_edits` オーバーレイ優先 → `shift_published_rows` の `updated_at DESC`／教訓14・31）。
+
+2種類に分ける。直す人が違うため:
+
+| kind | 意味 | 実データ（manila, 直近60日） |
+|---|---|---|
+| `approved_but_rostered` | 承認済みなのにシフトが残っている → **シフトを直す** | Mary Jane Tegerero 8/21・Abegail A. Dalida 9/6（どちらも出勤済み） |
+| `undecided_and_rostered` | 未回答のまま日が近い → **回答する** | Patrick Danel Santiago 9/20（15:30-24:30 CUB、明日） |
+
+却下済みは対象外（出勤が正しい）。Rachelle 9/20 は**オーバーレイが DAY_OFF なので除外**
+＝正しく適用済み。
+
+- `GET /api/admin/shift-conflicts`（role または `channel.admin.manual_shift.view` /
+  `channel.admin.payroll.view`）。**`reason` はレスポンスから除去**（本人の言葉で、
+  誕生日や家族の事情が書かれている。どちらの画面も表示しない）。
+- **Manual Shift のセル**に表示: 赤「day off approved」/ 琥珀「day off asked」。
+  既存の「day off req」チップは `shift_sheet_sync_proposals`（シート同期）由来で、
+  **スタッフ本人の申請を一度も見ていなかった。**
+- `/request` Inbox の上部に一覧。
+- 毎朝の digest に追加。**早期returnより前で走らせる** — 承認済みでシフト未変更のケースは
+  キューに何も残らないので、キューだけ見ていると必ず見落とす。
+
+### 残課題
+
+1. **`shift_change_notifications` の13件が pending のまま。** 決着は別テーブルにある。
+   コード側は読み取りで吸収したが、レコード自体は古い。閉じるなら承認/却下を写す
+   バックフィルが要る（要判断・要バックアップ）。
+2. **申請が2テーブルに二重書きされる構造は残っている。** 恒久対策は
+   レビュー時に双子へ伝播させるか、1テーブルに統合するか。
+3. `/request` Inbox タブの表示条件（ロール名の列挙）と API の認可
+   （HQ / `*` / `channel.admin.payroll.*`）が**一致していない**。
+   MANILA_MANAGEMENT はタブが見えて API が403になる。
+4. 毎朝の digest が実際に読まれているかの確認。
