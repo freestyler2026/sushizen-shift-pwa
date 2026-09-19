@@ -203,6 +203,11 @@ function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) 
   );
 }
 
+/** "2" / "1.5" — hours as somebody would say them, not as a float prints them. */
+function formatOtHours(h: number): string {
+  return Number.isInteger(h) ? String(h) : String(Math.round(h * 100) / 100);
+}
+
 function formatHour(h: number): string {
   const total = h < 0 ? h + 24 : h;
   const hh = Math.floor(total) % 24;
@@ -276,6 +281,10 @@ export default function OvertimeRequestPage() {
   const [otStart, setOtStart] = useState("");
   const [otEnd, setOtEnd] = useState("");
   const [clockNote, setClockNote] = useState("");
+  // Overtime the roster already holds, which is paid without anybody filing for
+  // it. Every request against a long shift so far has been a copy of the
+  // schedule, so the form has to say so before it asks for anything.
+  const [coveredHours, setCoveredHours] = useState(0);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -355,8 +364,10 @@ export default function OvertimeRequestPage() {
         const d = await res.json() as {
           suggested_start?: number | null; suggested_end?: number | null;
           computed_minutes?: number | null; unavailable?: string | null;
+          scheduled_ot_hours?: number | null;
         };
         if (dead) return;
+        setCoveredHours(Number(d.scheduled_ot_hours || 0));
         if (d.suggested_start != null && d.suggested_end != null) {
           setOtStart(timeFromHour(d.suggested_start));
           setOtEnd(timeFromHour(d.suggested_end));
@@ -562,6 +573,23 @@ export default function OvertimeRequestPage() {
 
             {clockNote && (
               <p className="text-[11px] text-sky-300">{clockNote}</p>
+            )}
+
+            {/* The roster already asked for these hours, so they are paid without
+                this form. Said before the boxes, because the boxes are what people
+                were filling with exactly these hours. */}
+            {coveredHours > 0 && (
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-900/20 px-4 py-2.5">
+                <p className="text-[12px] font-semibold text-emerald-300">
+                  Your shift that day already includes{" "}
+                  {coveredHours === 1 ? "1 hour" : `${formatOtHours(coveredHours)} hours`} of overtime.
+                </p>
+                <p className="mt-1 text-[11px] text-emerald-200/80">
+                  You do not need to ask for those — the company put them on the
+                  schedule and they are paid with the shift. Use this form only for
+                  time you worked <strong>after</strong> your shift was due to end.
+                </p>
+              </div>
             )}
 
             {/* OT duration summary */}
