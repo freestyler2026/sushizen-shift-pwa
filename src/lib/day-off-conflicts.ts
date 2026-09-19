@@ -34,10 +34,13 @@ export function describeDayOffConflict(c: DayOffConflict): string {
   )}-${hhmm(c.end_hour)}${at}`;
 }
 
-/** "3 people" / "1 person" — for the heading above the list. */
+/** "3 people" / "1 person" — for the heading above the list.
+ *
+ *  Counts distinct people and distinct days, not rows: a split shift is two
+ *  rows on one day, and calling that "2 days" overstates what is wrong. */
 export function countDayOffConflicts(conflicts: DayOffConflict[]): string {
   const people = new Set(conflicts.map((c) => c.staff_name.toLowerCase())).size;
-  const days = conflicts.length;
+  const days = new Set(conflicts.map((c) => `${c.staff_name.toLowerCase()}|${c.work_date}`)).size;
   const p = `${people} ${people === 1 ? "person" : "people"}`;
   const d = `${days} ${days === 1 ? "day" : "days"}`;
   return people === days ? `${p}, ${d}` : `${p} across ${d}`;

@@ -1688,14 +1688,33 @@ export default function AdminDraftPage() {
     setAutoExportBusy(false);
   }, [activeBranchCode]);
 
+  // The window the grid needs days off for: the target month, widened to cover
+  // any row that sits outside it. A draft that runs past the month end would
+  // otherwise have rows the index says nothing about, and a chip that is simply
+  // absent reads as "this is fine".
+  // Two strings rather than an object, so the fetch below does not refire every
+  // time the rows array is rebuilt with the same span.
+  const [dayOffFrom, dayOffTo] = useMemo(() => {
+    const dates = monthDates(targetMonth);
+    if (dates.length === 0) return ["", ""];
+    let lo = dates[0];
+    let hi = dates[dates.length - 1];
+    for (const r of rows) {
+      const d = (r.work_date || "").slice(0, 10);
+      if (!d) continue;
+      if (d < lo) lo = d;
+      if (d > hi) hi = d;
+    }
+    return [lo, hi];
+  }, [targetMonth, rows]);
+
   useEffect(() => {
     let dead = false;
-    const dates = monthDates(targetMonth);
-    if (dates.length === 0) { setDayOffDays([]); return; }
+    if (!dayOffFrom || !dayOffTo) { setDayOffDays([]); return; }
     (async () => {
       try {
         const res = await apiGet<{ items: DayOffDay[] }>(
-          `/api/admin/day-off-days${qs({ city, date_from: dates[0], date_to: dates[dates.length - 1] })}`,
+          `/api/admin/day-off-days${qs({ city, date_from: dayOffFrom, date_to: dayOffTo })}`,
         );
         if (!dead) setDayOffDays(res.items || []);
       } catch {
@@ -1704,7 +1723,7 @@ export default function AdminDraftPage() {
       }
     })();
     return () => { dead = true; };
-  }, [city, targetMonth]);
+  }, [city, dayOffFrom, dayOffTo]);
 
   const dayOffByStaffDate = useMemo(() => dayOffIndex(dayOffDays), [dayOffDays]);
 

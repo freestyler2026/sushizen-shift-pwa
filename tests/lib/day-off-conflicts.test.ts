@@ -76,6 +76,20 @@ describe("countDayOffConflicts", () => {
     ).toBe("1 person across 2 days");
   });
 
+  it("counts a split shift as one day, not two", () => {
+    // 09:00-13:00 and 17:00-21:00 on one date is two rows and one day off lost.
+    expect(
+      countDayOffConflicts([
+        { staff_name: "Rafael", work_date: "2026-09-06", start_hour: 9, end_hour: 13 },
+        { staff_name: "Rafael", work_date: "2026-09-06", start_hour: 17, end_hour: 21 },
+      ]),
+    ).toBe("1 person, 1 day");
+  });
+
+  it("still counts two people on the same day as two", () => {
+    expect(countDayOffConflicts([c("A", "2026-09-06"), c("B", "2026-09-06")])).toBe("2 people, 2 days");
+  });
+
   it("matches a name case-insensitively so it is not counted twice", () => {
     expect(
       countDayOffConflicts([c("Rachelle Ann Caubat", "2026-08-30"), c("rachelle ann caubat", "2026-09-20")]),
