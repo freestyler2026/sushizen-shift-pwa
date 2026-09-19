@@ -89,6 +89,15 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
     invoice.tax_rate_pct != null ? String(invoice.tax_rate_pct) : ""
   );
   const [currency, setCurrency] = useState(invoice.currency || "AED");
+  // The branch, and the branches it can be.
+  //
+  // This was read-only, on the reasoning that it comes from the capture folder
+  // rather than the OCR. But the capture folder is the Discord channel the
+  // photo was posted in, and that is wrong whenever somebody photographs one
+  // branch's invoice into another branch's channel — Dubai reported a Chef
+  // Middle East invoice for JLT sitting under Arjan with no way to say so.
+  const [storeName, setStoreName] = useState(invoice.store_name || "");
+  const [storeOptions, setStoreOptions] = useState<string[]>([]);
   const [notes, setNotes] = useState(invoice.notes || "");
   const [lineItems, setLineItems] = useState<LineItem[]>(invoice.line_items || []);
   const [saving, setSaving] = useState(false);
@@ -221,8 +230,31 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
     );
   };
 
+  useEffect(() => {
+    let dead = false;
+    fetch(`/api/admin/drive-invoices/stores?city=${encodeURIComponent(invoice.city || "")}`, {
+      headers: authHeaders,
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? r.json() : { stores: [] }))
+      .then((d: { stores?: string[] }) => {
+        if (dead) return;
+        const list = d.stores ?? [];
+        // Keep whatever the invoice already says, even if the channel it came
+        // from has since been removed from the list.
+        setStoreOptions(
+          invoice.store_name && !list.includes(invoice.store_name)
+            ? [invoice.store_name, ...list]
+            : list,
+        );
+      })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [invoice.city, invoice.store_name, authHeaders]);
+
   const buildPayload = (reviewStatus: string) => ({
     vendor_name: vendorName,
+    store_name: storeName,
     invoice_number: invoiceNumber,
     invoice_date: invoiceDate || null,
     due_date: dueDate || null,
@@ -603,15 +635,35 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
               <div className="col-span-2">
                 <Field label="Vendor Name" value={vendorName} onChange={setVendorName} />
               </div>
-              {/* Branch was printed once in small type under the file name. It is
-                  one of the five things being checked here, so it gets a label
-                  like the other four. Read-only on purpose: it comes from the
-                  folder the file was captured into, not from the OCR, so an
-                  editable box would invite correcting the wrong thing. */}
+              {/* Branch was printed once in small type under the file name. It
+                  is one of the five things being checked here, so it gets a
+                  label like the other four — and it is editable, because the
+                  value is the channel the photo was posted in rather than
+                  anything the invoice says. It ends up on every line in the
+                  Hub, so the wrong one files the cost against the wrong store. */}
               <div className="col-span-2">
-                <label className="block text-white/50 text-[11px] mb-1">Branch / Location</label>
-                <div className="w-full rounded-lg bg-white/[0.03] border border-white/10 px-3 py-1.5 text-sm text-white/80">
-                  {invoice.store_name || "—"} · {invoice.city.toUpperCase()}
+                <label className="block text-white/50 text-[11px] mb-1">
+                  Branch / Location
+                  {storeName && invoice.store_name && storeName !== invoice.store_name && (
+                    <span className="ml-2 text-amber-300">
+                      changed from {invoice.store_name}
+                    </span>
+                  )}
+                </label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                    className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
+                  >
+                    {storeOptions.length === 0 && (
+                      <option value={storeName} className="bg-[#1a1a2e]">{storeName || "—"}</option>
+                    )}
+                    {storeOptions.map((s) => (
+                      <option key={s} value={s} className="bg-[#1a1a2e]">{s}</option>
+                    ))}
+                  </select>
+                  <span className="shrink-0 text-sm text-white/50">{invoice.city.toUpperCase()}</span>
                 </div>
               </div>
               <Field label="Invoice Number" value={invoiceNumber} onChange={setInvoiceNumber} />
