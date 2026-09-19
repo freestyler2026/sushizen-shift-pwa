@@ -489,14 +489,14 @@ export default function NavBar() {
   const [inboxBadge, setInboxBadge] = useState(0);
   // Day-off and leave requests waiting in the /request inbox.
   //
-  // Nothing counted these. /api/admin/requests/badge reads a different table
-  // (shift_change_requests, the swap approval flow), so the nav was silent
-  // while fourteen requests sat unanswered -- six of them until the day
-  // passed with the person still rostered.
+  // Nothing counted these. The same request is written to two tables and the
+  // Admin Dashboard reviews the other one, so every notification ever created
+  // still read "pending" and nothing on this bar said so. Six days passed that
+  // way with the person still published as working.
   //
-  // Two numbers, because fourteen on its own would have read as normal:
-  // requestUrgent is the count whose day is within a week or already gone,
-  // and that is what turns the badge orange.
+  // The endpoint counts only the ones the dashboard has not already settled,
+  // so this number is work somebody owes. requestUrgent is the part whose day
+  // is within a week or already gone, and that is what turns the badge orange.
   const [requestBadge, setRequestBadge] = useState(0);
   const [requestUrgent, setRequestUrgent] = useState(0);
   const [otBadge, setOtBadge] = useState(0);
@@ -764,8 +764,11 @@ export default function NavBar() {
         const auth = getAuth();
         // Only poll if logged in as admin-capable user
         if (!auth?.hasSession && !auth?.accessToken) { if (!cancelled) setAdminRequestBadge(0); return; }
-        const city = String(auth.city || "dubai").toLowerCase();
-        const res = await fetch(`${API_BASE}/api/admin/requests/badge?city=${encodeURIComponent(city)}`, {
+        // No city: both. This used to pass the viewer's own, so HQ -- all
+        // registered in dubai -- was shown dubai's zero while manila's queue
+        // sat open, including a day off for the next day that the manager had
+        // approved and HQ had not. That is the pile-up the store reported.
+        const res = await fetch(`${API_BASE}/api/admin/requests/badge`, {
           cache: "no-store",
         });
         if (!res.ok) return;
