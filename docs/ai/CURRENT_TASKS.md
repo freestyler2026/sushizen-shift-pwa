@@ -28108,3 +28108,44 @@ My Pay 6経路すべて、スタッフのトークンで **`step_up_required`（
 ### 次にやる順
 バッジ7件（影響ゼロ）→ 店舗チャンネルの新設 → そのうえで1チャンネルずつ enforce。
 **現時点で `ADMIN_AUTHZ_ENFORCE` を設定してはいけない。**
+
+## 2026-09-19（続き8） — 「設定済みのページが見えなくなる」を直した
+
+**実測: 今日の時点で壊れているものは無い。** Payments ページを開ける11名全員が
+実数のバッジを受け取り、不一致ゼロ（badge-count の変更は本番で唯一の挙動変化だった）。
+
+### 原因: ゲートが Role Management の設定を見ていなかった
+`/api/admin/procurement/*` は `admin.procurement` としか照合されず、
+**12ロールが持つ `channel.store_procurement.view` とその11の兄弟チャンネルが
+ゲートから完全に不可視**だった。発注申請の提出・納品確認・CK出荷・クレーム写真など
+**32経路**が、まさにその仕事を任されている人に対して拒否される状態。
+誰も権限を取り上げていないのに、取り上げたのと同じ結果になる。
+
+**修正**: `app/api_authz.py` に `_ALSO_ACCEPT`（パス接頭辞 → 追加で受け入れる店舗チャンネル）。
+店舗ページでは「view」は「使う」の意味なので、**読み書きの両方**でこれを受け入れる
+（店舗チャンネルに `.manage` は存在しない）。
+
+### 修正後（131名 × 55経路を全件・enforce を模擬）
+| ロール | 人数 | 平均拒否数 | 実際に使っている経路を失う数 |
+|---|---:|---:|---:|
+| **ADMIN** | 7 | **0.0** | **0** |
+| **HQ** | 4 | **0.0** | **0** |
+| CK_MANILA | 7 | 41.0 | 54 |
+| STAFF | 46 | 38.0 | 8 |
+| MANILA_STAFF | 35 | 11.0 | 5 |
+| INVENTORY_PURCHASING | 18 | 6.0 | 2 |
+
+**管理者は何も失わない。** 残るのは**ロールの設定漏れ**で、ゲートの不具合ではない。
+CK_MANILA の7名が CK の受入・出荷・クレーム・緊急依頼のチャンネルを1つも持っていない。
+
+### enforce 前に Role Management でチェックすべき項目（実使用から算出）
+- **CK_MANILA**: `store_procurement`(10経路) / `store_supplier_receiving`(3) /
+  `store_emergency_request`(2) / `store_ck_delivery` / `store_ck_production` / `store_ck_receiving`
+- **STAFF**: `store_procurement`(8経路)
+- **MANILA_STAFF**: `store.management_inbox` / `store_ck_receiving` / `admin.employee_cases`
+- **INVENTORY_PURCHASING**: `store.management_inbox` / `admin.employee_cases`
+- **MANILA_MANAGEMENT**: `admin.supplier_confirmations`
+- **HR_STAFF**: `store.management_inbox`
+
+**ゲートをこれ以上広げてはいけない** — 足りないのは設定であって、例外ではない。
+チェックを入れてから、1チャンネルずつ enforce する。
