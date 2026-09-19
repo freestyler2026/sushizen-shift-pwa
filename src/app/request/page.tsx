@@ -76,6 +76,13 @@ type Notification = {
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
+  /** The same request's state on the Admin Dashboard, which reviews a second
+      copy of it in shift_change_requests. null when there is no copy — an
+      overtime request only ever writes this one. */
+  dashboard_status?: "open" | "approved" | "rejected" | null;
+  /** False once the dashboard has finished with it: still listed, no longer
+      counted, because nobody owes an answer. */
+  needs_decision?: boolean;
 };
 
 function todayIso() { return isoToday(); }
@@ -231,6 +238,12 @@ function InboxTab({
     };
   }, [load]);
 
+  // What is actually waiting on somebody. The rest of the list was answered on
+  // the Admin Dashboard, which reviews a second copy of the same request, and
+  // was never closed here -- thirteen of fourteen rows.
+  const openCount = items.filter(i => i.needs_decision !== false).length;
+  const settledCount = items.length - openCount;
+
   // Which city's requests these are.
   //
   // The inbox used to follow the form's city, which follows the reviewer's own
@@ -301,13 +314,16 @@ function InboxTab({
           <h2 className={T_SECTION + " flex items-center gap-2"}>
             <BellRing size={18} className="text-amber-400" />
             Pending Inbox
-            {items.length > 0 && (
-              <span className={BADGE_WARNING}>{items.length}</span>
+            {openCount > 0 && (
+              <span className={BADGE_WARNING}>{openCount}</span>
             )}
           </h2>
           {lastLoaded && (
             <p className={T_CAPTION + " mt-0.5"}>
               Updated {lastLoaded.toLocaleTimeString()} · auto-refresh every 30s
+              {settledCount > 0 && (
+                <> · {settledCount} already answered on the dashboard, shown below</>
+              )}
             </p>
           )}
         </div>
@@ -340,16 +356,19 @@ function InboxTab({
                 key={c}
                 type="button"
                 onClick={() => onCityChange(c)}
-                className="mt-3 text-sm font-semibold text-violet-300 underline underline-offset-4 hover:text-violet-200 capitalize"
+                className="mt-3 text-sm font-semibold text-violet-300 underline underline-offset-4 hover:text-violet-200"
               >
-                {byCity[c]} waiting in {c}
+                {byCity[c]} waiting in <span className="capitalize">{c}</span>
               </button>
             ))}
         </div>
       ) : (
         <div className="space-y-3">
           {items.map(n => (
-            <div key={n.id} className={GLASS_CARD + " p-4"}>
+            <div
+              key={n.id}
+              className={GLASS_CARD + " p-4" + (n.needs_decision === false ? " opacity-60" : "")}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -357,6 +376,18 @@ function InboxTab({
                     <span className={BADGE_INFO + " capitalize"}>
                       {n.notification_type.replace(/_/g, " ")}
                     </span>
+                    {/* The dashboard already answered this one. Saying so is the
+                        difference between a queue of two and a queue of fourteen. */}
+                    {n.dashboard_status === "approved" && (
+                      <span className={BADGE_SUCCESS}>
+                        <CheckCircle2 size={11} />Approved on the dashboard
+                      </span>
+                    )}
+                    {n.dashboard_status === "rejected" && (
+                      <span className={BADGE_ERROR}>
+                        <XCircle size={11} />Rejected on the dashboard
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1.5 text-sm text-zinc-300">{n.reason}</p>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
