@@ -1,5 +1,54 @@
 # CURRENT_TASKS.md
 
+## 2026-09-19 — 承認済みの休みの日にシフトを入れられないようにした（全経路・稼働中）
+
+承認した休暇と名簿の編集は別々の行為で、両者を繋ぐものが何も無かった。
+Abegail A. Dalida の 2026-09-06 は承認されたのにシフトに残り、当日
+「休みを申請したのに承認されなかった」と書き、**₱788.43 が欠勤として控除された。**
+Mary Jane Tegerero の 2026-08-21 も同じ。検知は後追いで既にあった
+（Manual Shift の赤チップ・朝のダイジェスト）が、**入れる瞬間には何も起きなかった。**
+
+### 塞いだ経路（すべて 409・同じ形）
+
+`{"code": "approved_day_off", "message": …, "day_off_conflicts": [...]}`
+
+| 経路 | 90日の実績 | 状態 |
+|---|---:|---|
+| `draft apply/confirm`（Draft → 公開） | **1,328** | refuse。`apply/prepare` が一覧も返すので**PINを打つ前に読める** |
+| `publish_week_cells`（Manual Shift） | 474 | refuse |
+| `manual_publish`（旧Manual Shift） | 80 | refuse。**draft version を作る前**なので拒否しても残骸が出ない |
+| `publish_from_base`（Load from DB） | 1 | refuse。取り込んだシートに対して判定 |
+| `import-xlsx/apply`（Excel取込） | — | refuse。preview も一覧を返す |
+| `inject_staff_published_rows` | 0 | refuse |
+
+**過去120日の draft version 400件のうち 72件が今なら拒否される**（5組の実在事案）。
+
+### 判定（`app/db_approved_day_off.py`）
+
+- **両段階 APPROVED のものだけ。** マネージャーだけ通した申請はまだ申請であり、
+  その人を入れるのが正しい。却下された申請も対象外
+  （Rachelle Ann Caubat の 2026-08-23 は HQ が却下、出勤が正しい）
+- 「入れた」の判定は名簿と同じ規則 — `DAY_OFF`/`VL` 等の役割でも 0時間でもないセル
+- **例外を出さない。** 判定が動かなかったことを理由に週の公開を止めない
+
+### 逃げ道
+
+全経路に `allow_approved_day_off`。画面は必ず**誰の何日かを名前で出してから**
+「Publish anyway / Import anyway / Apply anyway」を出す。既定は false。
+
+⚠️ **`apply/confirm` は拒否時に冪等キーの予約を消す。** 消さないと同じクリックの
+2秒後が「An identical request is already being processed」になる。override は
+キーの payload に入れてある（＝別の要求であって replay ではない）。
+
+⚠️ **`apiPost`（draft）はオブジェクト detail を文字列として読んでいた。**
+`stale_draft` の理由が出るはずの場所に "[object Object]" と出ていた。修正済み。
+
+### まだやっていない
+
+- **Draft のグリッドのセル**には Manual Shift のような赤チップが無い。
+  入れた時点では分からず、Apply のときに止まる
+- 既存の 72件の draft は放置（拒否されるだけで、書き換えてはいない）
+
 ## 2026-09-19 — マニラ食事手当・皆勤賞のルール変更（実装済み・未有効化）
 
 CKのCyrineさんからの4点の指摘を調査した結果、**制度設計そのものを変えた。**
