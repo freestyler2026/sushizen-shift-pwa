@@ -90,13 +90,14 @@ type Notification = {
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
-  /** The same request's state on the Admin Dashboard, which reviews a second
-      copy of it in shift_change_requests. null when there is no copy — an
-      overtime request only ever writes this one. */
-  dashboard_status?: "open" | "approved" | "rejected" | null;
-  /** False once the dashboard has finished with it: still listed, no longer
-      counted, because nobody owes an answer. */
-  needs_decision?: boolean;
+  /** Which of the two approval stages is sitting on it, while it is pending.
+      The store asked to know whether it was the manager or HQ; for Patrick
+      Danel Santiago's 2026-09-20 it was HQ, for three weeks. */
+  waiting_on?: "Manager" | "HQ" | null;
+  manager_status?: string;
+  hq_status?: string;
+  urgency_status?: string | null;
+  branch?: string | null;
 };
 
 function todayIso() { return isoToday(); }
@@ -268,11 +269,7 @@ function InboxTab({
     return () => { dead = true; };
   }, [city]);
 
-  // What is actually waiting on somebody. The rest of the list was answered on
-  // the Admin Dashboard, which reviews a second copy of the same request, and
-  // was never closed here -- thirteen of fourteen rows.
-  const openCount = items.filter(i => i.needs_decision !== false).length;
-  const settledCount = items.length - openCount;
+  const openCount = items.length;
 
   // Which city's requests these are.
   //
@@ -351,9 +348,6 @@ function InboxTab({
           {lastLoaded && (
             <p className={T_CAPTION + " mt-0.5"}>
               Updated {lastLoaded.toLocaleTimeString()} · auto-refresh every 30s
-              {settledCount > 0 && (
-                <> · {settledCount} already answered on the dashboard, shown below</>
-              )}
             </p>
           )}
         </div>
@@ -432,10 +426,7 @@ function InboxTab({
       ) : (
         <div className="space-y-3">
           {items.map(n => (
-            <div
-              key={n.id}
-              className={GLASS_CARD + " p-4" + (n.needs_decision === false ? " opacity-60" : "")}
-            >
+            <div key={n.id} className={GLASS_CARD + " p-4"}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -443,18 +434,13 @@ function InboxTab({
                     <span className={BADGE_INFO + " capitalize"}>
                       {n.notification_type.replace(/_/g, " ")}
                     </span>
-                    {/* The dashboard already answered this one. Saying so is the
-                        difference between a queue of two and a queue of fourteen. */}
-                    {n.dashboard_status === "approved" && (
-                      <span className={BADGE_SUCCESS}>
-                        <CheckCircle2 size={11} />Approved on the dashboard
-                      </span>
+                    {/* Which stage it is sitting on. "Pending" alone does not
+                        say whose answer is missing, and for Patrick Danel
+                        Santiago's day off the missing one was HQ's. */}
+                    {n.waiting_on && (
+                      <span className={BADGE_WARNING}>Waiting on {n.waiting_on}</span>
                     )}
-                    {n.dashboard_status === "rejected" && (
-                      <span className={BADGE_ERROR}>
-                        <XCircle size={11} />Rejected on the dashboard
-                      </span>
-                    )}
+                    {n.branch && <span className={BADGE_INFO}>{n.branch}</span>}
                   </div>
                   <p className="mt-1.5 text-sm text-zinc-300">{n.reason}</p>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
@@ -836,43 +822,14 @@ export default function RequestPage() {
       if (requestType === "overtime_request" && (parseFloat(otHours) || 0) <= 0) throw new Error("Overtime hours must be greater than 0.");
       if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (parseFloat(leaveDays) || 0) <= 0) throw new Error("Leave days must be greater than 0.");
 
-      if (requestType === "overtime_request") {
-        const r = await apiFetch("/api/request/notify", {
-          method: "POST",
-          body: JSON.stringify({
-            sender_name: staffName,
-            sender_city: city,
-            notification_type: "overtime",
-            target_date: workDate,
-            overtime_hours: parseFloat(otHours),
-            reason: reason.trim(),
-          }),
-        });
-        if (!r.ok) throw new Error(await r.text());
-        const d = await r.json() as Record<string, unknown>;
-        setResult(d);
-        setReason("");
-        return;
-      }
-
+      // One call.
+      //
+      // This used to post leave and day-off to /api/request/notify first and
+      // then submit them again here, and post overtime only to that endpoint.
+      // Two tables, two review screens, nothing between them: every one of the
+      // fourteen rows in the second table still read "pending" while thirteen
+      // had been answered on the dashboard weeks earlier.
       const isLeaveType = ["paid_leave", "vacation", "absence", "day_off"].includes(requestType);
-      if (isLeaveType) {
-        const notifyType = (requestType === "paid_leave" || requestType === "vacation") ? "leave" : requestType;
-        const notifyBody: Record<string, unknown> = {
-          sender_name: staffName,
-          sender_city: city,
-          notification_type: notifyType,
-          target_date: workDate,
-          leave_days: parseFloat(leaveDays) || 1,
-          reason: reason.trim(),
-          reason_category: reasonCategory,
-        };
-        if (notifyType === "leave") notifyBody.leave_type = leaveSubType;
-        await apiFetch("/api/request/notify", {
-          method: "POST",
-          body: JSON.stringify(notifyBody),
-        }).catch(() => {});
-      }
 
       let payload: Record<string, string> = {};
       if (requestType === "time_change") payload = { from, to };
@@ -888,6 +845,12 @@ export default function RequestPage() {
       form.set("branch", branch);
       form.set("medical_doc", String(medicalDoc));
       form.set("payload_json", JSON.stringify(payload));
+      form.set("reason_category", reasonCategory);
+      if (isLeaveType) {
+        form.set("leave_days", String(parseFloat(leaveDays) || 1));
+        if (requestType === "paid_leave" || requestType === "vacation") form.set("leave_type", leaveSubType);
+      }
+      if (requestType === "overtime_request") form.set("overtime_hours", String(parseFloat(otHours) || 0));
       if (medicalDocumentFile) form.set("medical_document_file", await prepareIfImage(medicalDocumentFile));
 
       const apiBase = "";

@@ -414,10 +414,15 @@ describe("/request page — submit error", () => {
 describe("/request page — overtime submit", () => {
   beforeEach(() => {
     mockAuth = staffAuth();
-    serve({ "/api/request/notify": { ok: true } });
+    serve({ "/api/shift_change/submit": { request_id: "ot-1234-5678" } });
   });
 
-  it("submits overtime via /api/request/notify and shows success", async () => {
+  /**
+   * Overtime went to /api/request/notify and nowhere else, so it landed in
+   * shift_change_notifications — the table the Admin Dashboard never reads and
+   * nobody ever closed. Every request now takes the one road.
+   */
+  it("submits overtime through the one request endpoint, with the hours", async () => {
     await renderPage();
     chooseValue("Time Change", "overtime_request");
     fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
@@ -427,8 +432,17 @@ describe("/request page — overtime submit", () => {
     await waitFor(() =>
       expect(screen.getByText("Request submitted")).toBeInTheDocument()
     );
-    // Notification sent
-    expect(screen.getByText("Notification sent.")).toBeInTheDocument();
+
+    const calls = mockFetch.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(calls.some((u) => u.includes("/api/shift_change/submit"))).toBe(true);
+    expect(calls.some((u) => u.includes("/api/request/notify"))).toBe(false);
+
+    const submit = mockFetch.mock.calls.find(
+      (c: unknown[]) => String(c[0]).includes("/api/shift_change/submit")
+    ) as [string, { body: FormData }];
+    const body = submit[1].body;
+    expect(body.get("request_type")).toBe("overtime_request");
+    expect(Number(body.get("overtime_hours"))).toBeGreaterThan(0);
   });
 
   it("resets reason after overtime submit (bug regression)", async () => {
@@ -878,5 +892,43 @@ describe("InboxTab — day off approved, roster unchanged", () => {
     // 24.5 is 00:30 the next day, not 24:30.
     expect(screen.getByText(/15:30/)).toBeInTheDocument();
     expect(screen.getByText(/00:30/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Leave and day-off used to be written twice by one click: once to
+ * /api/request/notify and once to /api/shift_change/submit. The Admin
+ * Dashboard reviewed the second, the /request inbox reviewed the first, and
+ * nothing connected them — so all fourteen rows in the first table still read
+ * "pending" while thirteen had been answered on the dashboard weeks earlier.
+ */
+describe("/request page — one request, one call", () => {
+  beforeEach(() => {
+    mockAuth = staffAuth();
+    serve({ "/api/shift_change/submit": { request_id: "leave-9999" } });
+  });
+
+  it("sends a day off once, carrying the days and the category", async () => {
+    await renderPage();
+    chooseValue("Time Change", "day_off");
+    fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
+      target: { value: "Family matter I need to attend to" },
+    });
+    fireEvent.click(screen.getByText("Submit Request"));
+    await waitFor(() =>
+      expect(screen.getByText("Request submitted")).toBeInTheDocument()
+    );
+
+    const calls = mockFetch.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(calls.filter((u) => u.includes("/api/shift_change/submit"))).toHaveLength(1);
+    expect(calls.some((u) => u.includes("/api/request/notify"))).toBe(false);
+
+    const submit = mockFetch.mock.calls.find(
+      (c: unknown[]) => String(c[0]).includes("/api/shift_change/submit")
+    ) as [string, { body: FormData }];
+    const body = submit[1].body;
+    expect(body.get("request_type")).toBe("day_off");
+    expect(Number(body.get("leave_days"))).toBeGreaterThan(0);
+    expect(body.get("reason_category")).toBeTruthy();
   });
 });
