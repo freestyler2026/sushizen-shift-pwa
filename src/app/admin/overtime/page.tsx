@@ -54,6 +54,14 @@ type OTRequest = {
   cause_codes?: string;
   ot_context?: OtContext;
   asked_after_start_minutes?: number | null;
+  /** Whether the same person arrived late that day, from the roster and the
+      punch. The claim and the punch live in different places, so a request for
+      fifty minutes used to carry no hint that the shift had started
+      thirty-two minutes before the person did. */
+  late_minutes_that_day?: number | null;
+  late_that_day?: boolean;
+  shift_start_that_day?: number | null;
+  clock_in_that_day?: string | null;
   ot_minutes_original?: number | null;
   ot_minutes_source?: string;
   ot_minutes_set_by?: string;
@@ -237,6 +245,34 @@ function AskedWhen({ minutes }: { minutes?: number | null }) {
     ? `asked ${formatMinutes(Math.round(minutes))} after it started`
     : "asked the next day or later";
   return <span className="mt-0.5 block text-[11px] text-amber-300/80">{label}</span>;
+}
+
+/** Late that day, beside the claim.
+ *
+ *  Dubai asked whether a claim had been made to offset a late arrival. This is
+ *  the number that answers it, and it is only a number: nothing is blocked and
+ *  no request is scored. Of 235 requests since July, four have a claim close
+ *  enough to the lateness to look like a trade, and the one that prompted the
+ *  question is not among the people who do it — he was late once in
+ *  twenty-four days and leaves most of his overtime unclaimed. The reviewer
+ *  decides; the screen just stops hiding half of it.
+ */
+function LateThatDay({ r }: { r: OTRequest }) {
+  if (!r.late_that_day || r.late_minutes_that_day == null) return null;
+  const covers = r.ot_minutes >= r.late_minutes_that_day;
+  return (
+    <span className="mt-0.5 block text-[11px] text-amber-300">
+      clocked in {r.late_minutes_that_day}m late that day
+      {r.clock_in_that_day && r.shift_start_that_day != null && (
+        <span className="text-white/40">
+          {" "}({formatHour(r.shift_start_that_day)} shift, in at {r.clock_in_that_day})
+        </span>
+      )}
+      {covers && (
+        <span className="text-white/40"> · the claim covers it</span>
+      )}
+    </span>
+  );
 }
 
 /** Quarter of an hour. Below this the typed time and the clock agree well
@@ -993,6 +1029,7 @@ export default function AdminOvertimePage() {
                       <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
                       <ClockCheck f={r.ot_facts} compact />
                       <AskedWhen minutes={r.asked_after_start_minutes} />
+                      <LateThatDay r={r} />
                     </div>
                     <p className="text-sm text-white/70">{r.reason}</p>
                     <DecisionNotes r={r} onCloseDispute={closeDispute} />
@@ -1096,6 +1133,7 @@ export default function AdminOvertimePage() {
                             {r.request_type === "pre" ? "Pre" : "Post"}
                           </span>
                           <AskedWhen minutes={r.asked_after_start_minutes} />
+                      <LateThatDay r={r} />
                         </td>
                         <td className={TABLE_CELL}>
                           {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}

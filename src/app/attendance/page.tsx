@@ -71,6 +71,10 @@ interface TodayData {
   open_session_yesterday: AttendanceSession | null;
   scheduled_shift: { start_hour: number; end_hour: number; role: string; branch_code: string; is_split?: boolean } | null;
   lateness_min: number | null;
+  /** Whether being late can cost this person the meal allowance. Manila only —
+      there is none in Dubai, and a Dubai monthly salary carries no late
+      deduction either. */
+  late_costs_meal_allowance?: boolean;
   shift_elapsed_min: number | null;
   geofence_m?: number | null;
   break_allowance?: { allowance_min: number; is_split: boolean; from_roster: boolean };
@@ -1361,7 +1365,14 @@ export default function AttendancePage() {
                   You clocked in {late} min late
                 </p>
                 <p className="text-xs text-amber-300/60 mt-0.5">
-                  Shift started at {startLabel}. Meal allowance may not apply today.
+                  {/* The meal allowance is a Manila benefit. This sentence went
+                      to everyone, so a Dubai staff member on a monthly salary —
+                      which carries no late deduction either — was told a loss
+                      that cannot happen to them. That is the sentence most
+                      likely to make somebody stay late to make it up. The
+                      server says whether it applies; the UI does not guess. */}
+                  Shift started at {startLabel}.
+                  {data.late_costs_meal_allowance && " Meal allowance may not apply today."}
                 </p>
               </div>
               <button
