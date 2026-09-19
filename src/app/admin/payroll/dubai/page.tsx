@@ -239,6 +239,10 @@ export default function DubaiPayrollPage() {
               <ClipboardList size={15} />
               DTR Sync / Upload
             </Link>
+            <Link href="/admin/payroll/dubai/end-of-service"
+              className="flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-600/10 px-4 py-2 text-sm text-violet-300 hover:bg-violet-600/20 transition-colors">
+              🏁 End of Service &amp; Leave
+            </Link>
             <button onClick={() => setShowCreate(v => !v)}
               className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-slate-300 hover:bg-white/10 transition-colors">
               <Database size={14} />
