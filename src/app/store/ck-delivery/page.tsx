@@ -127,7 +127,13 @@ function fmtDate(iso: string) {
 }
 
 function fmtQty(q: number) {
-  return q % 1 === 0 ? String(q) : q.toFixed(1);
+  // One decimal turned a quarter of a kilo into "0.3 kg". Sauces are ordered
+  // and received in quarters, so the number on the screen disagreed with the
+  // note the branch typed beside it ("We received 0.250kg only"). Two decimals,
+  // trailing zeros dropped, so 0.25 reads as 0.25 and 8 still reads as 8.
+  if (!Number.isFinite(q)) return "0";
+  // String() of a rounded number already drops trailing zeros: 8 stays "8".
+  return String(Math.round(q * 100) / 100);
 }
 
 async function apiFetch(path: string, opts?: RequestInit) {
@@ -169,13 +175,6 @@ export default function CKDeliveryPage() {
   const [filterStatus, setFilterStatus] = useState<DeliveryStatus | "">("");
   const [filterBranch, setFilterBranch] = useState("");
 
-  // New Delivery modal
-  const [showNewDelivery, setShowNewDelivery] = useState(false);
-  const [newDate, setNewDate] = useState(todayIso());
-  const [newBranch, setNewBranch] = useState(branches[0] || "");
-  const [newNotes, setNewNotes] = useState("");
-  const [newPlanId, setNewPlanId] = useState("");
-  const [creatingDelivery, setCreatingDelivery] = useState(false);
   const [plans, setPlans] = useState<{ id: number; plan_date: string; status: string; item_count: number; done_count: number }[]>([]);
 
   // Add Items modal
@@ -313,8 +312,9 @@ export default function CKDeliveryPage() {
 
   useEffect(() => { loadPlans(); }, [loadPlans]);
 
-  // Reset the new-delivery branch when the city toggles (branch lists differ).
-  useEffect(() => { setNewBranch(branches[0] || ""); setActiveDelivery(null); }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The branch lists differ between cities, so the open delivery is cleared
+  // when the city toggles.
+  useEffect(() => { setActiveDelivery(null); }, [city]);
 
   // ── Pending for branch ────────────────────────────────────────────────────
   const loadPending = useCallback(async (branchOverride?: string) => {
@@ -340,37 +340,6 @@ export default function CKDeliveryPage() {
   }, [pageTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Create Delivery ────────────────────────────────────────────────────────
-  async function handleCreateDelivery() {
-    if (!newDate || !newBranch) return;
-    setCreatingDelivery(true);
-    try {
-      const data = await apiFetch("/api/store/ck-delivery/deliveries", {
-        method: "POST",
-        body: JSON.stringify({
-          plan_id: parseInt(newPlanId) || 0,
-          city,
-          delivery_date: newDate,
-          to_branch: newBranch,
-          created_by: userName,
-          notes: newNotes.trim(),
-        }),
-      });
-      setShowNewDelivery(false);
-      setNewNotes("");
-      setNewPlanId("");
-      setNewDate(todayIso());
-      await loadDeliveries();
-      if (data.delivery?.id) {
-        await loadDeliveryDetail(data.delivery.id);
-      }
-      showToast("Delivery record created");
-    } catch (e: unknown) {
-      showToast((e as Error).message, false);
-    } finally {
-      setCreatingDelivery(false);
-    }
-  }
-
   // ── Load QC-passed items from all plans matching the delivery date ────────
   async function openAddItems() {
     setSelectedQcItemIds(new Set());
@@ -674,11 +643,11 @@ export default function CKDeliveryPage() {
               ))}
             </div>
           )}
-          {canManage && (
-            <button className={PRIMARY_BUTTON} onClick={() => setShowNewDelivery(true)}>
-              <span className="flex items-center gap-2"><Plus className="h-4 w-4" /> New Delivery</span>
-            </button>
-          )}
+          {/* The + New Delivery button stood here. Of the 54 deliveries made
+              with it, 29 were empty shells — somebody reaching for a button on
+              the way to something else. The 84 that came from a purchase
+              request have never once been empty, and that is how a delivery is
+              actually raised, so there is nothing here to press by mistake. */}
         </div>
       </div>
 
@@ -1353,89 +1322,6 @@ export default function CKDeliveryPage() {
           )}
         </div>
       </div>
-
-      {/* ── New Delivery Modal ──────────────────────────────────────────────── */}
-      {showNewDelivery && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className={`${GLASS_CARD} w-full max-w-md p-6`}>
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className={T_SECTION}>New Delivery</h3>
-              <button className="rounded-lg p-1 text-zinc-400 hover:text-white" onClick={() => setShowNewDelivery(false)}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery Date</label>
-                  <input
-                    type="date"
-                    className={INPUT_CLASS}
-                    value={newDate}
-                    onChange={e => setNewDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">To Branch</label>
-                  <SelectDark
-                    className={SELECT_CLASS}
-                    value={newBranch}
-                    onChange={setNewBranch}
-                    options={branches.map(b => ({ value: b, label: b }))}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  Linked Production Plan <span className="text-zinc-600">(for QC-passed items)</span>
-                </label>
-                <SelectDark
-                  className={INPUT_CLASS}
-                  value={newPlanId}
-                  onChange={setNewPlanId}
-                  options={[
-                    { value: "", label: "— No plan (manual items only) —" },
-                    ...plans.map(p => ({
-                      value: String(p.id),
-                      label: `${fmtDate(p.plan_date)} · ${p.status} · ${p.done_count}/${p.item_count} done`,
-                    })),
-                  ]}
-                />
-                <p className={T_CAPTION + " mt-1"}>
-                  {plans.length === 0
-                    ? "No production plans found for this city. Create a plan first to auto-populate QC-passed items."
-                    : "Pick the plan whose QC-passed items should be available to add."}
-                </p>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Notes (optional)</label>
-                <textarea
-                  className={TEXTAREA_CLASS}
-                  rows={2}
-                  placeholder="Any dispatch notes..."
-                  value={newNotes}
-                  onChange={e => setNewNotes(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button className={`${SECONDARY_BUTTON} flex-1`} onClick={() => setShowNewDelivery(false)}>Cancel</button>
-              <button
-                className={`${PRIMARY_BUTTON} flex-1`}
-                onClick={handleCreateDelivery}
-                disabled={!newDate || !newBranch || creatingDelivery}
-              >
-                {creatingDelivery
-                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Creating...</span>
-                  : "Create Delivery"}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* ── Add Items Modal ─────────────────────────────────────────────────── */}
       {showAddItems && typeof document !== "undefined" && createPortal(
