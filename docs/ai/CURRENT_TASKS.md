@@ -28636,3 +28636,52 @@ Inbox review は両ステージを一度に確定するので**片方の言い�
 - **`ABSENT_DEDUCTION` 2件（₱1,576.86）は未処理**（draft のため未払い）
 - **DMはまだ一度も実送信していない**（文面のみ検証）。初回は明日08:10
 - 承認しても公開シフトは変わらない（設計判断）
+
+---
+
+## 2026-09-19（続き19） — 請求書レビューの店舗名が直せなかった
+
+ドバイからの報告: Chef Middle East の請求書は **JLT** 宛なのに **Arjan** になっており、
+**変更できない**。
+
+### 原因
+
+2箇所とも塞がっていた。
+
+1. **画面が読み取り専用**（`DriveInvoiceModal.tsx`）。コメントには
+   「OCRではなく取り込みフォルダ由来だから編集させない」と書いてあった
+2. **`update_drive_invoice` の `_allowed` に `store_name` が無い**
+
+その「取り込みフォルダ」とは **写真を投稿したDiscordチャンネル**であって、
+請求書に印字された店舗ではない。**ある店舗の請求書を別の店舗のチャンネルで
+撮影した瞬間にずれる。** 読み取り専用にした前提が間違っていた。
+
+⚠️ **影響は表示だけではない。** `sync_drive_invoices_to_hub` が
+`store_name` → **`invoice_line_items.branch`** に書く。つまり承認すると
+**別店舗のコストとして計上される。**
+
+### 直したもの
+
+- `invoice_store_names(city)`（`discord_invoice_uploader.py`）— 選択肢は
+  `INVOICE_CHANNELS` から。**そこが「請求書にとって店舗が存在する」唯一の定義**
+- `GET /api/admin/drive-invoices/stores?city=` — `{invoice_id}` 系より**前**に宣言
+  （memory: fastapi-route-ordering）
+- PUT で `store_name` を受け付け、**存在しない店舗は400**。大小文字はリスト表記に正規化
+- **承認済みの請求書で店舗を変えたら Hub を再同期**（`sync_drive_invoices_to_hub` は冪等）
+- モーダルはドロップダウン。保存前は「changed from Arjan」と表示。
+  リストに無い古い店舗名は**先頭に残す**（黙って別店舗に飛ばさない）
+
+### 実測
+
+| 検証 | 結果 |
+|---|---|
+| `/stores?city=dubai` | Al Barsha, Al Mina, Arjan, Business Bay, Central Kitchen, JLT, Warehouse |
+| `/stores?city=manila` | Central Kitchen, Paranaque, Taft |
+| 存在しない店舗 | 400、値は不変 |
+| `"jlt"` で送る | 200、`JLT` に正規化 |
+| 他の項目 | vendor / number / total / status / city すべて不変 |
+| ブラウザ | ドロップダウン7件・有効・現在値 JLT を実測 |
+
+**invoice 2607 は `JLT` に修正済み。`pending_review` のままなので、承認は現場が行う。**
+
+マニュアル（Procurement）にステップ3として追記し、republish 済み。
