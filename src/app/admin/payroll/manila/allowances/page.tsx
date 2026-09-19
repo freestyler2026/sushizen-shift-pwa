@@ -35,6 +35,12 @@ interface AllowanceItem {
   pa_late_count: number;
   pa_late_minutes: number;
   pa_awol_days: number;
+  // v2: days dropped because the shift was too short to hold a meal break,
+  // and which rulebook this month ran on. Absent on rows computed before the
+  // columns existed, so every read is defensive.
+  cutoff1_short_days?: number | null;
+  cutoff2_short_days?: number | null;
+  rules_version?: string | null;
   pa_eligible: boolean;
   pa_disqualify_reasons: string;
   pa_amount: number | null;
@@ -147,6 +153,17 @@ export default function ManilaAllowancesPage() {
   const totalMeal = sumAllow(it => it.cutoff1_amount === null && it.cutoff2_amount === null ? null : Number(it.cutoff1_amount ?? 0) + Number(it.cutoff2_amount ?? 0));
   const totalPA = sumAllow(it => it.pa_amount);
   const totalAll = sumAllow(it => it.total_amount);
+  const isV2 = (it: AllowanceItem) => (it.rules_version || "") === "v2";
+  // Under v2 nothing disqualifies the meal allowance except the Back Office
+  // rule, so a zero is almost always "worked no days", not "lost it". Showing
+  // those 25 of 146 cutoffs as a red ✗ with no reason said the opposite.
+  const noDaysWorked = (it: AllowanceItem, cutoff: 1 | 2) =>
+    isV2(it) &&
+    !(cutoff === 1 ? it.cutoff1_eligible : it.cutoff2_eligible) &&
+    !(cutoff === 1 ? it.cutoff1_disqualify_reasons : it.cutoff2_disqualify_reasons);
+
+  // The footer states the rules, so it has to say which set the shown month ran under.
+  const monthIsV2 = items.length > 0 && items.every(isV2);
   const paCount = items.filter(it => it.pa_eligible).length;
   const fullEligCount = items.filter(it => it.cutoff1_eligible && it.cutoff2_eligible).length;
 
@@ -254,12 +271,26 @@ export default function ManilaAllowancesPage() {
                       {/* Cutoff 1 */}
                       <td className="px-4 py-3 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <Badge ok={it.cutoff1_eligible} label={it.cutoff1_eligible ? `✓ ${fmtTotal(it.cutoff1_amount)}` : "✗ ₱0"} />
-                          {!it.cutoff1_eligible && it.cutoff1_disqualify_reasons && (
-                            <span className="text-[10px] text-red-400">{it.cutoff1_disqualify_reasons}</span>
-                          )}
-                          {it.cutoff1_eligible && (
-                            <span className="text-[10px] text-zinc-500">{it.cutoff1_working_days}d × ₱50</span>
+                          {noDaysWorked(it, 1) ? (
+                            <>
+                              <span className="rounded-md bg-zinc-700/40 px-2 py-0.5 text-xs text-zinc-400">— ₱0</span>
+                              <span className="text-[10px] text-zinc-500">no days worked</span>
+                            </>
+                          ) : (
+                            <>
+                              <Badge ok={it.cutoff1_eligible} label={it.cutoff1_eligible ? `✓ ${fmtTotal(it.cutoff1_amount)}` : "✗ ₱0"} />
+                              {!it.cutoff1_eligible && it.cutoff1_disqualify_reasons && (
+                                <span className="text-[10px] text-red-400">{it.cutoff1_disqualify_reasons}</span>
+                              )}
+                              {it.cutoff1_eligible && (
+                                <span className="text-[10px] text-zinc-500">
+                                  {it.cutoff1_working_days}d × ₱50
+                                  {isV2(it) && (it.cutoff1_short_days ?? 0) > 0 && (
+                                    <span className="text-amber-400/80"> (−{it.cutoff1_short_days}d short)</span>
+                                  )}
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -267,12 +298,26 @@ export default function ManilaAllowancesPage() {
                       {/* Cutoff 2 */}
                       <td className="px-4 py-3 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <Badge ok={it.cutoff2_eligible} label={it.cutoff2_eligible ? `✓ ${fmtTotal(it.cutoff2_amount)}` : "✗ ₱0"} />
-                          {!it.cutoff2_eligible && it.cutoff2_disqualify_reasons && (
-                            <span className="text-[10px] text-red-400">{it.cutoff2_disqualify_reasons}</span>
-                          )}
-                          {it.cutoff2_eligible && (
-                            <span className="text-[10px] text-zinc-500">{it.cutoff2_working_days}d × ₱50</span>
+                          {noDaysWorked(it, 2) ? (
+                            <>
+                              <span className="rounded-md bg-zinc-700/40 px-2 py-0.5 text-xs text-zinc-400">— ₱0</span>
+                              <span className="text-[10px] text-zinc-500">no days worked</span>
+                            </>
+                          ) : (
+                            <>
+                              <Badge ok={it.cutoff2_eligible} label={it.cutoff2_eligible ? `✓ ${fmtTotal(it.cutoff2_amount)}` : "✗ ₱0"} />
+                              {!it.cutoff2_eligible && it.cutoff2_disqualify_reasons && (
+                                <span className="text-[10px] text-red-400">{it.cutoff2_disqualify_reasons}</span>
+                              )}
+                              {it.cutoff2_eligible && (
+                                <span className="text-[10px] text-zinc-500">
+                                  {it.cutoff2_working_days}d × ₱50
+                                  {isV2(it) && (it.cutoff2_short_days ?? 0) > 0 && (
+                                    <span className="text-amber-400/80"> (−{it.cutoff2_short_days}d short)</span>
+                                  )}
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -301,9 +346,19 @@ export default function ManilaAllowancesPage() {
                             {/* Cutoff 1 detail */}
                             <div className="space-y-1.5">
                               <p className="font-semibold text-zinc-300">Cutoff 1: {fmtDate(it.cutoff1_start)} → {fmtDate(it.cutoff1_end)}</p>
-                              <p className="text-zinc-400">Working days: <span className="text-zinc-200">{it.cutoff1_working_days}</span></p>
-                              <p className="text-zinc-400">Late count: <span className={it.cutoff1_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_count}x</span></p>
-                              <p className="text-zinc-400">Late minutes: <span className={it.cutoff1_late_minutes >= 60 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_minutes}min</span></p>
+                              <p className="text-zinc-400">
+                                {isV2(it) ? "Days paid" : "Working days"}: <span className="text-zinc-200">{it.cutoff1_working_days}</span>
+                                {isV2(it) && (it.cutoff1_short_days ?? 0) > 0 && (
+                                  <span className="text-amber-400/80"> · {it.cutoff1_short_days} dropped, under 6h</span>
+                                )}
+                              </p>
+                              {isV2(it) && (
+                                <p className="text-[10px] text-zinc-500 pt-0.5">
+                                  The figures below no longer affect this allowance — they decide the ₱500.
+                                </p>
+                              )}
+                              <p className="text-zinc-400">Late count: <span className={!isV2(it) && it.cutoff1_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_count}x</span></p>
+                              <p className="text-zinc-400">Late minutes: <span className={!isV2(it) && it.cutoff1_late_minutes >= 60 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_minutes}min</span></p>
                               <p className="text-zinc-400">AWOL days: <span className={it.cutoff1_awol_days > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_awol_days}</span></p>
                               <p className="text-zinc-400">Rejected requests: <span className={it.cutoff1_rejected_requests > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_rejected_requests}</span></p>
                               {/* Condition 4 manual flag */}
@@ -317,7 +372,7 @@ export default function ManilaAllowancesPage() {
                                   className="accent-red-500"
                                 />
                                 <span className={it.cutoff1_flag_no_notice ? "text-red-300" : "text-zinc-500"}>
-                                  No advance notice of tardiness (condition 4)
+                                  No advance notice of tardiness{isV2(it) ? " — voids the ₱500" : " (condition 4)"}
                                 </span>
                               </label>
                             </div>
@@ -325,9 +380,19 @@ export default function ManilaAllowancesPage() {
                             {/* Cutoff 2 detail */}
                             <div className="space-y-1.5">
                               <p className="font-semibold text-zinc-300">Cutoff 2: {fmtDate(it.cutoff2_start)} → {fmtDate(it.cutoff2_end)}</p>
-                              <p className="text-zinc-400">Working days: <span className="text-zinc-200">{it.cutoff2_working_days}</span></p>
-                              <p className="text-zinc-400">Late count: <span className={it.cutoff2_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_count}x</span></p>
-                              <p className="text-zinc-400">Late minutes: <span className={it.cutoff2_late_minutes >= 60 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_minutes}min</span></p>
+                              <p className="text-zinc-400">
+                                {isV2(it) ? "Days paid" : "Working days"}: <span className="text-zinc-200">{it.cutoff2_working_days}</span>
+                                {isV2(it) && (it.cutoff2_short_days ?? 0) > 0 && (
+                                  <span className="text-amber-400/80"> · {it.cutoff2_short_days} dropped, under 6h</span>
+                                )}
+                              </p>
+                              {isV2(it) && (
+                                <p className="text-[10px] text-zinc-500 pt-0.5">
+                                  The figures below no longer affect this allowance — they decide the ₱500.
+                                </p>
+                              )}
+                              <p className="text-zinc-400">Late count: <span className={!isV2(it) && it.cutoff2_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_count}x</span></p>
+                              <p className="text-zinc-400">Late minutes: <span className={!isV2(it) && it.cutoff2_late_minutes >= 60 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_minutes}min</span></p>
                               <p className="text-zinc-400">AWOL days: <span className={it.cutoff2_awol_days > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_awol_days}</span></p>
                               <p className="text-zinc-400">Rejected requests: <span className={it.cutoff2_rejected_requests > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_rejected_requests}</span></p>
                               <label className="flex items-center gap-2 cursor-pointer">
@@ -340,7 +405,7 @@ export default function ManilaAllowancesPage() {
                                   className="accent-red-500"
                                 />
                                 <span className={it.cutoff2_flag_no_notice ? "text-red-300" : "text-zinc-500"}>
-                                  No advance notice of tardiness (condition 4)
+                                  No advance notice of tardiness{isV2(it) ? " — voids the ₱500" : " (condition 4)"}
                                 </span>
                               </label>
                             </div>
@@ -373,10 +438,20 @@ export default function ManilaAllowancesPage() {
         </div>
       )}
 
-      <p className="text-xs text-zinc-600">
-        Conditions auto-checked: (1) AWOL / shift change filed &lt;15 days in advance or rejected, (2) Late ≥3x, (3) Cumulative late &gt;60min.
-        Condition (4) No advance notice of tardiness (staff did not notify manager ≥2 hours before shift start) must be flagged manually.
-      </p>
+      {monthIsV2 ? (
+        <p className="text-xs text-zinc-600">
+          Meal allowance: ₱50 for every day worked. A shift under 6 hours (punch span minus the scheduled break) does not
+          count as a day. Back Office staff hired after the policy change do not receive it. Nothing else removes it.
+          <br />
+          Perfect attendance ₱500, lost by: any absence without pay, late ≥3x or &gt;60min in total, an unapproved shift
+          change, or no advance notice of tardiness — the last must be flagged manually below.
+        </p>
+      ) : (
+        <p className="text-xs text-zinc-600">
+          Conditions auto-checked: (1) AWOL / shift change filed &lt;15 days in advance or rejected, (2) Late ≥3x, (3) Cumulative late &gt;60min.
+          Condition (4) No advance notice of tardiness (staff did not notify manager ≥2 hours before shift start) must be flagged manually.
+        </p>
+      )}
     </div>
   );
 }
