@@ -165,6 +165,12 @@ export default function ManilaPayrollPage() {
             >
               🍱 Allowances
             </Link>
+            <Link
+              href="/admin/payroll/manila/sil"
+              className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-500/20"
+            >
+              🌴 Leave (SIL)
+            </Link>
             <button
               onClick={() => setShowCreate(v => !v)}
               className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}

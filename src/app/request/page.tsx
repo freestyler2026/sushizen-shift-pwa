@@ -48,11 +48,15 @@ const REASON_CATEGORIES: { value: string; label: string }[] = [
 ];
 
 type LeaveBalance = {
-  id: number;
+  id: number | null;
   leave_type: string;
   entitled_days: number;
   used_days: number;
   remaining_days: number;
+  // Service Incentive Leave only: inside your first year the five days are
+  // ahead of you, not absent, and "0 / 0d" says the wrong thing about that.
+  is_eligible?: boolean;
+  eligible_from?: string | null;
 };
 
 type Notification = {
@@ -745,13 +749,29 @@ export default function RequestPage() {
           </div>
           {leaveBalances.length > 0 && (
             <div className="flex flex-wrap justify-end gap-1.5">
-              {leaveBalances.slice(0, 3).map(b => (
-                <div key={b.id} className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-xs">
-                  <span className="text-violet-300 font-medium capitalize">{b.leave_type.replace(/_/g, " ")}</span>
-                  <span className="ml-1.5 font-bold text-white">{b.remaining_days}</span>
-                  <span className="text-zinc-500">/{b.entitled_days}d</span>
-                </div>
-              ))}
+              {leaveBalances.slice(0, 3).map((b, i) => {
+                const notYet = b.is_eligible === false;
+                return (
+                  <div key={b.id ?? `${b.leave_type}-${i}`}
+                       className={"rounded-xl border px-3 py-1.5 text-xs " + (notYet
+                         ? "border-white/10 bg-white/5"
+                         : "border-violet-500/20 bg-violet-500/10")}>
+                    <span className={(notYet ? "text-zinc-400" : "text-violet-300") + " font-medium capitalize"}>
+                      {b.leave_type.replace(/_/g, " ")}
+                    </span>
+                    {notYet ? (
+                      <span className="ml-1.5 text-zinc-500">
+                        {b.eligible_from ? `from ${b.eligible_from}` : "after 1 year"}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="ml-1.5 font-bold text-white">{b.remaining_days}</span>
+                        <span className="text-zinc-500">/{b.entitled_days}d</span>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -880,7 +900,7 @@ export default function RequestPage() {
                         value={leaveSubType}
                         onChange={setLeaveSubType}
                         options={[
-                          { value: "annual_leave", label: "Annual Leave" },
+                          { value: "annual_leave", label: "Annual Leave (uses your 5 SIL days)" },
                           { value: "sick_leave", label: "Sick Leave" },
                           { value: "emergency_leave", label: "Emergency Leave" },
                           { value: "unpaid_leave", label: "Unpaid Leave" },
