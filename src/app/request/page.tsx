@@ -60,6 +60,20 @@ type LeaveBalance = {
   eligible_from?: string | null;
 };
 
+type ShiftConflict = {
+  staff_name: string;
+  work_date: string;
+  kind: "approved_but_rostered" | "undecided_and_rostered";
+  days_away: number | null;
+  shifts: { role: string | null; start_hour: number; end_hour: number; branch_code: string | null }[];
+};
+
+/** Roster hours are decimals, and 24.5 means 00:30 the next day. */
+function rosterTime(h: number) {
+  const mins = Math.round((Number(h) || 0) * 60);
+  return `${String(Math.floor(mins / 60) % 24).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
 type Notification = {
   id: string;
   sender_name: string;
@@ -238,6 +252,22 @@ function InboxTab({
     };
   }, [load]);
 
+  // Days somebody asked off where the roster still has them working.
+  //
+  // Approving a request and editing the roster are two separate acts, and
+  // nothing connected them, so only the first happening looked exactly like
+  // both happening. Mary Jane Tegerero worked 2026-08-21 and Abegail A.
+  // Dalida worked 2026-09-06 -- both approved off, weeks earlier.
+  const [conflicts, setConflicts] = useState<ShiftConflict[]>([]);
+  useEffect(() => {
+    let dead = false;
+    apiFetch(`/api/admin/shift-conflicts?city=${encodeURIComponent(city)}`)
+      .then(r => r.ok ? r.json() as Promise<{ items?: ShiftConflict[] }> : Promise.resolve({}))
+      .then((d: { items?: ShiftConflict[] }) => { if (!dead) setConflicts(d.items ?? []); })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [city]);
+
   // What is actually waiting on somebody. The rest of the list was answered on
   // the Admin Dashboard, which reviews a second copy of the same request, and
   // was never closed here -- thirteen of fourteen rows.
@@ -338,6 +368,43 @@ function InboxTab({
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
           <AlertCircle size={14} /> {error}
+        </div>
+      )}
+
+      {conflicts.length > 0 && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4">
+          <p className="text-sm font-semibold text-rose-200">
+            Still on the roster for a day they asked off
+          </p>
+          <p className="mt-0.5 text-xs text-rose-300/80">
+            Approving a request does not move the shift. Manual Shift is where the day is changed.
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            {conflicts.map((c) => {
+              const sh = c.shifts[0];
+              return (
+                <li key={`${c.staff_name}|${c.work_date}`} className="text-xs text-zinc-300">
+                  <span className="font-semibold text-white">{c.staff_name}</span>
+                  {" · "}{c.work_date}
+                  {" · "}
+                  <span className={c.kind === "approved_but_rostered" ? "text-rose-300" : "text-amber-300"}>
+                    {c.kind === "approved_but_rostered" ? "approved" : "not answered yet"}
+                  </span>
+                  {sh && (
+                    <> · rostered {rosterTime(sh.start_hour)}–{rosterTime(sh.end_hour)}
+                      {sh.branch_code ? ` ${sh.branch_code}` : ""}</>
+                  )}
+                  {typeof c.days_away === "number" && (
+                    <span className="text-zinc-500">
+                      {c.days_away === 0 ? " · today"
+                        : c.days_away > 0 ? ` · in ${c.days_away}d`
+                        : ` · ${Math.abs(c.days_away)}d ago`}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

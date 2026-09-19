@@ -837,3 +837,46 @@ describe("InboxTab — opens on the city that has requests", () => {
     );
   });
 });
+
+/**
+ * Approving a day off does not move the roster.
+ *
+ * Mary Jane Tegerero worked 2026-08-21 and Abegail A. Dalida worked
+ * 2026-09-06, both approved off weeks earlier. Nothing connected the approval
+ * to the schedule, so only the first of the two acts happening looked exactly
+ * like both of them happening.
+ */
+describe("InboxTab — day off approved, roster unchanged", () => {
+  beforeEach(() => {
+    mockAuth = adminAuth({ city: "manila" });
+    mockFetch.mockReset();
+    mockFetch.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/admin/shift-conflicts")) {
+        return okJson({
+          items: [{
+            staff_name: "Patrick Danel Santiago",
+            work_date: "2026-09-20",
+            kind: "undecided_and_rostered",
+            days_away: 1,
+            shifts: [{ role: "Junior Cook", start_hour: 15.5, end_hour: 24.5, branch_code: "CUB" }],
+          }],
+        });
+      }
+      if (u.includes("/api/request/notifications/inbox")) return okJson({ items: [] });
+      return okJson({});
+    });
+  });
+
+  it("names the person, the day and the shift that still stands", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText("Inbox"));
+    await waitFor(() =>
+      expect(screen.getByText("Still on the roster for a day they asked off")).toBeInTheDocument()
+    );
+    expect(screen.getByText("Patrick Danel Santiago")).toBeInTheDocument();
+    // 24.5 is 00:30 the next day, not 24:30.
+    expect(screen.getByText(/15:30/)).toBeInTheDocument();
+    expect(screen.getByText(/00:30/)).toBeInTheDocument();
+  });
+});

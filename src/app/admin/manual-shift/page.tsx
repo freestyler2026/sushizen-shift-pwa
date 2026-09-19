@@ -639,6 +639,13 @@ export default function ManualShiftPage() {
   const removedStaffRef = useRef<string[]>([]);
   removedStaffRef.current = removedStaff;
   const [approvedDayOffs, setApprovedDayOffs] = useState<Set<string>>(new Set());
+  // Day-off requests the staff filed, against what this roster still says.
+  //
+  // approvedDayOffs above comes from shift_sheet_sync_proposals -- the sheet
+  // sync -- and never saw these. Patrick Danel Santiago asked on 2026-08-30
+  // for 2026-09-20, his manager approved it, and the cell showed nothing.
+  // Keyed `${staff}|${date}` to whether it was answered.
+  const [dayOffConflicts, setDayOffConflicts] = useState<Map<string, "approved_but_rostered" | "undecided_and_rostered">>(new Map());
   const [paintMode, setPaintMode] = useState(false);
   const [paintStart, setPaintStart] = useState(9);
   const [paintEnd, setPaintEnd] = useState(17);
@@ -1124,6 +1131,25 @@ export default function ManualShiftPage() {
         }
       } catch {
         // Approved day-offs overlay is optional — ignore errors silently
+      }
+      // Day-off requests vs this roster. Wide window because the week on
+      // screen can be months from today; the scan is bounded by the request
+      // table, which holds tens of rows, not thousands.
+      try {
+        const cf = await apiFetch<{ items: { staff_name: string; work_date: string; kind: string }[] }>(
+          `/api/admin/shift-conflicts?city=${encodeURIComponent(city)}&days_back=180&days_ahead=180`
+        );
+        if (!cancelledRef.current) {
+          const m = new Map<string, "approved_but_rostered" | "undecided_and_rostered">();
+          (cf.items ?? []).forEach((r) => {
+            if (r.kind === "approved_but_rostered" || r.kind === "undecided_and_rostered") {
+              m.set(`${r.staff_name}|${r.work_date}`, r.kind);
+            }
+          });
+          setDayOffConflicts(m);
+        }
+      } catch {
+        // Optional overlay — a failed scan must not stop the week loading.
       }
       if (cancelledRef.current) return;
       setView("edit");
@@ -2395,9 +2421,27 @@ export default function ManualShiftPage() {
                           // applied to this cell yet. Shown beside the shift
                           // rather than instead of it.
                           const dayOffPending = hasApprovedDayOff && normalizedShifts.length > 0 && !publishedIsAlreadyDayOff;
+                          // The staff member's own request, against this cell.
+                          // Rose above the sheet-sync proposal because it is the
+                          // one somebody is waiting on an answer to.
+                          const conflict = normalizedShifts.length > 0 && !publishedIsAlreadyDayOff
+                            ? dayOffConflicts.get(`${name}|${d}`)
+                            : undefined;
                           return (
                             <td key={d} className="relative px-1 py-1 text-center align-top">
-                              {dayOffPending && (
+                              {conflict ? (
+                                <span
+                                  title={conflict === "approved_but_rostered"
+                                    ? "This day off was approved and the roster still has them working. Approving does not move the shift — change the cell."
+                                    : "This day off has been asked for and not answered yet. The roster still has them working."}
+                                  className={"absolute left-1 top-0.5 z-10 rounded px-1 text-[8px] font-bold uppercase tracking-wide "
+                                    + (conflict === "approved_but_rostered"
+                                      ? "bg-rose-500 text-white"
+                                      : "bg-amber-400/90 text-amber-950")}
+                                >
+                                  {conflict === "approved_but_rostered" ? "day off approved" : "day off asked"}
+                                </span>
+                              ) : dayOffPending && (
                                 <span
                                   title="An approved Day Off request exists for this day, but the published schedule below is what the staff member sees. Change the cell if the day off should apply."
                                   className="absolute left-1 top-0.5 z-10 rounded bg-amber-400/90 px-1 text-[8px] font-bold uppercase tracking-wide text-amber-950"
