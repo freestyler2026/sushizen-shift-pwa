@@ -40,8 +40,10 @@ import {
 import { fmtNum } from "@/lib/formatters";
 import {
   countDayOffConflicts,
+  dayOffIndex,
   describeDayOffConflict,
   type DayOffConflict,
+  type DayOffDay,
 } from "@/lib/day-off-conflicts";
 import {
   BADGE_ERROR,
@@ -1454,6 +1456,10 @@ export default function AdminDraftPage() {
   const [draftTab, setDraftTab] = useState<"schedule" | "manage">("schedule");
 
   const [applyMonth, setApplyMonth] = useState(targetMonth);
+  // Days off filed for this month, whatever the draft currently says about them.
+  // Held as days rather than conflicts because the grid's own cells decide:
+  // change a cell to Day Off and the chip goes on the spot, with no round trip.
+  const [dayOffDays, setDayOffDays] = useState<DayOffDay[]>([]);
   const [applyPrepared, setApplyPrepared] = useState<BatchApplyPrepareResult | null>(null);
   // Set only by a 409 from apply/confirm: the draft rosters somebody on an approved day off.
   const [applyDayOffBlock, setApplyDayOffBlock] = useState<{
@@ -1681,6 +1687,26 @@ export default function AdminDraftPage() {
     setAutoExportErrors({});
     setAutoExportBusy(false);
   }, [activeBranchCode]);
+
+  useEffect(() => {
+    let dead = false;
+    const dates = monthDates(targetMonth);
+    if (dates.length === 0) { setDayOffDays([]); return; }
+    (async () => {
+      try {
+        const res = await apiGet<{ items: DayOffDay[] }>(
+          `/api/admin/day-off-days${qs({ city, date_from: dates[0], date_to: dates[dates.length - 1] })}`,
+        );
+        if (!dead) setDayOffDays(res.items || []);
+      } catch {
+        // An overlay. A failed scan must not stop the draft being read or edited.
+        if (!dead) setDayOffDays([]);
+      }
+    })();
+    return () => { dead = true; };
+  }, [city, targetMonth]);
+
+  const dayOffByStaffDate = useMemo(() => dayOffIndex(dayOffDays), [dayOffDays]);
 
   useEffect(() => {
     let mounted = true;
@@ -3120,6 +3146,7 @@ export default function AdminDraftPage() {
                 onAddRow={handleAddRow}
                 masterData={shiftMaster ?? undefined}
                 branchCode={activeBranchCode || undefined}
+                dayOffByStaffDate={dayOffByStaffDate}
               />
             </>
           )}

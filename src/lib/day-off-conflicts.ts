@@ -42,3 +42,49 @@ export function countDayOffConflicts(conflicts: DayOffConflict[]): string {
   const d = `${days} ${days === 1 ? "day" : "days"}`;
   return people === days ? `${p}, ${d}` : `${p} across ${d}`;
 }
+
+/** One day somebody has off, with no roster attached — /api/admin/day-off-days. */
+export type DayOffDay = {
+  staff_name: string;
+  work_date: string;
+  request_type?: string;
+  stage: "approved" | "asked";
+};
+
+/**
+ * Roles that already say "not at work". The same set app/db_approved_day_off.py
+ * refuses on, so the chip on a cell and the refusal on publish agree about what
+ * counts as rostering somebody.
+ */
+const NOT_WORKING_ROLES = new Set([
+  "DAY_OFF", "OFF", "REST", "RESTDAY", "REST_DAY",
+  "VL", "SL", "EL", "LEAVE", "ABSENT", "AWOL", "SUSPENDED",
+]);
+
+/** Does this cell put the person at work? A Day Off cell, or a zero-length one,
+ *  is the day off being applied — the opposite of a conflict. */
+export function isWorkCell(
+  role: unknown,
+  startHour: number | null | undefined,
+  endHour: number | null | undefined,
+): boolean {
+  const r = String(role ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  if (NOT_WORKING_ROLES.has(r)) return false;
+  return Number(endHour || 0) > Number(startHour || 0);
+}
+
+/** `${name}|${date}` → stage, approved winning over asked when both are filed.
+ *  Names are lowercased, the way the backend matches them. */
+export function dayOffIndex(days: DayOffDay[]): Map<string, "approved" | "asked"> {
+  const m = new Map<string, "approved" | "asked">();
+  for (const d of days || []) {
+    const key = `${String(d.staff_name || "").trim().toLowerCase()}|${d.work_date}`;
+    // Two live requests for one day: the answered one is the one that matters.
+    if (d.stage === "approved" || !m.has(key)) m.set(key, d.stage);
+  }
+  return m;
+}
+
+export function dayOffKey(staffName: string, workDate: string): string {
+  return `${String(staffName || "").trim().toLowerCase()}|${workDate}`;
+}
