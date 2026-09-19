@@ -28527,3 +28527,43 @@ Rachelle Ann Caubat 8/23、Reymar Contillo 5/12×2・5/13、Muskan Tamang 3/12�
    Manual Shift・DTR同期・人員計画が読む `shift_published_rows` は別。
    承認時に自動でシフトを書き換えるかどうかは設計判断。
    現状は「続き14」で入れた Manual Shift の赤チップで人が気づく形。
+
+---
+
+## 2026-09-19（続き17） — 「決めてください」のDiscord DM
+
+オーナー指示: Manual Shift のセル表示に加えて、**アドミンスタッフとHQにDMを飛ばし、
+どの画面を見て承認/却下を確定させるかまで書く**。
+
+`worker.run_request_decision_dm(now_utc, city, last_call=False)`
+
+**宛先**: `shift_request_dm_recipients`（提出時DMと同じ既存リスト・画面から管理可能）。
+実効ロールを解決すると **11名が ADMIN / HQ / HR_MANAGER / 給与権限持ち**、
+Rafael（DUBAI_MANAGEMENT）のみ決裁不可、4件は共有アカウント等で名寄せ不可。
+⚠️ **名寄せでフィルタしない** — 絵文字入り表示名・共有アカウントがあるので、
+曖昧一致で落とすと本物の決裁者を黙って外すことになる。
+
+**送るとき**:
+- 毎朝 digest と同じ枠（マニラ 08:10 / ドバイ 08:10）。**待ちが無ければ送らない**
+- **Last call**: 現地14:00、対象日が今日か明日で未回答のものがある時だけ
+  （答えれば人の居場所がまだ変わる最後の時間）
+
+**中身**（実測・送信せずキャプチャ）:
+```
+⏰ Last call — a day off nobody has answered is tomorrow
+
+• Patrick Danel Santiago — Day Off — 2026-09-20 (tomorrow)
+  waiting 19d · needs HQ · still rostered 15:30-00:30 CUB
+
+Where to answer:
+Menu → Ask & Report → Request → Inbox tab (city: Manila)
+https://sushizen-shift-pwa.vercel.app/request
+
+Approve or reject each one. Approving does not move the shift —
+if you approve, change that day in Manual Shift as well.
+```
+
+停止: `heroku config:set REQUEST_DECISION_DM=0`（デプロイ不要）
+
+⚠️ **本物のDMはまだ一度も送っていない。** 検証は `send_discord_dm` を差し替えて
+文面を取得しただけ。初回は明日朝08:10の定期実行。
