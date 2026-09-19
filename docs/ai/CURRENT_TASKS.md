@@ -28453,3 +28453,77 @@ pending 0 → History が approved → **2回目の承認で控除が走らな�
 - `confirm_hq` の APPROVED は `upsert_shift_override(..., status='FINAL')` を書いている。
   **その override を公開シフト／Manual Shift が読んでいないのではないか**（未調査）。
   読んでいれば Mary Jane 8/21・Abegail 9/6 は出勤しなかったはず。
+
+---
+
+## 2026-09-19（続き16） — 承認された Day Off が本人に届いていなかった
+
+「承認済みなのにシフトが残っている」件を最後まで追った。**私の前回の報告は誤り**だった。
+
+### 訂正
+
+前回「Mary Jane Tegerero 8/21 と Abegail A. Dalida 9/6 は**出勤済み**」と書いたが、
+公開シフトだけを見て推論したもので、**実際は2人とも出勤していない**。
+打刻を数えていなかった（CLAUDE.md「反対側を数える」の違反）。
+
+実際に起きたこと（`os_attendance_sessions` / `manila_attendance_daily` / `absences`）:
+
+| 本人 | 日 | 承認 | 実態 |
+|---|---|---|---|
+| Mary Jane Tegerero | 2026-08-21 | 8/7 に manager+HQ 承認 | 打刻なし。DTR `absent_without_pay=True` |
+| Abegail A. Dalida | 2026-09-06 | 8/7 に manager+HQ 承認 | 打刻なし。DTR `absent_without_pay=True`、`absences` に ABSENT |
+
+**Abegail は当日朝にこう書いている**:
+> "I requested 2 days off for this special day but **it wasn't approved**."
+
+**1ヶ月前に承認されていたのに、本人は却下されたと思っていた。**
+
+給与影響: `ABSENT_DEDUCTION −₱788.43` × 2件（Mary Jane=period 6 / Abegail=period 7）。
+**両期間とも `status='draft'` で未払い。**
+
+### なぜ届かなかったか — 4つ重なっていた
+
+承認は正しく `shift_overrides` に FINAL 行を書いていた。`/api/shifts/view` も
+`/api/shifts/week` も `my_month` も override を読んでいた。壊れていたのはその先。
+
+1. **決定が本人に一度も通知されない。** 提出時は `insert_private_report_notification`
+   が飛ぶが、承認/却下では飛ばない。唯一の通知先は
+   `DISCORD_SHIFT_APPROVAL_WEBHOOK_URL`（バックオフィスのチャンネル）。
+2. **Week が「FINAL」バッジを緑でシフトの横に出す。** 09:00-18:00 のバーは残ったまま。
+   **「あなたのシフトは確定です」に読める。**
+3. **My Shift は override を一切見ていない。** 普通のシフトとして表示。
+4. **`paid_leave` / `vacation` は判定対象外。** 画面は `day_off` / `absence` しか見ず、
+   申請フォームが書くのは別の名前。
+
+### 直したもの
+
+| 症状 | 対応 |
+|---|---|
+| 決定が届かない | `_notify_requester_of_decision()` を承認3経路すべてから呼ぶ |
+| 却下しても override が残る | 却下で `status='VOID'`。**`confirm_manager` が承認時に PENDING を書き、HQ が却下しても誰も取り消していなかった** |
+| PENDING も `applied_off: true` | `applied_marker_for_override()`。FINAL のみ `applied_off`、未回答は `applied_pending_off`。**5箇所のコピーを1関数に集約** |
+| 休暇の名前が対象外 | `OFF_OVERRIDE_TYPES` |
+| `/request` Inbox の承認が override を書かない | 統合後、書くようにした（書かないと Week/My Shift に届かない） |
+| 新しい PENDING が古い FINAL を隠す | `ORDER BY (status='FINAL') DESC, updated_at DESC` |
+| Week の表示 | `APPROVED OFF` / `OFF REQUESTED`。ラベルは override から取る（行のロールは "Prep Cook" のままなので） |
+| My Shift の表示 | 「You are off this day.」／未回答は「Day off requested — not answered yet」 |
+
+### データ修復（実施済み・バックアップあり）
+
+却下された申請に紐づく **stale override 7件** を `VOID` にした。
+退避先 `_shift_overrides_bk_20260919`。
+
+内訳: Jennyleen Valera Pepelar 10/3・10/4（**未来日**・manager承認 HQ却下）、
+Rachelle Ann Caubat 8/23、Reymar Contillo 5/12×2・5/13、Muskan Tamang 3/12。
+放置すると新しい画面が「day off asked」と表示してしまうため、表示を出す前に直した。
+
+### 未解決 — オーナー判断待ち
+
+1. **`ABSENT_DEDUCTION` 2件（計 ₱1,576.86）**。承認済みの休みが無給欠勤として控除されている。
+   両期間とも draft なので**まだ支払われていない**。
+   ⚠️ **過去期間の再計算は危険**（教訓37: 現在のプロフィールで上書きされる）。
+   DTR の当日行を修正して再計算するか、調整項目で戻すかの判断が要る。
+2. **承認しても公開シフトは変わらない。** override は表示用で、
+   Manual Shift・DTR同期・人員計画が読む `shift_published_rows` は別。
+   承認時に自動でシフトを書き換えるかどうかは設計判断。
+   現状は「続き14」で入れた Manual Shift の赤チップで人が気づく形。
