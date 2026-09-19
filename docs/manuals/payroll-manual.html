@@ -118,6 +118,7 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="nav-item" onclick="show('gov-tables')"><span class="nav-icon">🏛️</span><span data-en="Government Tables" data-ja="政府拠出金テーブル">Government Tables</span></div>
   <div class="nav-item" onclick="show('dtr-upload')"><span class="nav-icon">📋</span><span data-en="DTR Upload & Sync" data-ja="DTRアップロード・同期">DTR Upload & Sync</span></div>
   <div class="nav-item" onclick="show('allowances')"><span class="nav-icon">🍱</span><span data-en="Meal Allowance & PA" data-ja="食事手当・皆勤賞">Meal Allowance & PA</span></div>
+  <div class="nav-item" onclick="show('sil')"><span class="nav-icon">🌴</span><span data-en="Service Incentive Leave" data-ja="有給休暇（SIL）">Service Incentive Leave</span></div>
   <div class="nav-item" onclick="show('compute')"><span class="nav-icon">⚙️</span><span data-en="Compute Payroll" data-ja="給与計算">Compute Payroll</span></div>
   <div class="nav-item" onclick="show('approve-publish')"><span class="nav-icon">✅</span><span data-en="Approve & Publish" data-ja="承認・公開">Approve & Publish</span></div>
   <div class="nav-item" onclick="show('remittances')"><span class="nav-icon">🏦</span><span data-en="Gov. Remittances" data-ja="政府拠出金送金">Gov. Remittances</span></div>
@@ -128,6 +129,7 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="nav-item" onclick="show('adjustments')"><span class="nav-icon">±</span><span data-en="Adjustments" data-ja="調整額">Adjustments</span></div>
   <div class="nav-item" onclick="show('dubai-calc')"><span class="nav-icon">🔢</span><span data-en="Run Calculation" data-ja="計算実行">Run Calculation</span></div>
   <div class="nav-item" onclick="show('transactions')"><span class="nav-icon">📄</span><span data-en="Transactions & Payslips" data-ja="取引・給与明細">Transactions & Payslips</span></div>
+  <div class="nav-item" onclick="show('dubai-eos')"><span class="nav-icon">🏁</span><span data-en="End of Service & Leave" data-ja="退職金・年次有給">End of Service & Leave</span></div>
   <div class="nav-item" onclick="show('leave-salary')"><span class="nav-icon">🏖️</span><span data-en="Leave Salary Advance" data-ja="年次有給前払い">Leave Salary Advance</span></div>
 
   <div class="sidebar-label" data-en="Cross-City" data-ja="共通">Cross-City</div>
@@ -750,6 +752,42 @@ td.muted{color:var(--muted);font-size:12px}
   </div>
 </div>
 
+<!-- ══════════ SERVICE INCENTIVE LEAVE ══════════ -->
+<div class="section" id="sec-sil">
+  <div class="section-hero">
+    <div class="hero-icon">🌴</div>
+    <div>
+      <div class="section-title" data-en="Service Incentive Leave" data-ja="有給休暇（SIL）">Service Incentive Leave</div>
+      <div class="section-path">/admin/payroll/manila/sil</div>
+      <div class="section-desc" data-en="Five paid days a year once someone has served a year (Labor Code Art. 95), and what the unused ones are worth." data-ja="勤続1年で年5日の有給（労働法典第95条）。未消化分の金額もここで出ます。">Five paid days a year after one year of service, and the cash value of what is unused.</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card blue-border">
+      <div class="card-title" data-en="The rule" data-ja="ルール">The rule</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px;align-items:flex-start">
+        <span class="chip" data-en="5 days a year" data-ja="年5日">5 days a year</span>
+        <span class="chip" data-en="From the service anniversary — not 1 January" data-ja="発生は勤続1年の応当日。1月1日ではありません">From the service anniversary — not 1 January</span>
+        <span class="chip" data-en="Unused days are convertible to cash" data-ja="未消化分は現金化できます">Unused days are convertible to cash</span>
+      </div>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7;margin-top:10px" data-en="Eligibility is rechecked every time the page is opened, so somebody who reaches a year in March is entitled in March. Manila's earliest hire is 26 September 2025, so the first five days fall due on 26 September 2026." data-ja="資格はページを開くたびに再判定します。3月に1年を迎えた人はその月から対象です。マニラの最古の入社日は2025年9月26日なので、最初の5日は2026年9月26日に発生します。">Eligibility is rechecked on every visit. The first entitlement falls due 26 September 2026.</p>
+    </div>
+    <div class="card" style="border-color:rgba(16,185,129,.45)">
+      <div class="card-title" data-en="How a day is taken off the balance" data-ja="残日数はどう減るか">How a day is taken off the balance</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Staff submit a request" data-ja="スタッフが申請する">Staff submit a request</strong><p data-en="/request → Paid Leave → Annual Leave. That option IS this leave; sick, emergency, unpaid and maternity leave do not touch it." data-ja="/request → Paid Leave → Annual Leave。この選択肢が SIL 本体です。病欠・緊急・無給・産休は対象外です。">Paid Leave → Annual Leave draws on these five days.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="A manager approves it" data-ja="マネージャーが承認する">A manager approves it</strong><p data-en="Approving takes the days off the balance. Approving more days than are left deducts what is there and records the excess — those days are not paid from the five." data-ja="承認した時点で残日数から引かれます。残日数を超えて承認した場合は、あるぶんだけ引き、超過分は記録されます（5日からは支払われません）。">Approval deducts the days; any excess is recorded, not hidden.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Unused days are cashed out" data-ja="未消化分を現金化する">Unused days are cashed out</strong><p data-en="Cash out on this page. The amount is computed from the person's own daily rate (monthly ÷ 26.0833) and written onto a payroll period as a manual addition — that is what puts it on a payslip." data-ja="この画面で現金化します。金額は本人の日給（月給÷26.0833）から自動計算し、選んだ給与期間に手動加算として書き込みます。これで明細に乗ります。">The amount is computed, not typed in, and lands on a payroll period.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tip"><span class="tip-icon">⚠️</span><span data-en="The entitlement is counted from the hire date on the payroll profile. Anybody without one can never reach the anniversary — the page counts them and links to Staff Profiles." data-ja="発生は給与プロファイルの入社日から数えます。入社日が未入力の人は永久に対象になりません。画面に人数を出し、Staff Profiles へのリンクを付けています。">Staff with no hire date on file can never become eligible — the page counts them.</span></div>
+  </div>
+</div>
+
 <!-- ══════════ COMPUTE PAYROLL ══════════ -->
 <div class="section" id="sec-compute">
   <div class="section-hero">
@@ -1208,6 +1246,40 @@ td.muted{color:var(--muted);font-size:12px}
 </div>
 
 <!-- ══════════ LEAVE SALARY ══════════ -->
+<div class="section" id="sec-dubai-eos">
+  <div class="section-hero">
+    <div class="hero-icon">🏁</div>
+    <div>
+      <div class="section-title" data-en="End of Service &amp; Leave — Dubai" data-ja="退職金・年次有給（ドバイ）">End of Service &amp; Leave — Dubai</div>
+      <div class="section-path">/admin/payroll/dubai/end-of-service</div>
+      <div class="section-desc" data-en="What the company would owe if everyone left today. Gratuity accrues daily and falls due on the day somebody goes, so this is a standing liability." data-ja="全員が今日辞めた場合に会社が負う金額。退職金は毎日積み上がり退職日に支払義務が生じるので、これは常時抱えている負債です。">A standing liability, not a forecast.</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card blue-border">
+      <div class="card-title" data-en="Gratuity — Federal Decree-Law 33/2021 Art. 51" data-ja="退職金 — 連邦法令33/2021 第51条">Gratuity — Art. 51</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px;align-items:flex-start">
+        <span class="chip" data-en="Under 1 year: nothing" data-ja="勤続1年未満：なし">Under 1 year: nothing</span>
+        <span class="chip" data-en="1–5 years: 21 days of BASIC wage a year" data-ja="1〜5年：年あたり基本給21日分">1–5 years: 21 days of basic wage a year</span>
+        <span class="chip" data-en="Beyond 5 years: 30 days a year" data-ja="5年超：年あたり30日分">Beyond 5 years: 30 days a year</span>
+        <span class="chip" data-en="Capped at 2 years' wage · part years pro-rated" data-ja="上限は2年分の賃金・端数は日割り">Capped at 2 years' wage · part years pro-rated</span>
+        <span class="chip red" data-en="Basic wage only — housing and transport are excluded" data-ja="基本給のみ。住宅手当・交通費は含みません">Basic wage only</span>
+      </div>
+    </div>
+    <div class="card" style="border-color:rgba(245,158,11,.45)">
+      <div class="card-title" data-en="Both numbers are wrong in a known direction" data-ja="2つの数字は、ずれる向きが分かっています">Both numbers are wrong in a known direction</div>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7" data-en="Nobody has a hire date on their Dubai payroll profile, so length of service is counted from the first month each person appears in the imported payroll. Anyone employed before that import counts as shorter-serving than they are, so THE GRATUITY IS A FLOOR — the real figure is higher. Filling in hire dates is what fixes it." data-ja="ドバイの給与プロファイルには入社日が1件も入っていないため、勤続は「取込済み給与に最初に現れた月」から数えています。それ以前から在籍している人は実際より短く数えられるので、退職金の金額は下限です（実際はもっと多い）。入社日を入れれば解消します。">The gratuity is a floor: no hire dates on file, so service is counted from the first imported payroll month.</p>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7;margin-top:8px" data-en="Leave taken is only recorded from June 2026, so days taken before that are invisible and the balances read as though almost nobody has had a holiday. THE LEAVE FIGURE IS AN UPPER BOUND." data-ja="消化した有給は2026年6月以降しか記録がないため、それ以前の取得は見えません。結果として「ほぼ誰も休んでいない」ように出ます。有給の金額は上限です。">The leave figure is an upper bound: leave taken before June 2026 is not recorded.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Annual leave — Art. 29" data-ja="年次有給 — 第29条">Annual leave — Art. 29</div>
+    <p style="color:var(--muted);font-size:12.5px;line-height:1.7" data-en="Thirty days a year once a year of service is complete, two days a month between six and twelve months. What is left over is paid in cash when the employment ends, at the basic wage." data-ja="勤続1年で年30日。6〜12か月は月2日。退職時、未消化分は基本給ベースで現金精算します。">30 days a year after one year; 2 days a month from six months; unused days paid in cash on leaving.</p>
+  </div>
+</div>
+
 <div class="section" id="sec-leave-salary">
   <div class="section-hero">
     <div class="hero-icon">🏖️</div>
