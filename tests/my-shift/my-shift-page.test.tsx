@@ -628,3 +628,59 @@ describe("MyShiftPage", () => {
     });
   });
 });
+
+/**
+ * Abegail A. Dalida's 2026-09-06 day off was approved by her manager and HQ on
+ * 2026-08-07. This page never looked at the override, so it kept showing
+ * "Prep Cook 09:00–18:00". On the morning of the 6th she wrote: "I requested 2
+ * days off for this special day but it wasn't approved." She was marked absent
+ * without pay.
+ */
+describe("MyShiftPage — a day off that was granted", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getAuth).mockReturnValue(BASE_AUTH);
+    vi.mocked(canAccessMyShiftPage).mockReturnValue(true);
+  });
+  afterEach(() => cleanup());
+
+  function monthWith(applied: Record<string, unknown>) {
+    const row = makeShiftRow({
+      role: "Prep Cook",
+      start_hour: 9,
+      end_hour: 18,
+      override: { override_type: "day_off", status: applied.applied_off ? "FINAL" : "PENDING" },
+      applied,
+    });
+    return makeMonthView({ monthly_rows: [row], shift_days: 1,
+      days: [{ work_date: dayThisMonth(12), count: 1, rows: [row] }] });
+  }
+
+  it("says the day is off, not that the shift stands", async () => {
+    mockApiGet.mockResolvedValue(monthWith({
+      applied_type: "day_off", applied_status: "FINAL", applied_off: true,
+    }));
+    render(<MyShiftPage />);
+    await waitFor(() => expect(screen.getByText("My Shift")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("12"));
+    await waitFor(() =>
+      expect(screen.getByText("Day Off — approved")).toBeInTheDocument()
+    );
+  });
+
+  /** The opposite error: Patrick Danel Santiago's 2026-09-20 was approved by
+   *  his manager and never answered by HQ. The server used to send
+   *  applied_off for that too. Until somebody answers, he is working. */
+  it("does not call an unanswered request a day off", async () => {
+    mockApiGet.mockResolvedValue(monthWith({
+      applied_type: "day_off", applied_status: "PENDING", applied_pending_off: true,
+    }));
+    render(<MyShiftPage />);
+    await waitFor(() => expect(screen.getByText("My Shift")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("12"));
+    await waitFor(() =>
+      expect(screen.getByText(/Day off requested — not answered yet/)).toBeInTheDocument()
+    );
+    expect(screen.queryByText("Day Off — approved")).not.toBeInTheDocument();
+  });
+});

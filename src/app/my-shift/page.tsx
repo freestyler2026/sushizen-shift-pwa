@@ -140,6 +140,17 @@ function fmtWorkHours(minutes: number | null): string {
 }
 
 function isAbsenceRow(row: ShiftRow) {
+  // A day off the office granted against a published shift.
+  //
+  // This page never looked at the override at all, so Abegail A. Dalida's
+  // 2026-09-06 — approved by her manager and HQ on 2026-08-07 — still read
+  // "Prep Cook 09:00–18:00" here. On the morning of the 6th she wrote "I
+  // requested 2 days off for this special day but it wasn't approved".
+  //
+  // applied_off is set by the server only when the decision is final; a
+  // request nobody has answered carries applied_pending_off and stays a
+  // working day (see the Pending banner below).
+  if ((row as any)?.applied?.applied_off) return true;
   const role = String(row.role || "").toUpperCase().trim();
   return Number(row.start_hour || 0) === 0 && Number(row.end_hour || 0) === 0 && (
     role === "DAY_OFF" ||
@@ -625,6 +636,14 @@ export default function MyShiftPage() {
                         {row.applied?.applied_type === "time_change" ? (
                           <div className="mt-1 text-[11px] font-medium text-amber-300">Updated</div>
                         ) : null}
+                        {/* Asked for and not answered. The shift still stands
+                            until it is, and saying so is the difference
+                            between waiting and not turning up. */}
+                        {row.applied?.applied_pending_off ? (
+                          <div className="mt-1 text-[11px] font-medium text-amber-300">
+                            Day off requested — not answered yet
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -635,7 +654,9 @@ export default function MyShiftPage() {
                 <div className="mt-4 space-y-2">
                   {selectedAbsenceRows.map((row, idx) => (
                     <div key={`${row.work_date}-absence-${idx}`} className="rounded-xl border border-white/8 bg-white/5 px-3 py-2.5">
-                      <div className="text-sm font-semibold text-zinc-300">{row.role}</div>
+                      <div className="text-sm font-semibold text-zinc-300">
+                        {row.applied?.applied_off ? "Day Off — approved" : row.role}
+                      </div>
                       {row.applied?.note ? <div className="mt-1 text-xs text-neutral-300">{String(row.applied.note)}</div> : null}
                     </div>
                   ))}
@@ -645,7 +666,14 @@ export default function MyShiftPage() {
           ) : (
             <div className="flex flex-col items-center justify-center gap-2 py-8">
               <CalendarOff className="h-8 w-8 text-zinc-600" />
-              <p className={T_CAPTION}>No shift published for this day.</p>
+              <p className={T_CAPTION}>
+                {/* A granted day off lands here, because once the shift is off
+                    there are no working rows left. Saying "no shift published"
+                    would hide the answer the person is looking for. */}
+                {selectedAbsenceRows.some((r) => r.applied?.applied_off)
+                  ? "You are off this day."
+                  : "No shift published for this day."}
+              </p>
               {selectedAbsenceRows.length ? (
                 <div className="mt-2 space-y-2">
                   {selectedAbsenceRows.map((row, idx) => (
@@ -654,7 +682,7 @@ export default function MyShiftPage() {
                       className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/5 px-2.5 py-0.5 text-xs font-medium text-zinc-400"
                     >
                       <CalendarOff className="h-3 w-3" />
-                      {row.role}
+                      {row.applied?.applied_off ? "Day Off — approved" : row.role}
                     </div>
                   ))}
                 </div>

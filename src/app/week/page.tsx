@@ -80,8 +80,18 @@ function normalizeBranchName(s: string) {
 
 function badgeForRow(r: ShiftRow) {
   const ov = (r as any)?.override;
+  // "FINAL" in green sat on a shift that had been given away as a day off,
+  // and read as confirmation of the shift. Say what was decided instead.
+  const off = (r as any)?.applied?.applied_off;
+  const pendingOff = (r as any)?.applied?.applied_pending_off;
+  if (off) {
+    return { label: "APPROVED OFF", cls: "border-emerald-900/60 bg-emerald-950/40 text-emerald-200" };
+  }
+  if (pendingOff) {
+    return { label: "OFF REQUESTED", cls: "border-amber-900/60 bg-amber-950/40 text-amber-200" };
+  }
   if (ov?.status === "FINAL") {
-    return { label: "FINAL", cls: "border-emerald-900/60 bg-emerald-950/40 text-emerald-200" };
+    return { label: "CHANGED", cls: "border-emerald-900/60 bg-emerald-950/40 text-emerald-200" };
   }
   if (ov?.status === "PENDING") {
     return { label: "PENDING", cls: "border-amber-900/60 bg-amber-950/40 text-amber-200" };
@@ -116,9 +126,32 @@ function isAbsenceRow(r: any) {
   const at = String(r?.role || "").toUpperCase().trim();
   // VL / Vacation Leave branch → always treat as absence regardless of hours
   const bc = String((r as any)?.branch_code || "").toUpperCase().replace(/[\s_]/g, "");
-  if (r?.applied?.applied_type === "absence") return true;
+  // A granted day off, whatever it was called when it was asked for.
+  //
+  // This tested applied_type === "absence" only, so an approved day off left
+  // the shift on the page — and the override badge beside it said FINAL in
+  // green, which reads as "your shift is confirmed". Abegail A. Dalida's
+  // 2026-09-06 was approved on 2026-08-07 and on the morning of the 6th she
+  // wrote "I requested 2 days off ... but it wasn't approved".
+  //
+  // applied_off is set by the server only when the override is FINAL. A
+  // request nobody has answered carries applied_pending_off instead and is
+  // NOT an absence: the day is still a working day until someone says
+  // otherwise.
+  if (r?.applied?.applied_off) return true;
+  if (r?.applied?.applied_type === "absence" && r?.applied?.applied_status !== "PENDING") return true;
   if (bc === "VL" || bc === "VACATIONLEAVE") return true;
   return Number(r?.start_hour ?? 0) === 0 && Number(r?.end_hour ?? 0) === 0 && ABSENCE_TYPES.has(at);
+}
+
+/** The label for a row the server marked off, when the row itself still
+    carries the old shift's role ("Prep Cook") rather than a leave type. */
+function appliedOffLabel(rows: any[]): string {
+  for (const r of rows || []) {
+    const t = String(r?.applied?.applied_type || "").toUpperCase().replace(/[\s_]/g, "");
+    if (r?.applied?.applied_off && t) return absenceDisplayLabel(t);
+  }
+  return "";
 }
 
 function isAbsenceStaff(rows: any[]) {
@@ -521,7 +554,11 @@ export default function WeekPage() {
     const absence = isAbsenceStaff(rows);
     const absType = String(rows[0]?.role || "").toUpperCase().trim();
     const absNote = absenceNote(rows);
-    const absLabel = absenceDisplayLabel(absType);
+    // A day off granted against a published shift keeps that shift's role on
+    // the row ("Prep Cook"), so the label has to come from the override, not
+    // from the role. Without this the row reads "Prep Cook" where it should
+    // read "Day Off".
+    const absLabel = appliedOffLabel(rows) || absenceDisplayLabel(absType);
 
     const badge = badgeForRow(rows[0]);
     const roleText = absence ? absLabel : (rows[0]?.role || "");
