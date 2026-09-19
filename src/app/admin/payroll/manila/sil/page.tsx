@@ -22,6 +22,7 @@ interface SilRow {
   branch_code: string;
   daily_rate: number;
   convertible_value: number;
+  eligible_from: string | null;
 }
 
 interface SilResponse {
@@ -32,28 +33,26 @@ interface SilResponse {
   not_yet_count: number;
   missing_hire_date: number;
   unused_value: number;
+  other_entity: { staff_name: string; payroll_entity: string }[];
 }
 
 interface PeriodRow { id: number; period_label: string; status: string }
 
 const peso = (n: number) => `₱${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** The anniversary this person's five days fall due on. */
-function eligibleFrom(hire: string | null): string | null {
-  if (!hire) return null;
-  const d = new Date(hire + "T00:00:00");
-  if (Number.isNaN(d.getTime())) return null;
-  d.setFullYear(d.getFullYear() + 1);
-  return d.toISOString().slice(0, 10);
-}
-
+/** Whole days from today to `iso`, both read as calendar dates.
+ *
+ * Not `new Date(iso + "T00:00:00")` — in Manila and Dubai that is the previous
+ * day once it goes through UTC, which is how the anniversary used to render a
+ * day early. Both sides are reduced to a day number first. */
 function daysUntil(iso: string | null): number | null {
   if (!iso) return null;
-  const today = new Date();
-  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const d = new Date(iso + "T00:00:00").getTime();
-  if (Number.isNaN(d)) return null;
-  return Math.round((d - t) / 86400000);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const target = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const n = new Date();
+  const today = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());
+  return Math.round((target - today) / 86400000);
 }
 
 export default function SilPage() {
@@ -65,6 +64,9 @@ export default function SilPage() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [cashOut, setCashOut] = useState<SilRow | null>(null);
+  const [cashOutDays, setCashOutDays] = useState("");
+  const [cashOutPeriod, setCashOutPeriod] = useState("");
 
   const load = useCallback(async (y: number) => {
     setLoading(true); setError("");
@@ -82,35 +84,27 @@ export default function SilPage() {
   useEffect(() => { void load(year); }, [year, load]);
 
   useEffect(() => {
-    apiGet<{ periods: PeriodRow[] }>(`${API}/periods`)
-      .then(r => setPeriods(r.periods || []))
+    // This endpoint returns a bare array, not { periods: [...] }. Reading a
+    // key that is not there left the cash-out dialog with no periods to offer.
+    apiGet<PeriodRow[] | { periods: PeriodRow[] }>(`${API}/periods`)
+      .then(r => setPeriods(Array.isArray(r) ? r : (r?.periods ?? [])))
       .catch(() => setPeriods([]));
   }, []);
 
-  async function convert(row: SilRow) {
-    const open = periods.find(p => p.status !== "paid") ?? periods[0];
-    const days = window.prompt(
-      `Cash out how many of ${row.staff_name}'s ${row.remaining_days} unused day(s)?\n` +
-      `A day is worth ${peso(row.daily_rate)}.`,
-      String(row.remaining_days),
-    );
-    if (days === null) return;
-    const n = Number(days);
+  async function submitCashOut() {
+    if (!cashOut) return;
+    const n = Number(cashOutDays);
     if (!(n > 0)) { setError("Enter a number of days greater than zero."); return; }
-    const periodId = window.prompt(
-      `Which payroll period should pay it?\n\n` +
-      periods.map(p => `${p.id} — ${p.period_label} (${p.status})`).join("\n") +
-      `\n\nLeave blank to record the conversion without paying it.`,
-      open ? String(open.id) : "",
-    );
-    if (periodId === null) return;
-    setBusy(row.id); setError(""); setNotice("");
+    if (n > cashOut.remaining_days) { setError(`Only ${cashOut.remaining_days} day(s) are unused.`); return; }
+    setBusy(cashOut.id); setError(""); setNotice("");
     try {
-      const res = await apiPost<{ amount: number; days: number; paid_via: string }>(
-        `${API}/sil-balances/${row.id}/convert`,
-        { days: n, period_id: periodId ? Number(periodId) : null },
+      const res = await apiPost<{ amount: number; days: number; paid_via: string; days_still_unused: number }>(
+        `${API}/sil-balances/${cashOut.id}/convert`,
+        { days: n, period_id: cashOutPeriod ? Number(cashOutPeriod) : null },
       );
-      setNotice(`${row.staff_name}: ${res.days} day(s) cashed out at ${peso(res.amount)} — ${res.paid_via}.`);
+      setNotice(`${cashOut.staff_name}: ${res.days} day(s) at ${peso(res.amount)} — ${res.paid_via}.`
+        + (res.days_still_unused > 0 ? ` ${res.days_still_unused} day(s) still unused.` : ""));
+      setCashOut(null);
       await load(year);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -122,7 +116,7 @@ export default function SilPage() {
   const rows = data?.balances ?? [];
   // Everybody appears, but the people whose leave has fallen due are the ones
   // there is anything to do about — the rest are a date in the future.
-  const shown = showAll ? rows : rows.filter(r => r.is_eligible || (daysUntil(eligibleFrom(r.hire_date)) ?? 9999) <= 90);
+  const shown = showAll ? rows : rows.filter(r => r.is_eligible || (daysUntil(r.eligible_from) ?? 9999) <= 90);
 
   return (
     <div className="space-y-5">
@@ -169,11 +163,75 @@ export default function SilPage() {
         </div>
       )}
 
+      {data && data.other_entity?.length > 0 && (
+        <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-400">
+          This page covers the Sushi Zen payroll. {data.other_entity.length} active people are on another
+          payroll ({[...new Set(data.other_entity.map(o => o.payroll_entity))].join(", ")}) and are not listed
+          here: {data.other_entity.map(o => o.staff_name).join(", ")}. Their leave is that payroll&apos;s to track.
+        </div>
+      )}
+
       {data && data.missing_hire_date > 0 && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           {data.missing_hire_date} {data.missing_hire_date === 1 ? "person has" : "people have"} no hire date on their
           payroll profile. The entitlement is counted from the hire date, so they can never reach it — fill the date in
           on <Link href="/admin/payroll/manila/staff-profiles" className="underline">Staff Profiles</Link>.
+        </div>
+      )}
+
+      {cashOut && (
+        <div className="rounded-xl border border-violet-500/30 bg-violet-600/10 px-4 py-3">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-violet-300/70">Cash out</div>
+              <div className="mt-0.5 text-sm text-zinc-200">{cashOut.staff_name}</div>
+              <div className="text-[11px] text-zinc-500">
+                {cashOut.remaining_days} unused · a day is worth {peso(cashOut.daily_rate)}
+              </div>
+            </div>
+            <label className="text-xs text-zinc-400">
+              Days
+              <input
+                type="number" min="0.5" step="0.5" max={cashOut.remaining_days}
+                value={cashOutDays}
+                onChange={e => setCashOutDays(e.target.value)}
+                className="mt-1 block w-24 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200"
+              />
+            </label>
+            <label className="text-xs text-zinc-400">
+              Paid on
+              <select
+                value={cashOutPeriod}
+                onChange={e => setCashOutPeriod(e.target.value)}
+                className="mt-1 block rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200"
+              >
+                <option value="">— record it only, pay nothing —</option>
+                {periods.map(p => (
+                  <option key={p.id} value={p.id}>{p.period_label} ({p.status})</option>
+                ))}
+              </select>
+            </label>
+            <div className="text-sm">
+              <div className="text-[11px] uppercase tracking-wide text-zinc-500">Amount</div>
+              <div className="mt-0.5 font-semibold text-violet-200">
+                {peso((Number(cashOutDays) || 0) * cashOut.daily_rate)}
+              </div>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <button onClick={() => setCashOut(null)}
+                className="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:bg-white/5">
+                Cancel
+              </button>
+              <button onClick={() => void submitCashOut()} disabled={busy === cashOut.id}
+                className="rounded-lg border border-violet-500/40 bg-violet-600/20 px-3 py-2 text-xs text-violet-200 hover:bg-violet-600/30 disabled:opacity-50">
+                {busy === cashOut.id ? "…" : "Cash out"}
+              </button>
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] text-zinc-500">
+            Choosing a period writes the amount onto it as a manual addition. It reaches the payslip when that
+            period is computed — it is not paid by this button alone.
+          </p>
         </div>
       )}
 
@@ -197,7 +255,7 @@ export default function SilPage() {
               <tr><td colSpan={8} className="px-3 py-6 text-center text-zinc-500">Nobody reaches a year of service in {year}.</td></tr>
             )}
             {shown.map(r => {
-              const from = eligibleFrom(r.hire_date);
+              const from = r.eligible_from;
               const until = daysUntil(from);
               return (
                 <tr key={r.id} className="text-zinc-300">
@@ -223,14 +281,16 @@ export default function SilPage() {
                   <td className="px-3 py-2 text-right tabular-nums">{r.is_eligible ? r.remaining_days : "—"}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-zinc-500">{r.daily_rate ? peso(r.daily_rate) : "—"}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
-                    {r.conversion_status === "converted"
-                      ? <span className="text-emerald-300">{peso(r.converted_amount ?? 0)} paid</span>
-                      : r.convertible_value ? peso(r.convertible_value) : "—"}
+                    {r.convertible_value ? peso(r.convertible_value) : "—"}
+                    {r.converted_amount ? (
+                      <div className="text-[10px] text-emerald-400/80">{peso(r.converted_amount)} cashed out</div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {r.is_eligible && r.remaining_days > 0 && r.conversion_status !== "converted" && (
+                    {r.is_eligible && r.remaining_days > 0 && (
                       <button
-                        onClick={() => void convert(r)}
+                        onClick={() => { setCashOut(r); setCashOutDays(String(r.remaining_days));
+                                         setCashOutPeriod(String(periods.find(p => p.status !== "paid")?.id ?? "")); }}
                         disabled={busy === r.id}
                         className="rounded-lg border border-violet-500/30 bg-violet-600/10 px-3 py-1 text-xs text-violet-300 hover:bg-violet-600/20 disabled:opacity-50"
                       >

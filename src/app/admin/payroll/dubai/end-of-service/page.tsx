@@ -10,6 +10,7 @@ interface EosRow {
   role_title: string;
   currency: string;
   basic_salary: number;
+  basic_salary_missing: boolean;
   service_start: string | null;
   service_start_source: string;
   service_start_is_floor: boolean;
@@ -32,6 +33,8 @@ interface EosResponse {
   total_liability: number;
   estimated_service_count: number;
   leave_records_begin: string | null;
+  leave_ever_recorded: boolean;
+  basic_salary_missing_count: number;
   rules: string;
 }
 
@@ -88,12 +91,23 @@ export default function DubaiEndOfServicePage() {
               <div className="mt-1 text-2xl font-semibold text-violet-200">{aed(data.total_gratuity)}</div>
               <div className="mt-1 text-[11px] text-zinc-500">
                 {data.staff.filter(r => r.eligible).length} of {data.staff.length} have passed a year
+                {data.basic_salary_missing_count > 0 &&
+                  ` · ${data.basic_salary_missing_count} have no basic wage on file`}
               </div>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-              <div className="text-[11px] uppercase tracking-wide text-zinc-500">Unused leave, at basic wage</div>
-              <div className="mt-1 text-2xl font-semibold text-zinc-300">{aed(data.total_leave_value)}</div>
-              <div className="mt-1 text-[11px] text-amber-400/80">too high — see below</div>
+              <div className="text-[11px] uppercase tracking-wide text-zinc-500">Leave accrued</div>
+              {data.leave_ever_recorded ? (
+                <>
+                  <div className="mt-1 text-2xl font-semibold text-zinc-300">{aed(data.total_leave_value)}</div>
+                  <div className="mt-1 text-[11px] text-amber-400/80">an upper bound — see below</div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-1 text-2xl font-semibold text-zinc-600">not measurable</div>
+                  <div className="mt-1 text-[11px] text-amber-400/80">no leave has ever been recorded</div>
+                </>
+              )}
             </div>
             <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
               <div className="text-[11px] uppercase tracking-wide text-zinc-500">As of</div>
@@ -114,10 +128,10 @@ export default function DubaiEndOfServicePage() {
               figure is higher. Filling in hire dates is what fixes it.
             </p>
             <p>
-              <strong className="text-amber-200">The leave figure is too high.</strong>{" "}
-              Leave taken is only recorded from {data.leave_records_begin ?? "when attendance records start"};
-              days taken before that are invisible here, so the balances read as though almost nobody has
-              had a holiday. Treat the leave column as an upper bound until earlier leave is entered.
+              <strong className="text-amber-200">Nobody&apos;s leave has ever been recorded.</strong>{" "}
+              The Dubai DTR upload can mark a day as annual leave and no row in the table has ever been marked,
+              so the leave column below is the entitlement somebody has built up — not a balance. It cannot be
+              netted down until leave taken is entered, and putting a money figure on it would be fiction.
             </p>
           </div>
 
@@ -161,20 +175,28 @@ export default function DubaiEndOfServicePage() {
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.years_of_service.toFixed(2)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-zinc-500">
-                      {r.basic_salary ? r.basic_salary.toLocaleString() : "—"}
+                      {r.basic_salary_missing
+                        ? <span className="text-[11px] text-amber-400/80">not on file</span>
+                        : r.basic_salary.toLocaleString()}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {r.eligible ? r.gratuity_days : <span className="text-[11px] text-zinc-600">under a year</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {r.eligible ? aed(r.gratuity_amount) : "—"}
+                      {!r.eligible ? "—"
+                        : r.basic_salary_missing
+                          ? <span className="text-[11px] text-amber-400/80">needs a basic wage</span>
+                          : aed(r.gratuity_amount)}
                       {r.gratuity_capped && <span className="ml-1 text-[10px] text-amber-400">capped</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-zinc-400">
                       {r.leave_days_left.toFixed(1)}
                       <span className="text-[11px] text-zinc-600"> /{r.leave_days_earned.toFixed(0)}</span>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-zinc-400">{aed(r.leave_value)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-zinc-400">
+                      {data.leave_ever_recorded ? aed(r.leave_value)
+                        : <span className="text-[11px] text-zinc-600">nothing recorded</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
