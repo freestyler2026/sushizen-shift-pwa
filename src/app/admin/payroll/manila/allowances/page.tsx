@@ -154,6 +154,16 @@ export default function ManilaAllowancesPage() {
   const totalPA = sumAllow(it => it.pa_amount);
   const totalAll = sumAllow(it => it.total_amount);
   const isV2 = (it: AllowanceItem) => (it.rules_version || "") === "v2";
+  // The ₱500 forgives one late arrival of up to 30 minutes across the month.
+  // Mirrors PA_LATE_COUNT_LIMIT_V2 / PA_LATE_MINUTES_LIMIT_V2 in the engine —
+  // colouring every minute red would contradict the verdict printed under it.
+  const PA_LATE_COUNT_LIMIT = 2;
+  const PA_LATE_MINUTES_LIMIT = 30;
+  const lateTone = (it: AllowanceItem, count: number, minutes: number) => {
+    if (!isV2(it)) return count > 0 || minutes > 0 ? "text-red-300" : "text-emerald-300";
+    if (count >= PA_LATE_COUNT_LIMIT || minutes > PA_LATE_MINUTES_LIMIT) return "text-red-300";
+    return count > 0 || minutes > 0 ? "text-amber-300" : "text-emerald-300";
+  };
   // Under v2 nothing disqualifies the meal allowance except the Back Office
   // rule, so a zero is almost always "worked no days", not "lost it". Showing
   // those 25 of 146 cutoffs as a red ✗ with no reason said the opposite.
@@ -357,7 +367,7 @@ export default function ManilaAllowancesPage() {
                                   The figures below no longer affect this allowance — they decide the ₱500.
                                 </p>
                               )}
-                              <p className="text-zinc-400">Late count: <span className={!isV2(it) && it.cutoff1_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_count}x</span></p>
+                              <p className="text-zinc-400">Late count: <span className={!isV2(it) && it.cutoff1_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_count}x</span><span className="text-[10px] text-zinc-600"> · this cutoff</span></p>
                               <p className="text-zinc-400">Late minutes: <span className={!isV2(it) && it.cutoff1_late_minutes >= 60 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_minutes}min</span></p>
                               <p className="text-zinc-400">AWOL days: <span className={it.cutoff1_awol_days > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_awol_days}</span></p>
                               <p className="text-zinc-400">Rejected requests: <span className={it.cutoff1_rejected_requests > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_rejected_requests}</span></p>
@@ -391,7 +401,7 @@ export default function ManilaAllowancesPage() {
                                   The figures below no longer affect this allowance — they decide the ₱500.
                                 </p>
                               )}
-                              <p className="text-zinc-400">Late count: <span className={!isV2(it) && it.cutoff2_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_count}x</span></p>
+                              <p className="text-zinc-400">Late count: <span className={!isV2(it) && it.cutoff2_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_count}x</span><span className="text-[10px] text-zinc-600"> · this cutoff</span></p>
                               <p className="text-zinc-400">Late minutes: <span className={!isV2(it) && it.cutoff2_late_minutes >= 60 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_minutes}min</span></p>
                               <p className="text-zinc-400">AWOL days: <span className={it.cutoff2_awol_days > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_awol_days}</span></p>
                               <p className="text-zinc-400">Rejected requests: <span className={it.cutoff2_rejected_requests > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_rejected_requests}</span></p>
@@ -413,8 +423,14 @@ export default function ManilaAllowancesPage() {
                             {/* Perfect Attendance detail */}
                             <div className="space-y-1.5">
                               <p className="font-semibold text-zinc-300">Perfect Attendance ({fmtDate(it.cutoff1_start)} → {fmtDate(it.cutoff2_end)})</p>
-                              <p className="text-zinc-400">Total late count: <span className={it.pa_late_count > 0 ? "text-red-300" : "text-emerald-300"}>{it.pa_late_count}x</span></p>
-                              <p className="text-zinc-400">Total late minutes: <span className={it.pa_late_minutes > 0 ? "text-red-300" : "text-emerald-300"}>{it.pa_late_minutes}min</span></p>
+                              <p className="text-zinc-400">
+                                Total late count: <span className={lateTone(it, it.pa_late_count, it.pa_late_minutes)}>{it.pa_late_count}x</span>
+                                {isV2(it) && <span className="text-[10px] text-zinc-600"> · {PA_LATE_COUNT_LIMIT}x or more loses it</span>}
+                              </p>
+                              <p className="text-zinc-400">
+                                Total late minutes: <span className={lateTone(it, it.pa_late_count, it.pa_late_minutes)}>{it.pa_late_minutes}min</span>
+                                {isV2(it) && <span className="text-[10px] text-zinc-600"> · over {PA_LATE_MINUTES_LIMIT}min loses it</span>}
+                              </p>
                               <p className="text-zinc-400">Total AWOL days: <span className={it.pa_awol_days > 0 ? "text-red-300" : "text-emerald-300"}>{it.pa_awol_days}</span></p>
                               <div className={`mt-2 rounded-lg px-3 py-2 text-center font-semibold ${it.pa_eligible ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"}`}>
                                 {it.pa_eligible ? "✓ ₱500 Eligible" : `✗ Not eligible — ${it.pa_disqualify_reasons}`}
@@ -443,8 +459,10 @@ export default function ManilaAllowancesPage() {
           Meal allowance: ₱50 for every day worked. A shift under 6 hours (punch span minus the scheduled break) does not
           count as a day. Back Office staff hired after the policy change do not receive it. Nothing else removes it.
           <br />
-          Perfect attendance ₱500, lost by: any absence without pay, late ≥3x or &gt;60min in total, an unapproved shift
-          change, or no advance notice of tardiness — the last must be flagged manually below.
+          Perfect attendance ₱500, lost by: any absence without pay, being late twice or more, more than 30 minutes
+          late in total, an unapproved shift change, or no advance notice of tardiness — the last must be flagged
+          manually below. One late arrival of up to 30 minutes across the month is forgiven. Lateness is judged over
+          the whole month, not per cutoff.
         </p>
       ) : (
         <p className="text-xs text-zinc-600">
