@@ -364,10 +364,14 @@ export default function OvertimeRequestPage() {
         } else {
           setOtStart("");
           setOtEnd("");
+          // Always say why the boxes are empty. An empty form with no
+          // explanation is the thing people work around by guessing.
           setClockNote(
             d.unavailable === "no attendance record"
               ? "No clock-out recorded for that day yet — type the hours you worked."
-              : "",
+              : d.unavailable === "no published shift for that day"
+              ? "No shift published for that day — type the hours you worked."
+              : "Type the hours you worked.",
           );
         }
       } catch {
