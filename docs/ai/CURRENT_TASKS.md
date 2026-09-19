@@ -27993,3 +27993,44 @@ package.json/lock 変更時 ＋ 手動。`timeout-minutes: 10`（教訓50）。
 ⚠️ **バックエンドは GitHub remote を持たない**（heroku のみ）ので Python 側は自動化できない。
 両方の checkout があるマシンから:
 `python3 scripts/security/audit-deps.py --skip-npm --requirements ../sushizen_shift_app_clean/requirements.txt`
+
+## 2026-09-19（続き5） — このシステム固有のセキュリティ棚卸し（本番実測）
+
+再実行用: `heroku run -a sushizen-shift-app python scripts/security/audit-auth-posture.py`
+（名前の一覧はスクリプトが再生成する。リポジトリには数と方針だけ残す）
+
+### 危険度順
+
+**1. 致命的 — 181アカウント中163が推測可能なPIN**（1111 が161、1212 が1、123456 が1）。
+うち **83がSTAFFを超えるロール**を持つ。含まれるもの:
+ADMIN 6・HQ 2・HR_MANAGER・MANILA_MANAGEMENT 3・DUBAI_MANAGEMENT・MANAGER 3、
+そして **PAYROLL_SALARY_VIEW を持つ ADMIN が1名（PIN 1111）**。
+ログインは「氏名＋PIN」で、**氏名はシフト表に全員分が出ている**。
+ロックアウトは無い（`SECURITY_RATE_LIMIT_ENFORCE=false`、遅延は最大3秒のみ）。
+パスキーは149名・359個が登録済みだが、**PINログインは開いたまま**。
+
+**2. 致命的（1と複合） — `ADMIN_AUTHZ_MODE=log`**。`/api/admin/*` は
+ログイン確認のみで認可していない。観測テーブルには **28チャンネル・86,442件**の
+「有効化すれば拒否されていた要求」が溜まっている（admin.payroll 43経路、
+admin.procurement 45経路、admin.payments 11経路）。
+→ 1と合わせると、**誰かの氏名を知っている人間が、給与と調達を読める**。
+
+**3. 高 — 非ACTIVEの36アカウントが凍結されていない**（ON_LEAVE/SEPARATED 計50中）。
+PINはほぼ 1111 なのでログインできる。退職者10名を含む。
+
+**4. 中 — ADMINロールのテストアカウントが2つ現存**
+（Test Account / Test Admin Account、ON_LEAVE、PIN 1111・123456）。
+
+**5. 低 — 死んだ権限1件**（`channel.admin.role_management.manage`）。以前の13件からは改善。
+**低 — 旧SHA256ハッシュのアカウントが1件**残存。
+**参考 — 有効な予約リンク206件**（設計どおり公開・トークン制）。
+
+### 認可を有効化する前の必須確認（教訓28）
+`admin.payroll` の拒否は**大半が `/api/admin/payroll/my-pay/*`＝本人が自分の明細を見る経路**。
+そのまま enforce すると **78名が自分の給与明細を見られなくなる**。
+`admin.payments/badge-count`（34,736件）は NavBar のバッジ、
+`admin.attendance/branch-gps` は打刻画面のジオフェンス。
+→ **先に個人用エンドポイントをチャンネルから外し**、それから
+`ADMIN_AUTHZ_ENFORCE` で1チャンネルずつ有効化する。
+`admin.procurement` の `approvals/queue` と `exceptions` は
+STAFF が実データを読めており、ここは本物の漏れ。
