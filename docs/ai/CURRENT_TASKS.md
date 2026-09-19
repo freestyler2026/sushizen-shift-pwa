@@ -28567,3 +28567,72 @@ if you approve, change that day in Manual Shift as well.
 
 ⚠️ **本物のDMはまだ一度も送っていない。** 検証は `send_discord_dm` を差し替えて
 文面を取得しただけ。初回は明日朝08:10の定期実行。
+
+---
+
+## 2026-09-19（続き18） — 今日の実装の点検（本番で敵対的に検証）
+
+`qa-selftest` 都市に隔離し、TestClient で往復。作った行は id で全削除（残0）。
+**6件の不具合を検出・修正した。**
+
+### 1. `ensure_shift_change_tables()` が submit を500にする（最重要）
+
+**12エンドポイント**（submit・全review含む）が呼び、中身は CREATE + **ALTER 10本**
+（うち5本は今日私が追加）。ALTER は何もしなくても ACCESS EXCLUSIVE を取るので、
+テーブルを掴んでいるトランザクションが1つあると
+`canceling statement due to statement timeout` になる。
+**実際に私のプローブが接続を開きっぱなしにして submit が500を返した。**
+
+修正: プロセス単位で1回だけ（フラグは**コミット後**に立てる／教訓85）、
+`lock_timeout=3s`、ロック待ちだけ握りつぶして次回再試行。DDLの本当のエラーは上げる。
+
+### 2. VOID にした override がまだ適用されていた
+
+`fetch_overrides_for_day` / `_for_week` の `include_pending` 分岐は
+**status を一切フィルタしていなかった**。VOID は「数えなくなる」と私が思っただけ。
+
+- Rachelle Ann Caubat 8/23 → **却下されて出勤した日**が `applied_pending_off` で返る
+- Reymar Contillo 5/12 → マネージャー却下の time_change が **4ヶ月間シフトを 9-16→10-18 に書き換え続けていた**
+
+修正: `AND status <> 'VOID'`。他の読み手は元から `IN ('PENDING','FINAL')` で無事。
+`applied_marker_for_override` も VOID は素のマーカーを返すようにした。
+
+### 3. `/request` Inbox からスワップが相手の同意なしに承認できた
+
+ダッシュボードの `confirm_hq` は `counterparty_status='APPROVED'` を要求するが、
+Inbox review は両ステージを一度に確定するので**片方の言い分だけで2人が動く**。
+同じ規則を入れ、相手の名前を出して400で拒否。**却下は従来どおり可能。**
+
+### 4. バッジが存在しない都市まで数えていた
+
+`GROUP BY` で列の全distinct値を数えており、`qa-selftest` が入ってナビのバッジが
+**2→4** になった。`city_time.CITY_OFFSET_HOURS` のキーに限定（新都市の追加先はそこ1箇所）。
+
+### 5. 「pending に戻す」で本人に通知が飛んでいた
+
+レビュアーの取り消し操作なのに「[Request Pending]」が本人のInboxに届いていた。送らない。
+
+### 6. 誰が承認したかが消えていた
+
+旧 notifications には `reviewed_by` があり、`shift_change_requests` には無い
+（名前はDiscordメッセージにしか出ていなかった）。統合後、本人のMy Historyで
+「Approved」の横が空白になっていた。`manager_by` / `hq_by` を追加し、**承認3経路すべて**が書く。
+
+### 通ったこと（実測）
+
+| 検証 | 結果 |
+|---|---|
+| 旧バンドル経路（notify→submit） | stub を採番どおり引き継ぎ、行は1つ、marker消去 |
+| 重複ガード | 未決着は409、**却下後の再申請は200** |
+| 承認 → override FINAL / 却下 → VOID | 両方書かれる |
+| 有給の二重控除 | `leave_deducted_at` で2回目は走らない |
+| 残業の10文字ルール除外 | RED残業は通る／RED day_off は400 |
+| 権限 | 本人の履歴200・他人403・Inbox403・conflicts403・バッジは**0を返す**（403にしない） |
+| Week / My Shift / my_month | 3経路とも `applied_off` / `applied_pending_off` が届く |
+| フロント全体 | 101ファイル / 2,635テスト green |
+
+### 残課題
+
+- **`ABSENT_DEDUCTION` 2件（₱1,576.86）は未処理**（draft のため未払い）
+- **DMはまだ一度も実送信していない**（文面のみ検証）。初回は明日08:10
+- 承認しても公開シフトは変わらない（設計判断）
