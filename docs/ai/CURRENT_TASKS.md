@@ -28034,3 +28034,41 @@ PINはほぼ 1111 なのでログインできる。退職者10名を含む。
 `ADMIN_AUTHZ_ENFORCE` で1チャンネルずつ有効化する。
 `admin.procurement` の `approvals/queue` と `exceptions` は
 STAFF が実データを読めており、ここは本物の漏れ。
+
+## 2026-09-19（続き6） — 認可の有効化準備: 個人用・共通用エンドポイントの切り出し（完了）
+
+`ADMIN_AUTHZ_ENFORCE` を有効化する前に、**正当な利用者を締め出す経路**を channel gate から外した。
+
+**外したもの（`app/api_authz.py` の `_EXEMPT`）**
+- `/api/admin/payroll/my-pay` — **11経路すべて**が token から氏名を取り、`staff_name` を
+  引数に取らず、**全経路がパスキーの step-up 必須**。エンドポイント自体が channel より強い。
+  これを外さずに admin.payroll を enforce すると、**75名が自分の給与明細を見られなくなる**
+  （観測 33,000件はほぼ全部これだった）。
+- `/api/admin/attendance/branch-gps` — 打刻画面のジオフェンス（233,000件・78名）。
+  塞ぐと誰もシフトを開始できない。
+
+**外さずに「0を返す」にしたもの**
+- `/api/admin/payments/badge-count` — NavBar が全員に対してポーリング（563,000件・87名）。
+  権限が無ければ **0 を返す**（`would_allow(actor,"admin.payments","GET")`）。
+  未払い件数は漏れず、バッジがエラーにもならない。403 は防御ではなくサポート案件になる。
+  実測: MANILA_STAFF → `{"badge_count": 0}` / HQ → `{"badge_count": 3}`。
+
+**検証**: `/api/admin/` 全体を enforce に見立てて9経路をテスト。
+上記4つは MANILA_STAFF でも通り、payroll periods / allowances / procurement approvals /
+payments history / attendance records は拒否される。ADMIN は全て通る。
+
+### 残っている観測の3分類（次の判断）
+1. **本物の穴** — procurement の `approvals/queue`・`exceptions`・`catalog-drift` を
+   58名が読んでいる。**原因を特定した**: フロントの `canAccessProcurementAdmin()` が
+   `channel.admin.procurement.view` に加えて **`procurement.request.write`** を
+   「調達管理画面へのアクセス」と見なしている。後者は**発注申請を出すための店舗側の権限**。
+   バックエンドの channel は前者しか認めないので、両者の認識がずれている。
+   → フロント側を直すのが正しいが、**58名から NavBar の項目が消える**ので要判断。
+2. **管理画面のバッジを権限なしにポーリング** — `management/badge`(4名)・
+   `overtime/pending-count`(3名)・`price-check/flagged-count`(1名)・
+   `supplier-confirmations/badge`(1名)。badge-count と同じ「0を返す」で塞げる。
+3. **店舗業務が admin プレフィックスの下にある** — `backup/report`(32名)・
+   `disposal/report`(16名)・`inventory/counts` POST・`emergency-requests/catalog-search`。
+   これらは**専用チャンネル（store.operations 等）が要る**。免除ではない。
+
+⚠️ 観測テーブルは累積なので、次の判断は **`last_seen` がこのデプロイ以降の行**で見ること。
