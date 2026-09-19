@@ -28379,3 +28379,77 @@ Invoice Inbox）で、追加実装は不要だった。
    （HQ / `*` / `channel.admin.payroll.*`）が**一致していない**。
    MANILA_MANAGEMENT はタブが見えて API が403になる。
 4. 毎朝の digest が実際に読まれているかの確認。
+
+---
+
+## 2026-09-19（続き15） — 申請テーブルの統合（1申請＝1行）
+
+オーナー判断: ①古い13件はそのまま ②**1テーブルに統合** ③Inboxタブのロール条件は現状維持。
+
+### 何を残し、何を畳んだか
+
+**`shift_change_requests` を唯一の正とした。** 理由は読み手の数:
+`shift_change_notifications` を触るのは `main.py` の5エンドポイントだけだったのに対し、
+`shift_change_requests` は Admin Dashboard・朝のdigest・`manila_allowance_engine`・
+`evaluation_channel`・氏名リネームのカスケードが読んでいる。
+
+追加した列（`ensure_shift_change_tables()`）:
+`leave_type` / `leave_days` / `overtime_hours` / `reason_category` / `leave_deducted_at`。
+
+### 判定を1か所に
+
+```python
+SHIFT_REQUEST_SETTLED_SQL   # 決着＝どちらかがREJECTED、または両方APPROVED
+shift_request_status(m, h)  # → "pending" | "approved" | "rejected"
+shift_request_as_notification(row)  # 旧notifications形式へのマッピング
+```
+`/request` のInbox・バッジ・`/api/admin/requests/badge`・朝のdigest が**同じ定義**を使う。
+⚠️ 統合前、Admin Dashboard のバッジだけ「どちらかがPENDING」で数えており、
+**HQが却下済みの1件を未処理として数えていた**（3 vs 2／教訓73）。
+
+### 経路
+
+| 種別 | 旧 | 新 |
+|---|---|---|
+| 有給・休暇・欠勤・Day Off | notify + submit の**2回** | submit **1回**（leave_type/leave_days/reason_category を同送） |
+| 残業 | notify **のみ**（＝Admin Dashboard に一度も出なかった） | submit 1回（overtime_hours を同送） |
+| 時間変更・スワップ | submit のみ | 変更なし |
+
+⚠️ **残業は `urgency=RED` 必至**（当日申請のため）。旧経路は理由5文字でよかったので、
+**RED の10文字ルールから `overtime_request` を除外**した。夜中に新しい拒否を増やさないため。
+
+⚠️ `/api/request/notify` は**残してある**。古いバンドルを掴んだタブ対策で、
+`payload.awaiting_submit='1'` の**stub行**を1テーブルに書く。直後の submit が
+その行を**引き取って上書き**する（重複ガードで弾かない）。これが無いと、
+キャッシュされたJSを使っている全員が「すでに申請済み」と言われる。
+
+### 有給の二重控除防止
+
+`leave_deducted_at` を行に立て、`_deduct_leave_if_now_approved(req_id, actor)` が
+唯一の読み書き役。Admin Dashboard の `confirm_manager` / `confirm_hq` と
+`/request` の review の**3箇所から同じ関数を呼ぶ**（教訓62）。
+`deduct_sil` は冪等でないので、これが無いと2画面で承認すると2回引かれる。
+
+### 画面
+
+- Inbox から「dashboard で承認済み」表示を撤去（比べる相手が無くなった）。
+  代わりに **`Waiting on Manager` / `Waiting on HQ`** を出す。
+  店舗が本当に知りたかったのはこれで、Patrick の 9/20 は**3週間HQで止まっていた**。
+- My History はスタッフ本人の画面なので、旧フィールド名を維持したまま
+  `shift_change_requests` を読む（Rachelle の 9/20 が pending → **approved** と正しく出る）。
+
+### 本番検証（one-off dyno / TestClient、`city='qa-selftest'` で隔離）
+
+submit → Inboxにpending・Waiting on Manager → 重複が409 → review承認 →
+pending 0 → History が approved → **2回目の承認で控除が走らない** →
+作った行をidで削除（残0）。ブラウザでも Inbox と両バッジの一致を実測。
+
+⚠️ 教訓: `date.today()` を使っていた digest の「過ぎた/これから」判定を
+`city_today(city)` に修正。**マニラ08:10＝UTC00:10 で、当日申請が
+「もう過ぎた」側に落ちていた** — 唯一まだ答えられる朝に。
+
+### この統合で分かった未解決
+
+- `confirm_hq` の APPROVED は `upsert_shift_override(..., status='FINAL')` を書いている。
+  **その override を公開シフト／Manual Shift が読んでいないのではないか**（未調査）。
+  読んでいれば Mary Jane 8/21・Abegail 9/6 は出勤しなかったはず。
