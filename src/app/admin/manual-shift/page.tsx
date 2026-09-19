@@ -1132,31 +1132,41 @@ export default function ManualShiftPage() {
       } catch {
         // Approved day-offs overlay is optional — ignore errors silently
       }
-      // Day-off requests vs this roster. Wide window because the week on
-      // screen can be months from today; the scan is bounded by the request
-      // table, which holds tens of rows, not thousands.
-      try {
-        const cf = await apiFetch<{ items: { staff_name: string; work_date: string; kind: string }[] }>(
-          `/api/admin/shift-conflicts?city=${encodeURIComponent(city)}&days_back=180&days_ahead=180`
-        );
-        if (!cancelledRef.current) {
-          const m = new Map<string, "approved_but_rostered" | "undecided_and_rostered">();
-          (cf.items ?? []).forEach((r) => {
-            if (r.kind === "approved_but_rostered" || r.kind === "undecided_and_rostered") {
-              m.set(`${r.staff_name}|${r.work_date}`, r.kind);
-            }
-          });
-          setDayOffConflicts(m);
-        }
-      } catch {
-        // Optional overlay — a failed scan must not stop the week loading.
-      }
       if (cancelledRef.current) return;
       setView("edit");
     })();
     return () => { cancelledRef.current = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, branchCode]);
+
+  // Day-off requests against what this roster still says.
+  //
+  // Its own effect, not folded into the loader above: that one returns early
+  // while staffList is empty, which is exactly the state on the first
+  // "Load Staff & Shifts" of a session. The window is wide because the week on
+  // screen can be months from today, and the scan is bounded by the request
+  // table, which holds tens of rows.
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const cf = await apiFetch<{ items: { staff_name: string; work_date: string; kind: string }[] }>(
+          `/api/admin/shift-conflicts?city=${encodeURIComponent(city)}&days_back=180&days_ahead=180`
+        );
+        if (dead) return;
+        const m = new Map<string, "approved_but_rostered" | "undecided_and_rostered">();
+        (cf.items ?? []).forEach((r) => {
+          if (r.kind === "approved_but_rostered" || r.kind === "undecided_and_rostered") {
+            m.set(`${r.staff_name}|${r.work_date}`, r.kind);
+          }
+        });
+        setDayOffConflicts(m);
+      } catch {
+        // Optional overlay — a failed scan must not stop the week loading.
+      }
+    })();
+    return () => { dead = true; };
+  }, [city]);
 
   // ─── Seeing other people's edits ──────────────────────────────────────────
   //
