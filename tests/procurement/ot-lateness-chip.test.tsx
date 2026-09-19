@@ -59,3 +59,46 @@ describe("attendance — the late banner names a real consequence", () => {
     expect(lateBannerText("2:00 PM", undefined)).toBe("Shift started at 2:00 PM.");
   });
 });
+
+// A closing shift that runs past midnight is filed on the following date: the
+// form fills work_date with the calendar date at the moment of filing. So the
+// 32-minute late arrival of the 18th was being printed against overtime that
+// belongs to the night of the 17th, when the same person clocked in 6 minutes
+// early.
+function shiftDayFor(r: {
+  work_date: string; ot_start_hour: number; ot_end_hour: number;
+  prevDayShiftEnd: number | null;
+}) {
+  const TAIL_ENDS_BY = 6;
+  const tail =
+    r.ot_start_hour >= 0 && r.ot_start_hour < r.ot_end_hour && r.ot_end_hour <= TAIL_ENDS_BY
+    && r.prevDayShiftEnd != null && r.prevDayShiftEnd >= 24;
+  if (!tail) return r.work_date;
+  // Date.UTC, not local midnight: `new Date(iso + "T00:00:00").toISOString()`
+  // is the previous day again in Manila (+8) and Dubai (+4), so the naive
+  // version of this helper moved the claim back two days.
+  const [y, m, d] = r.work_date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
+describe("overtime — which shift the hours extend", () => {
+  it("moves a pre-dawn claim to the shift that ran past midnight", () => {
+    expect(shiftDayFor({ work_date: "2026-09-18", ot_start_hour: 0, ot_end_hour: 1.5, prevDayShiftEnd: 24 }))
+      .toBe("2026-09-17");
+  });
+
+  it("leaves an evening claim on its own day", () => {
+    expect(shiftDayFor({ work_date: "2026-09-18", ot_start_hour: 23, ot_end_hour: 23.83, prevDayShiftEnd: 24 }))
+      .toBe("2026-09-18");
+  });
+
+  it("leaves a pre-dawn claim alone when the day before ended before midnight", () => {
+    expect(shiftDayFor({ work_date: "2026-09-18", ot_start_hour: 0, ot_end_hour: 1.5, prevDayShiftEnd: 22 }))
+      .toBe("2026-09-18");
+  });
+
+  it("leaves it alone when there was no shift the day before", () => {
+    expect(shiftDayFor({ work_date: "2026-09-18", ot_start_hour: 0, ot_end_hour: 1.5, prevDayShiftEnd: null }))
+      .toBe("2026-09-18");
+  });
+});

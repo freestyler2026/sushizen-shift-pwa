@@ -62,6 +62,11 @@ type OTRequest = {
   late_that_day?: boolean;
   shift_start_that_day?: number | null;
   clock_in_that_day?: string | null;
+  /** Set when the claimed hours belong to the shift of the day BEFORE the one
+      on the request — a closing shift that ran past midnight is filed on the
+      following date, because the form fills in the calendar date at the moment
+      of filing. Null when they are the same day. */
+  ot_shift_day?: string | null;
   ot_minutes_original?: number | null;
   ot_minutes_source?: string;
   ot_minutes_set_by?: string;
@@ -257,6 +262,22 @@ function AskedWhen({ minutes }: { minutes?: number | null }) {
  *  twenty-four days and leaves most of his overtime unclaimed. The reviewer
  *  decides; the screen just stops hiding half of it.
  */
+/** The claim was filed on the day after the shift it extends.
+ *
+ *  Jheymar Fabros worked 15:00–24:00 on the 17th, clocked out at 01:30 and
+ *  filed 00:00–01:30 against the 18th — so the 18th reads as 140 minutes of
+ *  overtime for a man who stayed 50 minutes over that day. The hours are
+ *  right; the date is the one the form filled in at 02:03.
+ */
+function OvernightTail({ r }: { r: OTRequest }) {
+  if (!r.ot_shift_day) return null;
+  return (
+    <span className="mt-0.5 block text-[11px] text-sky-300">
+      these hours extend the {r.ot_shift_day} shift
+    </span>
+  );
+}
+
 function LateThatDay({ r }: { r: OTRequest }) {
   if (!r.late_that_day || r.late_minutes_that_day == null) return null;
   const covers = r.ot_minutes >= r.late_minutes_that_day;
@@ -1029,6 +1050,7 @@ export default function AdminOvertimePage() {
                       <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
                       <ClockCheck f={r.ot_facts} compact />
                       <AskedWhen minutes={r.asked_after_start_minutes} />
+                      <OvernightTail r={r} />
                       <LateThatDay r={r} />
                     </div>
                     <p className="text-sm text-white/70">{r.reason}</p>
@@ -1133,6 +1155,7 @@ export default function AdminOvertimePage() {
                             {r.request_type === "pre" ? "Pre" : "Post"}
                           </span>
                           <AskedWhen minutes={r.asked_after_start_minutes} />
+                      <OvernightTail r={r} />
                       <LateThatDay r={r} />
                         </td>
                         <td className={TABLE_CELL}>
