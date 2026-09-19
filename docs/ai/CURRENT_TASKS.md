@@ -28238,3 +28238,25 @@ leave-balance / notifications history と同じ「本人が自分の記録を見
 
 ⚠️ 同じファイルに `@app.post("/api/admin/private_reports/reply")` が `{report_id}` より
 後に宣言されている。今はメソッドが違う（GET vs POST）ので衝突していないだけ。
+
+## 2026-09-19（続き12） — ドバイの請求書チャンネル（Alianaの指摘）
+
+**指摘は正しい。しかもCKだけではなかった。**
+`INVOICE_CHANNELS` にはドバイの**店舗5チャンネルしか登録されていない**。
+
+Discord API でサーバーの invoice チャンネルを全件確認した結果:
+
+| チャンネル | 状態 | 判断 |
+|---|---|---|
+| bb / jlt / mcity / hudaiba / al-barsha | 収集中 | — |
+| **#ck-invoice** (1309295849075114014) | **未登録 + botが403** | 追加。**ただし権限付与が必要** |
+| **#warehouse-invoice** (1323991963740930099) | 未登録・稼働中（2.5か月で添付63件） | **追加した** |
+| #ck-delivered-items-invoices (1358844875256234305) | 未登録・稼働中（12日で50件） | **保留** — CKから店舗への納品書であって仕入先請求書ではない。要判断 |
+| #dso-invoice / #mildif-invoice | 未登録・**2025年3月以降沈黙** | 追加しない（閉店済み）|
+
+⚠️ **CKはIDを足しても動かない。** bot は**サーバーには居るがこのチャンネルだけ読めない**
+（HTTP 403）。Discord側で `SushiZEN Invoice Uploader` ロールに
+**View Channel と Read Message History** を付与する必要がある。デプロイでは解決しない。
+
+デプロイ後に全13チャンネルの読み取り可否を実測:
+Warehouse=READABLE（次の投稿から収集開始）/ Dubai CK=**BLOCKED** / 他は全てREADABLE。
