@@ -509,8 +509,6 @@ export default function OvertimeRequestPage() {
                     ends after midnight — counted against the {workDate} shift
                   </span>
                 )}
-                <span className="hidden">
-                </span>
               </div>
             )}
             {otMinutes <= 0 && otStart && otEnd && (
