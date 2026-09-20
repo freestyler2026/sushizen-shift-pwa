@@ -340,6 +340,7 @@ export default function AdminStaffPage() {
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsSavedName, setDetailsSavedName] = useState<string | null>(null);
   const [detailsError, setDetailsError] = useState("");
+  const [detailsHalfLanded, setDetailsHalfLanded] = useState<string | null>(null);
 
   function openDetails(r: StaffRow) {
     const dn = norm(r.display_name);
@@ -389,6 +390,19 @@ export default function AdminStaffPage() {
         try { detail = JSON.parse(text)?.detail || text; } catch { /* raw */ }
         throw new Error(detail || "Save failed");
       }
+      // The hire date is written to the roster and to the payroll profile,
+      // because leave accrual and pro-rating read the profile and the two have
+      // drifted by 307 days before. Staff created recently have no profile row
+      // yet, so the date reaches only half of where it is read -- the API says
+      // so and nothing showed it.
+      let halfLanded = false;
+      try {
+        const j = JSON.parse(text);
+        halfLanded =
+          Boolean((detailsDraft.hire_date ?? "").toString().trim()) &&
+          j?.updated?.payroll_profile_updated === false;
+      } catch { /* not JSON */ }
+      setDetailsHalfLanded(halfLanded ? dn : null);
       // Reflect it in the row so the value on screen is the value that is stored.
       setRows((prev) =>
         prev.map((row) =>
@@ -1411,6 +1425,14 @@ export default function AdminStaffPage() {
                         <span className={statusBadgeClass(st)}>{st}</span>
                         {pushKeySavedName === dn ? <div className="text-xs text-emerald-300">Push key saved</div> : null}
                         {infoSavedName === dn ? <div className="text-xs text-emerald-300">Saved ✓</div> : null}
+                        {detailsSavedName === dn ? <div className="text-xs text-emerald-300">Details saved ✓</div> : null}
+                        {detailsHalfLanded === dn ? (
+                          <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-2 py-1 text-[11px] text-amber-200">
+                            入社日はロスターに入りましたが、この人にはまだ給与プロファイルが
+                            ありません。<b>休暇の付与計算には届いていません</b> — Payroll の
+                            Staff Profiles で作成してください。
+                          </div>
+                        ) : null}
                       </div>
                     </td>
                     <td className={TABLE_CELL + " px-4 align-top"}>
