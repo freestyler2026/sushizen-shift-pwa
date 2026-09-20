@@ -1,7 +1,7 @@
 // src/app/admin/staff/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -100,6 +100,13 @@ type StaffRow = {
   gps_exempt?: boolean;
   checkout_roaming?: boolean;
   multi_branch?: boolean;
+
+  hire_date?: string;
+  position?: string;
+  company?: string;
+  date_of_birth?: string;
+  marital_status?: string;
+  whatsapp_phone?: string;
 
   setup_required?: boolean;
   setup_completed?: boolean;
@@ -324,6 +331,78 @@ export default function AdminStaffPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const hasLoaded = useRef(false);
   const canOpenRoleManagement = canAccessRoleManagement(authed);
+
+  // Record details — hire date, position, company and the rest. Every one of
+  // these could be set when the record was created and none could be changed
+  // afterwards, so a hire date typed wrongly had nowhere to be corrected.
+  const [detailsFor, setDetailsFor] = useState<string | null>(null);
+  const [detailsDraft, setDetailsDraft] = useState<Partial<StaffRow>>({});
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [detailsSavedName, setDetailsSavedName] = useState<string | null>(null);
+  const [detailsError, setDetailsError] = useState("");
+
+  function openDetails(r: StaffRow) {
+    const dn = norm(r.display_name);
+    if (detailsFor === dn) {
+      setDetailsFor(null);
+      return;
+    }
+    setDetailsFor(dn);
+    setDetailsError("");
+    setDetailsSavedName(null);
+    setDetailsDraft({
+      hire_date: r.hire_date || "",
+      position: r.position || "",
+      company: r.company || "",
+      date_of_birth: r.date_of_birth || "",
+      marital_status: r.marital_status || "",
+      whatsapp_phone: r.whatsapp_phone || "",
+      max_days_per_week: Number(r.max_days_per_week ?? 6),
+      max_consecutive_days: Number(r.max_consecutive_days ?? 6),
+    });
+  }
+
+  async function saveDetails(r: StaffRow) {
+    const dn = norm(r.display_name);
+    setDetailsSaving(true);
+    setDetailsError("");
+    try {
+      const res = await fetch("/api/admin/staff/details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city: r.city || city,
+          staff_name: dn,
+          hire_date: detailsDraft.hire_date ?? "",
+          position: detailsDraft.position ?? "",
+          company: detailsDraft.company ?? "",
+          date_of_birth: detailsDraft.date_of_birth ?? "",
+          marital_status: detailsDraft.marital_status ?? "",
+          whatsapp_phone: detailsDraft.whatsapp_phone ?? "",
+          max_days_per_week: Number(detailsDraft.max_days_per_week ?? 6),
+          max_consecutive_days: Number(detailsDraft.max_consecutive_days ?? 6),
+        }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let detail = text;
+        try { detail = JSON.parse(text)?.detail || text; } catch { /* raw */ }
+        throw new Error(detail || "Save failed");
+      }
+      // Reflect it in the row so the value on screen is the value that is stored.
+      setRows((prev) =>
+        prev.map((row) =>
+          norm(row.display_name) === dn ? { ...row, ...detailsDraft } : row,
+        ),
+      );
+      setDetailsSavedName(dn);
+      setDetailsFor(null);
+    } catch (e) {
+      setDetailsError(String((e as Error)?.message || e));
+    } finally {
+      setDetailsSaving(false);
+    }
+  }
 
   // Reset PIN modal
   const [resetPinModal, setResetPinModal] = useState<{ staffName: string } | null>(null);
@@ -1233,7 +1312,7 @@ export default function AdminStaffPage() {
                 const rr = asRole(r.role);
                 const setupRequired = Boolean(r.setup_required);
                 const setupCompleted = Boolean(r.setup_completed);
-                return (
+                const mainRow = (
                   <motion.tr
                     key={`${r.city}__${dn}`}
                     initial={{ opacity: 0, x: -6 }}
@@ -1346,6 +1425,14 @@ export default function AdminStaffPage() {
                             Roles
                           </Link>
                         ) : null}
+                        <button
+                          type="button"
+                          onClick={() => openDetails(r)}
+                          className={SMALL_BUTTON + " flex items-center gap-1"}
+                        >
+                          <Pencil className="h-3 w-3" />
+                          {detailsFor === dn ? "Close" : "Details"}
+                        </button>
                         <Link href={`/admin/staff/audit?target_staff_name=${encodeURIComponent(dn)}`} className={SMALL_BUTTON + " flex items-center gap-1"}>
                           <ScrollText className="h-3 w-3" />
                           Audit
@@ -1414,6 +1501,133 @@ export default function AdminStaffPage() {
                     </td>
                   </motion.tr>
                 );
+                const detailsRow = detailsFor === dn ? (
+                  <tr key={`${r.city}__${dn}__details`} className="bg-white/3">
+                    <td colSpan={5} className="px-5 py-4">
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div>
+                          <div className={T_LABEL + " mb-1"}>Hire Date</div>
+                          <input
+                            type="date"
+                            className={INPUT_CLASS + " py-1 text-xs"}
+                            value={String(detailsDraft.hire_date ?? "")}
+                            onChange={(e) => setDetailsDraft((d) => ({ ...d, hire_date: e.target.value }))}
+                          />
+                          <p className="mt-1 text-[11px] text-zinc-500">
+                            Probation, leave accrual and the shift draft all count from this.
+                          </p>
+                        </div>
+                        <div>
+                          <div className={T_LABEL + " mb-1"}>Position</div>
+                          <input
+                            className={INPUT_CLASS + " py-1 text-xs"}
+                            value={String(detailsDraft.position ?? "")}
+                            onChange={(e) => setDetailsDraft((d) => ({ ...d, position: e.target.value }))}
+                            placeholder="Service Crew"
+                          />
+                        </div>
+                        <div>
+                          <div className={T_LABEL + " mb-1"}>Company</div>
+                          <SelectDark
+                            className={SELECT_CLASS + " py-1 text-xs"}
+                            value={String(detailsDraft.company ?? "")}
+                            onChange={(v) => setDetailsDraft((d) => ({ ...d, company: v }))}
+                            options={[
+                              { value: "", label: "— none —" },
+                              { value: "SUSHIZEN", label: "SUSHIZEN" },
+                              { value: "7CZ", label: "7CZ ANGEL CORP." },
+                            ]}
+                          />
+                        </div>
+                        <div>
+                          <div className={T_LABEL + " mb-1"}>Date of Birth</div>
+                          <input
+                            type="date"
+                            className={INPUT_CLASS + " py-1 text-xs"}
+                            value={String(detailsDraft.date_of_birth ?? "")}
+                            onChange={(e) => setDetailsDraft((d) => ({ ...d, date_of_birth: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <div className={T_LABEL + " mb-1"}>Marital Status</div>
+                          <SelectDark
+                            className={SELECT_CLASS + " py-1 text-xs"}
+                            value={String(detailsDraft.marital_status ?? "")}
+                            onChange={(v) => setDetailsDraft((d) => ({ ...d, marital_status: v }))}
+                            options={[
+                              { value: "", label: "— not specified —" },
+                              { value: "single", label: "Single" },
+                              { value: "married", label: "Married" },
+                              { value: "widowed", label: "Widowed" },
+                              { value: "separated", label: "Separated" },
+                            ]}
+                          />
+                        </div>
+                        <div>
+                          <div className={T_LABEL + " mb-1"}>WhatsApp</div>
+                          <input
+                            className={INPUT_CLASS + " py-1 text-xs"}
+                            value={String(detailsDraft.whatsapp_phone ?? "")}
+                            onChange={(e) => setDetailsDraft((d) => ({ ...d, whatsapp_phone: e.target.value }))}
+                            placeholder="+63..."
+                          />
+                        </div>
+                        <div>
+                          <div className={T_LABEL + " mb-1"}>Max days / week</div>
+                          <input
+                            type="number"
+                            min={1}
+                            max={7}
+                            className={INPUT_CLASS + " py-1 text-xs"}
+                            value={Number(detailsDraft.max_days_per_week ?? 6)}
+                            onChange={(e) => setDetailsDraft((d) => ({ ...d, max_days_per_week: Number(e.target.value) }))}
+                          />
+                        </div>
+                        <div>
+                          <div className={T_LABEL + " mb-1"}>Max consecutive days</div>
+                          <input
+                            type="number"
+                            min={1}
+                            max={31}
+                            className={INPUT_CLASS + " py-1 text-xs"}
+                            value={Number(detailsDraft.max_consecutive_days ?? 6)}
+                            onChange={(e) => setDetailsDraft((d) => ({ ...d, max_consecutive_days: Number(e.target.value) }))}
+                          />
+                          <p className="mt-1 text-[11px] text-zinc-500">
+                            The shift draft holds the rest day to this.
+                          </p>
+                        </div>
+                      </div>
+                      {detailsError ? (
+                        <div className="mt-3 rounded-xl border border-rose-900/50 bg-rose-950/20 px-3 py-2 text-xs text-rose-200">
+                          {detailsError}
+                        </div>
+                      ) : null}
+                      <div className="mt-4 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void saveDetails(r)}
+                          className={PRIMARY_BUTTON + " text-sm"}
+                          disabled={detailsSaving}
+                        >
+                          {detailsSaving ? "Saving..." : "Save details"}
+                        </button>
+                        <button type="button" onClick={() => setDetailsFor(null)} className={SMALL_BUTTON}>
+                          Cancel
+                        </button>
+                        <span className="text-[11px] text-zinc-500">
+                          Leaving a field blank clears it. Changes are recorded in the audit log.
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null;
+                return detailsRow ? (
+                  <Fragment key={`${r.city}__${dn}__wrap`}>
+                    {mainRow}
+                    {detailsRow}
+                  </Fragment>
+                ) : mainRow;
               })}
               {!filteredRows.length && !loading ? (
                 <tr>
