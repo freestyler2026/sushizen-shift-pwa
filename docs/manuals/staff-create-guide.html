@@ -177,7 +177,13 @@
         <p>
           ⚠️ <strong>生年月日の欄と間違えないでください。</strong>ドバイの欄は長く日付が
           これ1つだったため、入社日が生年月日として保存された例があります。
-          現在は未来の日付・15歳未満・1940年より前を保存できないようにしてあります。
+          <b>生年月日は未来の日付・15歳未満・1940年より前を保存できません。</b>
+        </p>
+        <p>
+          <strong>これから入社する人の、先の日付を入れられます。</strong>
+          入社が決まった時点で登録しておけば、<b>シフトの自動生成は入社日まで
+          その人を組みません</b>（入社日以降から入ります）。上限は1年先までで、
+          これは年の打ち間違いを止めるためです。
         </p>
       </li>
 
@@ -189,7 +195,7 @@
           ドバイでは表示されません。
         </p>
         <p>
-          <strong>入社日は2025年8月1日より前を受け付けません。</strong>マニラ1号店の準備開始が
+          <strong>入社日は2025年8月1日より前を受け付けません</strong>（先の日付は入れられます）。マニラ1号店の準備開始が
           その月だからです。それ以前の日付は打ち間違いとして扱われます。
         </p>
       </li>
@@ -270,7 +276,7 @@
           <tr><td>Date of Birth</td><td class="opt">任意</td><td>生年月日</td></tr>
           <tr><td>Marital Status</td><td class="opt">任意</td><td>Single / Married / Widowed / Separated</td></tr>
           <tr><td>Position / Job Title</td><td class="req">マニラ必須</td><td>Service Crew、Kitchen Staff など。<b>在職証明書に印字</b></td></tr>
-          <tr><td>Hire Date</td><td class="req">マニラ必須</td><td>契約書の入社日。2025-08-01 より前は不可。<b>在職証明書に印字</b></td></tr>
+          <tr><td>Hire Date</td><td class="req">マニラ必須</td><td>契約書の入社日。2025-08-01 より前は不可、<b>先の日付は1年先まで可</b>。<b>在職証明書に印字</b></td></tr>
           <tr><td>Employing Company</td><td class="req">マニラ必須</td><td>SUSHIZEN または 7CZ ANGEL CORP.。<b>在職証明書に印字</b></td></tr>
           <tr><td>Role</td><td class="req">必須</td><td>STAFF / MANAGER</td></tr>
           <tr><td>Status</td><td class="req">必須</td><td>ACTIVE のままにする</td></tr>
@@ -382,9 +388,13 @@
         <span class="why">Position / Hire Date / Employing Company のどれかが空です。実際の文言は
         「position, hire_date, company required. These are printed on the Certificate of Employment
         and cannot be recovered later.」で、足りない項目名がそのまま並びます。</span></li>
-      <li><strong>入社日が古すぎると言われる</strong>
-        <span class="why">「hire_date is earlier than 2025-08-01. Check the contract.」。
-        日付入力欄がそれ以前を選ばせない作りですが、貼り付けなどで入った場合はサーバーが止めます。</span></li>
+      <li><strong>入社日が古すぎる／先すぎると言われる</strong>
+        <span class="why">「hire_date is earlier than 2025-08-01.」（マニラ）／
+        「is earlier than 2022-01-01.」（ドバイ）。先の日付は1年先まで入れられ、それを超えると
+        「more than 12 months ahead. Check the year.」が出ます — ほぼ年の打ち間違いです。</span></li>
+      <li><strong>生年月日が未来だと言われる</strong>
+        <span class="why">「date_of_birth is in the future. Did the hire date go in this box?」。
+        <b>入社日を生年月日の欄に入れています。</b>入社日は別の欄です。</span></li>
       <li><strong>「manager can create staff only in own branch」</strong>
         <span class="why">MANAGER が自分以外の拠点を選んでいます。その拠点の店長か、ADMIN・HQ・HR_MANAGER に依頼してください。</span></li>
       <li><strong>「invalid approver credentials」</strong>
