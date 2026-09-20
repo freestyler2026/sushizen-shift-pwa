@@ -1,5 +1,47 @@
 # CURRENT_TASKS.md
 
+## 2026-09-20 — Daily Inventory 発注の3件（現場報告・対応済み）
+
+発注時の単価・最低数量・Order Step は **Procurement カタログをアイテム名で引く**。
+①完全一致 → ②「カタログ名が在庫名の先頭」かつ単位一致のうち最長 → ③無ければ単価0・step無し。
+報告された3件はすべてこの照合の問題だった。
+
+| 報告 | 原因（実データ） | 対応 |
+|---|---|---|
+| Hair Net BLACK の価格が出ない | 価格 ₱155 を持つ行は `Hair Net BLACK (1PKT = 100pcs)` で**在庫名より長く**、前方一致は逆方向のみなので到達不能。同名の `Hair Net BLACK` は **₱0.00**（Cubao限定） | ₱0行を削除し、₱155行を `Hair Net BLACK` に改名 |
+| 承認時のピッカーに Dumpling Back up が出ない | ピッカーは `proc_curated_catalog_items` を**店舗で絞る**。`Shrimp/Pork Dumpling Backup` は **store_scope='Taft'**、`Shrimp Dumpling (25PC / PKT)` は**無効**。Taft以外では Pork が25PC行だけ、Shrimp は0件 | 両方 `store_scope='ALL'` に |
+| TAFT で Order Step が効かない | **step違反は30日で0件。** stepが登録されていない行に当たっているだけ。`Calamansi Ponzu Puree` はカタログ名が `Calamansi Ponzu Pure`（末尾のe欠け）で完全一致せず、Taft限定・step無しの行を拾っていた → 9/15 に 0.345kg | 改名＋step 0.25。拠点差は無い（PARは 'ALL' 行に当たっていただけ） |
+
+### 調査中に見つけた別件（未報告・実害あり）
+
+単位ガードは「同じ名前・違う単位」は防げるが、**「同じ単位・違う商品」は防げなかった**。
+
+```
+Lemon Cream Base  (kg) <- カタログ "Lemon"        ₱180/kg
+Mango Base        (fg) <- カタログ "Mango"        ₱180/kg
+Garlic Sauce Base (kg) <- カタログ "Garlic Sauce"
+```
+
+`_remainder_is_a_spec()` を追加し、**残りが ` (` か ` 数字` で始まるときだけ**前方一致を認める。
+2026-09-20 時点でマニラに存在した前方一致9件のうち、正当な4件は維持、危険な5件を除外
+（上記3件＋`ZONROX GALLON`＋`Calamansi Ponzu Pure`）。外れた行は単価0になり、
+生成APIが既に `unpriced` として**名前で返している**。
+
+### 保留 — 数えられる単位の Order Step（263行）
+
+`29.998 PKT` `49.997 pcs` `4.998 BNDL` の正体は**stepが無いこと**。ただし
+**step=1 は実務を壊す**: 120日・8,986行のうち45行が意図的な小数で、
+`Light Soy Sauce 0.5 BTL` `Ebiko 0.5 PKT` `Royal 0.5 CASE` `QP Mayonnaise 4.5 PKT` など。
+**step=0.5 なら .99x の異常値を全部直し、45行中42行を壊さない**（例外は 0.25 CASE / 5.2 bottle / 4.8 BTL の3行）。
+発注量＝金額が動くのでオーナー判断待ち。
+
+カタログ画面に **Order Step 列**を追加済み。**「数えられる単位なのに未設定」の行だけ**
+琥珀色にする（kgの野菜の0.3kgは正当なので、全部の空欄を警告にすると本物が埋もれる）。
+判定は `src/lib/order-step.ts` の `countsInWholeThings()`。
+
+退避: `_proc_catalog_bk_20260920`（992行、マニラ全カタログ）。
+
+
 ## 2026-09-20 — Draft を叩き台として使える精度にする（実装・デプロイ済み）
 
 「Draftから8割方使えるシフトが出てほしい」への対応。**先に測った。**
