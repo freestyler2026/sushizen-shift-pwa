@@ -27,6 +27,27 @@ Garlic Sauce Base (kg) <- カタログ "Garlic Sauce"
 （上記3件＋`ZONROX GALLON`＋`Calamansi Ponzu Pure`）。外れた行は単価0になり、
 生成APIが既に `unpriced` として**名前で返している**。
 
+### 自己監査で見つけた2件（同日中に修正）
+
+1. **`ZONROX GALLON` の正しい価格を壊していた。** 前方一致を絞った結果、
+   `Zonrox`(BTL ₱275) に当たらなくなり単価0に。**180日で17回発注されている**品で、
+   `Zonrox` も `ZONROX GALLON` も**同じBTL・同じ₱275**（7/31 CUBが `Zonrox` 10BTL @₱275）＝同一商品。
+   `ZONROX GALLON` BTL ₱275 ALL を1行追加して復旧。
+   全533アイテムの新旧差分で変わるのは残り4件のみで、うち3件（`Garlic Sauce Base` /
+   `Lemon Cream Base` / `Mango Base`）は**180日間1度も発注されていないCK内製品**、
+   1件は廃止済み。**`Lemon Cream Base` が ₱40/kg（レモン1個の値段）**だったので落として正しい。
+
+2. **カタログ画面の警告が 700行中424行（61%）に出ていた。** 教訓39そのもので、
+   それを避けると書いた変更の中で再演していた。行ごとの琥珀チップをやめ、
+   **「No order step (424)」のカウント＋フィルタ**に変更。数字は同じで、読める。
+
+### 改名の影響確認（実施済み）
+
+`item_name` / `catalog_item_name` を持つ68テーブルを総なめ。
+`Hair Net BLACK (1PKT = 100pcs)` を参照する行は**ゼロ**。
+残っていた旧名は全て `Calamansi Ponzu Pure` で、**別の廃止済みアイテム**
+（`CK-CS-003`・is_active=False）と過去の記録のスナップショット。生きた参照は壊れていない。
+
 ### 保留 — 数えられる単位の Order Step（263行）
 
 `29.998 PKT` `49.997 pcs` `4.998 BNDL` の正体は**stepが無いこと**。ただし
