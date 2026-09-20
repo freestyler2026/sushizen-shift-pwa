@@ -16,6 +16,7 @@ import {
   BADGE_WARNING,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
+import { countsInWholeThings } from "@/lib/order-step";
 import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package, Plus, Trash2, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SelectDark from "@/components/SelectDark";
@@ -785,6 +786,7 @@ export default function ProcurementCatalogPage() {
                     )}
                     <th className="px-3 py-2">Unit</th>
                     <th className="px-3 py-2">Unit Price</th>
+                    <th className="px-3 py-2">Order Step</th>
                     <th className="px-3 py-2">Min Stock</th>
                     <th className="px-3 py-2">Pkg</th>
                     <th className="px-3 py-2">FR</th>
@@ -806,6 +808,20 @@ export default function ProcurementCatalogPage() {
                       <td className="px-3 py-2 text-zinc-400">{r.unit || "—"}</td>
                       <td className="px-3 py-2 text-zinc-300">
                         {r.unit_price > 0 ? `${city === "dubai" ? "AED" : "₱"}${r.unit_price.toLocaleString()}` : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.order_step != null ? (
+                          <span className="text-zinc-300">{r.order_step}</span>
+                        ) : countsInWholeThings(r.unit) ? (
+                          <span
+                            className={BADGE_WARNING}
+                            title="This item is counted in whole things, and nothing rounds the order. A shortfall of 29.998 packets was ordered as 29.998."
+                          >
+                            not set
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-zinc-400">{r.min_stock_qty || "—"}</td>
                       <td className="px-3 py-2 text-zinc-400">{r.package_spec || "—"}</td>
