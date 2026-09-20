@@ -58,6 +58,7 @@
 | 緊急通報系（**Report Something** / Waiting for Someone / My Phone Number / Emergency Contacts） | **Emergency Reporting**（スタッフ向け・英語） | `docs/manuals/emergency-reporting.html` |
 | Recruitment系（Applicants / Requisitions / Hiring Plans / 面接結果記録） | **Recruitment Guide**（HRスタッフ向け・英語） | `docs/manuals/recruitment-guide.html` |
 | **音声一次面接**（`/apply` / `/voice/[token]` / Voice screening タブ / 招待送信 / SMS / 判断3ボタン） | **Voice Interview Runbook**（日英切替・HR向け） | `docs/manuals/voice-interview-guide.html` |
+| **スタッフ登録**（`/admin/staff/create` / Setup Code / `/setup-pin` / Onboarding & Setup / マニラのPosition・Hire Date・Company） | **新しいスタッフを登録する**（日本語・店長/HR向け） | `docs/manuals/staff-create-guide.html` |
 
 **Republish 手順:**
 ```
@@ -120,6 +121,14 @@
      判断3ボタン）に限る。統合しないこと。
      ⚠️ 数字は実測値を載せている（回答の中央値19秒・SMS選択85%・保管180日・
      リンク14日・1通約₱0.50）。**設定や実測が変わったら数字も直すこと。**
+
+   - file_path: docs/manuals/staff-create-guide.html
+   - url: https://claude.ai/code/artifact/485d1b65-54cf-4ddd-86d7-f9d87e57fce0   ← 新しいスタッフを登録する（日本語）
+   - favicon: 🪪
+   ※ **日本語のみ**（読者はマニラ/ドバイの店長と日本側の管理で、日英切替は不要と判断）。
+     入社日の欄は COE の印字とシフト自動生成の両方に効くので、**どちらかの仕様が
+     変わったら必ず直す**。`max/wk` `max/cons` は現在「表示のみ・編集欄なし」と
+     書いてある — 編集欄を作ったらこの記述が嘘になる。
 
    - file_path: docs/manuals/receipt-log-manual.html
    - url: https://claude.ai/code/artifact/2ca823ce-1649-4a06-b8cd-eb832c88bf33   ← Receipt Log（日英切替）
