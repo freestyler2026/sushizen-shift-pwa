@@ -1,5 +1,47 @@
 # CURRENT_TASKS.md
 
+## 2026-09-21 — スタッフ記録を作成後に直せるようにした（現場報告・対応済み）
+
+報告: 「新入社員の入社日の入力を間違ったが、エディットできない」。
+
+### 調べて分かったこと
+
+- 入社日を編集できる画面は `/admin/staff/employment-details` に**あった**。
+  ただしデータ元が `list_missing_employment_details` で、**`IS NULL` の人しか返さない。**
+  「入っているが間違っている人」はどの画面にも出ない。
+- さらに **`/admin/staff_master/list` は hire_date も position も返していなかった**ので、
+  Staff ページで値を見ることすらできなかった。
+- 報告の `Bibek Tamang`（ドバイ・BB・2026-09-20作成）は **`hired_at` が空**で、
+  代わりに**生年月日が `2026-09-27`（1週間後）**になっていた。
+  生年月日を持つ14名中、ありえない日付はこの1件だけ。
+- 原因は**ドバイの登録フォームに入社日欄が無いこと**。日付欄がDOBだけなので、そこに入った。
+  ドバイは74名が入社日なし（休暇付与はここから数える）。
+
+### 入れたもの
+
+| 追加 | 内容 |
+|---|---|
+| `POST /api/admin/staff/details` | 入社日・役職・会社・生年月日・婚姻状況・社員番号・WhatsApp・週上限・連勤上限。送った項目だけ書く（None=触らない / ""=消す）。入社日/役職/会社は `set_employment_details` に委譲（staff_master と給与プロファイルの二重書きを1か所に保つため） |
+| `db.set_staff_details()` | 上のDB側 |
+| `_check_hire_date()` / `_check_date_of_birth()` | 日付規則を関数化し**新旧2つのエンドポイントで共有**。DOBは未来・15歳未満・1940年以前を拒否 |
+| Staff ページの `Details` ボタン | 行の下に開く編集パネル。`max/wk` `max/cons` は**表示だけだったのが編集欄に**なった |
+| Create Staff のドバイ入社日欄 | 任意。バックエンドも保存するようにした |
+| 監査ログ | `staff_details_updated`。**全項目の変更前の値**を残す |
+
+### 直した副次的な不具合
+
+- `list_missing_employment_details` の `ensure_staff_master_tables()` を削除。
+  ACCESS EXCLUSIVE ロックで **statement timeout** を起こしていた（教訓85・同型3件目）。
+- `Bibek Tamang` の生年月日 `2026-09-27` は**消した**（ありえない値のため）。
+  正しい生年月日と入社日は現場に入力してもらう必要がある。
+
+### 実機確認（2026-09-21・本番）
+
+未来日/1940年以前/15歳未満/不正形式/上限外/存在しない氏名 → すべて400。
+UIから `position` を保存 → DB反映 → UIから空にして復元、を往復で確認。
+`max_consecutive_days` 6→5→6 と WhatsApp の往復も確認。テスト値は残していない。
+
+
 ## 2026-09-20 — Daily Inventory 発注の3件（現場報告・対応済み）
 
 発注時の単価・最低数量・Order Step は **Procurement カタログをアイテム名で引く**。

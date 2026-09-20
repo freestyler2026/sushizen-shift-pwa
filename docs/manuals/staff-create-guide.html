@@ -168,6 +168,20 @@
       </li>
 
       <li>
+        <h3>入社日を入れる</h3>
+        <p>
+          <strong>ドバイにも入社日の欄があります（任意）。</strong>休暇の付与日数はここから
+          数えます。分からなければ空のままで結構です — Staff ページの
+          <span class="btn">Details</span> から後で入れられます。
+        </p>
+        <p>
+          ⚠️ <strong>生年月日の欄と間違えないでください。</strong>ドバイの欄は長く日付が
+          これ1つだったため、入社日が生年月日として保存された例があります。
+          現在は未来の日付・15歳未満・1940年より前を保存できないようにしてあります。
+        </p>
+      </li>
+
+      <li>
         <h3>マニラの3項目を埋める（マニラのみ必須）</h3>
         <p>
           <span class="field">Position</span> <span class="field">Hire Date</span>
@@ -267,9 +281,12 @@
 
     <div class="note stop">
       <span class="h">入社日・役職・雇用会社は、後から復元できません</span>
-      打刻やシフトの記録から逆算することはできず、契約書を探し直すしかなくなります。
-      フィリピンの在職証明書（COE）は請求から3営業日以内に出す義務があり、
-      <b>この3項目が空だと発行できません。</b>だから登録時の必須項目にしてあります。
+      打刻やシフトの記録から逆算することはできません。フィリピンの在職証明書（COE）は
+      請求から3営業日以内に出す義務があり、<b>この3項目が空だと発行できません。</b>
+      だから登録時の必須項目にしてあります。<br><br>
+      <b>間違えて入れた場合は直せます。</b>Staff ページの行にある
+      <span class="btn">Details</span> から、入社日・役職・雇用会社を含む全項目を
+      変更できます。変更は監査ログに<b>変更前の値つきで</b>残ります。
     </div>
   </section>
 
@@ -301,6 +318,14 @@
           <span class="path">Staff &rarr; Role Management</span><br>
           店舗スタッフは既定のままで足ります。発注や在庫を触る人だけ、
           ここでチャンネルを追加します。
+        </p>
+      </div>
+      <div class="card">
+        <h3>入れ間違いを直す</h3>
+        <p class="sub" style="margin-top:8px">
+          <span class="path">Staff</span> の行の <span class="btn">Details</span><br>
+          入社日・役職・雇用会社・生年月日・婚姻状況・WhatsApp・週の上限日数・連続勤務日数を
+          変更できます。<b>空にすればその項目は消えます。</b>変更は監査ログに残ります。
         </p>
       </div>
       <div class="card">
@@ -337,11 +362,12 @@
         給与の日割りが <span class="mono">official_hire_date</span> を読みます。
         この画面から入れれば必ず一致します。</li>
     </ul>
-    <div class="note warn">
-      <span class="h">週の上限日数・連続勤務日数は、いまは画面から変えられません</span>
-      一覧に <span class="mono">max/wk:6 | max/cons:6</span> と表示されますが、
-      <b>表示だけで編集欄がありません。</b>全員が6日・6連勤で固定です。
-      特定の人だけ変える必要が出たら、そのとき編集欄を作ります。
+    <div class="note">
+      <span class="h">週の上限日数・連続勤務日数も Details から変えられます</span>
+      一覧の <span class="mono">max/wk:6 | max/cons:6</span> は長く表示だけでしたが、
+      <span class="btn">Details</span> に編集欄があります。既定は全員6日・6連勤です。
+      <b>シフトの自動生成はこの連勤上限で休みの位置を決めます</b>ので、
+      変えると翌月のDraftの形が変わります。
     </div>
   </section>
 
@@ -388,6 +414,7 @@
     登録は <span class="mono">staff_created</span> として監査ログに残り、
     作成画面の「View Audit Logs」から本人分だけを開けます。
     <b>2026年9月20日に本番で1件登録して全手順を通し、確認後そのレコードは削除しました。</b>
+    2026年9月21日に Details からの編集も本番で往復確認しています。
     画面の文言・エラーメッセージ・72時間の期限・PINの規則は、すべてそのときの実測です。
   </footer>
 
