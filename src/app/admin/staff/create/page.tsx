@@ -8,6 +8,7 @@ import { Copy, UserPlus } from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City as BranchCity } from "@/lib/branches";
 import AdminOnboardingLinks from "@/components/admin/AdminOnboardingLinks";
+import { isoToday } from "@/lib/date";
 import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD,
@@ -220,9 +221,13 @@ export default function CreateStaffPage() {
               <input
                 type="date"
                 value={dateOfBirth}
+                max={isoToday()}
                 onChange={(e) => setDateOfBirth(e.target.value)}
                 className={INPUT_CLASS}
               />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                生年月日です。<b>入社日はこの欄ではありません。</b>
+              </p>
             </div>
 
             <div>
@@ -255,8 +260,9 @@ export default function CreateStaffPage() {
                   className={INPUT_CLASS}
                 />
                 <p className="mt-1 text-[11px] text-neutral-500">
-                  契約書の入社日。休暇の付与日数はここから数えます。分からなければ空のままで結構です
-                  — Staff ページの Details から後で入れられます。
+                  契約書の入社日。休暇の付与日数はここから数えます。
+                  <b>これから入社する人の先の日付も入れられます</b>（1年先まで）。
+                  分からなければ空のままで結構です — Staff ページの Details から後で入れられます。
                 </p>
               </div>
             ) : null}
@@ -297,6 +303,7 @@ export default function CreateStaffPage() {
                   />
                   <p className="mt-1 text-[11px] text-neutral-500">
                     契約書の入社日。マニラ1号店の準備開始が2025年8月のため、それ以前は入力できません。
+                    <b>これから入社する人の先の日付は入れられます</b>（1年先まで）。
                   </p>
                 </div>
 
