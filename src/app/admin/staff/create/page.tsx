@@ -241,6 +241,26 @@ export default function CreateStaffPage() {
               />
             </div>
 
+            {/* Dubai has no COE, but leave accrual still counts from the hire
+                date -- and with no box for it, 74 Dubai records carry none and
+                one new hire's date of birth was saved as a date next week. */}
+            {city === "dubai" ? (
+              <div>
+                <div className={T_LABEL + " mb-1.5"}>Hire Date</div>
+                <input
+                  type="date"
+                  value={hireDate}
+                  min="2022-01-01"
+                  onChange={(e) => setHireDate(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+                <p className="mt-1 text-[11px] text-neutral-500">
+                  契約書の入社日。休暇の付与日数はここから数えます。分からなければ空のままで結構です
+                  — Staff ページの Details から後で入れられます。
+                </p>
+              </div>
+            ) : null}
+
             {/* Manila only. Dubai staff belong to neither Philippine company, and
                 DOLE's Certificate of Employment rule does not reach them. */}
             {city === "manila" ? (
