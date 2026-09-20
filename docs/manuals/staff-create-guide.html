@@ -128,9 +128,15 @@
       <li>
         <h3>Staff ページを開く</h3>
         <p>
-          メニュー &rarr; <span class="path">Staff</span> &rarr; 「Add New Staff」の
+          サイドバーの <b>ADMIN</b> &rarr; <span class="path">PEOPLE &amp; ACCESS</span>
+          を開いて <span class="path">Staff</span>。そこの「Add New Staff」で
           <span class="btn">Go to Create Staff</span> を押します。
           直接なら <span class="path">/admin/staff/create</span>。
+        </p>
+        <p>
+          <strong>PEOPLE &amp; ACCESS は既定で閉じています。</strong>開かないと
+          Staff は出てきません。Admin Dashboard 上部の横並びリンクからも行けますが、
+          そちらでは同じ画面が <b>Staff Master</b> という名前になっています。
         </p>
         <p>
           <strong>Staff ページの一覧からは登録できません。</strong>マニラは役職・入社日・
@@ -187,9 +193,14 @@
       <li>
         <h3>自分の名前とPINを入れて作成する</h3>
         <p>
-          Manager Name と Manager PIN は<b>登録する人（あなた）</b>のものです。
-          新しいスタッフのものではありません。<span class="btn">Create Staff Record</span>
-          を押すと、画面上部に <b>Verified role</b> として自分の権限が表示されます。
+          Manager Name と Manager PIN は<b>ログイン情報から自動で入っています。</b>
+          空のときだけ自分で入れてください。<b>登録する人（あなた）</b>のもので、
+          新しいスタッフのものではありません。画面上部の <b>Verified role</b> に
+          自分の権限（HQ など）が出ていれば通ります。
+        </p>
+        <p>
+          氏名・Manager Name・Manager PIN の<b>3つが揃うまでボタンは押せません</b>。
+          灰色のままなら、このどれかが空です。
         </p>
       </li>
 
@@ -201,7 +212,14 @@
         </p>
         <p>
           <strong>有効期限は72時間です。</strong>切れたら
-          <span class="path">/admin/staff/onboarding</span> で再発行してください。
+          <span class="path">Onboarding &amp; Setup</span> の
+          <span class="btn">Reset PIN</span> で作り直せます。
+        </p>
+        <p>
+          ⚠️ <strong>画面に出る期限はUTC表示です。</strong>
+          <span class="mono">2026-09-23T10:54+00:00</span> と出ていたら、
+          <b>マニラでは9月23日の18時54分</b>（+8時間）、ドバイでは14時54分（+4時間）です。
+          そのまま読むと半日早く切れると勘違いします。
         </p>
       </li>
 
@@ -264,8 +282,9 @@
         <h3>PIN未設定の人を確認する</h3>
         <p class="sub" style="margin-top:8px">
           <span class="path">Staff &rarr; Onboarding &amp; Setup</span><br>
-          まだPINを作っていない人と、Setup Code の期限が一覧で出ます。
-          期限切れはここで再発行します。
+          まだPINを作っていない人が <b>Pending</b> として並びます。
+          期限切れは各行の <span class="btn">Reset PIN</span> で作り直せます
+          （<b>Setup PIN</b> は本人の設定画面を開くボタンで、別物です）。
         </p>
       </div>
       <div class="card">
@@ -289,7 +308,9 @@
         <p class="sub" style="margin-top:8px">
           <span class="path">Staff</span> の一覧で
           <b>ACTIVE / ON_LEAVE / SEPARATED</b> を切り替えます。
-          休職・退職はどちらもアカウントを凍結し、違いは<b>権限を残すか奪うか</b>だけです。
+          休職・退職はどちらもアカウントを凍結し、違いは<b>権限を残すか奪うか</b>だけです。<br>
+          <b>一覧は「Login &amp; Load」を押すまで空（0 members）です。</b>
+          自分の名前を入れて読み込んでから探してください。
         </p>
       </div>
     </div>
@@ -332,7 +353,12 @@
       <li><strong>「Create Staff Record」が押せない</strong>
         <span class="why">氏名・Manager Name・Manager PIN のどれかが空です。この3つが揃うまでボタンは無効のままです。</span></li>
       <li><strong>保存すると赤いエラーが出る（マニラ）</strong>
-        <span class="why">Position / Hire Date / Employing Company のどれかが空です。エラー文に足りない項目名が出ます。</span></li>
+        <span class="why">Position / Hire Date / Employing Company のどれかが空です。実際の文言は
+        「position, hire_date, company required. These are printed on the Certificate of Employment
+        and cannot be recovered later.」で、足りない項目名がそのまま並びます。</span></li>
+      <li><strong>入社日が古すぎると言われる</strong>
+        <span class="why">「hire_date is earlier than 2025-08-01. Check the contract.」。
+        日付入力欄がそれ以前を選ばせない作りですが、貼り付けなどで入った場合はサーバーが止めます。</span></li>
       <li><strong>「manager can create staff only in own branch」</strong>
         <span class="why">MANAGER が自分以外の拠点を選んでいます。その拠点の店長か、ADMIN・HQ・HR_MANAGER に依頼してください。</span></li>
       <li><strong>「invalid approver credentials」</strong>
@@ -340,7 +366,15 @@
       <li><strong>本人が Setup Code を入れても通らない</strong>
         <span class="why">72時間を過ぎています。Onboarding &amp; Setup から再発行してください。</span></li>
       <li><strong>PINが「決められない」と言われる</strong>
-        <span class="why">1111・ゾロ目・連番は拒否されます。数字4〜8桁で、それ以外のものを選んでもらってください。</span></li>
+        <span class="why">1111・ゾロ目・<span class="mono">1234</span> のような連番は
+        「Pick a PIN that is not 1111, four of the same digit, or digits in a row like 1234.」で拒否されます。
+        4桁未満は「PIN must be 4 to 8 digits」、入力欄2つが違うと「PIN confirmation does not match」、
+        Setup Code が違うと「Invalid setup code」です。</span></li>
+      <li><strong>Staff の一覧に誰も出てこない</strong>
+        <span class="why">この画面は開いた時点では <b>0 members</b> です。上の
+        「Login &amp; Load」を押すまで読み込まれません。登録した人が消えたわけではありません。</span></li>
+      <li><strong>期限が切れているように見える</strong>
+        <span class="why">Onboarding の Expires は<b>UTC表示</b>です。マニラは+8時間、ドバイは+4時間して読んでください。</span></li>
       <li><strong>同じ人が2人いる</strong>
         <span class="why">氏名の綴りが違うと別人として登録されます。打刻と給与が分かれるので、気づいた時点で統合が必要です。登録時に契約書を見るのが唯一の予防策です。</span></li>
     </ul>
@@ -353,7 +387,8 @@
     <span class="mono">/setup-pin</span>。
     登録は <span class="mono">staff_created</span> として監査ログに残り、
     作成画面の「View Audit Logs」から本人分だけを開けます。
-    2026年9月20日時点の実装にもとづく。
+    <b>2026年9月20日に本番で1件登録して全手順を通し、確認後そのレコードは削除しました。</b>
+    画面の文言・エラーメッセージ・72時間の期限・PINの規則は、すべてそのときの実測です。
   </footer>
 
 </div>
