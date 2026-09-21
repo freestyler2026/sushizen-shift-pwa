@@ -103,6 +103,9 @@ type OtFacts = {
   claimed_minutes: number | null;
   delta_minutes: number | null;
   unavailable: string | null;
+  /** The night these hours were measured against, when it is not the date
+   *  on the request. A claim filed at 02:00 carries the new day. */
+  shift_day?: string | null;
 };
 
 type ModalAction = "manager_approve" | "mark_paid" | "remove_from_payroll" | "reject";
@@ -349,6 +352,11 @@ function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) 
       </button>
       {open && (
         <div className="mt-2 space-y-1 rounded-lg border border-white/10 bg-black/30 p-2 text-[11px] leading-relaxed text-white/70">
+          {f.shift_day && (
+            <p className="text-sky-300">
+              Measured against the {f.shift_day} shift &mdash; these hours are its tail.
+            </p>
+          )}
           <p>
             Rostered:{" "}
             <span className="text-white">
@@ -1265,6 +1273,16 @@ export default function AdminOvertimePage() {
               {reviewing.ot_facts && !reviewing.ot_facts.unavailable
                 && reviewing.ot_facts.computed_minutes !== null && (
                 <div className="rounded-lg border border-white/10 bg-black/30 p-2 space-y-0.5 text-xs">
+                  {/* Which night the two numbers below belong to. A claim filed
+                      after midnight carries the new day's date, and reading the
+                      roster and punches of that date compares the hours with a
+                      different shift entirely. */}
+                  {reviewing.ot_facts.shift_day && (
+                    <p className="text-sky-300">
+                      Measured against the {reviewing.ot_facts.shift_day} shift &mdash; these
+                      hours are its tail.
+                    </p>
+                  )}
                   <p>
                     <span className="text-white/50">Rostered:</span>{" "}
                     {reviewing.ot_facts.shift_segments

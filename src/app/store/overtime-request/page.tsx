@@ -68,6 +68,9 @@ type OtFacts = {
   claimed_minutes: number | null;
   delta_minutes: number | null;
   unavailable: string | null;
+  /** The night these hours were measured against, when it is not the date
+   *  on the request. A claim filed at 02:00 carries the new day. */
+  shift_day?: string | null;
 };
 
 /**
