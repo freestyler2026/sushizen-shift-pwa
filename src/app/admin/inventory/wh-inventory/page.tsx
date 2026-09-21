@@ -2155,11 +2155,13 @@ export default function WhInventoryPage() {
                                       <td className="px-3 py-1.5 text-right font-mono text-teal-200">
                                         {fmt3(i.qty)} {i.unit}
                                       </td>
+                                      {/* 単価が入っていない品目を 0.00 と書くと「無料」に読める。
+                                          金額が言えないことを、金額の代わりに書く。 */}
                                       <td className="px-3 py-1.5 text-right font-mono text-neutral-500">
-                                        × {fmt2(i.price)}
+                                        {i.price > 0 ? `× ${fmt2(i.price)}` : "単価未設定"}
                                       </td>
                                       <td className="px-3 py-1.5 text-right font-mono text-neutral-300">
-                                        {fmt2(i.qty * i.price)}
+                                        {i.price > 0 ? fmt2(i.qty * i.price) : "—"}
                                       </td>
                                     </tr>
                                   ))}
@@ -2181,6 +2183,15 @@ export default function WhInventoryPage() {
                             （{confirmRows.length} 仕入先・
                             {confirmRows.reduce((a, g) => a + g.items.length, 0)} 品目）
                           </span>
+                          {(() => {
+                            const noPrice = confirmRows.reduce(
+                              (a, g) => a + g.items.filter((i) => !(i.price > 0)).length, 0);
+                            return noPrice > 0 ? (
+                              <span className="ml-2 block text-xs text-amber-400">
+                                うち {noPrice} 品目は単価未設定です。合計に入っていません。
+                              </span>
+                            ) : null;
+                          })()}
                         </p>
                       )}
 
