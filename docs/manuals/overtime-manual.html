@@ -830,11 +830,11 @@ Approve 0h40m as asked</pre>
         ── 前日も当日も24時を越えるからです。システムは申請の時間帯を両方の夜に
         当てはめ、<strong>実際の打刻が覆っている方</strong>（シフトで既に払っている分は除く）を採り、
         画面に「これらの時間は 2026-09-18 のシフトの延長です」と書きます。
-        <strong>その表示と、下に並ぶシフト・打刻は必ず同じ夜のものです。</strong><br>
+        <strong>その表示と、下に並ぶシフト・打刻、そして注文数・人員も必ず同じ夜のものです。</strong><br>
         2026-09-21 まではここが食い違っていました。画面は正しい夜を名指ししながら、
         比較だけ申請日の勤務を読んでいたため、1時間の正しい申請に対して
         「0h12m を承認」が主ボタンに出ていました。該当は全239件中7件で、
-        <strong>過小に出たものと過大に出たものの両方</strong>がありました。</span>
+        <strong>過小に出たものと過大に出たものの両方</strong>がありました。<br>忙しさと人員も同じ日付で引いていました。Kelvin 9/19 は「Ordinary night (+9%)・人員不明」と出ていましたが、実際に働いた9/18 の夜は<strong>+23%（忙しい夜）・人員2名</strong>です。人員が常に不明だったのは別の原因で、OT の時刻が 1.0-2.0、シフトが 25.0 と書かれるため重なり判定が成立していませんでした。</span>
         <span class="en"><strong>A claim that lands after midnight is placed on a night by the punches, not by its date.</strong>
         Closing staff write these hours two ways — small (<code>01:00–02:00</code>) or in the
         roster's own convention (<code>26.00–26.87</code>) — and they date the request to
@@ -842,11 +842,11 @@ Approve 0h40m as asked</pre>
         candidate nights run past midnight. The claim's hours are laid over each night and
         the one the punches actually cover is kept, after taking out time the roster already
         paid for. The row then says <span class="ui">these hours extend the 2026-09-18 shift</span>,
-        and <strong>the shift and punches shown underneath are always that same night.</strong><br>
+        and <strong>the shift, the punches, the order count and the crew shown with it are all that same night.</strong><br>
         Until 2026-09-21 they were not. The screen named the right night and measured the
         request's own date, so a correct one-hour claim was offered for approval at
         <strong>twelve minutes</strong>. Seven of 239 requests were affected, <strong>in both
-        directions</strong>.</span>
+        directions</strong>. The busy-night badge and the crew count read the same wrong date: Kelvin Gurung's row said <em>Ordinary night (+9%)</em> with no crew, while the night he worked carried <strong>+23% and two people on</strong> — the colour that argues for the claim, not against it. The crew had been blank on every after-midnight claim because the hours are written 1.0&ndash;2.0 and the roster writes that shift 16:00&ndash;25:00, so the overlap matched nothing.</span>
       </div>
     </div>
     <div class="tip info">
