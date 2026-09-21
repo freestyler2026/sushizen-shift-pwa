@@ -49,6 +49,8 @@ type Row = {
   recorded: boolean;
   /** Set locally after HR cancels, so the row stays visible saying what happened. */
   cancelled?: boolean;
+  /** Only on the outstanding list: how long this has waited for a result. */
+  days_late?: number;
 };
 
 type FreeSlot = {
@@ -383,6 +385,11 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
   // 動かす・取り消す。**応募者は自分で取り消せるのに HR は取り消せなかった。**
   const [moveId, setMoveId] = useState<string>("");
   const [reason, setReason] = useState("");
+  // 時刻が過ぎたのに結果が入っていない面接。upcoming は今日からしか返さないので、
+  // 記録されないまま日をまたいだものは、これが無いとどの画面にも出ない。
+  const [lateRows, setLateRows] = useState<Row[]>([]);
+  const [lateBy, setLateBy] = useState<Record<string, number>>({});
+  const [lateOldest, setLateOldest] = useState(0);
   const [freeSlots, setFreeSlots] = useState<FreeSlot[] | null>(null);
   const [slotsErr, setSlotsErr] = useState("");
   const [moving, setMoving] = useState(false);
@@ -405,7 +412,20 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
     }
   }, [mine]);
 
+  const loadLate = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/hr/interviews/outstanding?mine=${mine ? 1 : 0}`,
+        { cache: "no-store" });
+      if (!res.ok) return;
+      const j = await res.json();
+      setLateRows(j.rows || []);
+      setLateBy(j.by_interviewer || {});
+      setLateOldest(Number(j.oldest_days_late || 0));
+    } catch { /* the rest of the screen still works */ }
+  }, [mine]);
+
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadLate(); }, [loadLate]);
 
   // The same list the board's outcome dialog uses. Asking for a reason without
   // offering the reasons would just move the dead end one step later.
@@ -549,6 +569,10 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
       const label = OUTCOMES.find((o) => o.key === outcome)?.label || outcome;
       setDone((p) => ({ ...p, [row.applicant_id]: `Recorded — ${label}` }));
       setRows((p) => p.map((r) => (r.id === row.id ? { ...r, recorded: true } : r)));
+      // Leave it on screen with its result showing, the way `done` does for the
+      // rest -- a row that vanishes the moment you press the button gives you
+      // nowhere to notice you pressed the wrong one (lesson 56).
+      setLateRows((p) => p.map((r) => (r.id === row.id ? { ...r, recorded: true } : r)));
       setOpenId("");
       setNote("");
       setPending("");
@@ -586,11 +610,62 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
         </p>
       )}
 
-      {!loading && rows.length === 0 && (
+      {!loading && rows.length === 0 && lateRows.length === 0 && (
         <p className={T_CAPTION}>
           Nothing booked yet. Applicants book their own time from the link that
           Shortlist hands you on the Voice screening tab.
         </p>
+      )}
+
+      {lateRows.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className={T_LABEL}>
+              Past their time, nothing recorded — {lateRows.length}
+            </p>
+            {lateOldest > 0 && (
+              <span className="text-xs text-amber-200/90">
+                oldest {lateOldest} day{lateOldest === 1 ? "" : "s"} ago
+              </span>
+            )}
+            {Object.keys(lateBy).length > 0 && (
+              <span className={T_CAPTION}>
+                {Object.entries(lateBy)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([who, n]) => `${who || "unassigned"} ${n}`)
+                  .join(" · ")}
+              </span>
+            )}
+          </div>
+          <p className={T_CAPTION}>
+            These dropped off the list when the day turned. Say what happened —
+            it is the same three buttons, and it moves the applicant on.
+          </p>
+          {lateRows.map((r) => (
+            <div key={r.id}>
+              {/* Line prints the time only. On a row from last week that is not
+                  enough to know which day is being recorded. */}
+              <p className={`${T_CAPTION} mb-1 mt-2`}>
+                {dayOf(r.starts_at)}
+                {typeof r.days_late === "number" && r.days_late > 0
+                  ? ` · ${r.days_late} day${r.days_late === 1 ? "" : "s"} ago`
+                  : ""}
+              </p>
+              <Line row={r}
+              openId={openId} setOpenId={setOpenId}
+              moveId={moveId} openMove={openMove}
+              note={note} setNote={setNote}
+              saving={saving} record={(rw, o, rk) => void record(rw, o, rk)}
+              pending={pending} setPending={setPending}
+              outcomeErr={outcomeErr} setOutcomeErr={setOutcomeErr}
+              reasons={reasons} done={done}
+              freeSlots={freeSlots} slotsErr={slotsErr} moving={moving}
+              doMove={(rw, sl) => void doMove(rw, sl)}
+              doCancel={(rw) => void doCancel(rw)}
+              reason={reason} setReason={setReason} />
+            </div>
+          ))}
+        </div>
       )}
 
       {today.length > 0 && (
