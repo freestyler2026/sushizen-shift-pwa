@@ -23,6 +23,12 @@ interface ParLevelRow {
   unit: string | null;
   par_level: number | null;
   current_stock: number | null;
+  /** How the count compared to this row's own unit. "ok" and "converted"
+   *  mean current_stock is a real number; "not_counted" and "unit_mismatch"
+   *  mean it is null, and they are not the same problem. */
+  stock_status?: "ok" | "converted" | "not_counted" | "unit_mismatch";
+  counted_qty?: number | null;
+  counted_unit?: string;
   category: string | null;
   supplier: string | null;
   notes: string | null;
@@ -235,6 +241,7 @@ export default function CkParLevelsPage() {
   // from `catalog` so nothing can pick one by accident, and so the counts that
   // describe what is on offer keep meaning what they say.
   const [catalogOff, setCatalogOff] = useState<CatalogPick[]>([]);
+  const [showUnitMismatch, setShowUnitMismatch] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQ, setPickerQ] = useState("");
   // Added lines need ids of their own — the par rows' ids are database keys and
@@ -417,6 +424,13 @@ export default function CkParLevelsPage() {
     && Number(r.catalog_unit_price ?? 0) > 0
     && !!(r.catalog_unit || "").trim()
     && (r.catalog_unit || "").trim().toLowerCase() !== (r.unit || "").trim().toLowerCase();
+
+  /** The other reason to ask how big one unit is: the CK counted this item in
+   *  something the par level is not written in, so par − stock has no answer
+   *  until somebody says how the two relate. Same declaration, same field —
+   *  how many bottles are in a case does not depend on why you asked. */
+  const needsSizeForCount = (r: ParLevelRow) =>
+    r.stock_status === "unit_mismatch" && !!(r.counted_unit || "").trim();
 
   // ── counting-unit size inline save ───────────────────────────────────────
   /** "1 <unit> = size <uom>". Sending an empty size clears both, which puts
@@ -1023,6 +1037,21 @@ export default function CkParLevelsPage() {
       (r.supplier || "").trim() !== "-"
   );
 
+  // The other silent exclusion. These rows were counted — somebody walked the
+  // store and wrote a number — but in a unit the par level is not written in,
+  // so par − stock has no answer. Until 2026-09-22 the screen subtracted them
+  // anyway: 12 BTL of Coke Mismo against a par of 3 CASE read as a surplus of
+  // nine on an item the CK was two cases short of.
+  const unitMismatch = rows.filter(
+    (r) =>
+      tab === "supplier" &&
+      r.stock_status === "unit_mismatch" &&
+      r.par_level != null &&
+      !!(r.supplier || "").trim() &&
+      (r.supplier || "").trim() !== "—" &&
+      (r.supplier || "").trim() !== "-"
+  );
+
   const gapLabel = tab === "ck_produced" ? "To Produce" : "To Order";
 
   // ── render ────────────────────────────────────────────────────────────────
@@ -1453,6 +1482,22 @@ export default function CkParLevelsPage() {
                             >
                               1 {row.unit} = {fmtNum(row.unit_size)} {row.unit_size_uom}
                             </button>
+                          ) : needsSizeForCount(row) ? (
+                            /* Asked before the ordering-unit prompt because this
+                               one blocks more: without it the row has no stock
+                               figure at all, so it cannot reach an order however
+                               short the CK is. */
+                            <button
+                              onClick={() => {
+                                setEditingSizeId(row.id);
+                                setSizeValue("");
+                                setSizeUom(row.counted_unit || "");
+                              }}
+                              className="mt-0.5 block w-full rounded px-1 text-[10px] font-medium text-orange-300 hover:bg-orange-500/10"
+                              title={`Counted in ${row.counted_unit}, par set in ${row.unit}. Say how many ${row.counted_unit} make one ${row.unit} and the stock figure comes back.`}
+                            >
+                              + how many {row.counted_unit} in 1 {row.unit}?
+                            </button>
                           ) : needsSize(row) ? (
                             <button
                               onClick={() => {
@@ -1518,8 +1563,30 @@ export default function CkParLevelsPage() {
                         {/* Current Stock — read-only, from CK Inventory */}
                         <td className="px-4 py-2.5 text-center">
                           {row.current_stock != null ? (
-                            <span className="rounded-md bg-sky-500/10 px-2 py-0.5 text-sm font-semibold text-sky-300">
+                            <span
+                              className="rounded-md bg-sky-500/10 px-2 py-0.5 text-sm font-semibold text-sky-300"
+                              title={row.stock_status === "converted"
+                                ? `Counted as ${fmtNum(row.counted_qty ?? 0)} ${row.counted_unit}, which is ${fmtNum(row.current_stock)} ${row.unit}.`
+                                : undefined}
+                            >
                               {fmtNum(row.current_stock)}
+                              {row.stock_status === "converted" && (
+                                <span className="ml-1 text-[10px] font-normal text-sky-300/60">
+                                  ← {fmtNum(row.counted_qty ?? 0)} {row.counted_unit}
+                                </span>
+                              )}
+                            </span>
+                          ) : row.stock_status === "unit_mismatch" ? (
+                            /* Counted, and counted in something else. Showing the
+                               number as written is the honest version — the old
+                               screen subtracted 12 bottles from 3 cases and called
+                               it a surplus of nine. */
+                            <span
+                              className="rounded-md bg-orange-500/10 px-2 py-0.5 text-[11px] text-orange-300"
+                              title={`The CK counted ${fmtNum(row.counted_qty ?? 0)} ${row.counted_unit}, but this par level is set in ${row.unit || "no unit"}. Nothing says how the two relate, so par − stock cannot be worked out and this item is left out of the order. Say how many ${row.counted_unit} make 1 ${row.unit || "unit"} under the Unit column and the number comes back.`}
+                            >
+                              {fmtNum(row.counted_qty ?? 0)} {row.counted_unit}
+                              <span className="ml-1 text-orange-400/80">· unit ≠ {row.unit || "—"}</span>
                             </span>
                           ) : (
                             <span
@@ -2159,6 +2226,9 @@ export default function CkParLevelsPage() {
                     <button
                       type="button"
                       onClick={() => setShowNotCounted((v) => !v)}
+                      aria-label={showNotCounted
+                        ? "Hide the items with no line on the count sheet"
+                        : "Which items have no line on the count sheet?"}
                       className="underline underline-offset-2 hover:text-amber-200"
                     >
                       {showNotCounted ? "Hide" : "Which ones?"}
@@ -2169,6 +2239,41 @@ export default function CkParLevelsPage() {
                         from the inventory sheet, or the item is not counted at all. Add any that
                         need ordering below.
                       </p>
+                    )}
+                  </div>
+                )}
+                {unitMismatch.length > 0 && (
+                  <div className="mt-3 text-xs text-orange-300/90">
+                    <span>
+                      {unitMismatch.length} item{unitMismatch.length !== 1 ? "s" : ""} {unitMismatch.length !== 1 ? "are" : "is"} not
+                      on this order — the CK counted {unitMismatch.length !== 1 ? "them" : "it"} in a
+                      different unit from the par level, so par − stock has no answer.{" "}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowUnitMismatch((v) => !v)}
+                      aria-label={showUnitMismatch
+                        ? "Hide the items counted in another unit"
+                        : "Which items were counted in another unit?"}
+                      className="underline underline-offset-2 hover:text-orange-200"
+                    >
+                      {showUnitMismatch ? "Hide" : "Which ones?"}
+                    </button>
+                    {showUnitMismatch && (
+                      <div className="mt-1 space-y-0.5 text-orange-300/70">
+                        {unitMismatch.map((r) => (
+                          <p key={r.id}>
+                            {r.item_name} — counted {fmtNum(r.counted_qty ?? 0)} {r.counted_unit},
+                            par set in {r.unit || "no unit"}
+                          </p>
+                        ))}
+                        <p className="pt-1">
+                          On the Par Level list, under each item&rsquo;s Unit, say how many{" "}
+                          {unitMismatch.length === 1 ? unitMismatch[0].counted_unit : "counted units"} make
+                          one par unit. The stock figure comes back and the item orders itself
+                          again. Add any that are needed today below.
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}
