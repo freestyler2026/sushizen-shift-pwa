@@ -160,6 +160,15 @@ function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) 
       )}
       {f && !f.unavailable && f.computed_minutes !== null && (
         <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] leading-relaxed text-white/60">
+          {/* Which night these numbers belong to. A claim filed after midnight
+              carries the new day's date, so without this line the shift and
+              punches below look like they contradict the date on the row. */}
+          {f.shift_day && (
+            <p className="text-sky-300">
+              These hours are the tail of your {f.shift_day} shift, so that is the
+              shift and the clock-out shown here.
+            </p>
+          )}
           <p>
             Your shift:{" "}
             <span className="text-white/90">
