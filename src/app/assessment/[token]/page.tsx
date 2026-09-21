@@ -74,6 +74,9 @@ export default function AssessmentPage({ params }: { params: Promise<{ token: st
   const [st, setSt] = useState<State | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resumed, setResumed] = useState(false);
+  // 区分の頭でだけ出す。途中から再開した人にもう一度「制限時間25分」を
+  // 見せると、時間が戻ったように読める（実際はサーバ側で減り続けている）。
   const [showIntro, setShowIntro] = useState(true);
   // 締切の時刻を持ち、残りはそこから計算する。秒を減らしていく作り方だと
   // 「left が変わるたびに setInterval を張り直す」か「依存から外して古い値を
@@ -98,6 +101,8 @@ export default function AssessmentPage({ params }: { params: Promise<{ token: st
       if (!res.ok) { setErr(body?.detail || "読み込めませんでした。"); return; }
       setSt(body);
       setDeadline(body.seconds_left == null ? null : Date.now() + body.seconds_left * 1000);
+      setResumed((body.section_done ?? 0) > 0);
+      setShowIntro((body.section_done ?? 0) === 0);
     } catch {
       setErr("通信できませんでした。電波の良い場所でもう一度お試しください。");
     }
@@ -156,6 +161,7 @@ export default function AssessmentPage({ params }: { params: Promise<{ token: st
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { setErr(body?.detail || "保存できませんでした。"); return; }
       const prevSection = st.section;
+      setResumed(false);
       setSt(body);
       setDeadline(body.seconds_left == null ? null : Date.now() + body.seconds_left * 1000);
       reset();
@@ -220,6 +226,12 @@ export default function AssessmentPage({ params }: { params: Promise<{ token: st
         <div className="h-1 rounded-full bg-stone-800"
              style={{ width: `${Math.round((st.done / st.total) * 100)}%` }} />
       </div>
+
+      {resumed && (
+        <p className="mt-3 rounded-lg bg-stone-100 px-3 py-2 text-sm text-stone-600">
+          前回の続きから再開しました。答えた分は残っています。
+        </p>
+      )}
 
       <p className="mt-6 whitespace-pre-wrap text-lg leading-relaxed">{q.text}</p>
 
