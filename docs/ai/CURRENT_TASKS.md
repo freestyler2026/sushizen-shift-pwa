@@ -1,5 +1,22 @@
 # CURRENT_TASKS.md
 
+## 2026-09-21 — 面接結果の記録を Calendar から / no-show を見えるように
+
+- **Calendar の日別ビューから結果を記録できるようにした**（`src/components/hr/OutcomeRecorder.tsx` を新設し、
+  InterviewDay と InterviewCalendar の両方が同じパネルを使う）。実機で確認済み:
+  `POST /api/admin/hr/interviews/{id}/outcome` → 200、行は「Recorded — Did not turn up」に変わり、
+  取り消し口の代わりに確認表示がその場に残る。
+- **no-show のバッジを置く場所を間違えていた。** 最初は decide レーンの行に入れたが、
+  no-show を記録した瞬間にその人は rejected になってレーンから出るので、**一度も描画されない**。
+  実機で見て分かった（教訓56）。**Closed 一覧に移した** — 閉じた応募者が残る唯一の画面。
+- Closed 一覧は `latest_outcome_reason` しか見ておらず、**盤面から閉じた人は評価行が無いので
+  理由が何も出ていなかった**（3名の no-show のうち Vernice Del Puerto が該当）。
+  `latest_outcome_reason || rejection_reason` の両方を読むようにした。
+- 琥珀色は no-show だけ。**559件中3件（0.5%）**を実測してから色を付けている（教訓39）。
+- Recruitment Guide を更新・republish（ボタン名が実画面と食い違っていた3箇所と日付も）。
+
+コミット: `5c1c0e2e` → `99ba927a` → `be2bc7db`
+
 ## 2026-09-21 — 面接の「未対応」を見えるようにした（実装・デプロイ済み）
 
 ### なぜ見えなかったか
