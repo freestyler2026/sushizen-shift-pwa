@@ -390,6 +390,7 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
   const [lateRows, setLateRows] = useState<Row[]>([]);
   const [lateBy, setLateBy] = useState<Record<string, number>>({});
   const [lateOldest, setLateOldest] = useState(0);
+  const [lateErr, setLateErr] = useState("");
   const [freeSlots, setFreeSlots] = useState<FreeSlot[] | null>(null);
   const [slotsErr, setSlotsErr] = useState("");
   const [moving, setMoving] = useState(false);
@@ -413,15 +414,24 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
   }, [mine]);
 
   const loadLate = useCallback(async () => {
+    setLateErr("");
     try {
       const res = await fetch(`/api/admin/hr/interviews/outstanding?mine=${mine ? 1 : 0}`,
         { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Swallowing this is how a queue of 26 shows as nothing at all: the
+        // first call on a cold page races the session refresh and comes back
+        // 401, and an empty section looks exactly like a cleared one.
+        setLateErr("Could not load the ones past their time.");
+        return;
+      }
       const j = await res.json();
       setLateRows(j.rows || []);
       setLateBy(j.by_interviewer || {});
       setLateOldest(Number(j.oldest_days_late || 0));
-    } catch { /* the rest of the screen still works */ }
+    } catch {
+      setLateErr("Could not load the ones past their time.");
+    }
   }, [mine]);
 
   useEffect(() => { void load(); }, [load]);
@@ -599,7 +609,11 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
         <button className={SMALL_BUTTON} onClick={() => setMine((m) => !m)}>
           {mine ? "Showing mine" : "Showing everyone"}
         </button>
-        <button className={SMALL_BUTTON} onClick={() => void load()} disabled={loading}>
+        <button
+          className={SMALL_BUTTON}
+          onClick={() => { void load(); void loadLate(); }}
+          disabled={loading}
+        >
           Refresh
         </button>
       </div>
@@ -614,6 +628,13 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
         <p className={T_CAPTION}>
           Nothing booked yet. Applicants book their own time from the link that
           Shortlist hands you on the Voice screening tab.
+        </p>
+      )}
+
+      {lateErr && (
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+          {lateErr}{" "}
+          <button className="underline" onClick={() => void loadLate()}>Try again</button>
         </p>
       )}
 
