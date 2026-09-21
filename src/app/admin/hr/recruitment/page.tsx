@@ -3904,9 +3904,30 @@ function ClosedList({
             </span>
             <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">{a.full_name}</span>
             <span className="truncate text-xs text-zinc-500">{a.position_applied || "—"}</span>
-            {a.latest_outcome_reason && (
-              <span className="truncate text-xs text-zinc-600">{a.latest_outcome_reason.replace(/_/g, " ")}</span>
-            )}
+            {/* Why it closed. This is the only screen a rejected applicant
+                still appears on, so it is the only place a no-show can be
+                told apart from a judgement -- and a no-show is 3 of 559, so
+                colouring it is a signal and not a wall of amber.
+                Read BOTH columns: closing from the board writes
+                rejection_reason and no evaluation row, so one of the three
+                no-shows had latest_outcome_reason empty and showed nothing
+                here at all. */}
+            {(() => {
+              const why = a.latest_outcome_reason || a.rejection_reason;
+              if (!why) return null;
+              return (
+                <span
+                  className={isNoShow(why)
+                    ? "shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-200"
+                    : "truncate text-xs text-zinc-600"}
+                  title={isNoShow(why)
+                    ? "They did not turn up for the interview. Closed, but not a judgement of them."
+                    : "Why this applicant was closed"}
+                >
+                  {reasonLabel(why)}
+                </span>
+              );
+            })()}
             <span className="shrink-0 text-xs tabular-nums text-zinc-600">{a.applied_date}</span>
           </button>
         ))}
