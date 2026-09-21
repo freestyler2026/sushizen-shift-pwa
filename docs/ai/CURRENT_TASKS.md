@@ -29928,3 +29928,47 @@ Water Summit 240.00（別表記 `Water Summit 500ML` の行から）。
 Red Hourse・San Miguel Light・Pilsen は Restaurant Depot の購入実績が0件。
 登録するまで、ドリンクは自由入力で発注され続け、実際 9/7 の MAN-PR-202609-0042 は
 ドリンク6行すべて ₱0.00 で通っている。
+
+## 2026-09-22 — Disposal 締切 01:00 に変更（ログブック運用開始に合わせて）
+
+**変更済み・デプロイ済み**
+- `app/required_reports_api.py` の `disposal` の `deadline` を `00:00` → `01:00`
+- `docs/manuals/kitchen-daily-reports.html` / `back-office-daily-review.html` を更新・republish
+
+**締切が何を制御しているか（確認済み）**
+`REQUIRED_REPORTS` の利用は `required_reports_api.py` 1ファイルのみ（worker・エスカレーション無し）。
+Disposal の提出APIにも締切チェックは無い。効くのは**表示2点だけ**:
+1. 未提出の行が `not_due` → `missing`（赤）に変わる時刻
+2. 提出済みの行に小さく `Submitted late` が出るかどうか
+
+**実測（直近60日・`shift='closing'`・店舗日ごとに最初の1件＝81件。後日backfillの11件は除外）**
+締切0時からのズレ: 中央値 +0:16 / p75 +0:34 / p90 +1:50。
+店舗別 p90: CUB +0:38・TAFT +1:58・PAR +2:31。
+締切候補ごとの遅延表示件数: 00:00→61件 / 00:30→24件 / **01:00→17件** / 01:30→12件 / 02:00→6件。
+
+他項目の規則（p90切り上げ）なら 02:00 だが、それはログブック以前の緩さを固定する。
+01:00 は店舗側（Yusuke）が自分で挙げた上限。00:30 は30%が赤くなり教訓39側に寄る。
+⚠️ **ログブック運用が30日回ったら実測し直す。店舗別に分けるならそのとき。**
+
+### ⚠️ 私が以前出した数字の訂正
+「PAR 0:38 / TAFT 0:49 / CUB 1:56」は**母集団が揃っていなかった**。
+PAR は30日・closing のみ、CUB は60日・全shift。TAFT はどちらとも一致しない。
+**同一基準（60日・closing・店舗日ごと最初の1件）の中央値は TAFT 0:34 / CUB 0:46 / PAR 0:47** で、
+3店舗はほぼ同じ。**CUB は最も遅いのではなく最も早い。**
+この数字はスタッフ向けマニュアルにも載っていたので直した。
+
+### 🔴 未決（オーナー判断待ち）— 提出画面の既定日が `isoToday()`
+
+`src/app/admin/disposal/page.tsx:708` — `useState(todayStr)` → `isoToday()`（端末の暦日）。
+`businessToday()`（05:00境界）ではない。**リポジトリで `businessToday` を使っているのは
+cash-report / overtime-request / admin travel-path の3画面だけ。**
+
+いまは昼間に出す人が多いので実害が小さいが、**ログブック運用は「閉店後＝0時以降に入力」なので、
+既定値が翌日の日付になる。** 実際に直近60日で5件がそうなっている
+（PAR 9/22 00:42→report_date 9/22、PAR 9/20 01:03→9/20、TAFT 9/16 00:49、TAFT 9/19 00:34、CUB 9/14 00:07）。
+この場合、**前日は永久に「未提出」のまま**で、締切をどう動かしても直らない。
+
+変更案: `isoToday()` → `businessToday()`。影響は Disposal 提出画面の既定値のみ
+（利用者が日付を手で変えれば従来どおり）。admin/travel-path と同じく
+「前日扱いになっています」の注記も付けられる。
+**記録がどの営業日に属するかを変える変更なので、実装前に承認を求める。**
