@@ -1,7 +1,7 @@
 // src/app/admin/disposal/page.tsx
 "use client";
 
-import { isoToday, isoDate } from "@/lib/date";
+import { businessToday, isoToday, isoDate } from "@/lib/date";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prepareUpload } from "@/lib/image-compress";
@@ -134,7 +134,21 @@ function normaliseCategory(cat: string): string {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function todayStr(): string { return isoToday(); }
+/** The business day this entry belongs to, not the calendar day the phone is
+ *  showing. The logbook operation enters the whole day at closing, which is
+ *  after midnight: with the calendar date the default files the night against
+ *  the day that has only just started, and the day that was actually worked
+ *  stays "missing" for ever. No deadline can fix that — it is the wrong date,
+ *  not a late one.
+ *
+ *  Already visible in the last 60 days: five reports carry a report_date equal
+ *  to the calendar date they were filed on at 00:07–01:03 (PAR 9/20 and 9/22,
+ *  TAFT 9/16 and 9/19, CUB 9/14). Under the logbook that becomes most nights.
+ *
+ *  businessToday() is the same 05:00 rule the Cash Report and the Travel Path
+ *  use. It changes nothing during the day — the boundary sits five hours before
+ *  the earliest ordinary daytime entry. */
+function todayStr(): string { return businessToday(); }
 
 function formatDateTime(iso: string): string {
   if (!iso) return "";
@@ -957,6 +971,15 @@ export default function DisposalPage() {
                 <label className={`${T_LABEL} block mb-1.5`}>Date</label>
                 <input type="date" className={`${INPUT_CLASS} py-3 text-base`} value={reportDate}
                   onChange={(e) => setReportDate(e.target.value)} />
+                {/* After midnight the box shows yesterday on purpose, and a box
+                    that disagrees with the phone's clock without saying why is a
+                    box people "correct" back to the wrong day. */}
+                {reportDate === businessToday() && businessToday() !== isoToday() && (
+                  <p className="mt-1 text-[11px] leading-snug text-amber-300/80">
+                    It is past midnight, so this is filed under the day the shift
+                    belongs to. Change it if you are writing up a different day.
+                  </p>
+                )}
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Reported By</label>
