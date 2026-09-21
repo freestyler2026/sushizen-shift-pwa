@@ -524,7 +524,10 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
 
                   {/* 結果はここで書ける。別のタブに送ると、送られた先で
                       書かれないまま日をまたぐ。移動と取り消しだけが向こう。 */}
-                  {!iv.recorded && !justRecorded[iv.id] && (
+                  {/* 記録済みの行にも出す。押すと入っている評価が見える。
+                      隠していたので「何が入っているか」を確かめる手段が
+                      画面に無く、過去分を埋める作業では二重入力になる。 */}
+                  {!justRecorded[iv.id] && (
                     <OutcomeRecorder
                       scheduleId={iv.id}
                       open={outcomeFor === iv.id}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, PauseCircle, X, UserX } from "lucide-react";
 import { PRIMARY_BUTTON, SMALL_BUTTON, T_CAPTION, T_LABEL } from "@/lib/ui-tokens";
-import { reasonsFor } from "@/lib/hr-outcome";
+import { reasonsFor, reasonLabel, outcomeLabel, isNoShow } from "@/lib/hr-outcome";
 
 /**
  * "How did it go?" — the one place the interview result is written.
@@ -28,6 +28,15 @@ export const OUTCOMES = [
 ] as const;
 
 export type OutcomeReason = { key: string; label: string };
+
+/** The server sends the store's own clock (`…T21:51:06+08:00`). Reading it
+ *  with `new Date()` would redraw it in whatever timezone the reader's PC is
+ *  set to, which is how one incident showed two times four hours apart on the
+ *  same screen. Take the wall clock as sent. */
+function whenText(iso: string): string {
+  const s = String(iso || "");
+  return s.length >= 16 ? `${s.slice(0, 10)} at ${s.slice(11, 16)}` : s;
+}
 
 /** Fetched once for the page, not once per row. Twenty rows on a calendar day
  *  each asking for the same fixed list is twenty requests for one answer. */
@@ -55,6 +64,21 @@ async function loadReasons(): Promise<OutcomeReason[]> {
   return reasonInFlight;
 }
 
+/** What is already on file for this interview. */
+export type RecordedOutcome = {
+  recommendation: string;
+  reason: string;
+  notes: string;
+  interviewer: string;
+  recorded_at: string;
+  /** False = recorded against the applicant, with no booking named. Every one
+   *  of the 87 evaluations on file is like this: the board writes no
+   *  schedule_id. It is still this interview's answer, and saying "nothing
+   *  recorded" about it is how the same decision gets entered twice. */
+  tied: boolean;
+  total: number;
+};
+
 export default function OutcomeRecorder({
   scheduleId, open, onToggle, onRecorded,
 }: {
@@ -69,13 +93,33 @@ export default function OutcomeRecorder({
   const [pending, setPending] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [had, setHad] = useState<RecordedOutcome | null>(null);
+  // Three states, not two: still asking, asked and there is none, asked and
+  // it failed. "Nothing recorded" and "we could not find out" must not look
+  // the same on a screen whose whole job is to say what was recorded.
+  const [hadState, setHadState] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   useEffect(() => {
     if (!open) return;
     let alive = true;
     void loadReasons().then((r) => { if (alive) setReasons(r); });
+    setHadState("loading");
+    void (async () => {
+      try {
+        const res = await fetch(`/api/admin/hr/interviews/${scheduleId}/outcome`,
+                                { cache: "no-store" });
+        if (!alive) return;
+        if (!res.ok) { setHadState("error"); return; }
+        const j = await res.json();
+        if (!alive) return;
+        setHad(j.outcome || null);
+        setHadState("done");
+      } catch {
+        if (alive) setHadState("error");
+      }
+    })();
     return () => { alive = false; };
-  }, [open]);
+  }, [open, scheduleId]);
 
   async function record(outcome: string, reasonKey = "") {
     if (saving) return;
@@ -122,6 +166,47 @@ export default function OutcomeRecorder({
         <p className={T_LABEL}>How did it go?</p>
         <button className={SMALL_BUTTON} onClick={onToggle}>Close</button>
       </div>
+
+      {/* 既に入っているものを、書く欄より先に出す。無いことを確かめてから
+          書くのと、入っていることに気づかず上書きするのは別の作業。 */}
+      {hadState === "loading" && (
+        <p className={`${T_CAPTION} mb-2`}>Checking what is already on file…</p>
+      )}
+      {hadState === "error" && (
+        <p className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-sm text-amber-200">
+          Could not check whether this one already has an outcome. It may
+          already be answered — close this and open it again before recording.
+        </p>
+      )}
+      {hadState === "done" && had && (
+        <div className="mb-3 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.07] p-3">
+          <p className={`${T_LABEL} mb-1`}>Already recorded</p>
+          <p className="text-sm text-zinc-100">
+            <span className={isNoShow(had.reason) ? "font-semibold text-amber-200" : "font-semibold"}>
+              {outcomeLabel(had.recommendation, had.reason)}
+            </span>
+            {had.reason && <span className="text-zinc-300"> — {reasonLabel(had.reason)}</span>}
+          </p>
+          {had.notes && (
+            <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-300">{had.notes}</p>
+          )}
+          <p className={`${T_CAPTION} mt-1`}>
+            {had.interviewer || "Somebody"} on {whenText(had.recorded_at)}
+            {!had.tied && " · recorded against the applicant, with no booking named"}
+            {had.total > 1 && ` · ${had.total} outcomes on file for them, this is the latest`}
+          </p>
+        </div>
+      )}
+
+      <p className={`${T_LABEL} mb-1`}>
+        {hadState === "done" && had ? "Record a different outcome" : "Record the outcome"}
+      </p>
+      {hadState === "done" && had && (
+        <p className={`${T_CAPTION} mb-2`}>
+          Only if the one above is wrong. It adds a new entry and moves the
+          applicant again — the old one stays on their history.
+        </p>
+      )}
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}

@@ -63,3 +63,34 @@ export function reasonLabel(key?: string | null): string {
 export function isNoShow(key?: string | null): boolean {
   return String(key ?? "").trim() === "no_show";
 }
+
+/** What a stored evaluation says, in the words the buttons use.
+ *
+ *  The database keeps the decision as a `recommendation`, which is not what
+ *  anybody pressed: "Not for this role" is stored as `no_hire`, and
+ *  "Did not turn up" as `not_assessed` with the reason `no_show`. Showing
+ *  somebody their own past decision in the column's vocabulary makes them
+ *  check whether it is the same thing they chose.
+ *
+ *  `reject` is not one of the four the code writes today -- it is older, and
+ *  four rows still carry it. An unmapped value falling through as a raw key
+ *  is how a real recorded outcome comes back looking like a bug.
+ */
+const OUTCOME_LABELS: Record<string, string> = {
+  hire: "Move to offer",
+  consider: "Hold — decide later",
+  no_hire: "Not for this role",
+  reject: "Not for this role",
+  not_assessed: "Closed without a decision",
+};
+
+export function outcomeLabel(recommendation?: string | null,
+                             reason?: string | null): string {
+  const k = String(recommendation ?? "").trim();
+  // A lapse is the only one whose reason changes what happened: everything
+  // else in that bucket is "we ran out of time", and this one is "they did
+  // not come", which is the distinction the no-show mark exists for.
+  if (k === "not_assessed" && isNoShow(reason)) return "Did not turn up";
+  if (!k) return "";
+  return OUTCOME_LABELS[k] || k.replace(/_/g, " ");
+}

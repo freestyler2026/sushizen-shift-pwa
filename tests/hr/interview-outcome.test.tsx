@@ -56,10 +56,19 @@ const REASONS = [
 
 let posted: { url: string; body: Record<string, unknown> }[] = [];
 
-function serve(outcomeStatus = 200, outcomeDetail = "") {
+function serve(outcomeStatus = 200, outcomeDetail = "",
+               existing: Record<string, unknown> | null = null) {
   posted = [];
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     const u = String(url);
+    // What is already on file for this interview. Read before the panel lets
+    // anybody write: every one of the 87 evaluations in production is tied to
+    // the applicant and not to a booking, so a panel that only looked at the
+    // booking said "nothing recorded" about 13 answered interviews.
+    if (init?.method !== "POST" && /\/interviews\/[^/]+\/outcome$/.test(u)) {
+      return Promise.resolve(new Response(JSON.stringify({ outcome: existing }),
+        { status: 200, headers: { "content-type": "application/json" } }));
+    }
     if (init?.method === "POST" && u.includes("/outcome")) {
       posted.push({ url: u, body: JSON.parse(String(init.body)) });
       return Promise.resolve(new Response(
@@ -161,5 +170,83 @@ describe("a refusal is shown where the button is", () => {
     // Next to the buttons, not in the page-level banner far above them.
     const panel = screen.getByPlaceholderText(/one line is enough/i).closest("div");
     expect(panel?.contains(msg)).toBe(true);
+  });
+});
+
+
+describe("what is already recorded, before anything is written", () => {
+  const ON_FILE = {
+    recommendation: "no_hire",
+    reason: "experience_short",
+    notes: "no experience in kitchen, all previous jobs were marketing",
+    interviewer: "Peter Villafuerte",
+    recorded_at: "2026-09-18T21:51:06+08:00",
+    tied: false,
+    total: 1,
+  };
+
+  it("shows the decision in the words the buttons use, with its reason", async () => {
+    serve(200, "", ON_FILE);
+    await openThePanel();
+    // Scoped to the block, because "Not for this role" is also a button: the
+    // point is that the past decision reads as that phrase and not as the
+    // column's own word, `no_hire`.
+    const block = (await screen.findByText(/already recorded/i)).parentElement!;
+    expect(block.textContent).toContain("Not for this role");
+    expect(block.textContent).toContain("Not enough experience");
+    expect(block.textContent).toContain("all previous jobs were marketing");
+    expect(block.textContent).not.toContain("no_hire");
+  });
+
+  it("says who and when in the store's clock, not the reader's", async () => {
+    serve(200, "", ON_FILE);
+    await openThePanel();
+    // 21:51 as sent. Passing it through new Date() would redraw it in the
+    // timezone of whichever PC is reading, which is how one screen once showed
+    // the same moment four hours apart.
+    await screen.findByText(/Peter Villafuerte on 2026-09-18 at 21:51/);
+  });
+
+  it("says when the outcome names no booking, because that is every one today",
+     async () => {
+    serve(200, "", ON_FILE);
+    await openThePanel();
+    await screen.findByText(/recorded against the applicant, with no booking named/i);
+  });
+
+  it("offers to write only as a correction once something is there", async () => {
+    serve(200, "", ON_FILE);
+    await openThePanel();
+    await screen.findByText(/record a different outcome/i);
+    expect(screen.getByText(/only if the one above is wrong/i)).toBeTruthy();
+  });
+
+  it("says nothing about a past outcome when there is none", async () => {
+    serve();
+    await openThePanel();
+    await screen.findByText(/record the outcome/i);
+    expect(screen.queryByText(/already recorded/i)).toBeNull();
+  });
+
+  it("does not let a failed lookup read as 'nothing recorded'", async () => {
+    serve();
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (init?.method !== "POST" && /\/interviews\/[^/]+\/outcome$/.test(u)) {
+        return Promise.resolve(new Response("nope", { status: 500 }));
+      }
+      if (u.includes("interview-outcome-reasons")) {
+        return Promise.resolve(new Response(JSON.stringify({ reasons: REASONS }),
+          { status: 200, headers: { "content-type": "application/json" } }));
+      }
+      if (u.includes("/interviews/upcoming")) {
+        return Promise.resolve(new Response(JSON.stringify({ rows: [ROW] }),
+          { status: 200, headers: { "content-type": "application/json" } }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ rows: [] }),
+        { status: 200, headers: { "content-type": "application/json" } }));
+    });
+    await openThePanel();
+    await screen.findByText(/could not check whether this one already has an outcome/i);
   });
 });

@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, CalendarPlus, Phone, MonitorSmartphone, Check, PauseCircle, X, UserX, CalendarSync, Trash2 } from "lucide-react";
+import { CalendarClock, CalendarPlus, Phone, MonitorSmartphone, CalendarSync, Trash2 } from "lucide-react";
 import {
-  GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS,
+  GLASS_CARD, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS,
   BADGE_WARNING, DANGER_BUTTON, T_CAPTION, T_LABEL, T_SECTION,
 } from "@/lib/ui-tokens";
 import { downloadIcs } from "@/lib/interview-ics";
-import { reasonsFor } from "@/lib/hr-outcome";
+import OutcomeRecorder from "@/components/hr/OutcomeRecorder";
 
 /**
  * What the interviewer opens on the day.
@@ -81,16 +81,11 @@ function groupByDay(slots: FreeSlot[]): [string, FreeSlot[]][] {
 }
 
 /** Written the way the interviewer will act, not the way it is stored. */
-// `no_show` is turned into a lapse by the server, which supplies its own
-// reason — so only hold and pass have to ask for one here.
-const OUTCOMES = [
-  { key: "proceed", label: "Move to offer", icon: Check, needsReason: false },
-  { key: "hold", label: "Hold — decide later", icon: PauseCircle, needsReason: true },
-  { key: "pass", label: "Not for this role", icon: X, needsReason: true },
-  { key: "no_show", label: "Did not turn up", icon: UserX, needsReason: false },
-] as const;
-
-type OutcomeReason = { key: string; label: string };
+// The outcome panel lives in OutcomeRecorder. It used to be copied here as
+// well, which is the shape the file's own header warns about: the copy in the
+// calendar and the copy here drifted, and only one of them learned to send a
+// reason. One component, both screens — and it is the component that knows how
+// to read back what is already recorded.
 
 
 /** One interview.
@@ -106,8 +101,7 @@ type OutcomeReason = { key: string; label: string };
  *  component declared in a render body remounts every time.
  */
 function Line({
-  row, openId, setOpenId, moveId, openMove, note, setNote, saving, record,
-  pending, setPending, outcomeErr, setOutcomeErr, reasons, done,
+  row, openId, setOpenId, moveId, openMove, onRecorded, done,
   freeSlots, slotsErr, moving, doMove, doCancel, reason, setReason,
 }: {
   row: Row;
@@ -115,15 +109,7 @@ function Line({
   setOpenId: (v: string) => void;
   moveId: string;
   openMove: (row: Row) => void;
-  note: string;
-  setNote: (v: string) => void;
-  saving: boolean;
-  record: (row: Row, outcome: string, reasonKey?: string) => void;
-  pending: string;
-  setPending: (v: string) => void;
-  outcomeErr: string;
-  setOutcomeErr: (v: string) => void;
-  reasons: OutcomeReason[];
+  onRecorded: (row: Row, label: string) => void;
   done: Record<string, string>;
   freeSlots: FreeSlot[] | null;
   slotsErr: string;
@@ -165,30 +151,30 @@ function Line({
               Add to my calendar
             </span>
           </button>
-          {row.recorded ? (
-            <span className={BADGE_SUCCESS}>Recorded</span>
-          ) : row.cancelled ? (
-            <span className={BADGE_WARNING}>Cancelled</span>
-          ) : (
+          {row.recorded && <span className={BADGE_SUCCESS}>Recorded</span>}
+          {row.cancelled && <span className={BADGE_WARNING}>Cancelled</span>}
+          {!row.cancelled && (
             <>
-              <button
-                className={SMALL_BUTTON}
-                onClick={() => {
-                  setOpenId(openId === row.id ? "" : row.id);
-                  setNote(""); setPending(""); setOutcomeErr("");
-                }}
-              >
-                {openId === row.id ? "Close" : "How did it go?"}
-              </button>
-              {/* Somebody rings to say they cannot make it. Before this there was
-                  nothing to press: the applicant could cancel their own slot,
-                  HR could not. */}
-              <button className={SMALL_BUTTON} onClick={() => openMove(row)}>
-                <span className="flex items-center gap-1.5">
-                  <CalendarSync className="h-4 w-4" />
-                  {moveId === row.id ? "Close" : "Move or cancel"}
-                </span>
-              </button>
+              {/* 記録済みでも出す。押すと入っている評価が見える。
+                  隠している間、何が入っているかを確かめる手段が画面に無く、
+                  過去分を埋める作業がそのまま二重入力になる。 */}
+              <OutcomeRecorder
+                scheduleId={row.id}
+                open={openId === row.id}
+                onToggle={() => setOpenId(openId === row.id ? "" : row.id)}
+                onRecorded={(label) => onRecorded(row, label)}
+              />
+              {!row.recorded && (
+                /* Somebody rings to say they cannot make it. Before this there
+                   was nothing to press: the applicant could cancel their own
+                   slot, HR could not. */
+                <button className={SMALL_BUTTON} onClick={() => openMove(row)}>
+                  <span className="flex items-center gap-1.5">
+                    <CalendarSync className="h-4 w-4" />
+                    {moveId === row.id ? "Close" : "Move or cancel"}
+                  </span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -203,87 +189,6 @@ function Line({
           <p className="border-t border-white/8 bg-emerald-500/8 px-4 py-2 text-sm text-emerald-200">
             {done[row.applicant_id]}
           </p>
-        )}
-
-        {openId === row.id && !row.recorded && (
-          <div className="border-t border-white/8 bg-white/[0.03] px-4 py-3">
-            <p className={`${T_LABEL} mb-2`}>How did it go?</p>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={2}
-              placeholder="One line is enough. Optional."
-              className="w-full rounded-lg border border-white/10 bg-black/30 p-2 text-sm text-zinc-200"
-            />
-            <div className="mt-2 flex flex-wrap gap-2">
-              {OUTCOMES.map((o) => (
-                <button
-                  key={o.key}
-                  className={
-                    pending === o.key
-                      ? `${SMALL_BUTTON} border-violet-400/60 bg-violet-500/20 text-violet-100`
-                      : o.key === "proceed" ? PRIMARY_BUTTON : SMALL_BUTTON
-                  }
-                  disabled={saving}
-                  onClick={() => {
-                    setOutcomeErr("");
-                    // Two of these need a reason before the server will take
-                    // them. Ask here rather than let the save be refused.
-                    if (o.needsReason) { setPending(pending === o.key ? "" : o.key); return; }
-                    setPending("");
-                    void record(row, o.key);
-                  }}
-                >
-                  <o.icon className="mr-1.5 inline h-4 w-4" />
-                  {o.label}
-                </button>
-              ))}
-            </div>
-
-            {pending && (
-              <div className="mt-3 rounded-lg border border-violet-400/25 bg-violet-500/5 p-3">
-                <p className={`${T_LABEL} mb-2`}>
-                  Why? — {OUTCOMES.find((o) => o.key === pending)?.label}
-                </p>
-                {reasons.length === 0 ? (
-                  <p className={T_CAPTION}>
-                    The reasons did not load. Press Refresh above and try again —
-                    this one cannot be saved without one.
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {reasonsFor(reasons, pending).map((r) => (
-                      <button
-                        key={r.key}
-                        className={SMALL_BUTTON}
-                        disabled={saving}
-                        onClick={() => void record(row, pending, r.key)}
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <p className={`${T_CAPTION} mt-2`}>
-                  One tap saves it. This is the question that gets asked weeks
-                  later, which is why it is not optional.
-                </p>
-              </div>
-            )}
-
-            {outcomeErr && (
-              <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-sm text-amber-200">
-                {outcomeErr}
-              </p>
-            )}
-
-            <p className={`${T_CAPTION} mt-2`}>
-              We do not ask who you are or what time it is — you are signed in and
-              the booking already says both. &quot;Did not turn up&quot; closes them
-              as rejected like any other close, but it is filed as a no-show
-              rather than a judgement, and the row says so afterwards.
-            </p>
-          </div>
         )}
 
         {moveId === row.id && !row.recorded && !row.cancelled && (
@@ -373,14 +278,9 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [openId, setOpenId] = useState<string>("");
-  const [note, setNote] = useState("");
-  const [saving, setSaving] = useState(false);
-  /** Outcome chosen but not saved yet, because it still needs a reason. */
-  const [pending, setPending] = useState<string>("");
-  /** Kept apart from `err`: a failed save and a failed list load shared one
-   *  banner, so refreshing wiped the refusal that explained the last press. */
-  const [outcomeErr, setOutcomeErr] = useState("");
-  const [reasons, setReasons] = useState<OutcomeReason[]>([]);
+  // ⚠️ 下書き・保存中・理由待ち・保存の失敗は OutcomeRecorder が持つ。
+  //    ここに置くと1文字ごとに一覧全体が再描画される（そしてかつて
+  //    フォーカスを失わせていたのがこの形）。
   // ⚠️ 鍵は **applicant_id**。日程変更は新しい枠を作るので、枠のIDで持つと
   //    再取得のあとに行のIDが変わり、「動かしました」が画面に出ない
   //    （実機で押して発覚。保存は成功しているのに何も言わない画面になる）。
@@ -439,17 +339,6 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void loadLate(); }, [loadLate]);
-
-  // The same list the board's outcome dialog uses. Asking for a reason without
-  // offering the reasons would just move the dead end one step later.
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res = await fetch("/api/admin/hr/interview-outcome-reasons", { cache: "no-store" });
-        if (res.ok) setReasons(((await res.json())?.reasons ?? []) as OutcomeReason[]);
-      } catch { /* the panel says so when the list is empty */ }
-    })();
-  }, []);
 
   // カレンダーで選んだ面接を開いた状態で見せる。**そこへ着いたのに探させない。**
   useEffect(() => {
@@ -555,46 +444,14 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
     }
   }
 
-  async function record(row: Row, outcome: string, reasonKey = "") {
-    if (saving) return;
-    setSaving(true);
-    setErr("");
-    setOutcomeErr("");
-    try {
-      const res = await fetch(`/api/admin/hr/interviews/${row.id}/outcome`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // `reason` was never sent. The server requires one for hold and pass,
-        // so both came back 400 every time, and the refusal was drawn in a
-        // banner at the top of a very long page where nobody saw it: from the
-        // desk it looked like the button did nothing.
-        body: JSON.stringify({ outcome, reason: reasonKey, notes: note.trim() }),
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        // A save that failed must not look like one that worked.
-        let msg = text;
-        try { msg = JSON.parse(text)?.detail || text; } catch { /* text/plain */ }
-        // Next to the buttons, not at the top of the page.
-        setOutcomeErr(String(msg).slice(0, 240));
-        return;
-      }
-      const label = OUTCOMES.find((o) => o.key === outcome)?.label || outcome;
-      setDone((p) => ({ ...p, [row.applicant_id]: `Recorded — ${label}` }));
-      setRows((p) => p.map((r) => (r.id === row.id ? { ...r, recorded: true } : r)));
-      // Leave it on screen with its result showing, the way `done` does for the
-      // rest -- a row that vanishes the moment you press the button gives you
-      // nowhere to notice you pressed the wrong one (lesson 56).
-      setLateRows((p) => p.map((r) => (r.id === row.id ? { ...r, recorded: true } : r)));
-      setOpenId("");
-      setNote("");
-      setPending("");
-      setOutcomeErr("");
-    } catch {
-      setOutcomeErr("Could not save. Nothing was recorded — try again.");
-    } finally {
-      setSaving(false);
-    }
+  /** The panel saved it. Mark the row and leave it on screen with its result
+   *  showing -- a row that vanishes the moment you press the button gives you
+   *  nowhere to notice you pressed the wrong one (lesson 56). */
+  function onRecorded(row: Row, label: string) {
+    setDone((p) => ({ ...p, [row.applicant_id]: `Recorded — ${label}` }));
+    setRows((p) => p.map((r) => (r.id === row.id ? { ...r, recorded: true } : r)));
+    setLateRows((p) => p.map((r) => (r.id === row.id ? { ...r, recorded: true } : r)));
+    setOpenId("");
   }
 
   const today = rows.filter((r) => r.is_today);
@@ -678,11 +535,7 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
               <Line row={r}
               openId={openId} setOpenId={setOpenId}
               moveId={moveId} openMove={openMove}
-              note={note} setNote={setNote}
-              saving={saving} record={(rw, o, rk) => void record(rw, o, rk)}
-              pending={pending} setPending={setPending}
-              outcomeErr={outcomeErr} setOutcomeErr={setOutcomeErr}
-              reasons={reasons} done={done}
+              onRecorded={onRecorded} done={done}
               freeSlots={freeSlots} slotsErr={slotsErr} moving={moving}
               doMove={(rw, sl) => void doMove(rw, sl)}
               doCancel={(rw) => void doCancel(rw)}
@@ -698,11 +551,7 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
           {today.map((r) => <Line key={r.id} row={r}
               openId={openId} setOpenId={setOpenId}
               moveId={moveId} openMove={openMove}
-              note={note} setNote={setNote}
-              saving={saving} record={(rw, o, rk) => void record(rw, o, rk)}
-              pending={pending} setPending={setPending}
-              outcomeErr={outcomeErr} setOutcomeErr={setOutcomeErr}
-              reasons={reasons} done={done}
+              onRecorded={onRecorded} done={done}
               freeSlots={freeSlots} slotsErr={slotsErr} moving={moving}
               doMove={(rw, sl) => void doMove(rw, sl)}
               doCancel={(rw) => void doCancel(rw)}
@@ -718,11 +567,7 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
               <Line row={r}
               openId={openId} setOpenId={setOpenId}
               moveId={moveId} openMove={openMove}
-              note={note} setNote={setNote}
-              saving={saving} record={(rw, o, rk) => void record(rw, o, rk)}
-              pending={pending} setPending={setPending}
-              outcomeErr={outcomeErr} setOutcomeErr={setOutcomeErr}
-              reasons={reasons} done={done}
+              onRecorded={onRecorded} done={done}
               freeSlots={freeSlots} slotsErr={slotsErr} moving={moving}
               doMove={(rw, sl) => void doMove(rw, sl)}
               doCancel={(rw) => void doCancel(rw)}
@@ -740,11 +585,7 @@ export default function InterviewDay({ focusId = "", onFocusHandled }: {
               <Line row={r}
               openId={openId} setOpenId={setOpenId}
               moveId={moveId} openMove={openMove}
-              note={note} setNote={setNote}
-              saving={saving} record={(rw, o, rk) => void record(rw, o, rk)}
-              pending={pending} setPending={setPending}
-              outcomeErr={outcomeErr} setOutcomeErr={setOutcomeErr}
-              reasons={reasons} done={done}
+              onRecorded={onRecorded} done={done}
               freeSlots={freeSlots} slotsErr={slotsErr} moving={moving}
               doMove={(rw, sl) => void doMove(rw, sl)}
               doCancel={(rw) => void doCancel(rw)}
