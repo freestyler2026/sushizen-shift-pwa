@@ -820,6 +820,35 @@ Approve 0h40m as asked</pre>
         (3) <strong>Your own request</strong> — somebody else sets it.</span>
       </div>
     </div>
+    <div class="tip">
+      <span class="tip-icon">🌙</span>
+      <div>
+        <span class="ja"><strong>0時を回った申請は、どちらの夜の勤務かを打刻で決めています。</strong>
+        遅番の申請は「01:00–02:00」のように小さい時刻で書かれることも、
+        ロスターと同じ「26.00–26.87」で書かれることもあり、しかも申請日が
+        シフトの日か翌日かも人によって違います。<strong>ロスターだけでは区別できません</strong>
+        ── 前日も当日も24時を越えるからです。システムは申請の時間帯を両方の夜に
+        当てはめ、<strong>実際の打刻が覆っている方</strong>（シフトで既に払っている分は除く）を採り、
+        画面に「これらの時間は 2026-09-18 のシフトの延長です」と書きます。
+        <strong>その表示と、下に並ぶシフト・打刻は必ず同じ夜のものです。</strong><br>
+        2026-09-21 まではここが食い違っていました。画面は正しい夜を名指ししながら、
+        比較だけ申請日の勤務を読んでいたため、1時間の正しい申請に対して
+        「0h12m を承認」が主ボタンに出ていました。該当は全239件中7件で、
+        <strong>過小に出たものと過大に出たものの両方</strong>がありました。</span>
+        <span class="en"><strong>A claim that lands after midnight is placed on a night by the punches, not by its date.</strong>
+        Closing staff write these hours two ways — small (<code>01:00–02:00</code>) or in the
+        roster's own convention (<code>26.00–26.87</code>) — and they date the request to
+        the shift's day or the day after. <strong>The roster cannot separate those</strong>: both
+        candidate nights run past midnight. The claim's hours are laid over each night and
+        the one the punches actually cover is kept, after taking out time the roster already
+        paid for. The row then says <span class="ui">these hours extend the 2026-09-18 shift</span>,
+        and <strong>the shift and punches shown underneath are always that same night.</strong><br>
+        Until 2026-09-21 they were not. The screen named the right night and measured the
+        request's own date, so a correct one-hour claim was offered for approval at
+        <strong>twelve minutes</strong>. Seven of 239 requests were affected, <strong>in both
+        directions</strong>.</span>
+      </div>
+    </div>
     <div class="tip info">
       <span class="tip-icon">🔒</span>
       <div>
