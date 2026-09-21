@@ -399,8 +399,8 @@
     残していませんでした。それを直しました。以下はすべて、入力が増えるのではなく
     減る変更です。
   </p>
-  <p class="meta" lang="en">For HR staff and the HR Manager · Updated 18 September 2026</p>
-  <p class="meta" lang="ja" hidden>HRスタッフ・HRマネージャー向け ／ 2026年9月18日 更新</p>
+  <p class="meta" lang="en">For HR staff and the HR Manager · Updated 21 September 2026</p>
+  <p class="meta" lang="ja" hidden>HRスタッフ・HRマネージャー向け ／ 2026年9月21日 更新</p>
 </header>
 
 <section>
@@ -538,10 +538,12 @@
       <div class="now">
         <h4 lang="en">Now</h4>
         <h4 lang="ja" hidden>これから</h4>
-        <span lang="en"><span class="ui">Proceed to offer</span> / <span class="ui">Hold</span> /
-        <span class="ui">Not proceeding</span>, plus one reason.</span>
-        <span lang="ja" hidden><span class="ui">Proceed to offer</span> ／ <span class="ui">Hold</span> ／
-        <span class="ui">Not proceeding</span> のいずれかと、理由を1つ選ぶだけです。</span>
+        <span lang="en"><span class="ui">Move to offer</span> / <span class="ui">Hold — decide later</span> /
+        <span class="ui">Not for this role</span> / <span class="ui">Did not turn up</span>,
+        plus one reason for the middle two.</span>
+        <span lang="ja" hidden><span class="ui">Move to offer</span> ／ <span class="ui">Hold — decide later</span> ／
+        <span class="ui">Not for this role</span> ／ <span class="ui">Did not turn up</span> から1つ選び、
+        中2つだけ理由を1つ選びます。</span>
       </div>
     </div>
     <p class="takeaway" lang="en">Your name and today’s date are filled in for you. You are
@@ -1445,31 +1447,47 @@ open one of these, then press send yourself.
     <div>
       <h3 lang="en">After an interview</h3>
       <h3 lang="ja" hidden>面接が終わったら</h3>
-      <p lang="en">On the candidate’s card, press <span class="ui">Record outcome</span>
-        (or <span class="ui">Decide</span> if they were already interviewed).</p>
-      <p lang="ja" hidden>候補者のカードで <span class="ui">Record outcome</span>
-        （面接済みの人は <span class="ui">Decide</span>）を押します。</p>
-      <div class="screen">How did the interview go?
+      <p lang="en">Two places, same panel. On the candidate’s card press
+        <span class="ui">Record outcome</span> (or <span class="ui">Decide</span> if they
+        were already interviewed) — or, if you are working from
+        <span class="ui">Calendar</span> with the day open in front of you, press
+        <span class="ui">How did it go?</span> on that person’s row, without leaving
+        the screen you are calling from.</p>
+      <p lang="ja" hidden>入口は2つで、中身は同じです。候補者のカードで
+        <span class="ui">Record outcome</span>（面接済みの人は <span class="ui">Decide</span>）を押すか、
+        <span class="ui">Calendar</span> で日を開いて電話しているなら、その人の行の
+        <span class="ui">How did it go?</span> を押します。画面を移らなくて済みます。</p>
+      <div class="screen">How did it go?
 
-  [ Proceed to offer ]   moves them to Offer Sent
-  [ Hold             ]   stays in Interviewed, reason on record
-  [ Not proceeding   ]   moves them to Rejected
+  [ Move to offer       ]   moves them to Offer Sent
+  [ Hold — decide later ]   stays in Interviewed, reason on record
+  [ Not for this role    ]   moves them to Rejected
+  [ Did not turn up      ]   closes them, filed as a no-show
 
-Reason *
-  (Not enough experience) (Salary too high)
-  (Failed the trade test) (Did not attend)
-  (Cannot work the schedule) (Another candidate is stronger)
-  (Withdrew / took another job) (Other)</div>
+Reason *   (for Hold and Not for this role)
+  (Not enough experience) (Pay expectations)
+  (Availability) (Took someone else)
+  (Never answered) (They withdrew) (Other)</div>
       <ul lang="en">
-        <li><strong>Proceed to offer</strong> — no reason needed.</li>
-        <li><strong>Hold</strong> and <strong>Not proceeding</strong> — please pick
-          one reason. These are the two that get asked about weeks later.</li>
+        <li><strong>Move to offer</strong> — no reason needed.</li>
+        <li><strong>Hold — decide later</strong> and <strong>Not for this role</strong>
+          — please pick one reason. These are the two that get asked about weeks
+          later.</li>
+        <li><strong>Did not turn up</strong> — no reason needed, and nothing is
+          recorded as a judgement of them. They are closed like any other rejection,
+          but the <span class="ui">Closed</span> list marks that row
+          <span class="ui">No-show</span> in amber — so weeks later you can still tell
+          “we decided against them” from “they never came”.</li>
         <li><strong>Other</strong> — add a short note saying what happened.</li>
       </ul>
       <ul lang="ja" hidden>
-        <li><strong>Proceed to offer</strong> ── 理由は不要です。</li>
-        <li><strong>Hold</strong> と <strong>Not proceeding</strong> ── 理由を1つ選んでください。
+        <li><strong>Move to offer</strong> ── 理由は不要です。</li>
+        <li><strong>Hold — decide later</strong> と <strong>Not for this role</strong> ── 理由を1つ選んでください。
           数週間後に聞かれるのは、この2つです。</li>
+        <li><strong>Did not turn up</strong> ── 理由は不要で、本人への評価は何も残りません。
+          他の不採用と同じくクローズされますが、<span class="ui">Closed</span> 一覧ではその行に
+          <span class="ui">No-show</span> が琥珀色で付きます。あとから「当方が見送った」と
+          「来なかった」を区別できます。</li>
         <li><strong>Other</strong> ── 何があったかを短くメモしてください。</li>
       </ul>
       <p lang="en">That single action saves the interview record, your name, the date, the
@@ -1715,8 +1733,9 @@ Kitchen Asst     0/2      —           —           —       No candidates</d
       </li>
       <li>
         <strong>Use the outcome buttons from now on.</strong> Every interview from
-        today should end with Proceed, Hold or Not proceeding, and a reason for the
-        last two.
+        today should end with Move to offer, Hold, Not for this role or Did not
+        turn up, and a reason for the middle two. You can press them from
+        <span class="ui">Calendar</span> without leaving the day you are calling from.
       </li>
       <li>
         <strong>Post the application link where you post jobs.</strong>
@@ -1737,7 +1756,9 @@ Kitchen Asst     0/2      —           —           —       No candidates</d
       </li>
       <li>
         <strong>今後は結果ボタンを使ってください。</strong>本日以降の面接はすべて
-        Proceed／Hold／Not proceeding のいずれかで終え、後ろ2つには理由を付けてください。
+        Move to offer／Hold — decide later／Not for this role／Did not turn up の
+        いずれかで終え、中2つには理由を付けてください。電話をかけている
+        <span class="ui">Calendar</span> の画面から、そのまま押せます。
       </li>
       <li>
         <strong>求人を出す場所に、応募フォームのリンクを掲載してください。</strong>
@@ -1812,9 +1833,9 @@ Kitchen Asst     0/2      —           —           —       No candidates</d
 
 <footer>
   <span lang="en">Sushi ZEN Workforce OS · Recruitment · This guide describes the page as
-  deployed on 18 September 2026.</span>
+  deployed on 21 September 2026.</span>
   <span lang="ja" hidden>Sushi ZEN Workforce OS ／ Recruitment ／
-  2026年9月18日時点のページについての説明です。</span>
+  2026年9月21日時点のページについての説明です。</span>
 </footer>
 
 </div>
