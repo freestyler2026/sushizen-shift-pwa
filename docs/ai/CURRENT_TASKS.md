@@ -29884,6 +29884,43 @@ Pukar K C の 9/18 は理由文が「I extended my duty by **1 hour** as overtim
 - `tests/admin/ck-par-level-picker-inactive.test.tsx` 5件
 - 本番ブラウザで Summit / Coke Mismo 両方確認済み（Create は押していない）
 
+### ⚠️ 上の記述は不完全だった（2026-09-22 訂正）
+
+「カタログに登録すれば直る」は誤り。**ドリンクが発注に載らない本当の理由は単位**だった。
+棚卸しは BTL、par は CASE で、`_stock_for` は**単位を一切見ずに引き算していた**。
+Coke Mismo は par 3 CASE − 12 BTL = 「−9、OK」と表示され、実際は1箱しかなく2箱不足。
+6品とも par リストに載っており仕入先も Restaurant Depot で登録済みだったので、
+Add Item を使う必要すら本来なかった。
+
+**マニラ183行のうち22行が違う単位どうしを引き算していた**（両方向に誤る）:
+`Cayenne Pepper` は残り 1.59g で「OK」、`SALT` は 1 SACK − 25 KG =「−24」、
+`NUTMEG POWDER` は 0.3 KG − 1000 g =「−999.7」。
+
+**修正済み（2026-09-22 デプロイ）**
+- `_get_latest_ck_stock` が単位を一緒に返す / `_stock_for` は dict を返し
+  `ok` / `converted` / `not_counted` / `unit_mismatch` を区別する
+- 換算は質量・体積と、行自身の `unit_size`（「1 CASE = 12 BTL」）だけ。
+  **1:1 を仮定しない。** 橋が無ければ数字を出さない
+- **在庫0だけは単位を問わず正確**（空の棚はどの単位でも空）。
+  これで `LEMON`(0 PC vs par KG) と `Sprite Mismo`(0 BTL vs par CASE) は発注に残る。
+  この2行を守るために入れた条件で、mismatch は 22→20 になった
+- `POR` / `Portion` / `PTN` を `_UNIT_SAME` に追加。**528行で検証し、価格・カタログ単位・
+  換算係数・order step のいずれも変化なし**（POR 4行はカタログに存在しないため）。
+  これを入れないと ck_produced 4行が誤検知になり、生産計画が壊れていた
+- `_stock_for` の呼び出し4箇所すべてを更新。**保留行はどこでも黙って消さない** —
+  Excel 2種は「12 BTL / unit ≠ CASE」と注記つきで残り、発注モーダルは件数と品名を出し、
+  行自身が「+ how many BTL in 1 CASE?」を出す
+- `push-to-plan` は保留分を `held_back_unit_mismatch` で返す
+- テスト: `tests/test_ck_par_stock_units.py` 29件 / `tests/admin/ck-par-level-stock-units.test.tsx` 7件
+
+**本番で確認**: ck_produced の mismatch は 0（生産計画は不変、POR 4行の to_produce も同値）。
+ドバイは finalized な CK 棚卸しが1件も無いので全行 `not_counted` のまま不変。
+`Cayenne Pepper` は正しく 0.498 KG 不足として発注に出るようになった。
+
+**⚠️ 単位の申告が要る20行**（画面に出ている）。うち4行は今まで数量を出していた:
+`Cheese Spread`(4) `Chicken Stock Powder`(2) `Food Color Red`(7) `Food Color Yellow`(5)。
+**申告が入るまでこの4行は自動発注に載らない。**
+
 **未了（オーナー判断待ち）**: Restaurant Depot のカタログにドリンク9品を登録する。
 直近の実績価格は Coke Mismo 199.95 / Sprite Mismo 199.95 / Mountain Dew 199.00 /
 Royal 199.95 / Pineapple Juice ACE 900.00（6/22 は 717.20、要確認）/
