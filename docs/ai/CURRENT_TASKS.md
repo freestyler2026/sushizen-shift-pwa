@@ -29861,3 +29861,33 @@ Pukar K C の 9/18 は理由文が「I extended my duty by **1 hour** as overtim
 - clock-window を4名分で実測（打刻なしの日が空を返すことを含む）
 - ⚠️ **フルスイートで1回だけ1件failした**（その後4回は2,659件green）。
   テスト名を取り損ねたので特定できていない。flakeの可能性が高いが未確認。
+
+## 2026-09-22 — CK Par Level「Add Item にドリンクが出ない」
+
+**報告**: Create Direct Order → Add Item で Summit (Water) / Coke Mismo が検索に出ない。
+カタログには入っている。
+
+**原因（データ）**: 2026-09-18 16:38(マニラ) に Yuri Yamada が Catalog ページの
+「Deactivate supplier」で **`SUY Sing (Drink)` を一括無効化**（9行、PIN承認済み・監査ログあり）。
+この9行が、マニラのソフトドリンク全部の**唯一の supplier 向けカタログ行**だった。
+実際の仕入先は既に **Restaurant Depot**（180日で305行・最終 9/22）に移っているが、
+**Restaurant Depot のカタログにドリンクが1品も無い**（23行あるが全部別品目）ので、
+無効化の代わりになる行が存在しない。よって picker は正しく0件を返していた。
+
+**原因（画面の不具合・修正済み）**: 0件のとき画面は「カタログに無い」とだけ言い、
+唯一の出口が "Register it in Cost Calculation" だった。**登録済みの品の二重登録を勧めていた**。
+- `app/ck_par_level_api.py` の `catalog-items` が `inactive_items` を返す
+  （supplier 向けで無効・かつ生きた行が他に無い名前だけ。マニラ73件）
+- `src/app/admin/ck/par-levels/page.tsx` — 検索語があるときだけ、無効行を
+  グレーで最大8件表示。**選択不可**（無効化は Procurement の判断で、発注画面から覆さない）。
+  「二重登録するな／Catalog ページで決める」＋ Catalog へのリンク
+- `tests/admin/ck-par-level-picker-inactive.test.tsx` 5件
+- 本番ブラウザで Summit / Coke Mismo 両方確認済み（Create は押していない）
+
+**未了（オーナー判断待ち）**: Restaurant Depot のカタログにドリンク9品を登録する。
+直近の実績価格は Coke Mismo 199.95 / Sprite Mismo 199.95 / Mountain Dew 199.00 /
+Royal 199.95 / Pineapple Juice ACE 900.00（6/22 は 717.20、要確認）/
+Water Summit 240.00（別表記 `Water Summit 500ML` の行から）。
+Red Hourse・San Miguel Light・Pilsen は Restaurant Depot の購入実績が0件。
+登録するまで、ドリンクは自由入力で発注され続け、実際 9/7 の MAN-PR-202609-0042 は
+ドリンク6行すべて ₱0.00 で通っている。
