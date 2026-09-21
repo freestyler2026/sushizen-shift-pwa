@@ -13,6 +13,7 @@ import {
   SECONDARY_BUTTON,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import ModalScrim from "@/components/ModalScrim";
 import { useUnsavedGuard } from "@/lib/unsavedGuard";
 import {
   countDayOffConflicts,
@@ -642,6 +643,14 @@ export default function ManualShiftPage() {
   // the only thing a reload can lose is what has not reached the server yet.
   useUnsavedGuard("manual-shift", outboxSize > 0);
   const [removedStaff, setRemovedStaff] = useState<string[]>([]);
+  // Picking somebody to add to the grid. `here` marks this branch's own staff,
+  // which is where the list starts; the rest of the city follows, because
+  // people cover at branches that are not their own.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerNames, setPickerNames] = useState<{ name: string; here: boolean }[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState("");
   // Taken off this branch's grid and kept that way. removedStaff above is the
   // in-page copy, wiped on every week change; this is the stored one.
   const [hiddenStaff, setHiddenStaff] = useState<{ staff_name: string; hidden_by: string }[]>([]);
@@ -1410,10 +1419,69 @@ export default function ManualShiftPage() {
     setGridData((prev) => ({ ...prev, [staffName]: prev[staffName] ?? {} }));
   }
 
+  /**
+   * Add somebody to the grid, from the staff register rather than by typing.
+   *
+   * This used to be `prompt("Enter staff name:")`. A name typed here becomes
+   * the key the published row is written under, and **a shift filed under a
+   * name the register does not hold reaches nobody** -- My Shift looks the
+   * person up by the name on their account. Over the last 120 days fifteen
+   * such names carry 175 published rows: `Bibek B K` against a register that
+   * says `Bibek BK` (23 rows, still in the future), `Aris John De Ocampo`
+   * against `Aris Jhon De Ocampo`, `Joanna Mae D. Saraos`, `Joven R, Bermejo
+   * Jr.`, and a row simply called `NEW`.
+   *
+   * There is no free-text way in any more. Somebody who is not in the register
+   * cannot see a shift, cannot clock in and is not paid from it, so a row for
+   * them is not a schedule -- it is a note nobody reads. The dialog links to
+   * where they get registered instead.
+   */
   function addStaffRow() {
-    const name = prompt("Enter staff name:");
-    if (!name?.trim()) return;
+    setPickerOpen(true);
+    setPickerQuery("");
+    void loadPickerNames();
+  }
+
+  const loadPickerNames = useCallback(async () => {
+    setPickerLoading(true);
+    setPickerError("");
+    try {
+      // Two calls: this branch, then the whole city. People are rostered at a
+      // branch that is not their own -- five of them last month -- so the list
+      // cannot stop at the home branch, but that is the half worth showing
+      // first.
+      // `exclude_role=HQ` because the grid's own load excludes them: HQ is not
+      // rostered at a branch, and a picker that offers who the grid deliberately
+      // left out is a second rule.
+      const q = `city=${city}&status=ACTIVE&exclude_role=HQ&limit=2000`;
+      const [here, all] = await Promise.all([
+        apiFetch<{ names?: string[] }>(
+          `/api/admin/staff_master/names?${q}&home_branch=${encodeURIComponent(branchCode)}`),
+        apiFetch<{ names?: string[] }>(`/api/admin/staff_master/names?${q}`),
+      ]);
+      const mine = new Set(here.names ?? []);
+      const rows = (all.names ?? []).map((nm) => ({ name: nm, here: mine.has(nm) }));
+      rows.sort((a, b) => (a.here === b.here
+        ? a.name.localeCompare(b.name)
+        : (a.here ? -1 : 1)));
+      setPickerNames(rows);
+    } catch (e: unknown) {
+      // A dialog that offers nothing and says nothing is the worst of it.
+      setPickerError(e instanceof Error ? e.message : String(e));
+      setPickerNames([]);
+    } finally {
+      setPickerLoading(false);
+    }
+  }, [city, branchCode]);
+
+  function chooseStaffForGrid(name: string) {
     const n = name.trim();
+    if (!n) return;
+    setPickerOpen(false);
+    // Hidden on the server, not merely absent from this page. Adding the row
+    // back without clearing that leaves it looking present and gone again on
+    // the next load.
+    if (removedStaff.includes(n)) { void restoreStaffToGrid(n); return; }
     if (!staffList.includes(n)) setStaffList((prev) => [...prev, n].sort((a, b) => a.localeCompare(b)));
     setGridData((prev) => ({ ...prev, [n]: prev[n] ?? {} }));
   }
@@ -1959,6 +2027,102 @@ export default function ManualShiftPage() {
         {/* What happened, and the two things anyone wants next: open this file, or
             go and look at the folder. Shown after the export rather than before,
             so the answer is about a file that exists. */}
+        {/* Who to add to the week. The register is the only way in — a name
+            typed by hand becomes a row nobody can see. */}
+        {pickerOpen && (
+          <ModalScrim className="bg-black/40">
+            <div className="mx-auto my-4 w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+                 role="dialog" aria-modal="true" aria-labelledby="add-staff-title">
+              <h2 id="add-staff-title" className="text-lg font-semibold text-gray-900">
+                Add staff to this week
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                {labelOf(city, branchCode)} · week of {weekStart}
+              </p>
+
+              <input
+                autoFocus
+                type="text"
+                value={pickerQuery}
+                onChange={(e) => setPickerQuery(e.target.value)}
+                placeholder="Search a name…"
+                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-base text-gray-900 outline-none focus:border-indigo-400"
+              />
+
+              {pickerLoading && <p className="mt-3 text-sm text-gray-500">Loading the staff list…</p>}
+              {pickerError && (
+                <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                  <p className="text-xs text-rose-700">{pickerError}</p>
+                  <button type="button" onClick={() => void loadPickerNames()}
+                          className="mt-1 text-xs font-semibold text-rose-700 underline">
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {!pickerLoading && !pickerError && (() => {
+                const q = pickerQuery.trim().toLowerCase();
+                const shown = pickerNames.filter((r) => !q || r.name.toLowerCase().includes(q));
+                if (!shown.length) {
+                  return (
+                    <p className="mt-4 text-sm text-gray-600">
+                      {pickerNames.length
+                        ? <>Nobody in {city === "manila" ? "Manila" : "Dubai"} matches “{pickerQuery.trim()}”.</>
+                        : <>No active staff found for {city === "manila" ? "Manila" : "Dubai"}.</>}
+                    </p>
+                  );
+                }
+                return (
+                  <div className="mt-3 max-h-80 overflow-y-auto overscroll-contain rounded-xl border border-gray-100">
+                    {shown.map((r, i) => {
+                      const onGrid = staffList.includes(r.name) && !removedStaff.includes(r.name);
+                      const hidden = removedStaff.includes(r.name);
+                      const prevHere = i > 0 ? shown[i - 1].here : null;
+                      return (
+                        <div key={r.name}>
+                          {(i === 0 || prevHere !== r.here) && (
+                            <p className="bg-gray-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                              {r.here ? labelOf(city, branchCode) : "Other branches"}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            disabled={onGrid}
+                            onClick={() => chooseStaffForGrid(r.name)}
+                            className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition ${
+                              onGrid ? "cursor-default text-gray-300"
+                                     : "text-gray-800 hover:bg-indigo-50"}`}
+                          >
+                            <span>{r.name}</span>
+                            {onGrid && <span className="text-[11px] text-gray-400">already on the grid</span>}
+                            {hidden && <span className="text-[11px] text-amber-600">hidden — put back</span>}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              <p className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                Somebody missing? They have to be on the{" "}
+                <Link href="/admin/staff" className="font-semibold text-violet-700 underline">
+                  Staff page
+                </Link>{" "}
+                first. A shift filed under a name the register does not hold does not
+                reach the person — it will not show in their My Shift and they cannot
+                clock in against it.
+              </p>
+
+              <div className="mt-3 flex justify-end">
+                <button type="button" onClick={() => setPickerOpen(false)} className={SECONDARY_BUTTON}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </ModalScrim>
+        )}
+
         {showExportDone && exportResult && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
                role="dialog" aria-modal="true" aria-labelledby="export-done-title">
@@ -2627,7 +2791,7 @@ export default function ManualShiftPage() {
               </div>
               <div className="border-t border-gray-100 px-4 py-3">
                 <button type="button" onClick={addStaffRow} className="text-xs text-gray-400 hover:text-indigo-500 transition">
-                  + Add staff row manually
+                  + Add staff to this week
                 </button>
               </div>
             </div>
