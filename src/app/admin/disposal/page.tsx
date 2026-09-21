@@ -1046,9 +1046,10 @@ export default function DisposalPage() {
               <span>
                 <span className="block text-base font-semibold text-white">No disposal today</span>
                 <span className="block text-sm text-zinc-400">
-                  Tick this only after checking the disposal logbook and finding no entries
-                  for the whole day. This records that {branchCode} had zero disposal on{" "}
-                  {reportDate} — it is not the same as skipping the report.
+                  Tick this only after checking the day&rsquo;s disposal log and finding
+                  nothing for the whole day &mdash; not from memory. This records that{" "}
+                  {branchCode} had zero disposal on {reportDate}; it is not the same as
+                  skipping the report.
                 </span>
               </span>
             </label>
