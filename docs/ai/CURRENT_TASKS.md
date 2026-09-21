@@ -1,5 +1,36 @@
 # CURRENT_TASKS.md
 
+## 2026-09-21 — 記録済みの評価が「How did it go?」から見えるようにした
+
+**測った事実**: `hr_interview_evaluations` 87件は**全件 `schedule_id` が NULL**。
+盤面の `/applicants/{id}/interview-outcome` が渡さないため。よって
+`recorded = EXISTS(e.schedule_id = s.id)` は**一度も真になったことがなく**、
+終わった面接40件が例外なく「No outcome yet」と表示されていた。うち13件は
+面接当日か翌日に結果が入っている（ユーザーのスクショの Vanessa Sandig 本人が
+`no_hire / experience_short`）。過去分を埋める作業なら3件に1件が二重入力になる。
+
+- 判定を `_RECORDED_SQL`（`app/db_interview_booking.py`）に1つだけ置き、
+  **schedule_id で結ばれているか、または面接開始時刻以降に記録された応募者の評価**とした。
+  カレンダー・当日一覧・outstanding の3か所が同じものを読む。
+  面接開始前の評価は採らない（前の回の判断を今回のものとして出さないため。実データ0件）。
+- `GET /api/admin/hr/interviews/{id}/outcome` を追加。判断・理由・メモ・担当者・
+  記録時刻（店舗の時計）・`tied`（予約に結ばれているか）・その応募者の評価件数を返す。
+- `OutcomeRecorder` は開くと**まず入っているものを出す**。取得失敗は
+  「確認できなかった」と書く（「入っていない」と同じ見た目にしない）。
+- **Interviews タブは同じパネルをコピーで持っていた**（OutcomeRecorder の冒頭が
+  「もう1つは無い」と書いていた当のもの）。共有コンポーネントに寄せて81行削除。
+  メモの state がパネル内に入ったので、打鍵で一覧全体が再描画されなくなった。
+- `outcomeLabel()` を `src/lib/hr-outcome.ts` に追加。`no_hire` ではなく
+  ボタンの言葉で出す。旧語彙の `reject`（4件）も対応表に入れてある。
+
+実機確認: Vanessa Sandig の行が `Recorded` になり、押すと
+「Already recorded / Not for this role — Not enough experience / メモ /
+Peter Villafuerte on 2026-09-18 at 21:51 · recorded against the applicant,
+with no booking named」。Interviews タブでも入力・理由チップを実際に押して確認
+（本物の応募者なので保存はしていない — POST は飛んでいないことをネットワークで確認）。
+
+コミット: `1736284a`（フロント）/ backend は Heroku 済み
+
 ## 2026-09-21 — 面接結果の記録を Calendar から / no-show を見えるように
 
 - **Calendar の日別ビューから結果を記録できるようにした**（`src/components/hr/OutcomeRecorder.tsx` を新設し、
