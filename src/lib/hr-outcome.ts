@@ -31,3 +31,35 @@ export function reasonsFor<T extends { key: string }>(
   return all.filter((r) =>
     outcome === "lapse" ? LAPSE_REASONS.has(r.key) : !LAPSE_ONLY.has(r.key));
 }
+
+/** What a stored reason key says in words.
+ *
+ *  The keys are written by the server and read by people. `no_show` sat on two
+ *  applicants for a week and appeared on no screen: the column existed, the
+ *  value was correct, and nothing rendered it -- so "did they turn up?" had no
+ *  answer anywhere even though it had been recorded.
+ */
+const REASON_LABELS: Record<string, string> = {
+  no_show: "No-show",
+  unreachable: "Could not reach them",
+  lapsed: "We let it lapse",
+  withdrew: "They withdrew",
+  experience_short: "Not enough experience",
+  salary_gap: "Pay expectations",
+  better_candidate: "Took someone else",
+  availability: "Availability",
+  not_answered: "Never answered",
+  other: "Other",
+};
+
+export function reasonLabel(key?: string | null): string {
+  const k = String(key ?? "").trim();
+  if (!k) return "";
+  return REASON_LABELS[k] || k.replace(/_/g, " ");
+}
+
+/** A no-show closes the applicant as rejected like any other close, but it is
+ *  not a verdict on them. Worth marking differently wherever it is shown. */
+export function isNoShow(key?: string | null): boolean {
+  return String(key ?? "").trim() === "no_show";
+}

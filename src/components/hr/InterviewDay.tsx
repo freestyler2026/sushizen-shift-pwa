@@ -22,8 +22,10 @@ import { reasonsFor } from "@/lib/hr-outcome";
  * happening. Deciding is recording: one button writes the evaluation, moves
  * the applicant, and marks whether they turned up.
  *
- * "Did not turn up" is not a judgement of the person, so it files as a lapse
- * and never as a rejection. It is also the first time this system can count
+ * "Did not turn up" closes the applicant as rejected, the same as any other
+ * close -- but it is filed as a lapse with the reason no_show, so it is never
+ * counted as a verdict on the person, and the row carries that reason wherever
+ * the applicant is shown. It is also the first time this system can count
  * no-shows at all.
  */
 
@@ -277,8 +279,9 @@ function Line({
 
             <p className={`${T_CAPTION} mt-2`}>
               We do not ask who you are or what time it is — you are signed in and
-              the booking already says both. &quot;Did not turn up&quot; is filed as a
-              lapse, never as a rejection.
+              the booking already says both. &quot;Did not turn up&quot; closes them
+              as rejected like any other close, but it is filed as a no-show
+              rather than a judgement, and the row says so afterwards.
             </p>
           </div>
         )}

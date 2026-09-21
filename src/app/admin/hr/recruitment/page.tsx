@@ -2,7 +2,7 @@
 
 import { isoToday } from "@/lib/date";
 import { facebookLink } from "@/lib/facebook";
-import { LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outcome";
+import { reasonLabel, isNoShow, LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outcome";
 import { cvStateOf, openedSinceAsk } from "@/lib/cv-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -3812,6 +3812,24 @@ function DecisionList({
               <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-zinc-400">
                 {KANBAN_COLUMNS.find((c) => c.id === a.status)?.label ?? a.status}
               </span>
+
+              {/* Why it closed, next to the fact that it closed. A no-show is
+                  still a rejection, but it says nobody judged them -- and until
+                  now the difference was stored and shown nowhere. */}
+              {a.rejection_reason && (
+                <span
+                  className={
+                    isNoShow(a.rejection_reason)
+                      ? "shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-200"
+                      : "shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-zinc-400"
+                  }
+                  title={isNoShow(a.rejection_reason)
+                    ? "They did not turn up for the interview. Closed, but not a judgement of them."
+                    : "Why this applicant was closed"}
+                >
+                  {reasonLabel(a.rejection_reason)}
+                </span>
+              )}
 
               {done ? (
                 // What was recorded, in words, next to the person it was
