@@ -231,6 +231,10 @@ export default function CkParLevelsPage() {
   // would be a lie there, and telling someone to go and register an item they
   // already registered is worse than saying nothing.
   const [catalogExcluded, setCatalogExcluded] = useState(0);
+  // Supplier-facing rows that are switched off in the catalogue. Kept apart
+  // from `catalog` so nothing can pick one by accident, and so the counts that
+  // describe what is on offer keep meaning what they say.
+  const [catalogOff, setCatalogOff] = useState<CatalogPick[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQ, setPickerQ] = useState("");
   // Added lines need ids of their own — the par rows' ids are database keys and
@@ -602,6 +606,7 @@ export default function CkParLevelsPage() {
     setCatalogState("loading");
     setCatalogErr("");
     setCatalog([]);
+    setCatalogOff([]);
     try {
       const auth = getAuth();
       const res = await fetch(
@@ -611,6 +616,7 @@ export default function CkParLevelsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed to load the catalogue");
       setCatalog(Array.isArray(data.items) ? data.items : []);
+      setCatalogOff(Array.isArray(data.inactive_items) ? data.inactive_items : []);
       setCatalogExcluded(Number(data.excluded_by_type) || 0);
       catalogCity.current = city;
       setCatalogState("ready");
@@ -672,6 +678,19 @@ export default function CkParLevelsPage() {
       });
     scored.sort((a, b) => a.rank - b.rank || a.c.item_name.localeCompare(b.c.item_name));
     return scored.slice(0, 40).map((x) => x.c);
+  })();
+
+  // Deactivated matches, shown only once something has been typed. Listing all
+  // 235 of Manila's switched-off rows by default would bury the ones on offer;
+  // the question these answer is "I searched and got nothing", and that is only
+  // asked with a query in the box.
+  const pickerOffResults = (() => {
+    const q = pickerQ.trim().toLowerCase();
+    if (!q) return [] as CatalogPick[];
+    return catalogOff
+      .filter((c) => c.item_name.toLowerCase().includes(q) || c.supplier_name.toLowerCase().includes(q))
+      .sort((a, b) => a.item_name.localeCompare(b.item_name))
+      .slice(0, 8);
   })();
 
   // What the order already contains, so the picker can say so. The par line and
@@ -2018,7 +2037,45 @@ export default function CkParLevelsPage() {
                                 <span className="w-14 text-right text-zinc-500">{c.unit || "—"}</span>
                               </button>
                             ))}
-                            {pickerResults.length === 0 && (
+                            {pickerOffResults.length > 0 && (
+                              <div className="bg-black/20 px-2.5 py-2">
+                                <p className="text-[11px] font-medium text-orange-300/90">
+                                  {pickerOffResults.length === 1 ? "This one is" : `These ${pickerOffResults.length} are`} in
+                                  the catalogue but switched off, so {pickerOffResults.length === 1 ? "it is" : "they are"} not
+                                  on offer here:
+                                </p>
+                                <div className="mt-1.5 divide-y divide-white/5">
+                                  {pickerOffResults.map((c) => (
+                                    <div
+                                      key={`off-${c.item_name}__${c.supplier_name}`}
+                                      className="flex items-center gap-2 py-1.5 text-xs text-zinc-500"
+                                    >
+                                      <span className="flex-1 truncate line-through decoration-zinc-600">{c.item_name}</span>
+                                      <span className="w-40 truncate text-right">{c.supplier_name}</span>
+                                      <span className="w-24 text-right tabular-nums">
+                                        {c.unit_price > 0 ? fmtNum(c.unit_price, 2) : "no price"}
+                                      </span>
+                                      <span className="w-14 text-right">{c.unit || "—"}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <p className="mt-1.5 text-[11px] text-zinc-400">
+                                  Do not register these again — a second copy never meets its own price
+                                  or its own recipe. Either the supplier was switched off on purpose and
+                                  the item now comes from someone else, or it was switched off by
+                                  mistake. Procurement decides which, on the Catalog page.
+                                </p>
+                                <a
+                                  href="/admin/procurement/catalog"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-1.5 inline-block rounded-lg border border-orange-500/30 bg-orange-500/15 px-2.5 py-1 text-[11px] font-medium text-orange-300 hover:bg-orange-500/25"
+                                >
+                                  Open the Procurement catalogue →
+                                </a>
+                              </div>
+                            )}
+                            {pickerResults.length === 0 && pickerOffResults.length === 0 && (
                               <div className="px-3 py-4 text-xs text-zinc-400">
                                 <p className="text-zinc-300">
                                   Nothing in the catalogue matches “{pickerQ.trim()}”.
@@ -2056,6 +2113,8 @@ export default function CkParLevelsPage() {
                           <p className="mt-2 text-[11px] text-zinc-500">
                             {catalog.length} catalogue rows{pickerQ.trim() && ` · showing ${pickerResults.length}`}
                             {!pickerQ.trim() && pickerResults.length >= 40 && " · type to narrow"}
+                            {catalogOff.length > 0 &&
+                              ` · ${catalogOff.length} more switched off (search finds them and says so)`}
                             . Price, unit and supplier come from the catalogue, so nothing new is
                             created by picking.
                             {unassignedCatalogCount > 0 &&
