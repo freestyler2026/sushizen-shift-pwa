@@ -4575,6 +4575,13 @@ export default function HRRecruitmentPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className={T_PAGE_TITLE}>HR Recruitment Pipeline</h1>
+            {/* 日本人店長の検査は別経路（派遣会社経由・応募フォームを通らない）
+                なのでタブではなくリンク。ここに置かないと URL を知る人しか
+                辿り着けない。 */}
+            <a href="/admin/hr/manager-assessment"
+                  className="rounded-full border border-white/12 px-3 py-1 text-xs text-zinc-300 transition hover:border-violet-400/50 hover:text-violet-300">
+              店長適性検査（日本人）
+            </a>
             <div className={TAB_CONTAINER}>
               {([["pipeline", "Pipeline"], ["plans", "Plans"], ["voice", "Voice screening"], ["interviews", "Interviews"], ["calendar", "Calendar"]] as const).map(([k, label]) => (
                 <button
