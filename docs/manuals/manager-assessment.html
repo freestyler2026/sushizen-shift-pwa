@@ -1,0 +1,671 @@
+<title>Sushi ZEN 店長適性検査</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@600;700&family=Roboto+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --paper:#F4F1EB; --card:#FFFFFF; --sunken:#EAE5DB;
+    --ink:#1B1A17; --ink-soft:#4A4740; --muted:#6E6A60;
+    --line:#D8D2C6; --line-soft:#E8E3D9;
+    --shu:#B23A2E;       /* 朱書き — 採点キー */
+    --shu-wash:#F8EAE7;
+    --amber:#8A6D1F; --amber-wash:#F7F0DC;
+    --cool:#2C5A63; --cool-wash:#E2EDEF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:#16151A; --card:#1E1D23; --sunken:#26252C;
+      --ink:#ECEAE4; --ink-soft:#C2BEB4; --muted:#918D83;
+      --line:#34323B; --line-soft:#2A2930;
+      --shu:#E3796A; --shu-wash:#2E1E1B;
+      --amber:#D6B45C; --amber-wash:#2A2519;
+      --cool:#7FB3BC; --cool-wash:#1A272A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#16151A; --card:#1E1D23; --sunken:#26252C;
+    --ink:#ECEAE4; --ink-soft:#C2BEB4; --muted:#918D83;
+    --line:#34323B; --line-soft:#2A2930;
+    --shu:#E3796A; --shu-wash:#2E1E1B;
+    --amber:#D6B45C; --amber-wash:#2A2519;
+    --cool:#7FB3BC; --cool-wash:#1A272A;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Noto Sans JP",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-size:16px; line-height:1.85; -webkit-font-smoothing:antialiased;
+  }
+  .doc { max-width:47rem; margin:0 auto; padding:0 1.1rem 6rem; }
+
+  .bar {
+    position:sticky; top:0; z-index:9; background:var(--paper);
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between;
+    gap:1rem; padding:.6rem 0; margin-bottom:2rem;
+  }
+  .bar b { font-size:.82rem; letter-spacing:.08em; color:var(--muted); font-weight:700; }
+  .keys-toggle {
+    display:inline-flex; align-items:center; gap:.5rem;
+    border:1px solid var(--line); border-radius:999px;
+    background:var(--card); padding:.3rem .5rem .3rem .8rem;
+    font-size:.8rem; font-weight:600; color:var(--ink); cursor:pointer;
+  }
+  .keys-toggle:focus-visible { outline:2px solid var(--shu); outline-offset:2px; }
+  .dot { width:.55rem; height:.55rem; border-radius:50%; background:var(--shu); }
+  .doc[data-keys="off"] .dot { background:var(--line); }
+  .doc[data-keys="off"] .key { display:none !important; }
+
+  h1 {
+    font-family:"Noto Serif JP",serif; font-weight:700;
+    font-size:clamp(1.7rem,5vw,2.4rem); line-height:1.35;
+    margin:0 0 .5rem; letter-spacing:.01em;
+  }
+  .sub { color:var(--ink-soft); margin:0 0 1.6rem; }
+  h2 {
+    font-family:"Noto Serif JP",serif; font-weight:700; font-size:1.3rem;
+    margin:3rem 0 .4rem; padding-bottom:.4rem; border-bottom:2px solid var(--ink);
+  }
+  h3 { font-size:1rem; font-weight:700; margin:2rem 0 .6rem; color:var(--ink); }
+  p { margin:0 0 1rem; }
+  strong { font-weight:700; }
+
+  .meta { display:flex; flex-wrap:wrap; gap:0; border:2px solid var(--ink);
+          border-radius:10px; overflow:hidden; background:var(--card); margin-bottom:2rem; }
+  .meta div { flex:1 1 7rem; padding:.7rem .8rem; border-right:1px solid var(--line); }
+  .meta div:last-child { border-right:0; }
+  .meta b { display:block; font-family:"Roboto Mono",monospace; font-size:1.3rem; line-height:1.2; }
+  .meta span { display:block; font-size:.74rem; color:var(--muted); line-height:1.5; }
+
+  .note { background:var(--cool-wash); border-radius:10px; padding:.9rem 1.1rem; margin:1.2rem 0; font-size:.92rem; }
+  .warn { background:var(--amber-wash); border-radius:10px; padding:.9rem 1.1rem; margin:1.2rem 0; font-size:.92rem; }
+  .note p:last-child, .warn p:last-child { margin-bottom:0; }
+
+  .q { background:var(--card); border:1px solid var(--line); border-radius:12px;
+       padding:1rem 1.1rem; margin-bottom:.8rem; }
+  .qn { font-family:"Roboto Mono",monospace; font-size:.78rem; font-weight:500;
+        color:var(--muted); letter-spacing:.06em; }
+  .qt { font-weight:500; margin:.15rem 0 .6rem; }
+  ol.opts { margin:0; padding-left:0; list-style:none; counter-reset:o; }
+  ol.opts li { counter-increment:o; position:relative; padding:.3rem 0 .3rem 2rem; font-size:.95rem; }
+  ol.opts li::before {
+    content:counter(o,lower-alpha); position:absolute; left:0; top:.42rem;
+    width:1.35rem; height:1.35rem; border-radius:50%; background:var(--sunken);
+    font-size:.72rem; font-weight:700; display:flex; align-items:center; justify-content:center;
+    font-family:"Roboto Mono",monospace;
+  }
+  .key { color:var(--shu); font-family:"Roboto Mono",monospace; font-size:.78rem;
+         font-weight:500; margin-left:.4rem; white-space:nowrap; }
+  .keyline { display:block; margin-top:.6rem; padding-top:.5rem; border-top:1px dashed var(--line);
+             color:var(--shu); font-size:.84rem; }
+  .flagmark { color:var(--shu); font-weight:700; }
+
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-top:.4rem; }
+  @media (max-width:560px){ .pair { grid-template-columns:1fr; } }
+  .pair div { background:var(--sunken); border-radius:9px; padding:.6rem .75rem; font-size:.93rem; }
+  .pair span { font-family:"Roboto Mono",monospace; font-size:.72rem; color:var(--muted); display:block; }
+
+  .scroller { overflow-x:auto; margin:1rem 0; }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; min-width:30rem; }
+  th,td { text-align:left; padding:.55rem .65rem; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  th { font-size:.72rem; letter-spacing:.07em; color:var(--muted); font-weight:700;
+       border-bottom:1.5px solid var(--line); white-space:nowrap; }
+  td.n { font-family:"Roboto Mono",monospace; text-align:right; font-variant-numeric:tabular-nums; }
+
+  .lik { font-size:.85rem; color:var(--muted); font-family:"Roboto Mono",monospace; }
+  .rev { color:var(--shu); font-weight:700; }
+
+  footer { margin-top:4rem; padding-top:1.3rem; border-top:1px solid var(--line);
+           color:var(--muted); font-size:.85rem; }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important;} }
+  @media print {
+    .bar { display:none; }
+    .q { break-inside:avoid; }
+  }
+</style>
+
+<div class="doc" data-keys="on" id="doc">
+
+<div class="bar">
+  <b>SUSHI ZEN ／ 店長・管理責任者 採用</b>
+  <button type="button" class="keys-toggle" id="kt" aria-pressed="true">
+    <span class="dot" aria-hidden="true"></span><span id="ktlabel">採点キー 表示中</span>
+  </button>
+</div>
+
+<h1>店長適性検査</h1>
+<p class="sub">
+  マニラ／日本人店長・管理責任者。飲食経験の有無に関わらず答えられる設問で構成しています。
+  <strong>採点キーは応募者に見せません。</strong>上のボタンで隠すと、そのまま応募者に配れる版になります。
+</p>
+
+<div class="meta">
+  <div><b>30</b><span>第1部 状況設問</span></div>
+  <div><b>30</b><span>第2部 性格設問</span></div>
+  <div><b>5</b><span>第3部 記述（日本語）</span></div>
+  <div><b>11</b><span>第4部 英語</span></div>
+  <div><b>約70分</b><span>所要（記述を含む）</span></div>
+</div>
+
+<div class="warn">
+  <p><strong>70分は長いので、2回に分けることを勧めます。</strong>
+  第1部・第2部・第4部（約30分）を1日目、記述5問（約40分）を2日目。
+  記述は字数が多く、続けて出すと後半が雑になります。10名なら日程調整の手間は小さいはずです。</p>
+</div>
+
+<div class="note">
+  <p><strong>この検査だけで採否を決めないでください。</strong>
+  役割は「面接で何を聞くか」を決めることです。取り繕いに長けた人は一定数すり抜けます。
+  本検査 → 面接（本書§面接台本）→ 判断、の順に使ってください。</p>
+</div>
+
+<h2>第1部　状況設問（30問）</h2>
+<p>
+  実際に起きる場面を出し、<strong>どう考えるか</strong>を選んでもらいます。
+  飲食の知識は不要です。<br>
+  <span class="lik">I〜II は「最も近いもの」と「最も遠いもの」を1つずつ／III〜V は1つだけ選択</span>
+</p>
+
+<h3>I. 原因をどこに置くか（8問）<span class="key">　他責検出の中核・配点最大</span></h3>
+<p class="key">採点：最も近い＝その選択肢の点。最も遠い＝(3 − その選択肢の点)。1問6点満点。<span class="flagmark">★</span>＝他責フラグ該当肢。</p>
+
+<div class="q"><div class="qn">Q1</div>
+<div class="qt">指示したはずの手順が、3日続けて守られていない。</div>
+<ol class="opts">
+<li>手順書を見直し、どこが伝わっていないかを確認する<span class="key">3</span></li>
+<li>担当者を集め、なぜ守れないのかを聞く<span class="key">2</span></li>
+<li>現地のスタッフにこの水準を求めるのは難しいと考える<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>守れていない人に個別に注意する<span class="key">1</span></li>
+</ol>
+<span class="keyline">c を「最も近い」に選んだ場合、<strong>それだけで他責フラグ（重）</strong>。国民性への一般化は、マニラで日本人が管理する上で最も害が大きい。</span>
+</div>
+
+<div class="q"><div class="qn">Q2</div>
+<div class="qt">前任者から引き継いだ店舗が赤字だった。</div>
+<ol class="opts">
+<li>数字を分解し、自分が動かせる項目を洗い出す<span class="key">3</span></li>
+<li>引き継いだ時点からは自分の責任として立て直す<span class="key">3</span></li>
+<li>前任の運営に原因があると本社に報告する<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>本社に追加の支援を求める<span class="key">1</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q3</div>
+<div class="qt">本社から、自分は納得していない方針が降りてきた。部下にどう伝えるか。</div>
+<ol class="opts">
+<li>自分の言葉で意図を説明して実施する。疑問は自分から本社に出す<span class="key">3</span></li>
+<li>「本社の方針なので」と伝え、そのまま実施する<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>実施を保留し、本社に確認してから伝える<span class="key">2</span></li>
+<li>部下に伝え、出た意見をまとめて本社に返す<span class="key">2</span></li>
+</ol>
+<span class="keyline">b は責任転嫁の典型。部下から見ると「この人は会社の側に立たない」と映り、指示が通らなくなる。</span>
+</div>
+
+<div class="q"><div class="qn">Q4</div>
+<div class="qt">売上が2か月続けて目標未達。</div>
+<ol class="opts">
+<li>曜日・時間帯・商品別に分解し、自店で動かせる要因を特定する<span class="key">3</span></li>
+<li>立地と客層の変化を本社に説明する<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>近隣の競合を調べる<span class="key">2</span></li>
+<li>スタッフに状況を共有し、改善案を募る<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q5</div>
+<div class="qt">自分の判断ミスで、仕入れた材料を大量に捨てることになった。本社への報告をどう書くか。</div>
+<ol class="opts">
+<li>発注数の判断を誤ったと書き、再発防止策を添える<span class="key">3</span></li>
+<li>需要の読みが外れたと書く<span class="key">1</span></li>
+<li>担当者の確認漏れも重なったと書く<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>廃棄量と金額だけを報告する<span class="key">1</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q6</div>
+<div class="qt">3か月、必要な人数が採用できていない。</div>
+<ol class="opts">
+<li>自分の面接の進め方と、提示している条件を見直す<span class="key">3</span></li>
+<li>この地域の人材市場が厳しいと本社に伝える<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>紹介経路を増やす<span class="key">2</span></li>
+<li>今いるスタッフに紹介を頼む<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q7</div>
+<div class="qt">部下が自分の指示を取り違えて、損害が出た。</div>
+<ol class="opts">
+<li>指示の出し方と、確認の取り方を変える<span class="key">3</span></li>
+<li>本人に再発防止を約束させる<span class="key">1</span></li>
+<li>言語が違う以上、取り違えは避けられないと考える<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>指示を必ず文書で残す運用にする<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q8</div>
+<div class="qt">評価面談で、自分の評価が想定より低かった。</div>
+<ol class="opts">
+<li>根拠を聞き、次に何を変えるかを決める<span class="key">3</span></li>
+<li>評価の基準が自分の職務に合っていないと伝える<span class="key">1</span></li>
+<li>自分より成果の低い人が高く評価されている点を指摘する<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>納得はしないが、口には出さず従う<span class="key">1</span></li>
+</ol>
+<span class="keyline">d は「素直」ではなく<strong>不満の内向</strong>。店長職では、黙って従って後から崩れる形になりやすい。</span>
+</div>
+
+<h3>II. 二者択一（10問）<span class="key">　取り繕い封じ</span></h3>
+<div class="note">
+  <p><strong>どちらも「良い答え」に見えるように作ってあります。</strong>
+  望ましさが揃っているので、正解を探しても見つかりません。
+  <strong>ここは減点の設問ではありません</strong>——どちらを選んでも人物像の記録で、
+  ただし印のついた側は店長職で実害が出やすい傾向として数えます。</p>
+</div>
+<p class="key">採点：<span class="flagmark">◆</span>印のある側を選んだ数を数える。3つ以上で該当フラグ。</p>
+
+<div class="q"><div class="qn">Q9</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>物事がうまく進まない時、まず自分のやり方を疑う</div>
+<div><span>B</span>物事がうまく進まない時、まず前提や条件が変わっていないかを確認する<span class="key"><span class="flagmark">◆</span>外的帰属</span></div></div>
+<span class="keyline">B は賢く聞こえるので、他責傾向の人が安心して選ぶ。<strong>この設問が効く。</strong></span></div>
+
+<div class="q"><div class="qn">Q10</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>決めた手順を守ることを大事にする<span class="key">勤勉</span></div>
+<div><span>B</span>その場で最善と思う方法を選ぶ<span class="key">自律</span></div></div></div>
+
+<div class="q"><div class="qn">Q11</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>指摘されたら、まずやってみる<span class="key">素直さ</span></div>
+<div><span>B</span>指摘されたら、まず理由を聞く<span class="key">批判的思考</span></div></div></div>
+
+<div class="q"><div class="qn">Q12</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>自分の担当が終わったら、手が空いていない人を探す<span class="key">協調</span></div>
+<div><span>B</span>自分の担当を完璧に仕上げることに時間を使う<span class="key">完遂</span></div></div></div>
+
+<div class="q"><div class="qn">Q13</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>問題は早い段階で共有する<span class="key">透明性</span></div>
+<div><span>B</span>問題は自分で解決してから報告する<span class="key"><span class="flagmark">◆</span>抱え込み</span></div></div>
+<span class="keyline">B は責任感に見えるが、店長職では<strong>都合の悪い情報が本社に上がらない</strong>形になる。実害が大きい。</span></div>
+
+<div class="q"><div class="qn">Q14</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>部下の失敗は、自分の責任として扱う<span class="key">内的帰属</span></div>
+<div><span>B</span>部下の失敗は、本人が学ぶ機会として扱う<span class="key"><span class="flagmark">◆</span>責任の分離</span></div></div></div>
+
+<div class="q"><div class="qn">Q15</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>目標は少し高めに置く<span class="key">向上心</span></div>
+<div><span>B</span>目標は確実に届く水準に置く<span class="key">堅実</span></div></div></div>
+
+<div class="q"><div class="qn">Q16</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>苦手な相手とも距離を詰める<span class="key">協調</span></div>
+<div><span>B</span>苦手な相手とは距離を保ち、業務に徹する<span class="key"><span class="flagmark">◆</span>回避</span></div></div></div>
+
+<div class="q"><div class="qn">Q17</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>実績のあるやり方を守る<span class="key">安定</span></div>
+<div><span>B</span>新しいやり方を試す<span class="key">開放性</span></div></div></div>
+
+<div class="q"><div class="qn">Q18</div><div class="qt">自分に近いのはどちらですか。</div>
+<div class="pair"><div><span>A</span>感情が動いた時は、一度持ち帰る<span class="key">情緒安定</span></div>
+<div><span>B</span>感情が動いた時は、その場で伝える<span class="key"><span class="flagmark">◆</span>衝動</span></div></div></div>
+
+<h3>III. 指摘の受け止め方（4問）<span class="key">　素直さ</span></h3>
+<p class="key">1つ選択。score 0 を1つでも選べば<strong>素直さ欠如フラグ（重）</strong>。</p>
+
+<div class="q"><div class="qn">Q19</div>
+<div class="qt">自分のやり方を直された。内心では、自分のやり方の方が早いと思っている。</div>
+<ol class="opts">
+<li>まず教わった通りにやり、結果を見て後から提案する<span class="key">3</span></li>
+<li>その場で自分のやり方の方が早い理由を説明し、続ける<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>返事はするが、見ていない時は自分のやり方に戻す<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>教わった通りにやるが、納得はしていないと伝える<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q20</div>
+<div class="qt">オーナーから、自分が良いと思っていた施策を止めるよう言われた。</div>
+<ol class="opts">
+<li>止めた上で、数字を持って改めて提案する<span class="key">3</span></li>
+<li>理由が示されるまで止めない<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>止めて、それきりにする<span class="key">1</span></li>
+<li>止める前に、なぜ止めるのかを聞く<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q21</div>
+<div class="qt">自分より若い、経験の浅い相手から手順の誤りを指摘された。</div>
+<ol class="opts">
+<li>確認し、誤っていれば直して礼を言う<span class="key">3</span></li>
+<li>自分の経験では問題なかったと説明する<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>その場では受け、後で自分で確かめる<span class="key">2</span></li>
+<li>誰に聞いた話かを確認する<span class="key">1</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q22</div>
+<div class="qt">同じことで2回注意された。</div>
+<ol class="opts">
+<li>なぜ直らなかったかを言葉にして、仕組みを変える<span class="key">3</span></li>
+<li>次は気をつけますと答える<span class="key">1</span></li>
+<li>1回目の指摘が曖昧だったと伝える<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>謝った上で、確認してもらう頻度を上げてもらう<span class="key">2</span></li>
+</ol></div>
+
+<h3>IV. 部下・チームへの向き合い方（4問）<span class="key">　自己中心の検出</span></h3>
+<p class="key">1つ選択。score 0 を2つ以上で<strong>自己中心フラグ</strong>。</p>
+
+<div class="q"><div class="qn">Q23</div>
+<div class="qt">人手が足りず、自分が現場に入るか、事務作業を進めるかを選ぶ場面。</div>
+<ol class="opts">
+<li>現場に入り、事務は閉店後に回す<span class="key">3</span></li>
+<li>事務を優先する。店長の仕事はそこだと考える<span class="key">0</span></li>
+<li>優先度の高い方を、その日ごとに判断する<span class="key">2</span></li>
+<li>誰かに事務を任せられないか探す<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q24</div>
+<div class="qt">店の成果が上がったとき、本社への報告でどう書くか。</div>
+<ol class="opts">
+<li>誰が何をしたかを具体的に書く<span class="key">3</span></li>
+<li>チームの成果として書く<span class="key">2</span></li>
+<li>自分が採った施策を中心に書く<span class="key">0</span></li>
+<li>数字だけを書く<span class="key">1</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q25</div>
+<div class="qt">部下から、自分より高い評価を受けたいと相談された。</div>
+<ol class="opts">
+<li>何が足りていないかを具体的に伝え、次の目標を一緒に決める<span class="key">3</span></li>
+<li>評価は本社が決めることだと伝える<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>頑張っているのは分かっていると伝える<span class="key">1</span></li>
+<li>評価の基準を見せて説明する<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q26</div>
+<div class="qt">自分の休みの日に、店でトラブルが起きたと連絡が来た。</div>
+<ol class="opts">
+<li>状況を聞き、判断が要るものだけ自分が決める<span class="key">3</span></li>
+<li>すぐ店に行く<span class="key">2</span></li>
+<li>出勤している責任者に任せる<span class="key">1</span></li>
+<li>休みの日は対応しないと決めている<span class="key">0</span></li>
+</ol></div>
+
+<h3>V. 記録・締切・手順（4問）<span class="key">　勤勉・誠実</span></h3>
+<div class="note"><p>この店舗では、毎日7件の報告を決まった時刻までに出します。
+ここは<strong>実際の職務そのもの</strong>なので、設問も現実の形で聞きます。</p></div>
+
+<div class="q"><div class="qn">Q27</div>
+<div class="qt">閉店後、報告を出す前に強い眠気がある。翌朝でも出せる。</div>
+<ol class="opts">
+<li>その場で出す。翌朝の記憶では正確に書けない<span class="key">3</span></li>
+<li>数字だけ控えて、翌朝まとめて出す<span class="key">1</span></li>
+<li>翌朝に回す<span class="key">0</span></li>
+<li>要点だけ出し、翌朝に補う<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q28</div>
+<div class="qt">その日は報告すべきことが1件も起きなかった。</div>
+<ol class="opts">
+<li>「無し」と記録して提出する<span class="key">3</span></li>
+<li>何も無いので提出しない<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>翌日にまとめて書く<span class="key">1</span></li>
+<li>口頭で伝える<span class="key">1</span></li>
+</ol>
+<span class="keyline">b を選ぶ人は、記録を「出来事の報告」だと思っている。<strong>「無かったことを記録する」意味が分かるかどうか</strong>は、この職務では大きい。</span></div>
+
+<div class="q"><div class="qn">Q29</div>
+<div class="qt">決められた手順が、現場に合っていないと感じる。</div>
+<ol class="opts">
+<li>守った上で、どこが合わないかを記録して提案する<span class="key">3</span></li>
+<li>自分の判断で変える<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>守りつつ、そのままにする<span class="key">1</span></li>
+<li>本社に確認してから変える<span class="key">2</span></li>
+</ol></div>
+
+<div class="q"><div class="qn">Q30</div>
+<div class="qt">数字が合わない。原因が分からない。</div>
+<ol class="opts">
+<li>分からないことを含めて、その日のうちに報告する<span class="key">3</span></li>
+<li>原因が分かってから報告する<span class="key">0 <span class="flagmark">★</span></span></li>
+<li>差額だけ記録して様子を見る<span class="key">1</span></li>
+<li>もう一度数え直してから決める<span class="key">2</span></li>
+</ol></div>
+
+<h2>第2部　性格設問（30問）</h2>
+<p>
+  自分にどれだけ当てはまるかを、5段階で答えてもらいます。<br>
+  <span class="lik">1 まったく当てはまらない ／ 2 あまり ／ 3 どちらとも ／ 4 やや ／ 5 とても当てはまる</span>
+</p>
+<div class="note">
+  <p><strong>形式はMBTIのような自己記述ですが、尺度はビッグファイブ（五因子）です。</strong>
+  MBTIは再検査で型が変わる人が多く、職務成果の予測力はほとんど確認されていません。
+  一方、五因子の<strong>誠実性</strong>は職務成果の予測力が最も高い単一の性格因子で、
+  <strong>協調性</strong>と<strong>情緒安定性</strong>は他責や対立の出方に直結します。
+  応募者から見た答え心地は変わりません。</p>
+</div>
+<p class="key">採点：<span class="rev">R</span>＝逆転項目（6−回答値）。因子ごとに合計し、(合計−問数)÷(問数×4)×100 で0〜100に直す。</p>
+
+<div class="q"><div class="qn">Q31</div><div class="qt">やると決めたことは、気が進まなくても最後までやる<span class="key">誠実性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q32</div><div class="qt">机の上や持ち物は整っている<span class="key">誠実性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q33</div><div class="qt">締切より前に終わらせる方だ<span class="key">誠実性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q34</div><div class="qt">細かい記録をつけるのは苦手だ<span class="key">誠実性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q35</div><div class="qt">手順が決まっているものは、その通りにやる<span class="key">誠実性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q36</div><div class="qt">計画を立てずに始めてしまうことが多い<span class="key">誠実性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q37</div><div class="qt">複数の仕事があっても、順番を決めて進められる<span class="key">誠実性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q38</div><div class="qt">気分によって仕事の出来が変わる<span class="key">誠実性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q39</div><div class="qt">人の話は最後まで聞く<span class="key">協調性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q40</div><div class="qt">自分の意見が通らないと不快になる<span class="key">協調性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q41</div><div class="qt">話す前に、相手の立場を想像する<span class="key">協調性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q42</div><div class="qt">議論では、勝ち負けを意識する<span class="key">協調性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q43</div><div class="qt">困っている人がいると、頼まれなくても手を貸す<span class="key">協調性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q44</div><div class="qt">感謝はその場で言葉にする<span class="key">協調性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q45</div><div class="qt">予定が崩れると動揺する<span class="key">情緒安定性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q46</div><div class="qt">批判されると、長く引きずる<span class="key">情緒安定性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q47</div><div class="qt">忙しい時ほど落ち着いていられる<span class="key">情緒安定性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q48</div><div class="qt">小さなことが気になって眠れないことがある<span class="key">情緒安定性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q49</div><div class="qt">失敗しても切り替えが早い<span class="key">情緒安定性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q50</div><div class="qt">相手の機嫌に、自分の調子が左右される<span class="key">情緒安定性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q51</div><div class="qt">知らない分野でも、学ぶのは苦にならない<span class="key">開放性・向上心 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q52</div><div class="qt">やり方を変えることに抵抗はない<span class="key">開放性・向上心 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q53</div><div class="qt">自分より優れた人から学ぼうとする<span class="key">開放性・向上心 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q54</div><div class="qt">新しいことを覚えるのは面倒だ<span class="key">開放性・向上心 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q55</div><div class="qt">分からないことは、自分から調べる<span class="key">開放性・向上心 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q56</div><div class="qt">初対面の人と話すのは苦にならない<span class="key">外向性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q57</div><div class="qt">大勢の前で話すことに抵抗はない<span class="key">外向性 </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q58</div><div class="qt">一人で過ごす時間の方が、疲れが取れる<span class="key">外向性 <span class="rev">R</span></span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q59</div><div class="qt">これまで一度も嘘をついたことがない<span class="key">ライスケール </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+<div class="q"><div class="qn">Q60</div><div class="qt">人の悪口を言ったことは一度もない<span class="key">ライスケール </span></div><p class="lik" style="margin:0">1 &nbsp; 2 &nbsp; 3 &nbsp; 4 &nbsp; 5</p></div>
+
+<div class="warn">
+  <p><strong>Q59・Q60 は採点に入れません。</strong>「一度も嘘をついたことがない」「一度も悪口を言ったことがない」に
+  4か5を付けた人は、自分を良く見せようとしている可能性があります。<strong>両方に4以上なら、
+  第1部・第2部の結果全体の信頼性を下げて読んでください</strong>（不合格の理由にはしない。面接で確かめる）。</p>
+</div>
+
+<h2>第3部　記述（5問・日本語）</h2>
+<p>各問 <strong>200字以上400字以内</strong>。辞書・検索の使用は自由とし、そう伝えます
+（禁じても確認できず、禁じた方が正直な応募者だけが不利になります）。</p>
+
+<div class="q"><div class="qn">記述1</div>
+<div class="qt">どうしてフィリピンで就職しようと思ったのですか。</div>
+<span class="keyline"><strong>動機の出どころ</strong>を見ます。「日本が駄目だから」「逃げ場として」という語りは、
+うまくいかなかった時に同じ理由で次へ移ります。<strong>自分が何をしたくて選んだか</strong>が書かれているか。</span></div>
+
+<div class="q"><div class="qn">記述2</div>
+<div class="qt">英語はどのように勉強してきましたか。</div>
+<span class="keyline"><strong>努力・忍耐の実物。</strong>期間・頻度・具体的な手段（教材名、続けた年数、失敗して変えた方法）が
+出てくるか。「日常会話程度はできます」だけで終わる回答は、<strong>努力の中身を書けていない</strong>。
+第4部の英語の実力と突き合わせると、自己認識の正確さも分かります。</span></div>
+
+<div class="q"><div class="qn">記述3</div>
+<div class="qt">これからの日本経済はどうなると思いますか。</div>
+<span class="keyline">正解は採点しません。<strong>主張→根拠→結論</strong>の構造があるか、
+根拠が具体（数字・事実）か伝聞か。店長は本社・スタッフ・取引先に説明する職務なので、
+<strong>説明の組み立て方</strong>が職務に直結します。</span></div>
+
+<div class="q"><div class="qn">記述4</div>
+<div class="qt">アメリカとイランの戦争についてどう思いますか。</div>
+<div class="warn">
+  <p><strong>この設問は印をつけています。</strong>政治・宗教・信条に触れる質問は、採用選考では避けるのが通例です
+  （日本の厚生労働省も、思想・信条を採用選考で尋ねないよう示しています）。
+  マニラでの採用であっても、応募者は日本人で、日本の慣行が参照されます。</p>
+  <p><strong>差し替え案：</strong>「これから3年、マニラで日本食の店が増えるとしたら、何が起きると思いますか」。
+  測れるもの（思考の構造・視野・情報の扱い）は同じで、<strong>職務関連性が明確</strong>になり、
+  信条を聞いたことにもなりません。</p>
+  <p>ご指示どおり原案のまま載せています。どちらを使うかはご判断ください。</p>
+</div></div>
+
+<div class="q"><div class="qn">記述5</div>
+<div class="qt">これからの東南アジアはどのようになっていくと思いますか。</div>
+<span class="keyline">記述3と同じ読み方。加えて、<strong>これから自分が働く地域をどう見ているか</strong>が出ます。
+現地を「安い労働力がある場所」として書く人は、店長として現地スタッフを扱う時に同じ見方が出ます。</span></div>
+
+<h3>記述の採点（各12点）<span class="key">　人手</span></h3>
+<div class="scroller"><table>
+<thead><tr><th>観点</th><th>0</th><th>1</th><th>2</th><th>3</th></tr></thead>
+<tbody>
+<tr><td><strong>構成</strong>　主張・根拠・結論</td><td>羅列のみ</td><td>主張はあるが根拠が無い</td><td>主張と根拠がある</td><td>結論まで一本で通っている</td></tr>
+<tr><td><strong>具体性</strong>　経験・数字・固有名詞</td><td>抽象語だけ</td><td>一般論が中心</td><td>具体が1つ以上</td><td>自分の経験に基づく具体</td></tr>
+<tr><td><strong>帰属</strong>　記述1・2で特に見る</td><td>原因が全て外</td><td>外が中心</td><td>内外が混在</td><td>自分の行動が原因側にある</td></tr>
+<tr><td><strong>体裁</strong>　字数・誤字・敬体常体</td><td>字数外</td><td>字数内だが雑</td><td>整っている</td><td>読みやすい</td></tr>
+</tbody></table></div>
+<p class="key">5問×12点＝60点。<strong>記述1・2の「帰属」が0または1</strong>なら、他責フラグに数える。</p>
+
+<h2>第4部　英語（11問）</h2>
+<div class="note">
+  <p><strong>英語は性格の点数に足しません。別立てで見ます。</strong>
+  合成すると「性格は良いが英語が全く駄目」な人が中位に沈んで見えなくなります。
+  店長はフィリピン人スタッフを直接指示し、モール側・取引先とやり取りし、
+  <strong>このOSは全画面が英語</strong>です。英語は加点ではなく業務要件です。</p>
+</div>
+
+<h3>読解・語法（10問・自動採点）</h3>
+<p>実務で実際に届く文を読ませます。例：</p>
+<div class="q"><div class="qn">EN例</div>
+<div class="qt">The mall management has advised that the delivery entrance will be closed from 6 AM to 10 AM on Saturday. Kindly adjust your receiving schedule accordingly.</div>
+<ol class="opts">
+<li>土曜の朝6時から10時まで、搬入口が使えない<span class="key">正</span></li>
+<li>土曜は終日、搬入口が使えない<span class="key">誤</span></li>
+<li>搬入の予定をモール側が決めてくれる<span class="key">誤</span></li>
+<li>土曜の搬入を中止するよう指示された<span class="key">誤</span></li>
+</ol></div>
+<p class="key">残り9問も同種（発注の返信、クレーム、シフト変更の連絡、衛生指摘、支払条件）。全問正答＝10点。</p>
+
+<h3>記述1問（人手・10点）</h3>
+<div class="q"><div class="qn">EN11</div>
+<div class="qt">閉店作業の手順が守られていないスタッフ3名に、英語で指示を出してください（3〜5文）。
+責める文にせず、何をいつまでにするかが分かるように書いてください。</div>
+<span class="keyline">通じるか 0-4 ／ 何をいつまでにが明確か 0-4 ／ 責めていないか 0-2。
+<strong>「責めない」を見るのは英語力ではなく管理の型です</strong>——ここで人を責める文を書く人は、日本語でも同じことをします。</span></div>
+
+<div class="scroller"><table>
+<thead><tr><th>英語の水準</th><th>目安</th><th>判断</th></tr></thead>
+<tbody>
+<tr><td class="n">17〜20</td><td>読解ほぼ正確・指示が自力で書ける</td><td>着任後すぐ運用できる</td></tr>
+<tr><td class="n">12〜16</td><td>読解は取れる・作文に難</td><td>可。定型文を用意すれば回る</td></tr>
+<tr><td class="n">11以下</td><td>読解に落ちがある</td><td><strong>要件を満たさない。</strong>性格が良くてもここで止める</td></tr>
+</tbody></table></div>
+
+<h2>結果の読み方</h2>
+<div class="warn">
+  <p><strong>総合点は出しません。</strong>応募者は10名で、合否の線を統計的に引く根拠が作れません。
+  80点／65点といった境目は、根拠のない線です。<br>
+  代わりに出すのは <strong>①フラグ ②特性のプロフィール ③面接で聞くこと</strong> の3つです。</p>
+</div>
+
+<h3>フラグ（これが主役）</h3>
+<div class="scroller"><table>
+<thead><tr><th>フラグ</th><th>立つ条件</th><th>重さ</th></tr></thead>
+<tbody>
+<tr><td><strong>他責</strong></td><td>第1部Iで <span class="flagmark">★</span> を「最も近い」に1つでも選択／Iの合計が満点の55%未満／記述1・2の「帰属」が0か1</td><td>重</td></tr>
+<tr><td><strong>素直さ欠如</strong></td><td>第1部IIIで score 0 を1つでも選択</td><td>重</td></tr>
+<tr><td><strong>自己中心</strong></td><td>第1部IVで score 0 を2つ以上／IIで <span class="flagmark">◆</span> を3つ以上</td><td>中</td></tr>
+<tr><td><strong>記録軽視</strong></td><td>第1部Vで score 0 を1つでも選択（特にQ28）</td><td>中</td></tr>
+<tr><td><strong>信頼性低</strong></td><td>Q59・Q60 の両方に4以上／逆転項目と正項目の矛盾が2組以上</td><td>—</td></tr>
+</tbody></table></div>
+
+<p><strong>判定の目安</strong></p>
+<ul>
+<li>重いフラグ1つ → <strong>面接で必ずその点を深掘り。</strong>それだけで落とさない。</li>
+<li>重いフラグ2つ以上、または<strong>「他責＋素直さ欠如」の同時発生</strong> → 見送り寄りで慎重に。この2つが揃う人は、
+着任後に問題が起きた時、原因を外に置いたまま指摘も受け付けません。<strong>店長職では最も避けたい組み合わせです。</strong></li>
+<li>英語が11点以下 → 性格に関わらず要件未達。</li>
+</ul>
+
+<h3>特性のプロフィール</h3>
+<p>10名を並べて見ます。順位ではなく、<strong>形</strong>を見てください。</p>
+<div class="scroller"><table>
+<thead><tr><th>因子</th><th>高いと</th><th>低いと</th><th>この職務での重み</th></tr></thead>
+<tbody>
+<tr><td><strong>誠実性</strong></td><td>締切・記録・手順を守る</td><td>報告が溜まる、抜ける</td><td class="n">最重要</td></tr>
+<tr><td><strong>協調性</strong></td><td>指摘を受け入れる、手を貸す</td><td>対立を勝ち負けで扱う</td><td class="n">高</td></tr>
+<tr><td><strong>情緒安定性</strong></td><td>忙しい時ほど落ち着く</td><td>人の機嫌に揺れる、引きずる</td><td class="n">高</td></tr>
+<tr><td><strong>開放性・向上心</strong></td><td>学ぶ、やり方を変える</td><td>前職のやり方に固執</td><td class="n">中</td></tr>
+<tr><td><strong>外向性</strong></td><td>初対面に強い</td><td>—</td><td class="n">低（採否に使わない）</td></tr>
+</tbody></table></div>
+<p class="key">外向性は職務成果とほとんど関係しません。<strong>「明るい人」を選ばないために、あえて重みを置いていません。</strong></p>
+
+<h2>面接台本（検査の裏取り）</h2>
+<p>フラグが立った項目だけを、行動の事実で確かめます。
+<strong>検査で良い点でも、ここで具体例が出てこない人は取り繕いを疑ってください。</strong></p>
+
+<div class="scroller"><table>
+<thead><tr><th>立ったフラグ</th><th>面接で聞くこと</th><th>要注意の答え</th></tr></thead>
+<tbody>
+<tr><td>他責</td><td>直近で失敗した具体例を。原因は何で、あなたは何を変えましたか</td><td>原因が全て外部／「変えたこと」が出てこない</td></tr>
+<tr><td>素直さ欠如</td><td>人に注意されて、自分のやり方を変えた経験は</td><td>具体例が出ない／反発の語りになる</td></tr>
+<tr><td>自己中心</td><td>チームで、自分の担当外を手伝った具体例は</td><td>手伝った話が「自分の判断の正しさ」の話にすり替わる</td></tr>
+<tr><td>記録軽視</td><td>面倒でも毎日続けた記録や作業はありますか。続いた理由は</td><td>「必要なら書く」という条件付きの答え</td></tr>
+<tr><td>信頼性低</td><td>検査で答えにくかった設問はありましたか</td><td>「特にない」／完璧な自己像を崩さない</td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>店長職に固有の、必ず聞く1問。</strong><br>
+  「自分と働き方の考えが違う部下がいたとき、どうしましたか」<br>
+  マニラで日本人が管理する上で、答えが<strong>「文化が違うから」で終わる人は採らない</strong>方がよい、
+  というのが第1部Q1・Q7の設計意図です。面接でも同じ角度から一度聞いてください。</p>
+</div>
+
+<h2>実施の手順</h2>
+<div class="scroller"><table>
+<thead><tr><th></th><th>やること</th><th>誰が</th></tr></thead>
+<tbody>
+<tr><td class="n">1</td><td>派遣会社から応募者の氏名を受け取る</td><td>オーナー</td></tr>
+<tr><td class="n">2</td><td>OSで受験者を登録し、<strong>個別のリンク</strong>を発行してコピー</td><td>オーナー</td></tr>
+<tr><td class="n">3</td><td>リンクを派遣会社経由で本人へ（SMS・メール送信機能は作りません）</td><td>オーナー</td></tr>
+<tr><td class="n">4</td><td>1日目：第1部・第2部・第4部（約30分）</td><td>応募者</td></tr>
+<tr><td class="n">5</td><td>2日目：記述5問（約40分）</td><td>応募者</td></tr>
+<tr><td class="n">6</td><td>選択式は自動採点。記述の採点（10名×6通）</td><td>人手</td></tr>
+<tr><td class="n">7</td><td>10名の比較表と、一人ずつの面接台本を見る</td><td>オーナー</td></tr>
+</tbody></table></div>
+
+<p><strong>受験画面の作り</strong>：日本語・1画面1問・前の問題には戻れない・
+<strong>途中で切れても同じリンクで続きから再開できる</strong>。
+戻れないのは一貫性を測るためで、再開できないのは単に応募者が詰むだけなので、その2つは分けます。</p>
+
+<h2>この検査でできないこと</h2>
+<ul>
+<li><strong>取り繕いを完全には防げません。</strong>第1部IIと記述で相当に落としていますが、
+準備の良い人は通ります。だからこそ面接と併用します。</li>
+<li><strong>10名では検査の精度を検証できません。</strong>入社後の成果と突き合わせて設問を直す作業は、
+人数が貯まるまで数年かかります。それまでは「面接の地図」として使ってください。</li>
+<li><strong>心理検査としての妥当性は保証しません。</strong>採用設計の実務資料です。</li>
+<li><strong>個人データです。</strong>保管場所と保持期間を決めてから実施してください
+（フィリピンのデータプライバシー法・日本の個人情報保護法の両方が関わり得ます）。</li>
+</ul>
+
+<footer>
+  <p>Sushi ZEN Workforce OS ／ 店長・管理責任者 採用検査　v1（2026-09-21）<br>
+  設問を変えたら版を上げ、<strong>版が違う受験者は比較しない</strong>でください。</p>
+</footer>
+
+</div>
+
+<script>
+  (function () {
+    var doc = document.getElementById("doc");
+    var btn = document.getElementById("kt");
+    var lab = document.getElementById("ktlabel");
+    function apply(on) {
+      doc.setAttribute("data-keys", on ? "on" : "off");
+      btn.setAttribute("aria-pressed", String(on));
+      lab.textContent = on ? "採点キー 表示中" : "採点キー 非表示（応募者に配れます）";
+    }
+    var saved = null;
+    try { saved = localStorage.getItem("zen:mgr-assessment-keys"); } catch (e) { saved = null; }
+    apply(saved !== "off");
+    btn.addEventListener("click", function () {
+      var next = doc.getAttribute("data-keys") !== "off" ? false : true;
+      apply(next);
+      try { localStorage.setItem("zen:mgr-assessment-keys", next ? "on" : "off"); } catch (e) {}
+    });
+  })();
+</script>
