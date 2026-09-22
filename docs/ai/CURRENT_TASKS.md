@@ -30140,3 +30140,55 @@ AED 145。`business_day("dubai")` より前の日だけ課すよう修正し、�
   法定50%を上乗せするか置き換えるかは会社の支払い方針
 - **Padam Bahadur K C** 月3回以上の遅刻で AED 136.16 + NTE発行対象
 - **名寄せ Raj / Raji** 正式名が未確定（別名表は Raji、給与・打刻・OTは Raj）
+
+## 2026-09-22 — ドバイ 残り3件 完了
+
+### ① OT割増率を設定として明示
+```
+heroku config:set DUBAI_OT_MULTIPLIER=1.25
+```
+コードの既定値と同じ値なので計算は不変。**設定として見える場所に置いた**のが目的。
+変更はデプロイ不要。`_ot_multiplier()` が読み、typo は 1.25 にフォールバックする
+（設定ミスで残業が無給になるのを避けるため）。
+
+### ② 月次遅刻ペナルティ — 控除のみ（NTEの文言を削除）
+`dubai_payroll_engine.py` の注記から "Warning Letter (NTE) should be issued." を削除。
+**NTEを自動生成する経路はもともと存在しない**ので、機械の裏付けが無い指示だった。
+再実行して反映済み（cycle 41 に NTE の語を含む行は 0）。
+```
+Padam Bahadur K C  AED 136.16
+  Monthly late accumulation: 3 instances (threshold >= 3) -> 5% of monthly salary AED 2723.25.
+```
+
+### ③ Raj / Raji の名寄せ — スタッフページの名前に統一
+**`staff_master` は `Raj Deeban Jegan` 1行のみ**（dubai / JLT / ACTIVE / 2026-04-25）。
+「Raji」は存在しない → これが正。
+
+`scripts/merge_raj_deeban_jegan.py`（dry-run 既定・`APPLY=1` で実行）
+```
+改名  shift_draft_rows        72行   同日に Raj の行が無いので名前が移るだけ
+      base_shift_normalized    2行
+削除  os_attendance_sessions  25行   全て打刻なし・同日に Raj の本物あり（一意キー衝突）
+      dubai_attendance_daily   2行   同上（8/1・8/25、どちらも打刻なしの幽霊行）
+削除  dubai_staff_profiles     1行   monthly_rate NULL の重複（9/1作成）。Raj側は 2,300
+修正  attendance_employee_aliases id=242
+         raw 'Raj' → canonical 'Raji' だった（逆向き）。canonical を 'Raj' に
+```
+バックアップ: `_raji_merge_bk_20260922_sessions` / `_dtr` / `_profile`。
+実行前に `payroll_adjustments` に「Raji」が0件であることを確認済み（**金額は動かない**）。
+
+**検証**: 全DBの氏名列を走査し、「Raji」はバックアップ表以外に0件。
+Raj Deeban Jegan は staff_master 1行・profile 1行・9月DTR 18行（OT 3.00h）・
+9月調整 approved_overtime AED 23.43 + night_premium AED 43.14。
+
+### 9月の合計は不変
+```
+加算 AED 2,372.11 / 控除 AED 2,468.17 / 差引 −96.06（575行）
+```
+名寄せ前後で同額。「Raji」に金額が付いていなかったことの裏付けでもある。
+
+### 発生源（未対処・再発しうる）
+綴り違いが別人として通るのは、管理者の「No-Show」手動セッション作成が
+`(city, staff_name, work_date)` を一意キーにしているため（`db.py:52417`）。
+氏名が自由入力・または重複したプロフィールから選べる限り、また起きる。
+※ただし**打刻なしセッションは同期がスキップするので、給与への被害は出ない。**
