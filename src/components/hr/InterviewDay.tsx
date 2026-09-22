@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, CalendarPlus, Phone, MonitorSmartphone, Check, PauseCircle, X, UserX, CalendarSync, Trash2 } from "lucide-react";
+import { CalendarClock, CalendarPlus, Phone, MonitorSmartphone, Check, PauseCircle, X, UserX, CalendarSync, Trash2, FileText } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, BADGE_INFO, BADGE_SUCCESS,
   BADGE_WARNING, DANGER_BUTTON, T_CAPTION, T_LABEL, T_SECTION,
@@ -45,6 +45,12 @@ type Row = {
   location?: string | null;
   voice_decision: string | null;
   voice_summary: string | null;
+  /** The CV, when the applicant sent one. Only the pointer is here — the file
+   *  is fetched by the link when it is pressed, never with the list. */
+  screening_id?: string | null;
+  resume_filename?: string | null;
+  resume_bytes?: number;
+  has_resume?: boolean;
   attended: boolean | null;
   recorded: boolean;
   /** Set locally after HR cancels, so the row stays visible saying what happened. */
@@ -150,6 +156,26 @@ function Line({
           <span className="font-mono text-sm text-zinc-300">{row.phone}</span>
           {row.interviewer_staff && (
             <span className={T_CAPTION}>with {row.interviewer_staff}</span>
+          )}
+          {/* The CV belongs on the screen the interviewer opens before the
+              call. It used to live only on the Calendar day panel, so today's
+              list showed nothing and looked out of date. */}
+          {row.has_resume && row.screening_id && (
+            <a
+              href={`/api/admin/hr/voice-screenings/${row.screening_id}/resume`}
+              target="_blank"
+              rel="noreferrer"
+              title={row.resume_filename || "CV"}
+              className="inline-flex items-center gap-1 rounded-md border border-violet-400/25 bg-violet-400/10 px-2 py-0.5 text-[11px] font-medium text-violet-200 hover:bg-violet-400/20"
+            >
+              <FileText className="h-3 w-3" />
+              CV
+              {row.resume_bytes ? (
+                <span className="tabular-nums text-violet-300/60">
+                  {Math.max(1, Math.round(row.resume_bytes / 1024))}KB
+                </span>
+              ) : null}
+            </a>
           )}
           <button
             className={`${SMALL_BUTTON} ml-auto`}
