@@ -97,7 +97,10 @@ export default function StaffNamePicker({
     const opts = names.map((n) => ({ value: n, label: n }));
     const held = (value || "").trim();
     if (held && !names.some((n) => n.toLowerCase() === held.toLowerCase())) {
-      opts.unshift({ value: held, label: `${held} — not on the Staff page` });
+      // Not "not on the Staff page" — the commonest reason to land here is
+      // being on it for the other city. A Dubai head-office name on a Manila
+      // form reads as an error otherwise, and it is not one.
+      opts.unshift({ value: held, label: `${held} — not on this city's list` });
     }
     return opts;
   }, [names, value]);

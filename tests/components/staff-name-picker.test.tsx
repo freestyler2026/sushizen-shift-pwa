@@ -47,7 +47,7 @@ describe("StaffNamePicker", () => {
     render(<StaffNamePicker city="manila" value="Anthony Plaza" onChange={() => {}} aria-label="Staff" />);
     await ready();
     const labels = optionLabels("Anthony Plaza");
-    expect(labels[0]).toMatch(/Anthony Plaza — not on the Staff page/);
+    expect(labels[0]).toMatch(/Anthony Plaza — not on this city's list/);
     expect(optionValues("Anthony Plaza")).toContain("Anthony Plaza");
   });
 
