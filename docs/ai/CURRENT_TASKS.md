@@ -30029,3 +30029,70 @@ Raji のDTR行は今後作られず、実働はすべて Raj（rate 2,300）に�
 `ABSENT` 15日（Lyssa Rae 4・Nishan 2・Kelvin 2・Sherileene 2・他5名各1）は
 **DTRに行が無いので控除されない。** 今回の修正で新たに生じた穴ではなく、
 従来は「たまたま空セッションがある日だけ」偶然控除されていた。
+
+## 2026-09-22 — ドバイ P1（シフト読み込み → 遅刻・早退・欠勤）実装済み・**未実行**
+
+### 共通化した（オーナー原則: 第1層は国を問わず同じ）
+
+`app/attendance_facts.py`（新規・225行・**DBに触らない純粋関数**）
+```
+published_shift_times / schedule_gap_hours / resolve_schedule /
+late_minutes / rostered_end_datetime / undertime_raw_minutes /
+earliest_session_per_day / carries_attendance / AWP_TYPES / PAID_LEAVE_TYPES
+```
+`tests/test_attendance_facts.py` 33件。
+
+**マニラを先にこのモジュールへ切り替え、出力が変わらないことを本番で証明した。**
+```
+preview_only（9/01-9/21・書き込みなし）を切替前後で採取 → 完全一致
+ total_os_rows 1008 / would_sync 990 / would_sync_absent 74
+ schedule_conflicts 5 / schedule_changes 253 / skipped_no_shift 13
+ preview・absences・conflicts・changes の SHA256 すべて一致
+```
+基準値: `scratchpad/manila_baseline.txt`。**証明してからドバイに適用した。**
+
+### ドバイ側（デプロイ済み・同期はまだ実行していない）
+
+同期が読むようになったもの:
+- `shift_published_rows`（lower(v.city)='dubai'、最新**書き込み**優先）
+- `dubai_attendance_daily` の既存 `scheduled_shift_start/end`（矛盾時に守る側）
+- `absences`（city='dubai'）
+
+⚠️ **打刻はUTC・シフトは現地時刻。** GSTに変換してから遅刻を測る
+（`_to_gst_naive`）。変換しないと全行が4時間ずれる。
+
+書くようになった列: `scheduled_shift_start/end` `late_minutes`
+`undertime_minutes` `is_scheduled_rest_day` `annual_leave_flag`、
+`day_type` に rest_day。早退は `undertime_after_break`（都市共通の1定義）を通す。
+
+**祝日は意図的に未接続** — エンジンに祝日割増のルールが無く、
+`ae_holiday_calendar` の Eid はまだ `is_approximate=True`。
+
+### 本番 preview_only の結果（書き込みなし）
+```
+1,159件 → 書き込み予定 1,123件 / 空セッション skip 36
+欠勤行 130（うち控除対象 15日、残り115日は有給として annual_leave_flag）
+skipped_no_shift 0    ← 55名全員にシフトがある
+schedule_conflicts 0  ← 打刻とシフトの矛盾なし
+schedule_changes 1,122（全行に初めて予定シフトが入る）
+errors 0
+```
+**発端の Pukar K C 2026-09-15**: 打刻GST 10:56→22:03 / シフト10:00-19:00
+→ `late_minutes = 56`（画面の「Late 56m」と一致）、早退は休憩補正後 0。
+
+### 🔴 実行すると発生する控除（オーナー判断）
+```
+対象 1,123日
+  遅刻>0           104日
+  遅刻>15分(控除)   26日   AED 約 515.83
+  早退(控除)        21日   AED 約 885.34
+  月3回以上の遅刻   Padam Bahadur K C のみ（4回）→ 月給5% + NTE発行対象
+```
+※時給は `monthly/26/8` で試算。エンジンは `agreed_hourly` があればそちらを使うため実額は前後する。
+
+**同期は実行していない。** 実行すると上記が9月給与に載る。
+
+### 残り（P2）
+承認済みOT 66.1時間が給与に到達しない件は未着手。
+`dubai_attendance_daily` に `approved_ot_hours` 列が無く、エンジンにOT加算ルールが無い。
+**割増率の決定が必要**（手入力実績1件からは 1.25× と読める: 6.25/h × 1.25 = 7.8125 ≒ AED 7.81）。
