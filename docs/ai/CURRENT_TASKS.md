@@ -30216,3 +30216,41 @@ Raj Deeban Jegan は staff_master 1行・profile 1行・9月DTR 18行（OT 3.00h
 - 別名表 id=228 `Shawne Patrick Lozana` → `Patrick shawn lozana` も逆向き。
 - 自由入力のまま残した氏名欄: login / setup-pin / swap-approve（認証前・名簿の公開になる）、
   requisition の `resigned_staff_name`（city がスコープに無い）。
+
+## 2026-09-22 — 8時間労働のルールを3か所に揃えた（Dubai）
+
+**オーナーが明示したルール**: 1日8時間勤務＋休憩1時間。シフト表示（10:00–19:00）の9時間の中に
+休憩1時間が入っている。人手不足時は残業を最初からシフトに入れる（10:00–20:00＝8時間＋残業1時間＋
+休憩1時間）。分割シフト（10:00–13:00 / 16:00–21:00）は**区間の隙間が休憩**で、勤務は8時間。
+
+**直したもの** — ルールは全て `app/attendance_facts.py` に1か所だけ置いた:
+- `scheduled_break_minutes(segments)` — 休憩は**シフトから**取る（分割は隙間、通常は60分）。
+  打刻に依存しない。重なった区間（64日ある公開上の癖）は60分に落とす。
+- `regular_and_overtime(span, break)` — `min(worked,8)` / `max(worked-8,0)`。
+- `span_is_credible(span)` / `MAX_SPAN_HOURS=14` — 退勤打刻漏れから時間を作らない。
+- `lateness_costs_pay(late, worked, grace)` — **実働8時間以上の日は遅刻控除しない**
+  （遅刻は「日を短くする」から金がかかる。取り戻した日は短くなっていない）。
+- `db_manila_ot_facts._facts_for` — 審査画面の `computed_minutes` を
+  「シフト枠の外」から**「実働 − 8時間」**へ。`break_minutes` / `worked_minutes` /
+  `standard_minutes` を返し、画面が式を見せる。
+
+**9月Dubaiの実測（再同期・再計算後）**
+| | before | after |
+|---|---|---|
+| `overtime_hours` 合計 | 754.93h | **448.79h** |
+| 遅刻控除 | 19件 AED 326.43 | **15件 AED 306.04** |
+| `late_surcharge` | 10件 86.38 | 9件 80.61 |
+| サイクル41 控除合計 | 71件 2,468.17 | **63件 2,237.88** |
+| Pukar K C 9/15 のバッジ | −1h4m「worked more」 | **matches the clock**（実働607分−480分＝127分 vs 申請120分） |
+
+退避: `_dtr_hours_bk_20260922`(874行) / `_adj41_bk_20260922`(575行)。
+サイクル38（6–8月・手計算）は 1,157行 AED 3,611.25 のまま無傷。
+
+**未着手**
+- **Manila のエンジンは同じ遅刻ルールをまだ使っていない**（`manila_payroll_engine.py:1078`、
+  猶予0分）。審査画面の計算は両都市で新ルールになったので、Manila だけ
+  「遅刻控除＋残業を実働基準で短縮」の二重取りが残っている。件数の実測と適用が要る。
+- `Padam Bahadur K C 2026-09-01` — 退勤打刻漏れで実働が読めず、遅刻70分の控除が付いている。
+  遅刻は確実だが取り戻したかは不明。
+- 退勤打刻漏れ10日（Bibek BK 3日 / Jonathan Brembuela 2日 / Shyam Lal Pun 2日 / Sita
+  Gurmachhan / Sota Horii / Udaya Gurung）は記録の訂正が要る。
