@@ -29,6 +29,7 @@ import { canAccessAdminNav, getAuth } from "@/lib/auth";
 import ShiftScheduleView from "./ShiftScheduleView";
 import ShiftMasterPanel from "@/components/ShiftMasterPanel";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
   loadShiftMaster,
@@ -1186,11 +1187,16 @@ function ExclusionManagerPanel({
                   options={[{ value: "", label: "Select…" }, ...branches.map((b) => ({ value: b.code, label: b.name }))]} />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-neutral-400 mb-1">Staff Name (exact)</label>
-                <input
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                  placeholder="e.g. Tricia Andrea Estrada"
-                  value={staffName} onChange={(e) => setStaffName(e.target.value)}
+                <label className="block text-xs text-neutral-400 mb-1">Staff Name</label>
+                {/* Typed, this had to match staff_master exactly or the exclusion
+                    simply never fired — a misspelling kept drafting the person
+                    it was written to stop, and said nothing. */}
+                <StaffNamePicker
+                  city={city}
+                  value={staffName}
+                  onChange={setStaffName}
+                  className={SELECT_CLASS + " text-sm"}
+                  aria-label="Staff to exclude from the draft"
                 />
               </div>
             </div>

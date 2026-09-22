@@ -16,6 +16,7 @@ import {
   T_PAGE_TITLE,
   T_SECTION,
 } from "@/lib/ui-tokens";
+import StaffNamePicker from "@/components/StaffNamePicker";
 
 type Snapshot = {
   found: boolean;
@@ -62,7 +63,6 @@ export default function CoePage() {
   const [canApprove, setCanApprove] = useState(false);
   const [overdue, setOverdue] = useState(0);
 
-  const [names, setNames] = useState<string[]>([]);
   const [staffName, setStaffName] = useState("");
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [requestDate, setRequestDate] = useState(todayISO());
@@ -90,18 +90,6 @@ export default function CoePage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/admin/staff_master/names?city=manila&limit=5000`);
-        const d = await res.json();
-        setNames(Array.isArray(d?.names) ? d.names : []);
-      } catch {
-        setNames([]);
-      }
-    })();
-  }, []);
 
   const lookup = async (name: string) => {
     setSnap(null);
@@ -235,19 +223,15 @@ export default function CoePage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <div className={T_LABEL + " mb-1.5"}>Staff</div>
-            <input
-              list="coe-staff"
+            <StaffNamePicker
+              city="manila"
+              includeSeparated
               value={staffName}
-              onChange={(e) => setStaffName(e.target.value)}
-              onBlur={(e) => lookup(e.target.value)}
-              placeholder="Type or pick a name"
+              onChange={(v) => { setStaffName(v); lookup(v); }}
+              placeholder="Pick a name"
+              aria-label="Staff"
               className={INPUT_CLASS}
             />
-            <datalist id="coe-staff">
-              {names.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
           </div>
           <div>
             <div className={T_LABEL + " mb-1.5"}>Date the employee asked</div>

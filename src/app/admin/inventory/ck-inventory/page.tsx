@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryDueBanner from "@/components/InventoryDueBanner";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import type { City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
@@ -536,12 +537,13 @@ export default function CkInventoryPage() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-neutral-500">Staff</label>
-              <input
-                type="text"
+              <StaffNamePicker
+                city={city}
                 value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
+                onChange={setStaffName}
                 placeholder="Your name"
-                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600"
+                aria-label="Your name"
+                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
               />
             </div>
             <div className="flex flex-col gap-1">

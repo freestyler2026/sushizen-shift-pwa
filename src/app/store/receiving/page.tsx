@@ -29,6 +29,7 @@ import {
   BADGE_ERROR,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 
 type LineItem = {
   item_name: string;
@@ -86,15 +87,6 @@ export default function StoreReceivingPage() {
   const [staffName, setStaffName] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState("manila");
-  const [staffNameOptions, setStaffNameOptions] = useState<string[]>([]);
-
-  useEffect(() => {
-    const c = city || "manila";
-    fetch(`/api/staff/names?city=${encodeURIComponent(c)}&limit=500`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d?.names)) setStaffNameOptions(d.names as string[]); })
-      .catch(() => {});
-  }, [city]);
 
   const [rows, setRows] = useState<CkPendingRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -241,19 +233,14 @@ export default function StoreReceivingPage() {
               <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
                 <User className="h-3 w-3" /> Your Name
               </label>
-              <input
+              <StaffNamePicker
+                city={city}
                 value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
+                onChange={setStaffName}
                 placeholder="Staff name"
-                list="ck-receiving-staff-names"
-                autoComplete="off"
+                aria-label="Your name"
                 className={INPUT_CLASS}
               />
-              <datalist id="ck-receiving-staff-names">
-                {staffNameOptions.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>

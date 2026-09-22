@@ -15,6 +15,7 @@ import {
   T_PAGE_TITLE, T_LABEL, T_CAPTION, GLASS_CARD,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 import { businessToday } from "@/lib/date";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -825,7 +826,8 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
       <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0">
           <label className={`${T_LABEL} mb-1 block`}>Staff Name</label>
-          <input className={`${INPUT_CLASS} w-full`} value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="Your name" />
+          <StaffNamePicker city="manila" value={staffName} onChange={setStaffName}
+            className={`${INPUT_CLASS} w-full`} placeholder="Your name" aria-label="Your name" />
         </div>
         <div className="min-w-0 overflow-hidden">
           <label className={`${T_LABEL} mb-1 block`}>Report Date</label>
@@ -1141,7 +1143,8 @@ function OpeningForm({ branch, onBranchChange, today }: { branch: string; onBran
       <div className="grid grid-cols-2 gap-3">
         <div className="min-w-0">
           <label className={`${T_LABEL} mb-1 block`}>Staff Name</label>
-          <input className={`${INPUT_CLASS} w-full`} value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="Your name" />
+          <StaffNamePicker city="manila" value={staffName} onChange={setStaffName}
+            className={`${INPUT_CLASS} w-full`} placeholder="Your name" aria-label="Your name" />
         </div>
         <div className="min-w-0 overflow-hidden">
           <label className={`${T_LABEL} mb-1 block`}>Report Date</label>
