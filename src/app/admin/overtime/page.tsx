@@ -403,8 +403,9 @@ function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) 
           </p>
           {f.gap_minutes ? (
             <p className="text-amber-300/80">
-              Split shift — {formatMinutes(f.gap_minutes)} worked through the unpaid gap. Not counted
-              above; decide whether it is overtime.
+              Split shift — the {formatMinutes(f.gap_minutes)} gap between the segments is the
+              break, so it is deducted above. If they worked through it, that time is not in the
+              number; decide whether to add it.
             </p>
           ) : null}
           <p className="text-white/40">
