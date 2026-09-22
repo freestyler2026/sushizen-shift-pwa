@@ -30096,3 +30096,47 @@ errors 0
 承認済みOT 66.1時間が給与に到達しない件は未着手。
 `dubai_attendance_daily` に `approved_ot_hours` 列が無く、エンジンにOT加算ルールが無い。
 **割増率の決定が必要**（手入力実績1件からは 1.25× と読める: 6.25/h × 1.25 = 7.8125 ≒ AED 7.81）。
+
+## 2026-09-22 — ドバイ9月給与 実行完了（P1実行 + P2実装・実行）
+
+### 実行したこと
+1. **同期** `sync-dtr` 8/26–9/25（事実のみ・金額ゼロ）→ 1,125行 + 欠勤130行
+2. **P2実装** `approved_ot_hours` 列追加・同期・エンジンのOT加算ルール
+3. **同期 再実行** → OT 53日 / 66.06時間が DTR に載った（`ot_unattached 0`）
+4. **自動調整** cycle 41 / **9/1–9/25**（オーナー指定・8月分を除く）
+
+### 結果（cycle 41 / 574行）
+```
+addition   night_premium          451件  AED 1,564.73
+addition   approved_overtime       53件  AED   807.38   ← P2。初めてOTが金額になった
+deduction  absent_awp              12件  AED 1,208.69
+deduction  undertime_deduction     20件  AED   566.19
+deduction  late_deduction          19件  AED   326.43
+deduction  monthly_late_accum.      1件  AED   136.16   Padam Bahadur K C
+deduction  break_excess             5件  AED   116.92
+deduction  late_surcharge          10件  AED    86.38
+deduction  missing_punch            4件  AED    27.40
+                     加算 2,372.11 / 控除 2,468.17 / 差引 -96.06
+```
+
+### 検証
+```
+8月サイクル38: 1,157行 AED 3,611.25 のまま無傷 ✓
+cycle41 の日付範囲: 9/1–9/21、8月分の混入 0件 ✓
+有給休暇日に控除がかかっている人: なし ✓
+Pukar K C（発端）: OT 10件 AED 237.53 / 深夜 AED 10.17 / 遅刻控除 AED 8.54
+```
+
+### ⚠️ 実行して見つけた不具合（直して再実行済み）
+**勤務中のシフトに打刻漏れ手数料がかかっていた。** 初回実行で
+missing_punch 20件のうち**16件が実行当日(9/22)** — まだ退勤していない人に
+AED 145。`business_day("dubai")` より前の日だけ課すよう修正し、再実行して
+**20件 AED181.71 → 4件 AED27.40** になった。
+
+### 残る判断
+- **OT割増率** 既定 1.25（UAE Federal Decree-Law 33/2021 Art.19、
+  手入力実績1件とも一致）。`DUBAI_OT_MULTIPLIER` でデプロイ不要に変更可
+- **深夜残業の 1.5倍は未適用。** エンジンは既に深夜10%割増を別途払っており、
+  法定50%を上乗せするか置き換えるかは会社の支払い方針
+- **Padam Bahadur K C** 月3回以上の遅刻で AED 136.16 + NTE発行対象
+- **名寄せ Raj / Raji** 正式名が未確定（別名表は Raji、給与・打刻・OTは Raj）
