@@ -99,6 +99,12 @@ type OtFacts = {
   before_minutes: number | null;
   after_minutes: number | null;
   gap_minutes: number | null;
+  /** The break the roster states — the gap on a split shift, the standard
+   *  hour otherwise. Not the break punches: a day nobody pressed Break In on
+   *  is not a day without a break. */
+  break_minutes: number | null;
+  worked_minutes: number | null;
+  standard_minutes: number | null;
   computed_minutes: number | null;
   claimed_minutes: number | null;
   delta_minutes: number | null;
@@ -373,10 +379,24 @@ function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) 
             </span>
           </p>
           <p>
-            Outside the shift:{" "}
-            <span className="text-white">{formatMinutes(f.before_minutes ?? 0)}</span> before +{" "}
-            <span className="text-white">{formatMinutes(f.after_minutes ?? 0)}</span> after ={" "}
-            <span className="text-white">{formatMinutes(f.computed_minutes)}</span>
+            Worked:{" "}
+            <span className="text-white">
+              {formatMinutes((f.worked_minutes ?? 0) + (f.break_minutes ?? 0))}
+            </span>{" "}
+            at work &minus;{" "}
+            <span className="text-white">{formatMinutes(f.break_minutes ?? 0)}</span> break ={" "}
+            <span className="text-white">{formatMinutes(f.worked_minutes ?? 0)}</span>
+          </p>
+          <p>
+            Overtime:{" "}
+            <span className="text-white">{formatMinutes(f.worked_minutes ?? 0)}</span> &minus;{" "}
+            <span className="text-white">{formatMinutes(f.standard_minutes ?? 480)}</span> standard
+            day = <span className="text-white">{formatMinutes(f.computed_minutes)}</span>
+          </p>
+          <p className="text-white/40">
+            Outside the published span for reference:{" "}
+            {formatMinutes(f.before_minutes ?? 0)} before, {formatMinutes(f.after_minutes ?? 0)}{" "}
+            after.
           </p>
           <p>
             Asked for: <span className="text-white">{formatMinutes(f.claimed_minutes ?? 0)}</span>
@@ -388,9 +408,12 @@ function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) 
             </p>
           ) : null}
           <p className="text-white/40">
-            An early clock-in counts: payroll runs regular hours from the shift start, so time
-            before it is payable only as overtime. Within {CLOCK_TOLERANCE_MIN} minutes counts as
-            agreeing. This never blocks an approval.
+            A day is eight hours of work. The roster shows nine because the unpaid hour of break
+            sits inside it; a split shift puts that hour in the gap between its segments. Overtime
+            is whatever is delivered beyond the eight, so a shift rostered 10:00&ndash;20:00
+            carries an hour of it before anybody asks, and a late arrival that was made up carries
+            less. Within {CLOCK_TOLERANCE_MIN} minutes counts as agreeing. This never blocks an
+            approval.
           </p>
         </div>
       )}

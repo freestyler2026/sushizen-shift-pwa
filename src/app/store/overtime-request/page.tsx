@@ -183,7 +183,11 @@ function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) 
             </span>
           </p>
           <p>
-            Outside your shift:{" "}
+            {/* A day is eight hours of work; the hour of break sits inside the
+                published shift, and on a split shift it is the gap. What the
+                clock supports as overtime is the work past the eight, not the
+                time outside the span — those differ by exactly a late arrival. */}
+            Overtime the clock supports:{" "}
             <span className="text-white/90">{mins(f.computed_minutes)}</span>
             {f.delta_minutes !== null && f.delta_minutes < -15 && (
               <span className="ml-2 text-sky-300">
