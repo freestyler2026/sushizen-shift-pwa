@@ -1193,6 +1193,12 @@ function ExclusionManagerPanel({
                     it was written to stop, and said nothing. */}
                 <StaffNamePicker
                   city={city}
+                  /* An exclusion is usually written about someone who has just
+                     been let go, and letting them go takes them off the active
+                     roster — an ACTIVE-only list is empty of exactly the people
+                     this form is for. Six of the thirteen exclusions on record
+                     name someone the active roster no longer carries. */
+                  includeSeparated
                   value={staffName}
                   onChange={setStaffName}
                   className={SELECT_CLASS + " text-sm"}

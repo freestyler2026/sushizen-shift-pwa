@@ -1098,6 +1098,9 @@ export default function HRPerformancePage() {
                 <label className={T_LABEL}>Staff Name *</label>
                 <StaffNamePicker
                   city="manila"
+                  /* Two of the eleven reviews on record are of people who have
+                     since left; a review can be written after the fact. */
+                  includeSeparated
                   className={INPUT_CLASS}
                   value={form.staff_name}
                   onChange={(v) => setForm((f) => ({ ...f, staff_name: v }))}
