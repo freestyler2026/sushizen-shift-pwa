@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import VoiceScreening from "@/components/apply/VoiceScreening";
+import ApplicantContact from "@/components/apply/ApplicantContact";
 
 /**
  * Where an invite link lands.
@@ -85,6 +86,9 @@ export default function VoiceInvitePage() {
           </div>
         </div>
         <p className="text-sm leading-relaxed text-zinc-300">{body}</p>
+        {/* 上の文は「Sushi ZEN からの message に返信してください」と言うが、
+            SMSで届いた人には返信先が無い。行き止まりに連絡先を置く。 */}
+        <ApplicantContact lang={lang} />
         {/* Not on "expired": a dead link stays dead and a button that cannot
             work is worse than none. Everything else may be a deploy that ran
             long, so the way back on is left in front of them. */}

@@ -23,6 +23,12 @@ interface ParLevelRow {
   unit: string | null;
   par_level: number | null;
   current_stock: number | null;
+  /** How the count compared to this row's own unit. "ok" and "converted"
+   *  mean current_stock is a real number; "not_counted" and "unit_mismatch"
+   *  mean it is null, and they are not the same problem. */
+  stock_status?: "ok" | "converted" | "not_counted" | "unit_mismatch";
+  counted_qty?: number | null;
+  counted_unit?: string;
   category: string | null;
   supplier: string | null;
   notes: string | null;
@@ -40,6 +46,12 @@ interface ParLevelRow {
   // this the order quantity has to be typed by hand every single time.
   unit_size?: number | null;
   unit_size_uom?: string | null;
+  // 作る単位。par を下回ったぶんをこの倍数に切り上げて生産計画へ出す。
+  order_step?: number | null;
+  // その品の CK カタログに入っている刻み。押されるまで書き込まない。
+  catalog_order_step?: number | null;
+  to_produce?: number | null;
+  to_produce_raw?: number | null;
   price_source?: string | null;
   // 発注カタログでの品名。item_name とは別に持つ — item_name は棚卸しの鍵で、
   // 変えると現在庫が引けなくなり、その品が発注対象から消える。
@@ -204,6 +216,9 @@ export default function CkParLevelsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createPin, setCreatePin] = useState("");
   const [creatingOrders, setCreatingOrders] = useState(false);
+  const [showNotCounted, setShowNotCounted] = useState(false);
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [stepVal, setStepVal] = useState("");
   const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null);
   // What will actually be ordered. The modal used to render par − stock straight
   // from the rows, so the only way to change a quantity was to leave, edit the
@@ -222,6 +237,11 @@ export default function CkParLevelsPage() {
   // would be a lie there, and telling someone to go and register an item they
   // already registered is worse than saying nothing.
   const [catalogExcluded, setCatalogExcluded] = useState(0);
+  // Supplier-facing rows that are switched off in the catalogue. Kept apart
+  // from `catalog` so nothing can pick one by accident, and so the counts that
+  // describe what is on offer keep meaning what they say.
+  const [catalogOff, setCatalogOff] = useState<CatalogPick[]>([]);
+  const [showUnitMismatch, setShowUnitMismatch] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQ, setPickerQ] = useState("");
   // Added lines need ids of their own — the par rows' ids are database keys and
@@ -404,6 +424,13 @@ export default function CkParLevelsPage() {
     && Number(r.catalog_unit_price ?? 0) > 0
     && !!(r.catalog_unit || "").trim()
     && (r.catalog_unit || "").trim().toLowerCase() !== (r.unit || "").trim().toLowerCase();
+
+  /** The other reason to ask how big one unit is: the CK counted this item in
+   *  something the par level is not written in, so par − stock has no answer
+   *  until somebody says how the two relate. Same declaration, same field —
+   *  how many bottles are in a case does not depend on why you asked. */
+  const needsSizeForCount = (r: ParLevelRow) =>
+    r.stock_status === "unit_mismatch" && !!(r.counted_unit || "").trim();
 
   // ── counting-unit size inline save ───────────────────────────────────────
   /** "1 <unit> = size <uom>". Sending an empty size clears both, which puts
@@ -593,6 +620,7 @@ export default function CkParLevelsPage() {
     setCatalogState("loading");
     setCatalogErr("");
     setCatalog([]);
+    setCatalogOff([]);
     try {
       const auth = getAuth();
       const res = await fetch(
@@ -602,6 +630,7 @@ export default function CkParLevelsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed to load the catalogue");
       setCatalog(Array.isArray(data.items) ? data.items : []);
+      setCatalogOff(Array.isArray(data.inactive_items) ? data.inactive_items : []);
       setCatalogExcluded(Number(data.excluded_by_type) || 0);
       catalogCity.current = city;
       setCatalogState("ready");
@@ -663,6 +692,19 @@ export default function CkParLevelsPage() {
       });
     scored.sort((a, b) => a.rank - b.rank || a.c.item_name.localeCompare(b.c.item_name));
     return scored.slice(0, 40).map((x) => x.c);
+  })();
+
+  // Deactivated matches, shown only once something has been typed. Listing all
+  // 235 of Manila's switched-off rows by default would bury the ones on offer;
+  // the question these answer is "I searched and got nothing", and that is only
+  // asked with a query in the box.
+  const pickerOffResults = (() => {
+    const q = pickerQ.trim().toLowerCase();
+    if (!q) return [] as CatalogPick[];
+    return catalogOff
+      .filter((c) => c.item_name.toLowerCase().includes(q) || c.supplier_name.toLowerCase().includes(q))
+      .sort((a, b) => a.item_name.localeCompare(b.item_name))
+      .slice(0, 8);
   })();
 
   // What the order already contains, so the picker can say so. The par line and
@@ -820,6 +862,39 @@ export default function CkParLevelsPage() {
     setEditVal(row.par_level != null ? String(row.par_level) : "");
   };
 
+  // How much of this the kitchen makes at a time. Blank or 0 means no
+  // rounding, which is what every row does until somebody sets one.
+  const saveStep = async (row: ParLevelRow, value: string) => {
+    const txt = value.trim();
+    const n = txt === "" ? null : parseFloat(txt);
+    if (txt !== "" && (isNaN(n as number) || (n as number) < 0)) {
+      alert("Enter how much is made at a time, or leave it blank for no rounding.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(
+        `/api/admin/ck/par-levels/${row.id}?city=${cityParam(city)}`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({ order_step: n }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Save failed");
+      setEditingStepId(null);
+      // The server works out what to produce from the step, so take the row
+      // back from it rather than recomputing the same sum in two places.
+      await loadRows();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveEdit = async (row: ParLevelRow) => {
     setSaving(true);
     try {
@@ -947,6 +1022,35 @@ export default function CkParLevelsPage() {
   const withPar = rows.filter((r) => r.par_level != null).length;
   const withoutPar = rows.length - withPar;
   const withStock = rows.filter((r) => r.current_stock != null).length;
+  // Rows the ordering screen cannot act on: a par is set and a supplier is
+  // named, but the last CK count has no line for that item, so par − stock is
+  // unknowable and the row is left out of the order. That exclusion was
+  // silent, and it is how Pork Back Bones went ten days without an order
+  // while Pork Leg Bones beside it ordered every time.
+  const notCounted = rows.filter(
+    (r) =>
+      tab === "supplier" &&
+      r.current_stock == null &&
+      r.par_level != null &&
+      !!(r.supplier || "").trim() &&
+      (r.supplier || "").trim() !== "—" &&
+      (r.supplier || "").trim() !== "-"
+  );
+
+  // The other silent exclusion. These rows were counted — somebody walked the
+  // store and wrote a number — but in a unit the par level is not written in,
+  // so par − stock has no answer. Until 2026-09-22 the screen subtracted them
+  // anyway: 12 BTL of Coke Mismo against a par of 3 CASE read as a surplus of
+  // nine on an item the CK was two cases short of.
+  const unitMismatch = rows.filter(
+    (r) =>
+      tab === "supplier" &&
+      r.stock_status === "unit_mismatch" &&
+      r.par_level != null &&
+      !!(r.supplier || "").trim() &&
+      (r.supplier || "").trim() !== "—" &&
+      (r.supplier || "").trim() !== "-"
+  );
 
   const gapLabel = tab === "ck_produced" ? "To Produce" : "To Order";
 
@@ -1192,6 +1296,11 @@ export default function CkParLevelsPage() {
                     <th className="px-4 py-3 text-center">Unit</th>
                     <th className="px-4 py-3 text-center">Par Level</th>
                     <th className="px-4 py-3 text-center">Stock</th>
+                    {tab === "ck_produced" && (
+                      <th className="px-4 py-3 text-center" title="How much the kitchen makes at a time. What is short gets rounded up to a multiple of this.">
+                        Order Step
+                      </th>
+                    )}
                     <th className="px-4 py-3 text-center">{gapLabel}</th>
                     {tab === "supplier" && (
                       <th className="px-4 py-3 text-left">Supplier</th>
@@ -1204,11 +1313,19 @@ export default function CkParLevelsPage() {
                   {filtered.map((row, idx) => {
                     const isEditing = editingId === row.id;
 
-                    // Gap calculation
+                    // What to make. The server works this out from the step so
+                    // that this column, the pushed plan and the spreadsheet all
+                    // say the same number; falling back to the raw subtraction
+                    // only covers a response from before the step existed.
                     const gap =
-                      row.par_level != null && row.current_stock != null
+                      row.to_produce !== undefined
+                        ? row.to_produce
+                        : row.par_level != null && row.current_stock != null
                         ? Math.max(0, row.par_level - row.current_stock)
                         : null;
+                    const gapRaw = row.to_produce_raw ?? null;
+                    const rounded =
+                      gap != null && gapRaw != null && Math.abs(gap - gapRaw) > 1e-9;
 
                     const gapColor =
                       gap == null
@@ -1365,6 +1482,22 @@ export default function CkParLevelsPage() {
                             >
                               1 {row.unit} = {fmtNum(row.unit_size)} {row.unit_size_uom}
                             </button>
+                          ) : needsSizeForCount(row) ? (
+                            /* Asked before the ordering-unit prompt because this
+                               one blocks more: without it the row has no stock
+                               figure at all, so it cannot reach an order however
+                               short the CK is. */
+                            <button
+                              onClick={() => {
+                                setEditingSizeId(row.id);
+                                setSizeValue("");
+                                setSizeUom(row.counted_unit || "");
+                              }}
+                              className="mt-0.5 block w-full rounded px-1 text-[10px] font-medium text-orange-300 hover:bg-orange-500/10"
+                              title={`Counted in ${row.counted_unit}, par set in ${row.unit}. Say how many ${row.counted_unit} make one ${row.unit} and the stock figure comes back.`}
+                            >
+                              + how many {row.counted_unit} in 1 {row.unit}?
+                            </button>
                           ) : needsSize(row) ? (
                             <button
                               onClick={() => {
@@ -1430,19 +1563,109 @@ export default function CkParLevelsPage() {
                         {/* Current Stock — read-only, from CK Inventory */}
                         <td className="px-4 py-2.5 text-center">
                           {row.current_stock != null ? (
-                            <span className="rounded-md bg-sky-500/10 px-2 py-0.5 text-sm font-semibold text-sky-300">
+                            <span
+                              className="rounded-md bg-sky-500/10 px-2 py-0.5 text-sm font-semibold text-sky-300"
+                              title={row.stock_status === "converted"
+                                ? `Counted as ${fmtNum(row.counted_qty ?? 0)} ${row.counted_unit}, which is ${fmtNum(row.current_stock)} ${row.unit}.`
+                                : undefined}
+                            >
                               {fmtNum(row.current_stock)}
+                              {row.stock_status === "converted" && (
+                                <span className="ml-1 text-[10px] font-normal text-sky-300/60">
+                                  ← {fmtNum(row.counted_qty ?? 0)} {row.counted_unit}
+                                </span>
+                              )}
+                            </span>
+                          ) : row.stock_status === "unit_mismatch" ? (
+                            /* Counted, and counted in something else. Showing the
+                               number as written is the honest version — the old
+                               screen subtracted 12 bottles from 3 cases and called
+                               it a surplus of nine. */
+                            <span
+                              className="rounded-md bg-orange-500/10 px-2 py-0.5 text-[11px] text-orange-300"
+                              title={`The CK counted ${fmtNum(row.counted_qty ?? 0)} ${row.counted_unit}, but this par level is set in ${row.unit || "no unit"}. Nothing says how the two relate, so par − stock cannot be worked out and this item is left out of the order. Say how many ${row.counted_unit} make 1 ${row.unit || "unit"} under the Unit column and the number comes back.`}
+                            >
+                              {fmtNum(row.counted_qty ?? 0)} {row.counted_unit}
+                              <span className="ml-1 text-orange-400/80">· unit ≠ {row.unit || "—"}</span>
                             </span>
                           ) : (
-                            <span className="text-zinc-700 text-xs">—</span>
+                            <span
+                              className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300/90"
+                              title={`The last CK count has no line named "${row.item_name}", so we cannot tell how much is on hand. This item is left out of the order. Check the name matches the inventory sheet.`}
+                            >
+                              not counted
+                            </span>
                           )}
                         </td>
+
+                        {/* Order Step — how much the kitchen makes at a time */}
+                        {tab === "ck_produced" && (
+                          <td className="px-4 py-2.5 text-center">
+                            {editingStepId === row.id ? (
+                              <input
+                                autoFocus
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                value={stepVal}
+                                onChange={(e) => setStepVal(e.target.value)}
+                                onBlur={() => saveStep(row, stepVal)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveStep(row, stepVal);
+                                  if (e.key === "Escape") setEditingStepId(null);
+                                }}
+                                disabled={saving}
+                                className="w-20 rounded-md border border-indigo-500/40 bg-white/5 px-2 py-0.5 text-center text-sm text-white focus:outline-none focus:border-indigo-400"
+                              />
+                            ) : row.order_step != null ? (
+                              <button
+                                onClick={() => {
+                                  setEditingStepId(row.id);
+                                  setStepVal(String(row.order_step ?? ""));
+                                }}
+                                className="rounded-md bg-indigo-500/10 px-2 py-0.5 text-sm font-semibold text-indigo-300 hover:bg-indigo-500/20"
+                                title={`Made ${fmtNum(row.order_step)} ${row.unit} at a time. What is short is rounded up to a multiple of this.`}
+                              >
+                                {fmtNum(row.order_step)}
+                              </button>
+                            ) : row.catalog_order_step != null ? (
+                              /* The kitchen already orders this in that step. Offered,
+                                 not applied — this number decides how much gets cooked. */
+                              <button
+                                onClick={() => saveStep(row, String(row.catalog_order_step))}
+                                disabled={saving}
+                                className="rounded-md border border-dashed border-indigo-400/40 px-2 py-0.5 text-[11px] text-indigo-300/80 hover:bg-indigo-500/10"
+                                title={`The CK catalogue orders this in ${fmtNum(row.catalog_order_step)} ${row.unit}. Press to use the same step for production.`}
+                              >
+                                use {fmtNum(row.catalog_order_step)}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setEditingStepId(row.id);
+                                  setStepVal("");
+                                }}
+                                className="text-zinc-600 hover:text-zinc-400 text-xs"
+                                title="No rounding — the plan asks for exactly what is short."
+                              >
+                                —
+                              </button>
+                            )}
+                          </td>
+                        )}
 
                         {/* Gap: To Produce / To Order */}
                         <td className={`px-4 py-2.5 text-center text-sm font-semibold ${gapColor}`}>
                           {gap != null ? (
                             gap === 0 ? (
                               <span className="text-emerald-400 text-xs">✓ OK</span>
+                            ) : rounded ? (
+                              <span title={`${fmtNum(gapRaw as number)} short, rounded up to a multiple of ${fmtNum(row.order_step as number)}`}>
+                                {fmtNum(gap)}
+                                <span className="ml-1 text-[10px] font-normal text-zinc-500">
+                                  ({fmtNum(gapRaw as number)})
+                                </span>
+                              </span>
                             ) : (
                               fmtNum(gap)
                             )
@@ -1881,7 +2104,45 @@ export default function CkParLevelsPage() {
                                 <span className="w-14 text-right text-zinc-500">{c.unit || "—"}</span>
                               </button>
                             ))}
-                            {pickerResults.length === 0 && (
+                            {pickerOffResults.length > 0 && (
+                              <div className="bg-black/20 px-2.5 py-2">
+                                <p className="text-[11px] font-medium text-orange-300/90">
+                                  {pickerOffResults.length === 1 ? "This one is" : `These ${pickerOffResults.length} are`} in
+                                  the catalogue but switched off, so {pickerOffResults.length === 1 ? "it is" : "they are"} not
+                                  on offer here:
+                                </p>
+                                <div className="mt-1.5 divide-y divide-white/5">
+                                  {pickerOffResults.map((c) => (
+                                    <div
+                                      key={`off-${c.item_name}__${c.supplier_name}`}
+                                      className="flex items-center gap-2 py-1.5 text-xs text-zinc-500"
+                                    >
+                                      <span className="flex-1 truncate line-through decoration-zinc-600">{c.item_name}</span>
+                                      <span className="w-40 truncate text-right">{c.supplier_name}</span>
+                                      <span className="w-24 text-right tabular-nums">
+                                        {c.unit_price > 0 ? fmtNum(c.unit_price, 2) : "no price"}
+                                      </span>
+                                      <span className="w-14 text-right">{c.unit || "—"}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <p className="mt-1.5 text-[11px] text-zinc-400">
+                                  Do not register these again — a second copy never meets its own price
+                                  or its own recipe. Either the supplier was switched off on purpose and
+                                  the item now comes from someone else, or it was switched off by
+                                  mistake. Procurement decides which, on the Catalog page.
+                                </p>
+                                <a
+                                  href="/admin/procurement/catalog"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-1.5 inline-block rounded-lg border border-orange-500/30 bg-orange-500/15 px-2.5 py-1 text-[11px] font-medium text-orange-300 hover:bg-orange-500/25"
+                                >
+                                  Open the Procurement catalogue →
+                                </a>
+                              </div>
+                            )}
+                            {pickerResults.length === 0 && pickerOffResults.length === 0 && (
                               <div className="px-3 py-4 text-xs text-zinc-400">
                                 <p className="text-zinc-300">
                                   Nothing in the catalogue matches “{pickerQ.trim()}”.
@@ -1919,6 +2180,8 @@ export default function CkParLevelsPage() {
                           <p className="mt-2 text-[11px] text-zinc-500">
                             {catalog.length} catalogue rows{pickerQ.trim() && ` · showing ${pickerResults.length}`}
                             {!pickerQ.trim() && pickerResults.length >= 40 && " · type to narrow"}
+                            {catalogOff.length > 0 &&
+                              ` · ${catalogOff.length} more switched off (search finds them and says so)`}
                             . Price, unit and supplier come from the catalogue, so nothing new is
                             created by picking.
                             {unassignedCatalogCount > 0 &&
@@ -1945,6 +2208,74 @@ export default function CkParLevelsPage() {
                     the item is under a different name in the Procurement catalogue, or is not in
                     it at all. Fill those in on the order before approving.
                   </p>
+                )}
+                {notCounted.length > 0 && (
+                  <div className="mt-3 text-xs text-amber-300/90">
+                    {/* The names are behind a press on purpose. Twelve of Manila's
+                        fourteen are Richcath's vegetables, ordered daily through
+                        Store Procurement and never through this screen — printing
+                        them on every order would be the wall of text a new one
+                        would hide in. The count is the signal; the row's own
+                        "not counted" tag in the Stock column is where you find it. */}
+                    <span>
+                      {notCounted.length} item{notCounted.length !== 1 ? "s" : ""} with a par level
+                      and a supplier {notCounted.length !== 1 ? "are" : "is"} not on this order —
+                      the last CK count has no line for {notCounted.length !== 1 ? "them" : "it"},
+                      so par − stock cannot be worked out.{" "}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowNotCounted((v) => !v)}
+                      aria-label={showNotCounted
+                        ? "Hide the items with no line on the count sheet"
+                        : "Which items have no line on the count sheet?"}
+                      className="underline underline-offset-2 hover:text-amber-200"
+                    >
+                      {showNotCounted ? "Hide" : "Which ones?"}
+                    </button>
+                    {showNotCounted && (
+                      <p className="mt-1 text-amber-300/70">
+                        {notCounted.map((r) => r.item_name).join(", ")}. Either the name differs
+                        from the inventory sheet, or the item is not counted at all. Add any that
+                        need ordering below.
+                      </p>
+                    )}
+                  </div>
+                )}
+                {unitMismatch.length > 0 && (
+                  <div className="mt-3 text-xs text-orange-300/90">
+                    <span>
+                      {unitMismatch.length} item{unitMismatch.length !== 1 ? "s" : ""} {unitMismatch.length !== 1 ? "are" : "is"} not
+                      on this order — the CK counted {unitMismatch.length !== 1 ? "them" : "it"} in a
+                      different unit from the par level, so par − stock has no answer.{" "}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowUnitMismatch((v) => !v)}
+                      aria-label={showUnitMismatch
+                        ? "Hide the items counted in another unit"
+                        : "Which items were counted in another unit?"}
+                      className="underline underline-offset-2 hover:text-orange-200"
+                    >
+                      {showUnitMismatch ? "Hide" : "Which ones?"}
+                    </button>
+                    {showUnitMismatch && (
+                      <div className="mt-1 space-y-0.5 text-orange-300/70">
+                        {unitMismatch.map((r) => (
+                          <p key={r.id}>
+                            {r.item_name} — counted {fmtNum(r.counted_qty ?? 0)} {r.counted_unit},
+                            par set in {r.unit || "no unit"}
+                          </p>
+                        ))}
+                        <p className="pt-1">
+                          On the Par Level list, under each item&rsquo;s Unit, say how many{" "}
+                          {unitMismatch.length === 1 ? unitMismatch[0].counted_unit : "counted units"} make
+                          one par unit. The stock figure comes back and the item orders itself
+                          again. Add any that are needed today below.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {draftLineCount === 0 && (
                   <p className="mt-3 text-xs text-orange-300">

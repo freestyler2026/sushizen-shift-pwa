@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, Pencil, Save, X } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { money, currencyOf } from "@/lib/currency";
 
 type DeliveryItem = {
   id: number;
@@ -14,10 +15,16 @@ type DeliveryItem = {
   unit_price: number;
   notes: string;
   source: "auto" | "manual";
+  // "order"   = the price the order carried
+  // "catalog" = blank on the order, shown from the catalogue while still pending
+  // "none"    = no price anywhere
+  price_source?: "order" | "catalog" | "none";
 };
 
 type Delivery = {
   id: number;
+  city?: string;
+  items_priced_from_catalog?: number;
   delivery_date: string;
   to_branch: string;
   status: string;
@@ -40,8 +47,14 @@ function fmt(n: number) {
   return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Who may correct a price on this note. A role-name list refuses every custom
+// role, so a branch manager could never be given this no matter what Role
+// Management showed. The permission is the real gate (the server checks the
+// same one); the names stay as a fallback so nobody who had it loses it.
 function canEditPrices(auth: ReturnType<typeof getAuth>) {
   if (!auth) return false;
+  const perms = auth.permissions || [];
+  if (perms.includes("*") || perms.includes("channel.store_ck_delivery.manage")) return true;
   return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT"].includes(auth.role || "");
 }
 
@@ -144,6 +157,7 @@ export default function CKDeliveryNotePage() {
   const displayGrouped = groupBy(displayItems, i => i.category || "Other");
 
   const grandTotal = displayItems.reduce((sum, i) => sum + (i.qty || 0) * (i.unit_price || 0), 0);
+  const cur = currencyOf(delivery?.city);
   const hasPrices = displayItems.some(i => (i.unit_price || 0) > 0);
 
   return (
@@ -269,7 +283,7 @@ export default function CKDeliveryNotePage() {
                       <th className="text-right py-1 pl-3" style={{ width: "14%" }}>Line Total</th>
                     </>
                   )}
-                  <th className="text-left py-1 pl-3" style={{ width: "9%" }}>Source</th>
+                  <th className="text-left py-1 pl-3" style={{ width: "9%" }}>Line from</th>
                   {!editMode && <th className="text-left py-1 pl-3" style={{ width: "9%" }}>✓</th>}
                 </tr>
               </thead>
@@ -298,8 +312,25 @@ export default function CKDeliveryNotePage() {
                                 onChange={e => setDraftPrices(p => ({ ...p, [origItem?.id ?? item.id]: e.target.value }))}
                                 className="w-24 rounded border border-blue-300 bg-blue-50 px-1.5 py-0.5 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-400"
                               />
+                            ) : (item.unit_price || 0) > 0 ? (
+                              <>
+                                {fmt(item.unit_price)}
+                                {/* Which lines the banner is counting. A count on its
+                                    own cannot be acted on -- the reader has to be able
+                                    to see which figure is today's catalogue price
+                                    rather than the one the order carried. The SOURCE
+                                    column next to it means something else entirely
+                                    (whether the LINE came from the order), so this
+                                    cannot live there. */}
+                                {item.price_source === "catalog" && (
+                                  <span
+                                    title="The order carried no price. This is the current catalogue price."
+                                    className="ml-1.5 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-amber-700"
+                                  >catalog</span>
+                                )}
+                              </>
                             ) : (
-                              (item.unit_price || 0) > 0 ? fmt(item.unit_price) : "—"
+                              "—"
                             )}
                           </td>
                           <td className="py-1.5 pl-3 text-right font-mono text-gray-800 tabular-nums">
@@ -331,9 +362,24 @@ export default function CKDeliveryNotePage() {
         {(showPrices || editMode) && hasPrices && grandTotal > 0 && (
           <div className="mt-3 flex justify-end border-t-2 border-gray-900 pt-2">
             <div className="text-right">
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-6">Delivery Total (PHP)</span>
-              <span className="text-base font-bold text-gray-900 tabular-nums">₱ {fmt(grandTotal)}</span>
+              {/* The note is signed by the branch that receives it. A Dubai
+                  branch handed a total headed PHP is being given the wrong
+                  currency on a document it signs. */}
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-6">
+                Delivery Total ({cur.code})
+              </span>
+              <span className="text-base font-bold text-gray-900 tabular-nums">{money(delivery?.city, grandTotal)}</span>
             </div>
+          </div>
+        )}
+
+        {/* Where a figure came from. A catalogue price is today's, not the
+            price on the day the order was placed, so the total must not
+            present the two as the same thing. */}
+        {!editMode && (delivery.items_priced_from_catalog || 0) > 0 && (
+          <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {delivery.items_priced_from_catalog} line(s) show the <strong>current catalogue price</strong> because
+            the order was placed without one. Confirming this delivery stores these figures.
           </div>
         )}
 

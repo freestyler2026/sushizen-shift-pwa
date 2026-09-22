@@ -16,6 +16,7 @@ import {
 import { prepareUpload } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -374,7 +375,8 @@ export default function DailyCheckPage() {
             </div>
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Your Name</label>
-              <input className={INPUT_CLASS} value={staffName} onChange={(e) => setStaffName(e.target.value)}
+              <StaffNamePicker city={city} value={staffName} onChange={setStaffName} className={INPUT_CLASS}
+                aria-label="Your name"
                 placeholder="Full name" />
             </div>
           </div>

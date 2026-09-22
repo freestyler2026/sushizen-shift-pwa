@@ -5,7 +5,9 @@ import { prepareIfImage } from "@/lib/image-compress";
 import { TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER } from "@/lib/ui-tokens";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
+import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
+import { isoDate } from "@/lib/date";
+import InvoicePhotoViewer from "@/components/InvoicePhotoViewer";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
 import DriveInvoiceInbox from "@/components/DriveInvoiceInbox";
@@ -39,7 +41,21 @@ type InvoiceRow = {
   verify_by?: string;
   verify_at?: string | null;
   verify_note?: string;
+  /** How many photographs somebody has attached. Shown on the closed row so
+   *  the ones still missing one can be found without opening each. */
+  photo_count?: number;
   created_at: string;
+};
+
+/** One photograph in the city, as the search returns it. */
+type PhotoHit = {
+  source_table: string;
+  source_id: string;
+  vendor_name?: string | null;
+  store_code?: string | null;
+  file_name?: string | null;
+  photo_date?: string | null;
+  linked_invoice_no?: string | null;
 };
 
 type InvoiceSummary = Partial<InvoiceRow> & {
@@ -433,6 +449,19 @@ export default function ProcurementInvoicesPage() {
   const [page, setPage] = useState(0);
   const [uncheckedOnly, setUncheckedOnly] = useState(false);
   const [totalInvoices, setTotalInvoices] = useState(0);
+  // Rows arrive newest first, so the first one is the frontier -- but only
+  // where nothing has narrowed or re-ordered them.
+  const newestInvoiceDate = useMemo(() => {
+    if (page !== 0 || dateFrom || dateTo || invoiceNo.trim() || vendorName.trim()) return null;
+    const d = rows[0]?.invoice_date;
+    return d ? String(d).slice(0, 10) : null;
+  }, [dateFrom, dateTo, invoiceNo, page, rows, vendorName]);
+  const staleDays = useMemo(() => {
+    if (!newestInvoiceDate) return null;
+    const then = new Date(`${newestInvoiceDate}T00:00:00`);
+    if (Number.isNaN(then.getTime())) return null;
+    return Math.floor((Date.now() - then.getTime()) / 86400000);
+  }, [newestInvoiceDate]);
   const [totalAmountAll, setTotalAmountAll] = useState(0);
   const [checkedCount, setCheckedCount] = useState(0);
   const [qualityRows, setQualityRows] = useState<QualityRow[]>([]);
@@ -442,6 +471,8 @@ export default function ProcurementInvoicesPage() {
   const [problemReportSummary, setProblemReportSummary] = useState<ProblemReportSummary>({ flagged_invoice_count: 0, flagged_line_count: 0, supplier_count: 0 });
   const [detailsByInvoiceNo, setDetailsByInvoiceNo] = useState<Record<string, InvoiceDetail>>({});
   const [expandedInvoiceNo, setExpandedInvoiceNo] = useState<string | null>(null);
+  // What was just recorded, so the person can see their own answer land.
+  const [verifyDone, setVerifyDone] = useState<{ invoice_no: string; verdict: string } | null>(null);
   // The photograph the store took of this invoice, where one was taken and
   // read. Fetched for the row that is open, never for the list — these are
   // whole images.
@@ -458,16 +489,41 @@ export default function ProcurementInvoicesPage() {
     photo_vendor?: string | null;
     photo_date?: string | null;
     photo_store?: string | null;
+    photo_file_name?: string | null;
     showing?: string | null;
+    /** True when the picture on screen is the one attached to this invoice,
+     *  rather than one the server guessed from supplier and date. */
+    linked?: boolean;
+    linked_count?: number;
     candidates?: {
       source: string; vendor_name?: string | null; photo_date?: string | null;
       store_code?: string | null; supplier_matches?: boolean;
+      file_name?: string | null; linked?: boolean; linked_by?: string | null;
+      read_invoice_no?: string | null; read_amount?: number | null;
+      read_currency?: string | null; number_matches?: boolean;
+      ocr_confirmed?: boolean;
     }[];
   } | null>(null);
   /** Which of the day's photographs is on screen, when the first one was not
    *  this supplier's. Empty means "whichever the server picks". */
   const [photoSource, setPhotoSource] = useState<string>("");
   const [invoicePhotoBusy, setInvoicePhotoBusy] = useState(false);
+  /** Bumped after attaching or detaching, so the panel re-reads rather than
+   *  showing what it fetched before the change. */
+  const [photoRefresh, setPhotoRefresh] = useState(0);
+  const [linkBusy, setLinkBusy] = useState("");
+  /** The invoice whose photograph is open full screen. */
+  const [viewerFor, setViewerFor] = useState<string | null>(null);
+  /** The invoice whose "find another photograph" panel is open. */
+  const [photoPickerFor, setPhotoPickerFor] = useState<string | null>(null);
+  const [photoQuery, setPhotoQuery] = useState("");
+  const [photoFrom, setPhotoFrom] = useState("");
+  const [photoTo, setPhotoTo] = useState("");
+  const [photoHits, setPhotoHits] = useState<PhotoHit[] | null>(null);
+  const [photoHitTotal, setPhotoHitTotal] = useState(0);
+  const [photoSearchBusy, setPhotoSearchBusy] = useState(false);
+  /** "" every invoice · "no" those with no photograph yet · "yes" those with one. */
+  const [photoFilter, setPhotoFilter] = useState<"" | "no" | "yes">("");
   const [verifyBusy, setVerifyBusy] = useState<string | null>(null);
   const [verifyNote, setVerifyNote] = useState("");
 
@@ -545,6 +601,7 @@ export default function ProcurementInvoicesPage() {
       invoiceQs.set("limit", String(PAGE_SIZE));
       invoiceQs.set("offset", String(page * PAGE_SIZE));
       if (uncheckedOnly) invoiceQs.set("verified", "no");
+      if (photoFilter) invoiceQs.set("photo", photoFilter);
       if (invoiceNo.trim()) invoiceQs.set("invoice_no", invoiceNo.trim());
       if (vendorName.trim()) invoiceQs.set("vendor_name", vendorName.trim());
       if (dateFrom) invoiceQs.set("date_from", dateFrom);
@@ -707,18 +764,27 @@ export default function ProcurementInvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, dateFrom, dateTo, invoiceNo, page, pin, requestedBy, uncheckedOnly, vendorName]);
+  }, [city, dateFrom, dateTo, invoiceNo, page, photoFilter, pin, requestedBy, uncheckedOnly, vendorName]);
 
   const recordVerification = useCallback(
     async (row: InvoiceRow, verdict: "matches" | "mismatch" | "unclear") => {
       setVerifyBusy(row.invoice_no);
+      // Where to go once this one is answered. Worked out before the reload,
+      // because with "not yet checked" on, this row is about to leave the list
+      // and the positions after it all shift up by one.
+      const order = rows.map((r) => r.invoice_no);
+      const here = order.indexOf(row.invoice_no);
+      const nextUp = rows
+        .slice(here + 1)
+        .find((r) => !r.verify_verdict && r.invoice_no !== row.invoice_no)?.invoice_no ?? null;
       try {
         await procurementJson(
-          `/api/admin/procurement/invoices/${encodeURIComponent(row.invoice_no)}/verify`,
+          `/api/admin/procurement/invoices/verify`,
           {
             method: "POST",
             body: JSON.stringify({
               city,
+              invoice_no: row.invoice_no,
               verdict,
               note: verifyNote,
               invoice_date: row.invoice_date || "",
@@ -728,6 +794,15 @@ export default function ProcurementInvoicesPage() {
           pin,
         );
         setVerifyNote("");
+        // Say what was recorded and move on.
+        //
+        // The verdict was being saved and the screen did not move: the same
+        // row stayed open showing the same photograph, so pressing "Does not
+        // match" looked like pressing nothing, and the same invoice appeared
+        // to come back again and again. The answer is written down; the queue
+        // has to advance for that to be visible.
+        setVerifyDone({ invoice_no: row.invoice_no, verdict });
+        setExpandedInvoiceNo(nextUp);
         await load();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -735,14 +810,148 @@ export default function ProcurementInvoicesPage() {
         setVerifyBusy(null);
       }
     },
-    [city, load, pin, requestedBy, verifyNote],
+    [city, load, pin, requestedBy, rows, verifyNote],
   );
+
+  /** Attach a photograph to this invoice, for good.
+   *
+   *  Until this existed the panel guessed the picture afresh on every open,
+   *  so finding the right one among the candidates left no trace and the next
+   *  person did the same search again. Nothing recorded means nothing can be
+   *  checked afterwards, which is the whole reason the photograph is shown.
+   */
+  const attachPhoto = useCallback(async (row: InvoiceRow, source: string) => {
+    setLinkBusy(source);
+    try {
+      await procurementJson(
+        `/api/admin/procurement/invoices/photo/link`,
+        { method: "POST", body: JSON.stringify({ city, invoice_no: row.invoice_no, source }) },
+        requestedBy,
+        pin,
+      );
+      // Open on what was just attached, and re-read rather than guess at the
+      // new state from here.
+      setPhotoSource(source);
+      setPhotoRefresh((n) => n + 1);
+      setPhotoPickerFor(null);
+      await load();
+    } catch (e) {
+      setError(friendlyProcurementError(e));
+    } finally {
+      setLinkBusy("");
+    }
+  }, [city, load, pin, requestedBy]);
+
+  /** Undo one attachment. Named in the same panel that made it. */
+  const detachPhoto = useCallback(async (row: InvoiceRow, source: string) => {
+    setLinkBusy(source);
+    try {
+      const qs = new URLSearchParams({ city, source, invoice_no: row.invoice_no });
+      await procurementJson(
+        `/api/admin/procurement/invoices/photo/link?${qs.toString()}`,
+        { method: "DELETE" },
+        requestedBy,
+        pin,
+      );
+      setPhotoSource("");
+      setPhotoRefresh((n) => n + 1);
+      await load();
+    } catch (e) {
+      setError(friendlyProcurementError(e));
+    } finally {
+      setLinkBusy("");
+    }
+  }, [city, load, pin, requestedBy]);
+
+  /** Search every photograph in the city.
+   *
+   *  Not only the ones near this invoice's date: when the date is what was
+   *  read wrong, the right photograph is by definition outside that window.
+   *  The files are named `<date>_<invoice number>`, so the number off the
+   *  paper finds the picture even then.
+   */
+  const searchPhotos = useCallback(async (opts?: {
+    offset?: number; q?: string; from?: string; to?: string;
+  }) => {
+    setPhotoSearchBusy(true);
+    try {
+      // Overrides, because opening the picker searches straight away and the
+      // state it just set is not readable yet.
+      const q = opts?.q ?? photoQuery;
+      const from = opts?.from ?? photoFrom;
+      const to = opts?.to ?? photoTo;
+      const qs = new URLSearchParams({ city, limit: "24" });
+      if (q.trim()) qs.set("q", q.trim());
+      if (from) qs.set("date_from", from);
+      if (to) qs.set("date_to", to);
+      if (opts?.offset) qs.set("offset", String(opts.offset));
+      const d = await procurementJson<{ rows?: PhotoHit[]; total?: number }>(
+        `/api/admin/procurement/invoices/photo-search?${qs.toString()}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      setPhotoHits(d?.rows ?? []);
+      setPhotoHitTotal(Number(d?.total || 0));
+    } catch (e) {
+      setError(friendlyProcurementError(e));
+      setPhotoHits([]);
+    } finally {
+      setPhotoSearchBusy(false);
+    }
+  }, [city, photoFrom, photoQuery, photoTo, pin, requestedBy]);
+
+  /** One candidate, small enough to sit in a grid of six.
+   *
+   *  The full files run to 2MB each; the strip would pull twelve of them. */
+  const fetchThumb = useCallback(async (source: string) => {
+    try {
+      const qs = new URLSearchParams({ city, source });
+      const d = await procurementJson<{ photo?: string | null }>(
+        `/api/admin/procurement/invoices/photo-thumb?${qs.toString()}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      return d?.photo ?? null;
+    } catch {
+      return null;
+    }
+  }, [city, pin, requestedBy]);
+
+  /** Open the picker with an answer already on screen.
+   *
+   *  An empty box over 1,300 photographs is a search nobody runs. The invoice
+   *  number looks like the sharpest opening term but is the wrong default:
+   *  only the approved Inbox files carry it in their name, and everything
+   *  else is IMG_9227.jpg -- so it comes up empty on most rows and reads as
+   *  a broken search. The supplier and a fortnight either side is what
+   *  actually has something in it; the number still works when typed.
+   */
+  const openPhotoPicker = useCallback((row: InvoiceRow) => {
+    const shift = (iso: string, days: number) => {
+      const d = new Date(`${iso}T00:00:00`);
+      if (Number.isNaN(d.getTime())) return "";
+      d.setDate(d.getDate() + days);
+      return isoDate(d);
+    };
+    const q = row.supplier_name || row.invoice_no;
+    const from = row.invoice_date ? shift(row.invoice_date, -14) : "";
+    const to = row.invoice_date ? shift(row.invoice_date, 14) : "";
+    setPhotoPickerFor(row.invoice_no);
+    setPhotoQuery(q);
+    setPhotoFrom(from);
+    setPhotoTo(to);
+    setPhotoHits(null);
+    setPhotoHitTotal(0);
+    void searchPhotos({ q, from, to });
+  }, [searchPhotos]);
 
   // A filter changes what is being asked, so page 4 of the old answer is not
   // page 4 of the new one.
   useEffect(() => {
     setPage(0);
-  }, [city, dateFrom, dateTo, invoiceNo, uncheckedOnly, vendorName]);
+  }, [city, dateFrom, dateTo, invoiceNo, photoFilter, uncheckedOnly, vendorName]);
 
   const loadBranchOptions = useCallback(async () => {
     try {
@@ -970,7 +1179,11 @@ export default function ProcurementInvoicesPage() {
     let alive = true;
     setInvoicePhoto(null);
     setInvoicePhotoBusy(true);
-    const qs = new URLSearchParams({ city });
+    // The number goes in the query string. A quarter of Dubai's invoice
+    // numbers contain a slash, and an encoded %2F is decoded before routing,
+    // so in the path it broke into extra segments and the request 405'd --
+    // which the panel reported as "the photograph could not be loaded".
+    const qs = new URLSearchParams({ city, invoice_no: expandedInvoiceNo });
     if (openRow.invoice_date) qs.set("invoice_date", openRow.invoice_date);
     // Without this the server has no supplier to match on, so every
     // photograph fails the "is this the same supplier" test and the panel
@@ -984,12 +1197,17 @@ export default function ProcurementInvoicesPage() {
       photo?: string | null; reason?: string;
       photo_vendor?: string | null; photo_date?: string | null;
       photo_store?: string | null; showing?: string | null;
+      photo_file_name?: string | null; linked?: boolean; linked_count?: number;
       candidates?: {
         source: string; vendor_name?: string | null; photo_date?: string | null;
         store_code?: string | null; supplier_matches?: boolean;
+        file_name?: string | null; linked?: boolean; linked_by?: string | null;
+        read_invoice_no?: string | null; read_amount?: number | null;
+        read_currency?: string | null; number_matches?: boolean;
+        ocr_confirmed?: boolean;
       }[];
     }>(
-      `/api/admin/procurement/invoices/${encodeURIComponent(expandedInvoiceNo)}/photo?${qs.toString()}`,
+      `/api/admin/procurement/invoices/photo?${qs.toString()}`,
       { method: "GET" },
       requestedBy,
       pin,
@@ -1002,18 +1220,25 @@ export default function ProcurementInvoicesPage() {
           photo_vendor: d?.photo_vendor ?? null,
           photo_date: d?.photo_date ?? null,
           photo_store: d?.photo_store ?? null,
+          photo_file_name: d?.photo_file_name ?? null,
           showing: d?.showing ?? null,
+          linked: Boolean(d?.linked),
+          linked_count: Number(d?.linked_count || 0),
           candidates: d?.candidates ?? [],
         });
       })
       .catch(() => { if (alive) setInvoicePhoto({ photo: null, reason: "the photograph could not be loaded" }); })
       .finally(() => { if (alive) setInvoicePhotoBusy(false); });
     return () => { alive = false; };
-  }, [city, expandedInvoiceNo, photoSource, pin, requestedBy, rows]);
+  }, [city, expandedInvoiceNo, photoRefresh, photoSource, pin, requestedBy, rows]);
 
   // Opening a different invoice starts from whichever photograph the server
   // picks, not the one that was being stepped through on the last row.
-  useEffect(() => { setPhotoSource(""); }, [expandedInvoiceNo]);
+  useEffect(() => {
+    setPhotoSource("");
+    setPhotoPickerFor(null);
+    setPhotoHits(null);
+  }, [expandedInvoiceNo]);
 
   const exportQualityCsv = useCallback(() => {
     if (!qualityRows.length) return;
@@ -2061,6 +2286,22 @@ export default function ProcurementInvoicesPage() {
         </div>
       )}
 
+      {/* How old the newest invoice on this screen is.
+          The Dubai sheet stopped receiving new invoices at the end of May and
+          kept being edited afterwards, so the hourly sync reported COMPLETED
+          every hour while the newest invoice aged past three months. The
+          screen said "370 invoices, AED 253,956" with nothing about when.
+          Rows come back newest first, so row zero is the frontier -- only on
+          the first page with no date filter, where that is true. */}
+      {staleDays !== null && staleDays > 21 ? (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-950/25 px-4 py-3 text-sm text-amber-200">
+          <span className="font-semibold">The newest invoice here is {staleDays} days old</span>
+          {newestInvoiceDate ? ` (${newestInvoiceDate})` : ""}. The spreadsheet
+          still syncs, so nothing has failed &mdash; it has not been given anything newer.
+          Figures on this page describe up to that date, not today.
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Valid Invoices</div>
@@ -2109,6 +2350,24 @@ export default function ProcurementInvoicesPage() {
 
       {activeTab === "valid" ? (
         <div className="space-y-3">
+          {verifyDone ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-200">
+              <span>
+                <span className="font-semibold">{verifyDone.invoice_no}</span> recorded as{" "}
+                {verifyDone.verdict === "matches" ? "matching the photo"
+                  : verifyDone.verdict === "mismatch" ? "not matching the photo"
+                  : "unclear"}.
+                {expandedInvoiceNo ? " Moved to the next one still to check." : " Nothing further on this page to check."}
+              </span>
+              <button
+                type="button"
+                onClick={() => setVerifyDone(null)}
+                className="ml-auto rounded-lg border border-emerald-500/30 px-2 py-1 text-xs text-emerald-200/80 hover:text-emerald-100"
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
           {totalInvoices > PAGE_SIZE && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <div className="text-sm text-zinc-400">
@@ -2125,6 +2384,18 @@ export default function ProcurementInvoicesPage() {
                   : "rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300"}
               >
                 {uncheckedOnly ? "Showing not yet checked" : "Show not yet checked"}
+              </button>
+              {/* Attaching photographs is a queue like checking is, and a queue
+                  with no way to see what is left gets started from the top
+                  again by whoever picks it up next. */}
+              <button
+                type="button"
+                onClick={() => setPhotoFilter((v) => (v === "no" ? "" : "no"))}
+                className={photoFilter === "no"
+                  ? "rounded-lg border border-sky-500/40 bg-sky-500/20 px-3 py-1.5 text-sm text-sky-200"
+                  : "rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-300"}
+              >
+                {photoFilter === "no" ? "Showing without a photo" : "Show without a photo"}
               </button>
               <div className="flex items-center gap-2">
                 <button
@@ -2170,6 +2441,16 @@ export default function ProcurementInvoicesPage() {
                       {newSupplierNames.has(row.supplier_name) && (
                         <span className="rounded-full border border-violet-700/60 bg-violet-900/20 px-2 py-0.5 text-[10px] font-bold text-violet-300">✦ new supplier</span>
                       )}
+                      {/* Which invoices can be checked against a document, on the
+                          closed row. Opening 452 of them to find out is the work
+                          this badge exists to remove. */}
+                      {Number(row.photo_count || 0) > 0 ? (
+                        <span className="rounded-full border border-sky-700/60 bg-sky-900/20 px-2 py-0.5 text-[10px] font-bold text-sky-300">
+                          📎 photo{Number(row.photo_count) > 1 ? ` ×${row.photo_count}` : ""}
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-500">no photo</span>
+                      )}
                     </div>
                     <div className="mt-2 text-xs text-zinc-400">
                       {row.supplier_name || "-"} | Invoice {formatDate(row.invoice_date)} | Due {formatDate(row.due_date)} | Branch {row.branch || "-"} | PO {row.po_number || "-"}
@@ -2191,12 +2472,25 @@ export default function ProcurementInvoicesPage() {
                         <div className="text-sm text-zinc-500">Looking for the invoice photograph...</div>
                       ) : invoicePhoto?.photo ? (
                         <div className="space-y-2">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={invoicePhoto.photo}
-                            alt={`Invoice ${row.invoice_no}`}
-                            className="max-h-[26rem] w-auto rounded-xl border border-white/10"
-                          />
+                          {/* Drawn small here and opened large on click. The
+                              number and the total are what has to be read, and
+                              at this size neither can be. */}
+                          <button
+                            type="button"
+                            onClick={() => setViewerFor(row.invoice_no)}
+                            className="group relative block cursor-zoom-in"
+                            title="Open the photograph full screen"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={invoicePhoto.photo}
+                              alt={`Invoice ${row.invoice_no}`}
+                              className="max-h-[26rem] w-auto rounded-xl border border-white/10"
+                            />
+                            <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-2 py-1 text-xs text-white opacity-90 group-hover:opacity-100">
+                              🔍 Open large
+                            </span>
+                          </button>
                           <div className="text-xs text-zinc-500">
                             Recorded with this photograph:
                             {invoicePhoto.photo_vendor ? ` ${invoicePhoto.photo_vendor}` : " supplier not noted"}
@@ -2204,21 +2498,72 @@ export default function ProcurementInvoicesPage() {
                             {invoicePhoto.photo_store ? ` · ${invoicePhoto.photo_store}` : ""}
                             <span className="text-zinc-600"> — this is what the store typed when it took the picture, not a reading. Compare the picture with the figures below.</span>
                           </div>
+                          {/* Attached, or only a guess. The difference decides
+                              whether anything can be traced back to a document
+                              later, so it is said in words and not left to the
+                              reader to infer from the picture being there. */}
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            {invoicePhoto.linked ? (
+                              <>
+                                <span className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200">
+                                  📎 Attached to this invoice
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={linkBusy === invoicePhoto.showing}
+                                  onClick={() => void detachPhoto(row, String(invoicePhoto.showing || ""))}
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-400 disabled:opacity-40"
+                                >
+                                  Detach
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-zinc-500">
+                                  Not attached — this is the closest photograph, not a recorded answer.
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={linkBusy === invoicePhoto.showing}
+                                  onClick={() => void attachPhoto(row, String(invoicePhoto.showing || ""))}
+                                  className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200 disabled:opacity-40"
+                                >
+                                  {linkBusy === invoicePhoto.showing ? "Attaching…" : "📎 This is the one — attach it"}
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openPhotoPicker(row)}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-300"
+                            >
+                              Find another photograph…
+                            </button>
+                          </div>
                           {(invoicePhoto.candidates?.length || 0) > 1 ? (
                             <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                              <span>{invoicePhoto.candidates?.length} photographs were taken around this date:</span>
+                              <span>{invoicePhoto.candidates?.length} photographs to choose between:</span>
+                              {/* The supplier name and the date were the whole
+                                  label, so six photographs of one supplier's
+                                  week rendered as six identical buttons. What
+                                  separates them is what is printed on them. */}
                               {invoicePhoto.candidates?.map((cand) => (
                                 <button
                                   key={cand.source}
                                   type="button"
                                   onClick={() => setPhotoSource(cand.source)}
-                                  className={`rounded-lg border px-2 py-1 ${
+                                  className={`rounded-lg border px-2 py-1 font-mono ${
                                     invoicePhoto.showing === cand.source
                                       ? "border-violet-400/40 bg-violet-500/15 text-violet-200"
                                       : "border-white/10 bg-white/5 text-zinc-300"
                                   }`}
                                 >
-                                  {cand.vendor_name || "unnamed"}
+                                  {cand.linked ? "📎 " : ""}
+                                  {cand.number_matches ? "✓ " : ""}
+                                  {cand.read_invoice_no || cand.vendor_name || "unnamed"}
+                                  {cand.read_amount !== null && cand.read_amount !== undefined
+                                    ? ` · ${Number(cand.read_amount).toFixed(2)}`
+                                    : ""}
                                   {cand.photo_date ? ` · ${String(cand.photo_date).slice(0, 10)}` : ""}
                                 </button>
                               ))}
@@ -2283,16 +2628,194 @@ export default function ProcurementInvoicesPage() {
                                   key={cand.source}
                                   type="button"
                                   onClick={() => setPhotoSource(cand.source)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-300"
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 font-mono text-zinc-300"
                                 >
-                                  {cand.vendor_name || "unnamed"}
+                                  {cand.linked ? "📎 " : ""}
+                                  {cand.read_invoice_no || cand.vendor_name || "unnamed"}
                                   {cand.photo_date ? ` · ${String(cand.photo_date).slice(0, 10)}` : ""}
                                 </button>
                               ))}
                             </div>
                           ) : null}
+                          {/* The guess looks at this invoice's date, plus or minus
+                              three days. When the date is the thing that was read
+                              wrong, the right photograph can only be outside that
+                              window — so the way out of an empty panel is a search
+                              of the whole city, not a dead end. */}
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => openPhotoPicker(row)}
+                              className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-3 py-1.5 text-xs text-sky-200"
+                            >
+                              Search every photograph…
+                            </button>
+                          </div>
                         </div>
                       )}
+                      {viewerFor === row.invoice_no ? (
+                        <InvoicePhotoViewer
+                          open
+                          onClose={() => setViewerFor(null)}
+                          invoiceNo={row.invoice_no}
+                          invoiceDate={row.invoice_date}
+                          supplierName={row.supplier_name}
+                          invoiceAmount={row.invoice_amount}
+                          currency={row.currency}
+                          photo={invoicePhoto?.photo ?? null}
+                          busy={invoicePhotoBusy}
+                          showing={String(invoicePhoto?.showing || "")}
+                          candidates={invoicePhoto?.candidates ?? []}
+                          onSelect={(src) => setPhotoSource(src)}
+                          onAttach={(src) => void attachPhoto(row, src)}
+                          onDetach={(src) => void detachPhoto(row, src)}
+                          attachBusy={linkBusy}
+                          fetchThumb={fetchThumb}
+                        />
+                      ) : null}
+                      {photoPickerFor === row.invoice_no ? (
+                        <div className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3">
+                          <div className="flex flex-wrap items-end gap-2">
+                            <label className="text-xs text-zinc-400">
+                              <div className="mb-1">Supplier, file name or invoice number</div>
+                              <input
+                                value={photoQuery}
+                                onChange={(e) => setPhotoQuery(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") void searchPhotos(); }}
+                                placeholder="e.g. MIY366442535"
+                                className="w-64 rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600"
+                              />
+                            </label>
+                            <label className="text-xs text-zinc-400">
+                              <div className="mb-1">From</div>
+                              <input
+                                type="date"
+                                value={photoFrom}
+                                onChange={(e) => setPhotoFrom(e.target.value)}
+                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-zinc-200"
+                              />
+                            </label>
+                            <label className="text-xs text-zinc-400">
+                              <div className="mb-1">To</div>
+                              <input
+                                type="date"
+                                value={photoTo}
+                                onChange={(e) => setPhotoTo(e.target.value)}
+                                className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-zinc-200"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              disabled={photoSearchBusy}
+                              onClick={() => void searchPhotos()}
+                              className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-3 py-1.5 text-sm text-sky-200 disabled:opacity-40"
+                            >
+                              {photoSearchBusy ? "Searching…" : "Search"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setPhotoPickerFor(null); setPhotoHits(null); }}
+                              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-zinc-400"
+                            >
+                              Close
+                            </button>
+                          </div>
+                          {/* The files were renamed to date_invoicenumber when they
+                              were approved, so the number printed on the paper finds
+                              the picture — which is the one search that still works
+                              when the date was read wrong. */}
+                          <div className="mt-2 text-[11px] text-zinc-500">
+                            Searches every photograph in {city} — receiving, PO match and the Invoice Inbox.
+                            Approved Inbox files are named <span className="text-zinc-400">date_invoicenumber</span>.
+                          </div>
+                          {photoHits === null ? null : photoHits.length === 0 ? (
+                            <div className="mt-3 text-sm text-zinc-500">
+                              Nothing matched
+                              {photoQuery.trim() ? ` “${photoQuery.trim()}”` : ""}
+                              {photoFrom || photoTo ? ` between ${photoFrom || "the start"} and ${photoTo || "now"}` : ""}.
+                              Clear the dates to search the whole city, or try part of the supplier name.
+                            </div>
+                          ) : (
+                            <div className="mt-3 space-y-1">
+                              <div className="text-xs text-zinc-500">
+                                {photoHitTotal.toLocaleString()} photograph{photoHitTotal === 1 ? "" : "s"} matched
+                                {photoHits.length < photoHitTotal ? ` · showing the newest ${photoHits.length}` : ""}
+                              </div>
+                              {photoHits.map((hit) => {
+                                const key = `${hit.source_table}:${hit.source_id}`;
+                                const takenElsewhere = hit.linked_invoice_no
+                                  && hit.linked_invoice_no !== row.invoice_no;
+                                const alreadyHere = hit.linked_invoice_no === row.invoice_no;
+                                return (
+                                  <div
+                                    key={key}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs"
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="truncate text-zinc-200">
+                                        {hit.file_name || hit.vendor_name || "unnamed"}
+                                      </div>
+                                      <div className="text-zinc-500">
+                                        {hit.photo_date ? String(hit.photo_date).slice(0, 10) : "no date"}
+                                        {hit.vendor_name ? ` · ${hit.vendor_name}` : ""}
+                                        {hit.store_code ? ` · ${hit.store_code}` : ""}
+                                        {/* Saying so is not a block: a delivery split
+                                            over two invoices is photographed once. */}
+                                        {takenElsewhere ? ` · already attached to ${hit.linked_invoice_no}` : ""}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setPhotoSource(key)}
+                                        className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-zinc-300"
+                                      >
+                                        Look at it
+                                      </button>
+                                      {alreadyHere ? (
+                                        /* Offering "Attach" on the picture that is
+                                           already attached reads as though the last
+                                           attach did not take. */
+                                        <span className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200">
+                                          📎 Attached
+                                        </span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled={linkBusy === key}
+                                          onClick={() => void attachPhoto(row, key)}
+                                          className="rounded-lg border border-sky-500/30 bg-sky-500/15 px-2 py-1 text-sky-200 disabled:opacity-40"
+                                        >
+                                          {linkBusy === key ? "Attaching…" : "📎 Attach"}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                      {/* Correcting an invoice needed the Problem Data tab, which
+                          holds one. Ten Dubai and thirty-nine Manila invoices whose
+                          lines do not add up to their total could be found here and
+                          not fixed, and only two Dubai invoices of 375 have a
+                          photograph to check against -- so the correction cannot
+                          hang off the photograph either. */}
+                      <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+                        <button
+                          type="button"
+                          disabled={problemBusy === row.invoice_no}
+                          onClick={() => void openProblemEditor({ invoice_no: row.invoice_no } as QualityRow)}
+                          className="rounded-lg border border-violet-500/30 bg-violet-500/15 px-3 py-1.5 text-sm text-violet-200 disabled:opacity-40"
+                        >
+                          {problemBusy === row.invoice_no ? "Opening…" : "✎ Correct this invoice"}
+                        </button>
+                        <span className="text-xs text-zinc-500">
+                          Opens the editor below the list — header fields and every line.
+                        </span>
+                      </div>
                     </div>
                     {detailBusy === row.invoice_no && !detail ? (
                       <div className="text-sm text-zinc-500">Loading invoice detail...</div>
@@ -2509,107 +3032,113 @@ export default function ProcurementInvoicesPage() {
             </div>
           </div>
 
-          {problemDraft ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-white">Problem Invoice Editor</div>
-                  <div className="mt-1 text-sm text-zinc-400">
-                    Invoice <span className="font-medium text-white">{problemDraft.invoice_no}</span>. Fields not present in the source tab structure are ignored automatically on save.
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProblemDraft(null);
-                      setProblemBaseDraft(null);
-                      setSelectedProblemInvoiceNo(null);
-                    }}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
-                  >
-                    <X className="h-4 w-4" />
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProblemDraft(problemBaseDraft)}
-                    disabled={!problemDirty || problemSaveBusy}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5 disabled:opacity-50"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Cancel Changes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void saveProblemEdits()}
-                    disabled={!problemDirty || problemSaveBusy}
-                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-900/30 disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" />
-                    {problemSaveBusy ? "Saving..." : "Save Correction"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {SUMMARY_EDIT_FIELDS.map((field) => (
-                  <label key={field.key} className={`block ${field.className || ""}`}>
-                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{field.label}</div>
-                    {field.type === "textarea" ? (
-                      <textarea
-                        value={problemDraft.summary[field.key] || ""}
-                        onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
-                        rows={3}
-                        className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
-                      />
-                    ) : (
-                      <input
-                        type={field.type}
-                        step={field.type === "number" ? "0.01" : undefined}
-                        value={problemDraft.summary[field.key] || ""}
-                        onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
-                      />
-                    )}
-                  </label>
-                ))}
-              </div>
-
-              <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
-                <table className="min-w-[1700px] w-full text-sm">
-                  <thead className="bg-white/4">
-                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-                      <th className="px-3 py-2">Line</th>
-                      {LINE_EDIT_FIELDS.map((field) => (
-                        <th key={field.key} className="px-3 py-2">{field.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-800">
-                    {problemDraft.line_items.map((line) => (
-                      <tr key={`${problemDraft.invoice_no}-${line.line_no}`} className="align-top">
-                        <td className="px-3 py-2 font-mono text-zinc-500">{line.line_no}</td>
-                        {LINE_EDIT_FIELDS.map((field) => (
-                          <td key={`${line.line_no}-${field.key}`} className="px-3 py-2">
-                            <input
-                              type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
-                              step={field.type === "number" ? "0.01" : undefined}
-                              value={line.updates[field.key] || ""}
-                              onChange={(e) => updateProblemLineField(line.line_no, field.key, e.target.value)}
-                              className="w-full min-w-[120px] rounded-lg border border-white/10 bg-white/6 px-2.5 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
-                            />
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
         </div>
       )}
+
+      {/* The editor belongs to neither tab. Only Problem Data carried an Edit
+          button and Problem Data holds one invoice, so the ten Dubai and
+          thirty-nine Manila invoices whose lines do not add up to their total
+          could be found and not corrected. The endpoint always accepted any
+          invoice_no; the screen never offered it. */}
+      {problemDraft ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold text-white">Problem Invoice Editor</div>
+              <div className="mt-1 text-sm text-zinc-400">
+                Invoice <span className="font-medium text-white">{problemDraft.invoice_no}</span>. Fields not present in the source tab structure are ignored automatically on save.
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setProblemDraft(null);
+                  setProblemBaseDraft(null);
+                  setSelectedProblemInvoiceNo(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
+              >
+                <X className="h-4 w-4" />
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => setProblemDraft(problemBaseDraft)}
+                disabled={!problemDirty || problemSaveBusy}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5 disabled:opacity-50"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Cancel Changes
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveProblemEdits()}
+                disabled={!problemDirty || problemSaveBusy}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-900/30 disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {problemSaveBusy ? "Saving..." : "Save Correction"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {SUMMARY_EDIT_FIELDS.map((field) => (
+              <label key={field.key} className={`block ${field.className || ""}`}>
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{field.label}</div>
+                {field.type === "textarea" ? (
+                  <textarea
+                    value={problemDraft.summary[field.key] || ""}
+                    onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
+                  />
+                ) : (
+                  <input
+                    type={field.type}
+                    step={field.type === "number" ? "0.01" : undefined}
+                    value={problemDraft.summary[field.key] || ""}
+                    onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+
+          <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+            <table className="min-w-[1700px] w-full text-sm">
+              <thead className="bg-white/4">
+                <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+                  <th className="px-3 py-2">Line</th>
+                  {LINE_EDIT_FIELDS.map((field) => (
+                    <th key={field.key} className="px-3 py-2">{field.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-800">
+                {problemDraft.line_items.map((line) => (
+                  <tr key={`${problemDraft.invoice_no}-${line.line_no}`} className="align-top">
+                    <td className="px-3 py-2 font-mono text-zinc-500">{line.line_no}</td>
+                    {LINE_EDIT_FIELDS.map((field) => (
+                      <td key={`${line.line_no}-${field.key}`} className="px-3 py-2">
+                        <input
+                          type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
+                          step={field.type === "number" ? "0.01" : undefined}
+                          value={line.updates[field.key] || ""}
+                          onChange={(e) => updateProblemLineField(line.line_no, field.key, e.target.value)}
+                          className="w-full min-w-[120px] rounded-lg border border-white/10 bg-white/6 px-2.5 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

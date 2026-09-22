@@ -13,7 +13,13 @@ import {
   SECONDARY_BUTTON,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import ModalScrim from "@/components/ModalScrim";
 import { useUnsavedGuard } from "@/lib/unsavedGuard";
+import {
+  countDayOffConflicts,
+  describeDayOffConflict,
+  type DayOffConflict,
+} from "@/lib/day-off-conflicts";
 
 // ─── White-mode card (overrides global GLASS_CARD for this page only) ────────
 // The shared drive the exports are filed in. Same id as SHIFT_SCHEDULE_DRIVE_ID
@@ -178,6 +184,8 @@ function getModalStyle(rect: DOMRect, modalW = 340): React.CSSProperties {
   return { position: "fixed", top, left, width: modalW, zIndex: 9999, maxHeight: vH - top - 16, overflowY: "auto" as const };
 }
 
+type ApiError = Error & { status?: number; detail?: Record<string, unknown> };
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const doFetch = () => {
     const auth = getAuth();
@@ -207,7 +215,10 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     const detailMsg = typeof detail === "string"
       ? detail
       : (detail && typeof detail === "object" ? String((detail as Record<string, unknown>).message ?? "") : "");
-    throw new Error(detailMsg || (j?.message as string) || text || `HTTP ${res.status}`);
+    const err = new Error(detailMsg || (j?.message as string) || text || `HTTP ${res.status}`) as ApiError;
+    err.status = res.status;
+    if (detail && typeof detail === "object") err.detail = detail as Record<string, unknown>;
+    throw err;
   }
   try {
     return (text ? JSON.parse(text) : {}) as T;
@@ -602,6 +613,8 @@ export default function ManualShiftPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Set only by a 409 from publish: the week rosters somebody on an approved day off.
+  const [publishBlockedBy, setPublishBlockedBy] = useState<DayOffConflict[]>([]);
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
 
@@ -630,6 +643,14 @@ export default function ManualShiftPage() {
   // the only thing a reload can lose is what has not reached the server yet.
   useUnsavedGuard("manual-shift", outboxSize > 0);
   const [removedStaff, setRemovedStaff] = useState<string[]>([]);
+  // Picking somebody to add to the grid. `here` marks this branch's own staff,
+  // which is where the list starts; the rest of the city follows, because
+  // people cover at branches that are not their own.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerNames, setPickerNames] = useState<{ name: string; here: boolean }[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState("");
   // Taken off this branch's grid and kept that way. removedStaff above is the
   // in-page copy, wiped on every week change; this is the stored one.
   const [hiddenStaff, setHiddenStaff] = useState<{ staff_name: string; hidden_by: string }[]>([]);
@@ -639,6 +660,13 @@ export default function ManualShiftPage() {
   const removedStaffRef = useRef<string[]>([]);
   removedStaffRef.current = removedStaff;
   const [approvedDayOffs, setApprovedDayOffs] = useState<Set<string>>(new Set());
+  // Day-off requests the staff filed, against what this roster still says.
+  //
+  // approvedDayOffs above comes from shift_sheet_sync_proposals -- the sheet
+  // sync -- and never saw these. Patrick Danel Santiago asked on 2026-08-30
+  // for 2026-09-20, his manager approved it, and the cell showed nothing.
+  // Keyed `${staff}|${date}` to whether it was answered.
+  const [dayOffConflicts, setDayOffConflicts] = useState<Map<string, "approved_but_rostered" | "undecided_and_rostered">>(new Map());
   const [paintMode, setPaintMode] = useState(false);
   const [paintStart, setPaintStart] = useState(9);
   const [paintEnd, setPaintEnd] = useState(17);
@@ -935,6 +963,8 @@ export default function ManualShiftPage() {
   const loadExistingShifts = useCallback(async (forceOverwrite = false, cancelledRef?: { current: boolean }) => {
     setLoading(true);
     setError("");
+    // A different week's conflicts are not this week's.
+    setPublishBlockedBy([]);
     try {
       const data = await apiFetch<{ rows?: any[]; state_token?: string; content_hash?: string }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
@@ -1131,6 +1161,35 @@ export default function ManualShiftPage() {
     return () => { cancelledRef.current = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, branchCode]);
+
+  // Day-off requests against what this roster still says.
+  //
+  // Its own effect, not folded into the loader above: that one returns early
+  // while staffList is empty, which is exactly the state on the first
+  // "Load Staff & Shifts" of a session. The window is wide because the week on
+  // screen can be months from today, and the scan is bounded by the request
+  // table, which holds tens of rows.
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const cf = await apiFetch<{ items: { staff_name: string; work_date: string; kind: string }[] }>(
+          `/api/admin/shift-conflicts?city=${encodeURIComponent(city)}&days_back=180&days_ahead=180`
+        );
+        if (dead) return;
+        const m = new Map<string, "approved_but_rostered" | "undecided_and_rostered">();
+        (cf.items ?? []).forEach((r) => {
+          if (r.kind === "approved_but_rostered" || r.kind === "undecided_and_rostered") {
+            m.set(`${r.staff_name}|${r.work_date}`, r.kind);
+          }
+        });
+        setDayOffConflicts(m);
+      } catch {
+        // Optional overlay — a failed scan must not stop the week loading.
+      }
+    })();
+    return () => { dead = true; };
+  }, [city]);
 
   // ─── Seeing other people's edits ──────────────────────────────────────────
   //
@@ -1360,10 +1419,69 @@ export default function ManualShiftPage() {
     setGridData((prev) => ({ ...prev, [staffName]: prev[staffName] ?? {} }));
   }
 
+  /**
+   * Add somebody to the grid, from the staff register rather than by typing.
+   *
+   * This used to be `prompt("Enter staff name:")`. A name typed here becomes
+   * the key the published row is written under, and **a shift filed under a
+   * name the register does not hold reaches nobody** -- My Shift looks the
+   * person up by the name on their account. Over the last 120 days fifteen
+   * such names carry 175 published rows: `Bibek B K` against a register that
+   * says `Bibek BK` (23 rows, still in the future), `Aris John De Ocampo`
+   * against `Aris Jhon De Ocampo`, `Joanna Mae D. Saraos`, `Joven R, Bermejo
+   * Jr.`, and a row simply called `NEW`.
+   *
+   * There is no free-text way in any more. Somebody who is not in the register
+   * cannot see a shift, cannot clock in and is not paid from it, so a row for
+   * them is not a schedule -- it is a note nobody reads. The dialog links to
+   * where they get registered instead.
+   */
   function addStaffRow() {
-    const name = prompt("Enter staff name:");
-    if (!name?.trim()) return;
+    setPickerOpen(true);
+    setPickerQuery("");
+    void loadPickerNames();
+  }
+
+  const loadPickerNames = useCallback(async () => {
+    setPickerLoading(true);
+    setPickerError("");
+    try {
+      // Two calls: this branch, then the whole city. People are rostered at a
+      // branch that is not their own -- five of them last month -- so the list
+      // cannot stop at the home branch, but that is the half worth showing
+      // first.
+      // `exclude_role=HQ` because the grid's own load excludes them: HQ is not
+      // rostered at a branch, and a picker that offers who the grid deliberately
+      // left out is a second rule.
+      const q = `city=${city}&status=ACTIVE&exclude_role=HQ&limit=2000`;
+      const [here, all] = await Promise.all([
+        apiFetch<{ names?: string[] }>(
+          `/api/admin/staff_master/names?${q}&home_branch=${encodeURIComponent(branchCode)}`),
+        apiFetch<{ names?: string[] }>(`/api/admin/staff_master/names?${q}`),
+      ]);
+      const mine = new Set(here.names ?? []);
+      const rows = (all.names ?? []).map((nm) => ({ name: nm, here: mine.has(nm) }));
+      rows.sort((a, b) => (a.here === b.here
+        ? a.name.localeCompare(b.name)
+        : (a.here ? -1 : 1)));
+      setPickerNames(rows);
+    } catch (e: unknown) {
+      // A dialog that offers nothing and says nothing is the worst of it.
+      setPickerError(e instanceof Error ? e.message : String(e));
+      setPickerNames([]);
+    } finally {
+      setPickerLoading(false);
+    }
+  }, [city, branchCode]);
+
+  function chooseStaffForGrid(name: string) {
     const n = name.trim();
+    if (!n) return;
+    setPickerOpen(false);
+    // Hidden on the server, not merely absent from this page. Adding the row
+    // back without clearing that leaves it looking present and gone again on
+    // the next load.
+    if (removedStaff.includes(n)) { void restoreStaffToGrid(n); return; }
     if (!staffList.includes(n)) setStaffList((prev) => [...prev, n].sort((a, b) => a.localeCompare(b)));
     setGridData((prev) => ({ ...prev, [n]: prev[n] ?? {} }));
   }
@@ -1392,29 +1510,57 @@ export default function ManualShiftPage() {
     setDbImporting(true);
     setError("");
     try {
-      const loadFromDb = async (force: boolean) =>
+      // Two separate refusals, each with its own question for the user: someone
+      // else published this week recently, and the sheet rosters somebody on a day
+      // already approved off. Either can arrive first, and answering one must not
+      // silently answer the other.
+      let force = false;
+      let allowApprovedDayOff = false;
+      const loadFromDb = () =>
         apiFetch<{ ok: boolean; rows_copied: number }>(
           "/api/admin/shifts/publish_from_base",
           {
             method: "POST",
-            body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart, force }),
+            body: JSON.stringify({
+              city, branch_code: branchCode, week_start: weekStart,
+              force, allow_approved_day_off: allowApprovedDayOff,
+            }),
           }
         );
-      let res: { ok: boolean; rows_copied: number };
-      try {
-        res = await loadFromDb(false);
-      } catch (first: unknown) {
-        // The server refuses when someone else published this week in the last few
-        // hours, because loading from DB throws their corrections away. Name them and
-        // let the user decide rather than doing it silently.
-        const msg = first instanceof Error ? first.message : String(first);
-        if (!/published this week/i.test(msg)) throw first;
-        if (!window.confirm(`${msg}\n\nReplace the whole week anyway?`)) {
-          setError("");
-          return;
+      let res: { ok: boolean; rows_copied: number } | null = null;
+      for (let attempt = 0; attempt < 3 && res === null; attempt += 1) {
+        try {
+          res = await loadFromDb();
+        } catch (refused: unknown) {
+          const err = refused as ApiError;
+          const conflicts = err?.status === 409 && Array.isArray(err?.detail?.day_off_conflicts)
+            ? (err.detail!.day_off_conflicts as DayOffConflict[])
+            : [];
+          if (conflicts.length > 0 && !allowApprovedDayOff) {
+            const lines = conflicts.slice(0, 8).map(describeDayOffConflict).join("\n");
+            const more = conflicts.length > 8 ? `\n…and ${conflicts.length - 8} more` : "";
+            if (!window.confirm(
+              `The imported sheet rosters somebody on a day they have already been given off `
+              + `(${countDayOffConflicts(conflicts)}):\n\n${lines}${more}\n\n`
+              + `OK — load anyway, because the day off no longer stands.\n`
+              + `Cancel — leave the week alone and fix the sheet first.`
+            )) { setError(""); return; }
+            allowApprovedDayOff = true;
+            continue;
+          }
+          const msg = refused instanceof Error ? refused.message : String(refused);
+          if (!force && /published this week/i.test(msg)) {
+            if (!window.confirm(`${msg}\n\nReplace the whole week anyway?`)) {
+              setError("");
+              return;
+            }
+            force = true;
+            continue;
+          }
+          throw refused;
         }
-        res = await loadFromDb(true);
       }
+      if (!res) { setError("Load from DB failed"); return; }
       if (!res.ok) { setError("Load from DB failed"); return; }
       if (discardFirst) {
         await apiFetch("/api/admin/shifts/discard_week_cells", {
@@ -1514,8 +1660,9 @@ export default function ManualShiftPage() {
     return rows;
   }, [gridData]);
 
-  async function handlePublish() {
+  async function handlePublish(allowApprovedDayOff = false) {
     setError("");
+    setPublishBlockedBy([]);
     // Everything typed must be on the server before the server is asked to publish
     // it -- the browser no longer sends the week, so an unsent edit would simply
     // not be published.
@@ -1554,6 +1701,7 @@ export default function ManualShiftPage() {
             week_start: weekStart,
             auto_export: true,
             export_month: weekStart.slice(0, 7),
+            allow_approved_day_off: allowApprovedDayOff,
           }),
         }
       );
@@ -1569,7 +1717,17 @@ export default function ManualShiftPage() {
       markNeedsExport();
       setShowExportPrompt(true);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      const err = e as ApiError;
+      const blocked = err?.status === 409 && Array.isArray(err?.detail?.day_off_conflicts)
+        ? (err.detail!.day_off_conflicts as DayOffConflict[])
+        : [];
+      if (blocked.length > 0) {
+        // Not an error the person caused by publishing — a day off that was
+        // approved while this week was being edited. Name it, and leave the way out.
+        setPublishBlockedBy(blocked);
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setSaving(false);
     }
@@ -1869,6 +2027,102 @@ export default function ManualShiftPage() {
         {/* What happened, and the two things anyone wants next: open this file, or
             go and look at the folder. Shown after the export rather than before,
             so the answer is about a file that exists. */}
+        {/* Who to add to the week. The register is the only way in — a name
+            typed by hand becomes a row nobody can see. */}
+        {pickerOpen && (
+          <ModalScrim className="bg-black/40">
+            <div className="mx-auto my-4 w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+                 role="dialog" aria-modal="true" aria-labelledby="add-staff-title">
+              <h2 id="add-staff-title" className="text-lg font-semibold text-gray-900">
+                Add staff to this week
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">
+                {labelOf(city, branchCode)} · week of {weekStart}
+              </p>
+
+              <input
+                autoFocus
+                type="text"
+                value={pickerQuery}
+                onChange={(e) => setPickerQuery(e.target.value)}
+                placeholder="Search a name…"
+                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-base text-gray-900 outline-none focus:border-indigo-400"
+              />
+
+              {pickerLoading && <p className="mt-3 text-sm text-gray-500">Loading the staff list…</p>}
+              {pickerError && (
+                <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                  <p className="text-xs text-rose-700">{pickerError}</p>
+                  <button type="button" onClick={() => void loadPickerNames()}
+                          className="mt-1 text-xs font-semibold text-rose-700 underline">
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {!pickerLoading && !pickerError && (() => {
+                const q = pickerQuery.trim().toLowerCase();
+                const shown = pickerNames.filter((r) => !q || r.name.toLowerCase().includes(q));
+                if (!shown.length) {
+                  return (
+                    <p className="mt-4 text-sm text-gray-600">
+                      {pickerNames.length
+                        ? <>Nobody in {city === "manila" ? "Manila" : "Dubai"} matches “{pickerQuery.trim()}”.</>
+                        : <>No active staff found for {city === "manila" ? "Manila" : "Dubai"}.</>}
+                    </p>
+                  );
+                }
+                return (
+                  <div className="mt-3 max-h-80 overflow-y-auto overscroll-contain rounded-xl border border-gray-100">
+                    {shown.map((r, i) => {
+                      const onGrid = staffList.includes(r.name) && !removedStaff.includes(r.name);
+                      const hidden = removedStaff.includes(r.name);
+                      const prevHere = i > 0 ? shown[i - 1].here : null;
+                      return (
+                        <div key={r.name}>
+                          {(i === 0 || prevHere !== r.here) && (
+                            <p className="bg-gray-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                              {r.here ? labelOf(city, branchCode) : "Other branches"}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            disabled={onGrid}
+                            onClick={() => chooseStaffForGrid(r.name)}
+                            className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition ${
+                              onGrid ? "cursor-default text-gray-300"
+                                     : "text-gray-800 hover:bg-indigo-50"}`}
+                          >
+                            <span>{r.name}</span>
+                            {onGrid && <span className="text-[11px] text-gray-400">already on the grid</span>}
+                            {hidden && <span className="text-[11px] text-amber-600">hidden — put back</span>}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              <p className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                Somebody missing? They have to be on the{" "}
+                <Link href="/admin/staff" className="font-semibold text-violet-700 underline">
+                  Staff page
+                </Link>{" "}
+                first. A shift filed under a name the register does not hold does not
+                reach the person — it will not show in their My Shift and they cannot
+                clock in against it.
+              </p>
+
+              <div className="mt-3 flex justify-end">
+                <button type="button" onClick={() => setPickerOpen(false)} className={SECONDARY_BUTTON}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </ModalScrim>
+        )}
+
         {showExportDone && exportResult && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
                role="dialog" aria-modal="true" aria-labelledby="export-done-title">
@@ -2395,9 +2649,27 @@ export default function ManualShiftPage() {
                           // applied to this cell yet. Shown beside the shift
                           // rather than instead of it.
                           const dayOffPending = hasApprovedDayOff && normalizedShifts.length > 0 && !publishedIsAlreadyDayOff;
+                          // The staff member's own request, against this cell.
+                          // Rose above the sheet-sync proposal because it is the
+                          // one somebody is waiting on an answer to.
+                          const conflict = normalizedShifts.length > 0 && !publishedIsAlreadyDayOff
+                            ? dayOffConflicts.get(`${name}|${d}`)
+                            : undefined;
                           return (
                             <td key={d} className="relative px-1 py-1 text-center align-top">
-                              {dayOffPending && (
+                              {conflict ? (
+                                <span
+                                  title={conflict === "approved_but_rostered"
+                                    ? "This day off was approved and the roster still has them working. Approving does not move the shift — change the cell."
+                                    : "This day off has been asked for and not answered yet. The roster still has them working."}
+                                  className={"absolute left-1 top-0.5 z-10 rounded px-1 text-[8px] font-bold uppercase tracking-wide "
+                                    + (conflict === "approved_but_rostered"
+                                      ? "bg-rose-500 text-white"
+                                      : "bg-amber-400/90 text-amber-950")}
+                                >
+                                  {conflict === "approved_but_rostered" ? "day off approved" : "day off asked"}
+                                </span>
+                              ) : dayOffPending && (
                                 <span
                                   title="An approved Day Off request exists for this day, but the published schedule below is what the staff member sees. Change the cell if the day off should apply."
                                   className="absolute left-1 top-0.5 z-10 rounded bg-amber-400/90 px-1 text-[8px] font-bold uppercase tracking-wide text-amber-950"
@@ -2519,16 +2791,53 @@ export default function ManualShiftPage() {
               </div>
               <div className="border-t border-gray-100 px-4 py-3">
                 <button type="button" onClick={addStaffRow} className="text-xs text-gray-400 hover:text-indigo-500 transition">
-                  + Add staff row manually
+                  + Add staff to this week
                 </button>
               </div>
             </div>
+
+            {/* A day off was approved for somebody this week still has a shift on. */}
+            {publishBlockedBy.length > 0 && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                <p className="text-sm font-semibold text-rose-700">
+                  Not published — already given off ({countDayOffConflicts(publishBlockedBy)})
+                </p>
+                <div className="mt-2 max-h-40 overflow-y-auto">
+                  {publishBlockedBy.map((c, i) => (
+                    <p key={`pb${i}`} className="text-xs text-rose-700/90">
+                      {describeDayOffConflict(c)}
+                    </p>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-rose-600/80">
+                  Set those cells to Day Off and publish again — nothing has been published yet,
+                  so the rest of your changes are still here.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPublishBlockedBy([])}
+                    className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                  >
+                    Let me fix the cells
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePublish(true)}
+                    disabled={saving}
+                    className="rounded-lg border border-rose-400 bg-rose-100 px-3 py-1.5 text-xs text-rose-700 transition hover:bg-rose-200 disabled:opacity-50"
+                  >
+                    {saving ? "Publishing…" : "Publish anyway — the day off no longer stands"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Publish footer */}
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={handlePublish}
+                onClick={() => handlePublish(false)}
                 disabled={saving || unpublishedCells.size === 0}
                 className={`${PRIMARY_BUTTON} min-w-[180px]`}
               >

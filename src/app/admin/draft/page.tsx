@@ -29,6 +29,7 @@ import { canAccessAdminNav, getAuth } from "@/lib/auth";
 import ShiftScheduleView from "./ShiftScheduleView";
 import ShiftMasterPanel from "@/components/ShiftMasterPanel";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
   loadShiftMaster,
@@ -38,6 +39,13 @@ import {
   type ShiftViolation,
 } from "@/lib/shiftMasterData";
 import { fmtNum } from "@/lib/formatters";
+import {
+  countDayOffConflicts,
+  dayOffIndex,
+  describeDayOffConflict,
+  type DayOffConflict,
+  type DayOffDay,
+} from "@/lib/day-off-conflicts";
 import {
   BADGE_ERROR,
   BADGE_INFO,
@@ -176,6 +184,7 @@ type XlsxImportPreview = {
     modified_rows: Array<{ before: XlsxDiffRow; after: XlsxDiffRow }>;
   };
   new_rows: DraftRow[];
+  day_off_conflicts?: DayOffConflict[];
 };
 
 type RecommendedAction =
@@ -224,6 +233,7 @@ type ApplyPrepareResult = {
     draft_created_at_pht: string;
     delta_minutes: number;
   } | null;
+  day_off_conflicts?: DayOffConflict[];
 };
 
 type ApplyConfirmResult = {
@@ -273,6 +283,7 @@ type BatchApplyPrepareResult = {
     confirm_token: string;
     preview: ApplyPrepareResult["preview"];
     conflict?: ApplyPrepareResult["conflict"];
+    day_off_conflicts?: DayOffConflict[];
   }>;
   total_rows_count: number;
   total_staff_count: number;
@@ -457,9 +468,13 @@ async function apiGet<T = any>(path: string): Promise<T> {
 }
 
 class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /** FastAPI's detail, when it was an object rather than a sentence. The apply
+   *  paths send one (stale_draft, approved_day_off) and the caller reads it. */
+  detail?: Record<string, unknown>;
+  constructor(public status: number, message: string, detail?: Record<string, unknown>) {
     super(message);
     this.name = "ApiError";
+    this.detail = detail;
   }
 }
 
@@ -472,8 +487,18 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const text = await res.text();
   if (!res.ok) {
     let msg = text || `POST ${path} failed`;
-    try { msg = JSON.parse(text)?.detail || msg; } catch { /* non-JSON */ }
-    throw new ApiError(res.status, msg);
+    let detail: Record<string, unknown> | undefined;
+    try {
+      const d = JSON.parse(text)?.detail;
+      if (d && typeof d === "object") {
+        // Reading this as a string printed "[object Object]" where the reason belonged.
+        detail = d as Record<string, unknown>;
+        msg = String(detail.message || detail.error || msg);
+      } else if (d) {
+        msg = String(d);
+      }
+    } catch { /* non-JSON */ }
+    throw new ApiError(res.status, msg, detail);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
@@ -1162,11 +1187,22 @@ function ExclusionManagerPanel({
                   options={[{ value: "", label: "Select…" }, ...branches.map((b) => ({ value: b.code, label: b.name }))]} />
               </div>
               <div className="sm:col-span-2">
-                <label className="block text-xs text-neutral-400 mb-1">Staff Name (exact)</label>
-                <input
-                  className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                  placeholder="e.g. Tricia Andrea Estrada"
-                  value={staffName} onChange={(e) => setStaffName(e.target.value)}
+                <label className="block text-xs text-neutral-400 mb-1">Staff Name</label>
+                {/* Typed, this had to match staff_master exactly or the exclusion
+                    simply never fired — a misspelling kept drafting the person
+                    it was written to stop, and said nothing. */}
+                <StaffNamePicker
+                  city={city}
+                  /* An exclusion is usually written about someone who has just
+                     been let go, and letting them go takes them off the active
+                     roster — an ACTIVE-only list is empty of exactly the people
+                     this form is for. Six of the thirteen exclusions on record
+                     name someone the active roster no longer carries. */
+                  includeSeparated
+                  value={staffName}
+                  onChange={setStaffName}
+                  className={SELECT_CLASS + " text-sm"}
+                  aria-label="Staff to exclude from the draft"
                 />
               </div>
             </div>
@@ -1432,7 +1468,15 @@ export default function AdminDraftPage() {
   const [draftTab, setDraftTab] = useState<"schedule" | "manage">("schedule");
 
   const [applyMonth, setApplyMonth] = useState(targetMonth);
+  // Days off filed for this month, whatever the draft currently says about them.
+  // Held as days rather than conflicts because the grid's own cells decide:
+  // change a cell to Day Off and the chip goes on the spot, with no round trip.
+  const [dayOffDays, setDayOffDays] = useState<DayOffDay[]>([]);
   const [applyPrepared, setApplyPrepared] = useState<BatchApplyPrepareResult | null>(null);
+  // Set only by a 409 from apply/confirm: the draft rosters somebody on an approved day off.
+  const [applyDayOffBlock, setApplyDayOffBlock] = useState<{
+    branch_name: string; week_start: string; conflicts: DayOffConflict[]; applied_before: number;
+  } | null>(null);
   const [applyResult, setApplyResult] = useState<BatchApplyConfirmResult | null>(null);
   const [published, setPublished] = useState<PublishedWeekResult | null>(null);
   const [pendingRows, setPendingRows] = useState<PendingSheetProposal[]>([]);
@@ -1655,6 +1699,45 @@ export default function AdminDraftPage() {
     setAutoExportErrors({});
     setAutoExportBusy(false);
   }, [activeBranchCode]);
+
+  // The window the grid needs days off for: the target month, widened to cover
+  // any row that sits outside it. A draft that runs past the month end would
+  // otherwise have rows the index says nothing about, and a chip that is simply
+  // absent reads as "this is fine".
+  // Two strings rather than an object, so the fetch below does not refire every
+  // time the rows array is rebuilt with the same span.
+  const [dayOffFrom, dayOffTo] = useMemo(() => {
+    const dates = monthDates(targetMonth);
+    if (dates.length === 0) return ["", ""];
+    let lo = dates[0];
+    let hi = dates[dates.length - 1];
+    for (const r of rows) {
+      const d = (r.work_date || "").slice(0, 10);
+      if (!d) continue;
+      if (d < lo) lo = d;
+      if (d > hi) hi = d;
+    }
+    return [lo, hi];
+  }, [targetMonth, rows]);
+
+  useEffect(() => {
+    let dead = false;
+    if (!dayOffFrom || !dayOffTo) { setDayOffDays([]); return; }
+    (async () => {
+      try {
+        const res = await apiGet<{ items: DayOffDay[] }>(
+          `/api/admin/day-off-days${qs({ city, date_from: dayOffFrom, date_to: dayOffTo })}`,
+        );
+        if (!dead) setDayOffDays(res.items || []);
+      } catch {
+        // An overlay. A failed scan must not stop the draft being read or edited.
+        if (!dead) setDayOffDays([]);
+      }
+    })();
+    return () => { dead = true; };
+  }, [city, dayOffFrom, dayOffTo]);
+
+  const dayOffByStaffDate = useMemo(() => dayOffIndex(dayOffDays), [dayOffDays]);
 
   useEffect(() => {
     let mounted = true;
@@ -2118,6 +2201,7 @@ export default function AdminDraftPage() {
           confirm_token: res.confirm_token,
           preview: res.preview,
           conflict: res.conflict,
+          day_off_conflicts: res.day_off_conflicts || [],
         });
         totalRowsCount += Number(res.preview?.rows_count || 0);
         totalStaffCount += Number(res.preview?.staff_count || 0);
@@ -2147,9 +2231,10 @@ export default function AdminDraftPage() {
     }
   }
 
-  async function confirmApply() {
+  async function confirmApply(allowApprovedDayOff = false) {
     setLoading(true);
     setError("");
+    setApplyDayOffBlock(null);
     setApplyResult(null);
 
     try {
@@ -2158,13 +2243,32 @@ export default function AdminDraftPage() {
       const confirmedItems: BatchApplyConfirmResult["items"] = [];
       let totalRowsCopied = 0;
       for (const item of prepared.items) {
-        const res = await apiPost<ApplyConfirmResult>(`/api/draft/apply/confirm`, {
-          confirm_token: item.confirm_token,
-          approver_name: approverName,
-          pin,
-          auto_export: false,
-          export_month: applyMonth,
-        });
+        let res: ApplyConfirmResult;
+        try {
+          res = await apiPost<ApplyConfirmResult>(`/api/draft/apply/confirm`, {
+            confirm_token: item.confirm_token,
+            approver_name: approverName,
+            pin,
+            auto_export: false,
+            export_month: applyMonth,
+            allow_approved_day_off: allowApprovedDayOff,
+          });
+        } catch (err) {
+          const conflicts =
+            err instanceof ApiError && err.status === 409 && Array.isArray(err.detail?.day_off_conflicts)
+              ? (err.detail!.day_off_conflicts as DayOffConflict[])
+              : [];
+          if (conflicts.length === 0) throw err;
+          // Stop at the branch that was refused. The branches already applied
+          // stay applied -- saying otherwise would be the more confusing lie.
+          setApplyDayOffBlock({
+            branch_name: item.branch_name,
+            week_start: item.week_start,
+            conflicts,
+            applied_before: confirmedItems.length,
+          });
+          return;
+        }
         confirmedItems.push({
           branch_code: item.branch_code,
           branch_name: item.branch_name,
@@ -2588,7 +2692,7 @@ export default function AdminDraftPage() {
     }
   }
 
-  async function applyXlsxImport() {
+  async function applyXlsxImport(allowApprovedDayOff = false) {
     if (!xlsxImportPreview || (!auth?.hasSession && !auth?.accessToken)) return;
     setXlsxApplyBusy(true);
     setXlsxImportError("");
@@ -2602,12 +2706,30 @@ export default function AdminDraftPage() {
         body: JSON.stringify({
           version_id: xlsxImportPreview.version_id,
           rows: xlsxImportPreview.new_rows,
+          allow_approved_day_off: allowApprovedDayOff,
         }),
       });
       const text = await res.text();
       if (!res.ok) {
-        const j = JSON.parse(text);
-        throw new Error(j?.detail || text || "Apply failed");
+        let detail: any = text;
+        let conflicts: DayOffConflict[] = [];
+        try {
+          const j = JSON.parse(text);
+          detail = j?.detail ?? text;
+          if (detail && typeof detail === "object") {
+            conflicts = Array.isArray(detail.day_off_conflicts) ? detail.day_off_conflicts : [];
+            detail = detail.message || detail.detail || "Apply failed";
+          }
+        } catch {
+          /* not JSON — show the body as it came */
+        }
+        if (res.status === 409 && conflicts.length > 0) {
+          // Somebody was given the day off after this preview was taken.
+          setXlsxImportPreview({ ...xlsxImportPreview, day_off_conflicts: conflicts });
+          setXlsxImportError("");
+          return;
+        }
+        throw new Error(String(detail || "Apply failed"));
       }
       const result = JSON.parse(text) as { ok: boolean; rows: DraftRow[]; rows_inserted: number };
       setRows(result.rows);
@@ -2994,19 +3116,54 @@ export default function AdminDraftPage() {
                     </div>
                   )}
 
+                  {/* Days already given off that this file rosters anyway */}
+                  {(xlsxImportPreview.day_off_conflicts?.length ?? 0) > 0 && (
+                    <div className="mb-3 rounded-lg border border-rose-500/40 bg-rose-950/30 p-3">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-rose-300">
+                        Already given off —{" "}
+                        {countDayOffConflicts(xlsxImportPreview.day_off_conflicts || [])}
+                      </p>
+                      <div className="max-h-32 overflow-y-auto">
+                        {(xlsxImportPreview.day_off_conflicts || []).map((c, i) => (
+                          <p key={`doc${i}`} className="text-[11px] text-rose-200/90">
+                            {describeDayOffConflict(c)}
+                          </p>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[11px] text-rose-300/70">
+                        Take those days out of the file and upload it again, or import anyway
+                        if the day off no longer stands.
+                      </p>
+                    </div>
+                  )}
+
                   {xlsxImportError && (
                     <p className="mb-3 text-xs text-rose-400">{xlsxImportError}</p>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={applyXlsxImport}
-                    disabled={xlsxApplyBusy}
-                    className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 disabled:opacity-50 transition-colors"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    {xlsxApplyBusy ? "Applying…" : `Apply ${xlsxImportPreview.parsed_count} rows to Draft`}
-                  </button>
+                  {(xlsxImportPreview.day_off_conflicts?.length ?? 0) > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => applyXlsxImport(true)}
+                      disabled={xlsxApplyBusy}
+                      className="flex items-center gap-1.5 rounded-lg border border-rose-500/50 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50 transition-colors"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      {xlsxApplyBusy
+                        ? "Importing…"
+                        : `Import anyway — roster ${countDayOffConflicts(xlsxImportPreview.day_off_conflicts || [])} on their day off`}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => applyXlsxImport(false)}
+                      disabled={xlsxApplyBusy}
+                      className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400 disabled:opacity-50 transition-colors"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      {xlsxApplyBusy ? "Applying…" : `Apply ${xlsxImportPreview.parsed_count} rows to Draft`}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -3020,6 +3177,7 @@ export default function AdminDraftPage() {
                 onAddRow={handleAddRow}
                 masterData={shiftMaster ?? undefined}
                 branchCode={activeBranchCode || undefined}
+                dayOffByStaffDate={dayOffByStaffDate}
               />
             </>
           )}
@@ -3923,7 +4081,7 @@ export default function AdminDraftPage() {
             </button>
             <button
               type="button"
-              onClick={confirmApply}
+              onClick={() => confirmApply(false)}
               disabled={loading}
               className={`${SECONDARY_BUTTON} disabled:opacity-60`}
             >
@@ -3931,12 +4089,73 @@ export default function AdminDraftPage() {
             </button>
           </div>
 
+          {/* Refused: this draft rosters somebody on a day already approved off. */}
+          {applyDayOffBlock && (
+            <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
+              <div className="mb-2 text-sm font-semibold text-rose-300">
+                Not applied — {applyDayOffBlock.branch_name} {applyDayOffBlock.week_start} already
+                given off ({countDayOffConflicts(applyDayOffBlock.conflicts)})
+              </div>
+              <div className="max-h-40 overflow-y-auto">
+                {applyDayOffBlock.conflicts.map((c, i) => (
+                  <p key={`ado${i}`} className="text-xs text-rose-200/90">{describeDayOffConflict(c)}</p>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-rose-300/70">
+                {applyDayOffBlock.applied_before > 0
+                  ? `${applyDayOffBlock.applied_before} earlier week${applyDayOffBlock.applied_before === 1 ? " was" : "s were"} applied before this one stopped. `
+                  : "Nothing has been applied. "}
+                Set those days to Day Off in the draft and Confirm Apply again.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setApplyDayOffBlock(null)}
+                  className="rounded-lg border border-rose-400/40 bg-white/5 px-3 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-white/10"
+                >
+                  Let me fix the draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => confirmApply(true)}
+                  disabled={loading}
+                  className="rounded-lg border border-rose-400/50 bg-rose-500/20 px-3 py-1.5 text-xs text-rose-100 transition hover:bg-rose-500/30 disabled:opacity-50"
+                >
+                  {loading ? "Applying…" : "Apply anyway — the day off no longer stands"}
+                </button>
+              </div>
+            </div>
+          )}
+
           {applyPrepared?.ok ? (
             <div className={`${GLASS_CARD} mt-4 p-4`}>
               <div className="space-y-1 text-xs text-neutral-400">
                 <div>jobs_ready: <span className="text-neutral-200">{fmtNum(applyPrepared.items.length)}</span></div>
                 <div>preview: {fmtNum(applyPrepared.total_rows_count)} rows / {fmtNum(applyPrepared.total_staff_count)} staff</div>
               </div>
+              {applyPrepared.items.some(i => (i.day_off_conflicts?.length ?? 0) > 0) && (
+                <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
+                  <div className="mb-2 text-sm font-semibold text-rose-300">
+                    Already given off —{" "}
+                    {countDayOffConflicts(applyPrepared.items.flatMap(i => i.day_off_conflicts || []))}
+                  </div>
+                  <p className="mb-2 text-xs text-rose-200/70">
+                    Confirm Apply will refuse these weeks. Set the days to Day Off in the draft first.
+                  </p>
+                  <div className="max-h-40 space-y-1 overflow-y-auto">
+                    {applyPrepared.items.filter(i => (i.day_off_conflicts?.length ?? 0) > 0).map(i => (
+                      <div key={`pdo-${i.branch_code}-${i.week_start}`} className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-2">
+                        <div className="text-xs font-semibold text-rose-200">
+                          {i.branch_name} <span className="ml-2 font-normal text-rose-400/60">{i.week_start}</span>
+                        </div>
+                        {(i.day_off_conflicts || []).map((c, k) => (
+                          <p key={`pdoc${k}`} className="mt-1 text-[11px] text-rose-200/70">{describeDayOffConflict(c)}</p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {applyPrepared.items.some(i => i.conflict) && (
                 <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-300">

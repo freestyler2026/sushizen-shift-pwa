@@ -20,8 +20,12 @@ const HIDE_NAV_PATHS = new Set(["/", "/login", "/signup", "/setup-pin", "/apply"
  *  have seen a logged-in avatar, a log-out button and a Time-in tab on a page
  *  that asks nothing of them. It only showed up on opening the page -- the API
  *  round trip passed clean.
+ *
+ *  The assessment route was missed the same way on 2026-09-21, with this warning
+ *  already written above it. The list is not something to remember; the test
+ *  below is. Every route here has one.
  */
-const HIDE_NAV_PREFIXES = ["/voice/", "/book/"];
+const HIDE_NAV_PREFIXES = ["/voice/", "/book/", "/assessment/"];
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

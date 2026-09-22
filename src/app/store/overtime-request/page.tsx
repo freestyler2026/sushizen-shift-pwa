@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
+import { otWindow } from "@/lib/ot-window";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -67,6 +68,9 @@ type OtFacts = {
   claimed_minutes: number | null;
   delta_minutes: number | null;
   unavailable: string | null;
+  /** The night these hours were measured against, when it is not the date
+   *  on the request. A claim filed at 02:00 carries the new day. */
+  shift_day?: string | null;
 };
 
 /**
@@ -156,6 +160,15 @@ function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) 
       )}
       {f && !f.unavailable && f.computed_minutes !== null && (
         <div className="rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[11px] leading-relaxed text-white/60">
+          {/* Which night these numbers belong to. A claim filed after midnight
+              carries the new day's date, so without this line the shift and
+              punches below look like they contradict the date on the row. */}
+          {f.shift_day && (
+            <p className="text-sky-300">
+              These hours are the tail of your {f.shift_day} shift, so that is the
+              shift and the clock-out shown here.
+            </p>
+          )}
           <p>
             Your shift:{" "}
             <span className="text-white/90">
@@ -202,6 +215,11 @@ function WhatWeHave({ r, onDispute }: { r: OTRequest; onDispute: (r: OTRequest) 
   );
 }
 
+/** "2" / "1.5" — hours as somebody would say them, not as a float prints them. */
+function formatOtHours(h: number): string {
+  return Number.isInteger(h) ? String(h) : String(Math.round(h * 100) / 100);
+}
+
 function formatHour(h: number): string {
   const total = h < 0 ? h + 24 : h;
   const hh = Math.floor(total) % 24;
@@ -209,15 +227,39 @@ function formatHour(h: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
+/** The store's business day: before 05:00 local, the shift that is ending
+ *  belongs to yesterday.
+ *
+ *  Not `businessToday()` from lib/date, which reads the device clock — this
+ *  form is filled in on a phone whose timezone is not guaranteed to be the
+ *  store's, and the rest of this page already works from the city offset.
+ *  The 05:00 boundary is the one Cash Report established: closing work lands
+ *  between midnight and 01:00 and nothing is posted between 02:00 and 07:00.
+ */
+function storeBusinessDay(rawCity: string | undefined): string {
+  const tzOff = (rawCity || "dubai").toLowerCase() === "manila" ? 8 : 4;
+  const local = new Date(Date.now() + tzOff * 3600_000);
+  if (local.getUTCHours() < 5) local.setUTCDate(local.getUTCDate() - 1);
+  return local.toISOString().slice(0, 10);
+}
+
 function hourFromTime(t: string): number {
   const [hh, mm] = t.split(":").map(Number);
   return hh + mm / 60;
 }
 
-function calcMinutes(start: number, end: number): number {
-  const e = end > start ? end : end + 24;
-  return Math.round((e - start) * 60);
+/** Hours from midnight of the work date back to a clock face. 25.5 is 01:30. */
+function timeFromHour(h: number): string {
+  const mins = Math.round(h * 60);
+  const hh = Math.floor(mins / 60) % 24;
+  return `${String(hh).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
 }
+
+function calcMinutes(start: number, end: number): number {
+  const [s, e] = otWindow(start, end);
+  return Math.round((e - s) * 60);
+}
+
 
 export default function OvertimeRequestPage() {
   const apiBase = "";
@@ -233,13 +275,28 @@ export default function OvertimeRequestPage() {
 
   // Form state
   const [branchCode, setBranchCode] = useState(staffBranch);
-  const [workDate, setWorkDate] = useState(() => {
-    const tzOff = (getAuth()?.city || "dubai").toLowerCase() === "manila" ? 8 : 4;
-    return new Date(Date.now() + tzOff * 3600_000).toISOString().slice(0, 10);
-  });
+  const [workDate, setWorkDate] = useState(() => storeBusinessDay(getAuth()?.city));
   const [requestType, setRequestType] = useState<"pre" | "post">("post");
-  const [otStart, setOtStart] = useState("21:00");
-  const [otEnd, setOtEnd] = useState("23:00");
+  // Empty, not 21:00-23:00.
+  //
+  // The form used to open on those two hours, and 49 of Dubai's 78 requests
+  // since July are that exact window untouched — two hours for everybody,
+  // whatever they worked. One reviewer spent September shortening them by
+  // hand, and one of the requests says in its own reason "I extended my duty
+  // by 1 hour" while asking for two. A default nobody chose was reaching the
+  // approver as a claim.
+  //
+  // They are filled from the roster and the clock as soon as a date is picked
+  // (see the effect below). When that cannot be worked out they stay empty:
+  // an empty box asks a question, and answering it wrongly is the thing being
+  // fixed.
+  const [otStart, setOtStart] = useState("");
+  const [otEnd, setOtEnd] = useState("");
+  const [clockNote, setClockNote] = useState("");
+  // Overtime the roster already holds, which is paid without anybody filing for
+  // it. Every request against a long shift so far has been a copy of the
+  // schedule, so the form has to say so before it asks for anything.
+  const [coveredHours, setCoveredHours] = useState(0);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -255,7 +312,9 @@ export default function OvertimeRequestPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState("");
 
-  const otMinutes = calcMinutes(hourFromTime(otStart), hourFromTime(otEnd));
+  const otMinutes = otStart && otEnd
+    ? calcMinutes(hourFromTime(otStart), hourFromTime(otEnd))
+    : 0;
 
   const tokenHeaders = useCallback(async () => {
     const freshAuth = getAuth();
@@ -295,6 +354,55 @@ export default function OvertimeRequestPage() {
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+
+  /** Open the times on what the roster and the clock already show.
+   *
+   *  From the end of the shift to when they actually left. Nothing is filled
+   *  in when either is missing — a day not yet worked, a clock-out nobody
+   *  pressed — because a guess in these boxes is what the reviewer then has
+   *  to undo by hand.
+   */
+  useEffect(() => {
+    if (!workDate) return;
+    let dead = false;
+    (async () => {
+      try {
+        const headers = await tokenHeaders();
+        const res = await fetch(
+          `${apiBase}/api/store/overtime/clock-window?work_date=${encodeURIComponent(workDate)}`,
+          { headers: new Headers(headers), cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const d = await res.json() as {
+          suggested_start?: number | null; suggested_end?: number | null;
+          computed_minutes?: number | null; unavailable?: string | null;
+          scheduled_ot_hours?: number | null;
+        };
+        if (dead) return;
+        setCoveredHours(Number(d.scheduled_ot_hours || 0));
+        if (d.suggested_start != null && d.suggested_end != null) {
+          setOtStart(timeFromHour(d.suggested_start));
+          setOtEnd(timeFromHour(d.suggested_end));
+          setClockNote("Filled in from your shift and your clock-out. Change it if it is wrong.");
+        } else {
+          setOtStart("");
+          setOtEnd("");
+          // Always say why the boxes are empty. An empty form with no
+          // explanation is the thing people work around by guessing.
+          setClockNote(
+            d.unavailable === "no attendance record"
+              ? "No clock-out recorded for that day yet — type the hours you worked."
+              : d.unavailable === "no published shift for that day"
+              ? "No shift published for that day — type the hours you worked."
+              : "Type the hours you worked.",
+          );
+        }
+      } catch {
+        // The form still works typed in by hand.
+      }
+    })();
+    return () => { dead = true; };
+  }, [workDate, apiBase, tokenHeaders]);
 
   /** Tell the manager the clock is wrong on this one.
    *
@@ -352,8 +460,8 @@ export default function OvertimeRequestPage() {
           branch_code: branchCode,
           work_date: workDate,
           request_type: requestType,
-          ot_start_hour: hourFromTime(otStart),
-          ot_end_hour: hourFromTime(otEnd),
+          ot_start_hour: otWindow(hourFromTime(otStart), hourFromTime(otEnd))[0],
+          ot_end_hour: otWindow(hourFromTime(otStart), hourFromTime(otEnd))[1],
           reason: reason.trim(),
           causes,
         }),
@@ -475,6 +583,27 @@ export default function OvertimeRequestPage() {
               </div>
             </div>
 
+            {clockNote && (
+              <p className="text-[11px] text-sky-300">{clockNote}</p>
+            )}
+
+            {/* The roster already asked for these hours, so they are paid without
+                this form. Said before the boxes, because the boxes are what people
+                were filling with exactly these hours. */}
+            {coveredHours > 0 && (
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-900/20 px-4 py-2.5">
+                <p className="text-[12px] font-semibold text-emerald-300">
+                  Your shift that day already includes{" "}
+                  {coveredHours === 1 ? "1 hour" : `${formatOtHours(coveredHours)} hours`} of overtime.
+                </p>
+                <p className="mt-1 text-[11px] text-emerald-200/80">
+                  You do not need to ask for those — the company put them on the
+                  schedule and they are paid with the shift. Use this form only for
+                  time you worked <strong>after</strong> your shift was due to end.
+                </p>
+              </div>
+            )}
+
             {/* OT duration summary */}
             {otMinutes > 0 && (
               <div className="rounded-lg bg-purple-900/30 border border-purple-500/30 px-4 py-2 text-center">
@@ -483,8 +612,17 @@ export default function OvertimeRequestPage() {
                   <strong className="text-purple-300">
                     {Math.floor(otMinutes / 60)}h {otMinutes % 60 > 0 ? `${otMinutes % 60}m` : ""}
                   </strong>
-                  {" "}({formatHour(hourFromTime(otStart))} – {formatHour(hourFromTime(otEnd))})
+                  {" "}({formatHour(otWindow(hourFromTime(otStart), hourFromTime(otEnd))[0])} – {formatHour(otWindow(hourFromTime(otStart), hourFromTime(otEnd))[1])})
                 </span>
+                {otWindow(hourFromTime(otStart), hourFromTime(otEnd))[1] > 24 && (
+                  /* The hours ran past midnight, so they belong to this work
+                     date's shift and not to the next calendar day. Said out
+                     loud because the date is the thing that used to go wrong
+                     silently. */
+                  <span className="mt-0.5 block text-[11px] text-sky-300">
+                    ends after midnight — counted against the {workDate} shift
+                  </span>
+                )}
               </div>
             )}
             {otMinutes <= 0 && otStart && otEnd && (

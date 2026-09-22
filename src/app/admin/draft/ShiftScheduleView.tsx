@@ -13,6 +13,12 @@ import {
 import type { ShiftMasterData, StaffTransport, VLEntry, BranchPeakInfo } from "@/lib/shiftMasterData";
 import { getTransport, isOnVL, getPeakInfo } from "@/lib/shiftMasterData";
 import SelectDark from "@/components/SelectDark";
+import {
+  countDayOffConflicts,
+  dayOffKey,
+  describeDayOffConflict,
+  isWorkCell,
+} from "@/lib/day-off-conflicts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,6 +50,9 @@ type Props = {
   onAddRow: (date: string, staffName: string, role: string, startHour: number, endHour: number) => Promise<void>;
   masterData?: ShiftMasterData; // ③④⑤
   branchCode?: string;           // for peak coverage context
+  /** `${lowercased name}|${date}` → what stage that day off is at. Publishing
+   *  refuses the "approved" ones, so the grid says so before anybody gets there. */
+  dayOffByStaffDate?: Map<string, "approved" | "asked">;
 };
 
 // ---------------------------------------------------------------------------
@@ -226,6 +235,7 @@ function ShiftRow({
   busy,
   transportInfo,
   vlEntry,
+  dayOffStage,
 }: {
   row: DraftRow;
   isEditing: boolean;
@@ -236,6 +246,7 @@ function ShiftRow({
   busy: boolean;
   transportInfo?: StaffTransport;  // ③
   vlEntry?: VLEntry;               // ④
+  dayOffStage?: "approved" | "asked";  // this row's own day, if one was filed
 }) {
   const [editStart, setEditStart] = useState(row.start_hour);
   const [editEnd,   setEditEnd]   = useState(row.end_hour);
@@ -254,6 +265,11 @@ function ShiftRow({
   const badge    = roleBadgeCls(row.staff_name, row.role);
   const roleShort = shortRole(row.staff_name, row.role);
 
+  // A Day Off row on a day off is the day off being applied, not a conflict --
+  // so the chip goes away the moment somebody fixes the row.
+  const rowIsWork = isWorkCell(row.role, row.start_hour, row.end_hour);
+  const dayOff = rowIsWork ? dayOffStage : undefined;
+
   return (
     <tr className={`group transition-colors ${isEditing ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"}`}>
       {/* Staff name — sticky (③ transport badge, ④ VL indicator) */}
@@ -270,6 +286,20 @@ function ShiftRow({
           )}
           {transportInfo && !vlEntry && (
             <TransportBadge t={transportInfo} />
+          )}
+          {dayOff && (
+            <span
+              title={dayOff === "approved"
+                ? describeDayOffConflict({
+                    staff_name: row.staff_name, work_date: row.work_date,
+                    start_hour: row.start_hour, end_hour: row.end_hour,
+                  }) + ". Applying this draft will be refused until the row says Day Off."
+                : "This day off has been asked for and not answered yet. Rostering them is still correct — somebody owes an answer."}
+              className={"shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide "
+                + (dayOff === "approved" ? "bg-rose-500 text-white" : "bg-amber-400/90 text-amber-950")}
+            >
+              {dayOff === "approved" ? "off approved" : "off asked"}
+            </span>
           )}
         </div>
       </td>
@@ -517,6 +547,7 @@ function DaySection({
   busy,
   masterData,
   branchCode,
+  dayOffByStaffDate,
 }: {
   date: string;
   rows: DraftRow[];
@@ -527,6 +558,7 @@ function DaySection({
   busy: boolean;
   masterData?: ShiftMasterData;
   branchCode?: string;
+  dayOffByStaffDate?: Map<string, "approved" | "asked">;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdd,   setShowAdd]   = useState(false);
@@ -671,6 +703,7 @@ function DaySection({
                   busy={busy}
                   transportInfo={masterData ? getTransport(row.staff_name, masterData) : undefined}
                   vlEntry={masterData ? isOnVL(row.staff_name, row.work_date, masterData) : undefined}
+                  dayOffStage={dayOffByStaffDate?.get(dayOffKey(row.staff_name, row.work_date))}
                 />
               ))
             )}
@@ -753,6 +786,7 @@ export default function ShiftScheduleView({
   onAddRow,
   masterData,
   branchCode,
+  dayOffByStaffDate,
 }: Props) {
   const [weekStart, setWeekStart] = useState<string>(() => firstWeekOfMonth(month));
   const [busy, setBusy] = useState(false);
@@ -806,6 +840,23 @@ export default function ShiftScheduleView({
     [currentWeekDates, byDate]
   );
 
+  // Every row in the draft that puts somebody at work on a day already approved
+  // off -- the whole month, not the week on screen. One week is visible at a
+  // time, so a chip four weeks out is a chip nobody sees until Apply refuses.
+  const monthDayOffConflicts = useMemo(() => {
+    if (!dayOffByStaffDate?.size) return [];
+    return rows
+      .filter((r) =>
+        dayOffByStaffDate.get(dayOffKey(r.staff_name, r.work_date)) === "approved"
+        && isWorkCell(r.role, r.start_hour, r.end_hour))
+      .sort((a, b) => (a.work_date + a.staff_name).localeCompare(b.work_date + b.staff_name));
+  }, [rows, dayOffByStaffDate]);
+
+  const conflictWeeks = useMemo(
+    () => new Set(monthDayOffConflicts.map((r) => mondayOf(r.work_date))),
+    [monthDayOffConflicts],
+  );
+
   // Wrap callbacks with busy state
   const handleUpdate = useCallback(async (
     id: string,
@@ -829,6 +880,37 @@ export default function ShiftScheduleView({
 
   return (
     <div className="space-y-4">
+      {/* Days already approved off that this draft still rosters. Above the week
+          navigation because only one week is on screen and Apply refuses on the
+          whole month. */}
+      {monthDayOffConflicts.length > 0 && (
+        <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
+          <p className="text-sm font-semibold text-rose-300">
+            Already given off — {countDayOffConflicts(monthDayOffConflicts.map((r) => ({
+              staff_name: r.staff_name, work_date: r.work_date,
+            })))} in this draft
+          </p>
+          <p className="mt-0.5 text-xs text-rose-200/70">
+            Applying the draft will be refused until these rows say Day Off.
+          </p>
+          <div className="mt-2 max-h-36 space-y-1 overflow-y-auto">
+            {monthDayOffConflicts.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setWeekStart(mondayOf(r.work_date))}
+                className="block w-full rounded px-1 text-left text-[11px] text-rose-200/90 hover:bg-rose-500/10 hover:text-rose-100"
+              >
+                {describeDayOffConflict({
+                  staff_name: r.staff_name, work_date: r.work_date,
+                  start_hour: r.start_hour, end_hour: r.end_hour,
+                })}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Week navigation */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -870,6 +952,12 @@ export default function ShiftScheduleView({
               }`}
             >
               Week {i + 1}
+              {conflictWeeks.has(ws) && (
+                <span
+                  title="Somebody in this week is rostered on a day they were given off"
+                  className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-rose-500 align-middle"
+                />
+              )}
             </button>
           ))}
         </div>
@@ -900,6 +988,7 @@ export default function ShiftScheduleView({
           busy={busy}
           masterData={masterData}
           branchCode={branchCode}
+          dayOffByStaffDate={dayOffByStaffDate}
         />
       ))}
 

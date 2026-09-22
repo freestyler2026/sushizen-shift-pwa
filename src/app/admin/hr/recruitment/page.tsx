@@ -2,7 +2,7 @@
 
 import { isoToday } from "@/lib/date";
 import { facebookLink } from "@/lib/facebook";
-import { LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outcome";
+import { reasonLabel, isNoShow, LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outcome";
 import { cvStateOf, openedSinceAsk } from "@/lib/cv-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -3813,6 +3813,24 @@ function DecisionList({
                 {KANBAN_COLUMNS.find((c) => c.id === a.status)?.label ?? a.status}
               </span>
 
+              {/* Why it closed, next to the fact that it closed. A no-show is
+                  still a rejection, but it says nobody judged them -- and until
+                  now the difference was stored and shown nowhere. */}
+              {a.rejection_reason && (
+                <span
+                  className={
+                    isNoShow(a.rejection_reason)
+                      ? "shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-200"
+                      : "shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-zinc-400"
+                  }
+                  title={isNoShow(a.rejection_reason)
+                    ? "They did not turn up for the interview. Closed, but not a judgement of them."
+                    : "Why this applicant was closed"}
+                >
+                  {reasonLabel(a.rejection_reason)}
+                </span>
+              )}
+
               {done ? (
                 // What was recorded, in words, next to the person it was
                 // recorded about. Open them to change it if it was the wrong
@@ -3886,9 +3904,30 @@ function ClosedList({
             </span>
             <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">{a.full_name}</span>
             <span className="truncate text-xs text-zinc-500">{a.position_applied || "—"}</span>
-            {a.latest_outcome_reason && (
-              <span className="truncate text-xs text-zinc-600">{a.latest_outcome_reason.replace(/_/g, " ")}</span>
-            )}
+            {/* Why it closed. This is the only screen a rejected applicant
+                still appears on, so it is the only place a no-show can be
+                told apart from a judgement -- and a no-show is 3 of 559, so
+                colouring it is a signal and not a wall of amber.
+                Read BOTH columns: closing from the board writes
+                rejection_reason and no evaluation row, so one of the three
+                no-shows had latest_outcome_reason empty and showed nothing
+                here at all. */}
+            {(() => {
+              const why = a.latest_outcome_reason || a.rejection_reason;
+              if (!why) return null;
+              return (
+                <span
+                  className={isNoShow(why)
+                    ? "shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-200"
+                    : "truncate text-xs text-zinc-600"}
+                  title={isNoShow(why)
+                    ? "They did not turn up for the interview. Closed, but not a judgement of them."
+                    : "Why this applicant was closed"}
+                >
+                  {reasonLabel(why)}
+                </span>
+              );
+            })()}
             <span className="shrink-0 text-xs tabular-nums text-zinc-600">{a.applied_date}</span>
           </button>
         ))}
@@ -4536,6 +4575,13 @@ export default function HRRecruitmentPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className={T_PAGE_TITLE}>HR Recruitment Pipeline</h1>
+            {/* 日本人店長の検査は別経路（派遣会社経由・応募フォームを通らない）
+                なのでタブではなくリンク。ここに置かないと URL を知る人しか
+                辿り着けない。 */}
+            <a href="/admin/hr/manager-assessment"
+                  className="rounded-full border border-white/12 px-3 py-1 text-xs text-zinc-300 transition hover:border-violet-400/50 hover:text-violet-300">
+              店長適性検査（日本人）
+            </a>
             <div className={TAB_CONTAINER}>
               {([["pipeline", "Pipeline"], ["plans", "Plans"], ["voice", "Voice screening"], ["interviews", "Interviews"], ["calendar", "Calendar"]] as const).map(([k, label]) => (
                 <button

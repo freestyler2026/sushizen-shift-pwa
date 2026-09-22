@@ -511,3 +511,56 @@ describe("WeekPage", () => {
     });
   });
 });
+
+/**
+ * The Week page put a green "FINAL" badge beside a shift whose day had been
+ * given away as an approved day off, and left the shift bar on the row. Green
+ * FINAL beside 09:00–18:00 reads as "your shift is confirmed", which is the
+ * opposite of what had been decided.
+ */
+describe("WeekPage — a day off that was granted", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getAuth).mockReturnValue(BASE_AUTH);
+    vi.mocked(canAccessWeekPage).mockReturnValue(true);
+  });
+  afterEach(() => cleanup());
+
+  it("shows an approved day off as a day off, not as a confirmed shift", async () => {
+    const row = makeRow({
+      staff_name: "Abegail A. Dalida",
+      role: "Prep Cook",
+      start_hour: 9,
+      end_hour: 18,
+      override: { override_type: "day_off", status: "FINAL" },
+      applied: { applied_type: "day_off", applied_status: "FINAL", applied_off: true },
+    });
+    setupApiGet(makeWeek([makeDay("2026-05-11", [row])]));
+    render(<WeekPage />);
+    await waitFor(() =>
+      expect(screen.getByText("Abegail A. Dalida")).toBeInTheDocument()
+    );
+    expect(screen.getByText("APPROVED OFF")).toBeInTheDocument();
+    expect(screen.queryByText("FINAL")).not.toBeInTheDocument();
+    // The role cell reads the decision, not the shift it replaced.
+    expect(screen.queryByText("Prep Cook")).not.toBeInTheDocument();
+  });
+
+  it("does not call an unanswered request a day off", async () => {
+    const row = makeRow({
+      staff_name: "Patrick Danel Santiago",
+      role: "Junior Cook",
+      override: { override_type: "day_off", status: "PENDING" },
+      applied: { applied_type: "day_off", applied_status: "PENDING", applied_pending_off: true },
+    });
+    setupApiGet(makeWeek([makeDay("2026-05-11", [row])]));
+    render(<WeekPage />);
+    await waitFor(() =>
+      expect(screen.getByText("Patrick Danel Santiago")).toBeInTheDocument()
+    );
+    expect(screen.getByText("OFF REQUESTED")).toBeInTheDocument();
+    expect(screen.queryByText("APPROVED OFF")).not.toBeInTheDocument();
+    // Still working until somebody answers.
+    expect(screen.getByText("Junior Cook")).toBeInTheDocument();
+  });
+});

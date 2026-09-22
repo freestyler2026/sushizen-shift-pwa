@@ -10,6 +10,7 @@ import {
   getAuthHeaders, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -1095,11 +1096,16 @@ export default function HRPerformancePage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className={T_LABEL}>Staff Name *</label>
-                <input
+                <StaffNamePicker
+                  city="manila"
+                  /* Two of the eleven reviews on record are of people who have
+                     since left; a review can be written after the fact. */
+                  includeSeparated
                   className={INPUT_CLASS}
                   value={form.staff_name}
-                  onChange={(e) => setForm((f) => ({ ...f, staff_name: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, staff_name: v }))}
                   placeholder="Full name"
+                  aria-label="Staff name"
                 />
               </div>
               <div className="space-y-1.5">

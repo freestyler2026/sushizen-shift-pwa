@@ -99,9 +99,30 @@ const EMPTY_REPORTS = { reports: [] };
 const EMPTY_STAFF = { names: [] };
 const EMPTY_SEARCH = { items: [] };
 
+const EMPTY_NIL_STATS = { days: 30, branches: [] };
+
 /** Most calls are: staff names (on city change) + past reports + item search (optional) */
 function defaultFetchMocks() {
   mockFetch.mockResolvedValue(fetchOk(EMPTY_STAFF));
+}
+
+/**
+ * URL で応答を決める fetch モック。
+ *
+ * ⚠️ `mockResolvedValueOnce` を順番に積むやり方はやめた。ページが GET を
+ *    1本足しただけで POST が別の応答を受け取り、**提出とは無関係の
+ *    6テストが同時に落ちる**（実際に起きた）。落ちた場所は原因を指さない。
+ *    `submit` に渡した応答は、必ず提出の POST が受け取る。
+ */
+function routeFetch(submit: Promise<Response>) {
+  mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes("/api/admin/disposal/report") && init?.method === "POST") return submit;
+    if (u.includes("/nil-stats")) return fetchOk(EMPTY_NIL_STATS);
+    if (u.includes("/api/admin/disposal/reports")) return fetchOk(EMPTY_REPORTS);
+    if (u.includes("/items/search")) return fetchOk(EMPTY_SEARCH);
+    return fetchOk(EMPTY_STAFF);
+  });
 }
 
 async function renderPage() {
@@ -243,7 +264,7 @@ describe("/admin/disposal — form validation", () => {
     fireEvent.click(screen.getByText("Submit Disposal Report"));
     await waitFor(() =>
       expect(
-        screen.getByText(/Please add at least one item with a valid quantity/i)
+        screen.getByText(/Please add at least one item, or tick/i)
       ).toBeInTheDocument()
     );
   });
@@ -275,11 +296,7 @@ describe("/admin/disposal — form submission", () => {
   });
 
   it("submits successfully and shows report ID", async () => {
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(EMPTY_STAFF))    // staff names
-      .mockResolvedValueOnce(fetchOk(EMPTY_REPORTS))  // past reports
-      .mockResolvedValueOnce(fetchOk({ report_id: 42, status: "ok" }))  // POST
-      .mockResolvedValueOnce(fetchOk(EMPTY_REPORTS)); // reload after submit
+    routeFetch(fetchOk({ report_id: 42, status: "ok" }));
 
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
@@ -298,10 +315,7 @@ describe("/admin/disposal — form submission", () => {
   });
 
   it("shows error message when submit fails with JSON error", async () => {
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(EMPTY_STAFF))
-      .mockResolvedValueOnce(fetchOk(EMPTY_REPORTS))
-      .mockResolvedValueOnce(fetchErr(500, "Duplicate report", true));
+    routeFetch(fetchErr(500, "Duplicate report", true));
 
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
@@ -321,10 +335,7 @@ describe("/admin/disposal — form submission", () => {
   it("shows plain-text error when server returns non-JSON body (apiFetch bug regression)", async () => {
     // Server returns HTML (e.g. Heroku 503 page) — not JSON
     const htmlError = "<html><body>Service Unavailable</body></html>";
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(EMPTY_STAFF))
-      .mockResolvedValueOnce(fetchOk(EMPTY_REPORTS))
-      .mockResolvedValueOnce(fetchErr(503, htmlError, false)); // non-JSON
+    routeFetch(fetchErr(503, htmlError, false)); // non-JSON
 
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
@@ -343,11 +354,7 @@ describe("/admin/disposal — form submission", () => {
   });
 
   it("clears lines after successful submission", async () => {
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(EMPTY_STAFF))
-      .mockResolvedValueOnce(fetchOk(EMPTY_REPORTS))
-      .mockResolvedValueOnce(fetchOk({ report_id: 7, status: "ok" }))
-      .mockResolvedValueOnce(fetchOk(EMPTY_REPORTS));
+    routeFetch(fetchOk({ report_id: 7, status: "ok" }));
 
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));
@@ -362,6 +369,98 @@ describe("/admin/disposal — form submission", () => {
 
     // Lines should be cleared
     expect(screen.queryByPlaceholderText("Qty")).not.toBeInTheDocument();
+  });
+});
+
+describe("/admin/disposal — No Disposal", () => {
+  beforeEach(() => {
+    mockAuth = staffAuth();
+  });
+
+  function tickNoDisposal() {
+    const box = screen.getByRole("checkbox", { name: /No disposal today/i });
+    fireEvent.click(box);
+    return box;
+  }
+
+  it("changes the submit button to name what is being submitted", async () => {
+    routeFetch(fetchOk({}));
+    await renderPage();
+    await waitFor(() => screen.getByText("Disposal Report"));
+
+    expect(screen.getByText("Submit Disposal Report")).toBeInTheDocument();
+    tickNoDisposal();
+    await waitFor(() => screen.getByText("Submit — No Disposal"));
+  });
+
+  it("submits no_disposal with no lines and says what was recorded", async () => {
+    routeFetch(fetchOk({ report_id: 55, status: "created", no_disposal: true }));
+    await renderPage();
+    await waitFor(() => screen.getByText("Disposal Report"));
+
+    tickNoDisposal();
+    fireEvent.click(screen.getByText("Submit — No Disposal"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/No Disposal recorded for .* \(#55\)/i)).toBeInTheDocument()
+    );
+
+    const post = mockFetch.mock.calls.find(
+      (c) => String(c[0]).includes("/api/admin/disposal/report") && c[1]?.method === "POST"
+    );
+    expect(post).toBeTruthy();
+    const body = JSON.parse(String(post![1].body));
+    expect(body.no_disposal).toBe(true);
+    expect(body.lines).toEqual([]);
+  });
+
+  it("refuses to submit while items are still listed, and posts nothing", async () => {
+    routeFetch(fetchOk({ report_id: 1, status: "created" }));
+    await renderPage();
+    await waitFor(() => screen.getByText("Disposal Report"));
+
+    const itemInput = addManualLine();
+    fireEvent.change(itemInput, { target: { value: "Salmon" } });
+    fireEvent.change(screen.getByPlaceholderText("Qty"), { target: { value: "2" } });
+
+    tickNoDisposal();
+    fireEvent.click(screen.getByText("Submit — No Disposal"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/You have items listed/i)).toBeInTheDocument()
+    );
+    const posts = mockFetch.mock.calls.filter((c) => c[1]?.method === "POST");
+    expect(posts.length).toBe(0);
+  });
+
+  it("surfaces the server's refusal when the day already has a report", async () => {
+    routeFetch(
+      fetchErr(400, "A disposal report already exists for CUB on 2026-09-21 (#813).", true)
+    );
+    await renderPage();
+    await waitFor(() => screen.getByText("Disposal Report"));
+
+    tickNoDisposal();
+    fireEvent.click(screen.getByText("Submit — No Disposal"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/already exists for CUB/i)).toBeInTheDocument()
+    );
+  });
+
+  it("tells the submitter when an earlier No Disposal was superseded", async () => {
+    routeFetch(fetchOk({ report_id: 61, status: "created", superseded_nil: 1 }));
+    await renderPage();
+    await waitFor(() => screen.getByText("Disposal Report"));
+
+    const itemInput = addManualLine();
+    fireEvent.change(itemInput, { target: { value: "Tuna" } });
+    fireEvent.change(screen.getByPlaceholderText("Qty"), { target: { value: "1" } });
+    fireEvent.click(screen.getByText("Submit Disposal Report"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/marked superseded/i)).toBeInTheDocument()
+    );
   });
 });
 
@@ -386,11 +485,7 @@ describe("/admin/disposal — clear button", () => {
   });
 
   it("Clear button removes submit success message", async () => {
-    mockFetch
-      .mockResolvedValueOnce(fetchOk(EMPTY_STAFF))
-      .mockResolvedValueOnce(fetchOk(EMPTY_REPORTS))
-      .mockResolvedValueOnce(fetchOk({ report_id: 99, status: "ok" }))
-      .mockResolvedValueOnce(fetchOk(EMPTY_REPORTS));
+    routeFetch(fetchOk({ report_id: 99, status: "ok" }));
 
     await renderPage();
     await waitFor(() => screen.getByText("Disposal Report"));

@@ -414,10 +414,15 @@ describe("/request page — submit error", () => {
 describe("/request page — overtime submit", () => {
   beforeEach(() => {
     mockAuth = staffAuth();
-    serve({ "/api/request/notify": { ok: true } });
+    serve({ "/api/shift_change/submit": { request_id: "ot-1234-5678" } });
   });
 
-  it("submits overtime via /api/request/notify and shows success", async () => {
+  /**
+   * Overtime went to /api/request/notify and nowhere else, so it landed in
+   * shift_change_notifications — the table the Admin Dashboard never reads and
+   * nobody ever closed. Every request now takes the one road.
+   */
+  it("submits overtime through the one request endpoint, with the hours", async () => {
     await renderPage();
     chooseValue("Time Change", "overtime_request");
     fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
@@ -427,8 +432,17 @@ describe("/request page — overtime submit", () => {
     await waitFor(() =>
       expect(screen.getByText("Request submitted")).toBeInTheDocument()
     );
-    // Notification sent
-    expect(screen.getByText("Notification sent.")).toBeInTheDocument();
+
+    const calls = mockFetch.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(calls.some((u) => u.includes("/api/shift_change/submit"))).toBe(true);
+    expect(calls.some((u) => u.includes("/api/request/notify"))).toBe(false);
+
+    const submit = mockFetch.mock.calls.find(
+      (c: unknown[]) => String(c[0]).includes("/api/shift_change/submit")
+    ) as [string, { body: FormData }];
+    const body = submit[1].body;
+    expect(body.get("request_type")).toBe("overtime_request");
+    expect(Number(body.get("overtime_hours"))).toBeGreaterThan(0);
   });
 
   it("resets reason after overtime submit (bug regression)", async () => {
@@ -679,7 +693,7 @@ describe("InboxTab — display and review", () => {
     );
     // Should show empty state
     await waitFor(() =>
-      expect(screen.getByText("No pending requests.")).toBeInTheDocument()
+      expect(screen.getByText("No pending requests in manila.")).toBeInTheDocument()
     );
   });
 
@@ -724,7 +738,7 @@ describe("InboxTab — display and review", () => {
     await renderPage();
     fireEvent.click(screen.getByText("Inbox"));
     await waitFor(() =>
-      expect(screen.getByText("No pending requests.")).toBeInTheDocument()
+      expect(screen.getByText("No pending requests in manila.")).toBeInTheDocument()
     );
   });
 });
@@ -767,5 +781,154 @@ describe("/request page — visibilitychange listener (bug regression)", () => {
     // visibilitychange should have been removed
     const removeCalls = removeSpy.mock.calls.map(c => c[0]);
     expect(removeCalls).toContain("visibilitychange");
+  });
+});
+
+/**
+ * The inbox opens on the city that has requests, not on the reviewer's own.
+ *
+ * Yuri reviews these and is registered in dubai. The inbox followed the form's
+ * city, which follows registration, so it opened empty while fourteen manila
+ * requests sat unanswered -- the oldest a hundred and four days, six of them
+ * until the day passed with the person still on the roster. Nothing on the
+ * screen said manila had anything in it.
+ */
+describe("InboxTab — opens on the city that has requests", () => {
+  const manilaItem = {
+    id: "mnl-1",
+    sender_name: "Rachelle Ann Caubat",
+    sender_city: "manila",
+    notification_type: "day_off",
+    request_date: "2026-09-01",
+    target_date: "2026-09-20",
+    leave_type: null,
+    leave_days: null,
+    overtime_hours: null,
+    reason: "Family matter",
+    status: "pending",
+    reviewed_by: null,
+    reviewed_at: null,
+    review_note: null,
+    created_at: "2026-09-01T09:00:00Z",
+  };
+
+  beforeEach(() => {
+    // A reviewer registered in dubai, where nothing is pending.
+    mockAuth = adminAuth({ city: "dubai" });
+    mockFetch.mockReset();
+    mockFetch.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/request/notifications/badge")) {
+        return okJson({
+          badge_count: 1,
+          urgent_count: 1,
+          soonest_city: "manila",
+          by_city: { manila: { badge_count: 1, urgent_count: 1 } },
+          can_review: true,
+        });
+      }
+      if (u.includes("/api/request/notifications/inbox")) {
+        return okJson({ items: u.includes("city=manila") ? [manilaItem] : [] });
+      }
+      return okJson({});
+    });
+  });
+
+  it("shows manila's pending request to a reviewer registered in dubai", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText("Inbox"));
+    await waitFor(() =>
+      expect(screen.getByText("Rachelle Ann Caubat")).toBeInTheDocument()
+    );
+  });
+
+  it("puts the waiting count on the tab, counting every city", async () => {
+    await renderPage();
+    await waitFor(() => expect(screen.getByText("Inbox")).toBeInTheDocument());
+    // The count next to the tab label, not the one inside the list.
+    await waitFor(() =>
+      expect(screen.getByText("Inbox").parentElement?.textContent).toContain("1")
+    );
+  });
+});
+
+/**
+ * Approving a day off does not move the roster.
+ *
+ * Mary Jane Tegerero worked 2026-08-21 and Abegail A. Dalida worked
+ * 2026-09-06, both approved off weeks earlier. Nothing connected the approval
+ * to the schedule, so only the first of the two acts happening looked exactly
+ * like both of them happening.
+ */
+describe("InboxTab — day off approved, roster unchanged", () => {
+  beforeEach(() => {
+    mockAuth = adminAuth({ city: "manila" });
+    mockFetch.mockReset();
+    mockFetch.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/admin/shift-conflicts")) {
+        return okJson({
+          items: [{
+            staff_name: "Patrick Danel Santiago",
+            work_date: "2026-09-20",
+            kind: "undecided_and_rostered",
+            days_away: 1,
+            shifts: [{ role: "Junior Cook", start_hour: 15.5, end_hour: 24.5, branch_code: "CUB" }],
+          }],
+        });
+      }
+      if (u.includes("/api/request/notifications/inbox")) return okJson({ items: [] });
+      return okJson({});
+    });
+  });
+
+  it("names the person, the day and the shift that still stands", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText("Inbox"));
+    await waitFor(() =>
+      expect(screen.getByText("Still on the roster for a day they asked off")).toBeInTheDocument()
+    );
+    expect(screen.getByText("Patrick Danel Santiago")).toBeInTheDocument();
+    // 24.5 is 00:30 the next day, not 24:30.
+    expect(screen.getByText(/15:30/)).toBeInTheDocument();
+    expect(screen.getByText(/00:30/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Leave and day-off used to be written twice by one click: once to
+ * /api/request/notify and once to /api/shift_change/submit. The Admin
+ * Dashboard reviewed the second, the /request inbox reviewed the first, and
+ * nothing connected them — so all fourteen rows in the first table still read
+ * "pending" while thirteen had been answered on the dashboard weeks earlier.
+ */
+describe("/request page — one request, one call", () => {
+  beforeEach(() => {
+    mockAuth = staffAuth();
+    serve({ "/api/shift_change/submit": { request_id: "leave-9999" } });
+  });
+
+  it("sends a day off once, carrying the days and the category", async () => {
+    await renderPage();
+    chooseValue("Time Change", "day_off");
+    fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
+      target: { value: "Family matter I need to attend to" },
+    });
+    fireEvent.click(screen.getByText("Submit Request"));
+    await waitFor(() =>
+      expect(screen.getByText("Request submitted")).toBeInTheDocument()
+    );
+
+    const calls = mockFetch.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(calls.filter((u) => u.includes("/api/shift_change/submit"))).toHaveLength(1);
+    expect(calls.some((u) => u.includes("/api/request/notify"))).toBe(false);
+
+    const submit = mockFetch.mock.calls.find(
+      (c: unknown[]) => String(c[0]).includes("/api/shift_change/submit")
+    ) as [string, { body: FormData }];
+    const body = submit[1].body;
+    expect(body.get("request_type")).toBe("day_off");
+    expect(Number(body.get("leave_days"))).toBeGreaterThan(0);
+    expect(body.get("reason_category")).toBeTruthy();
   });
 });

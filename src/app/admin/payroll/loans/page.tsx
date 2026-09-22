@@ -20,6 +20,7 @@ import {
 } from "@/lib/ui-tokens";
 import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,7 +124,8 @@ function CreateLoanModal({
         <div className="space-y-3">
           <div>
             <p className={`${T_LABEL} mb-1`}>Staff Name *</p>
-            <input value={staffName} onChange={e => setStaffName(e.target.value)} placeholder="Full name as registered" className={INPUT_CLASS} />
+            <StaffNamePicker city={city} value={staffName} onChange={setStaffName} placeholder="Full name as registered"
+            aria-label="Staff name" className={INPUT_CLASS} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

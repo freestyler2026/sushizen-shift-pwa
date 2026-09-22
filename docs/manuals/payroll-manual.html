@@ -118,6 +118,7 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="nav-item" onclick="show('gov-tables')"><span class="nav-icon">🏛️</span><span data-en="Government Tables" data-ja="政府拠出金テーブル">Government Tables</span></div>
   <div class="nav-item" onclick="show('dtr-upload')"><span class="nav-icon">📋</span><span data-en="DTR Upload & Sync" data-ja="DTRアップロード・同期">DTR Upload & Sync</span></div>
   <div class="nav-item" onclick="show('allowances')"><span class="nav-icon">🍱</span><span data-en="Meal Allowance & PA" data-ja="食事手当・皆勤賞">Meal Allowance & PA</span></div>
+  <div class="nav-item" onclick="show('sil')"><span class="nav-icon">🌴</span><span data-en="Service Incentive Leave" data-ja="有給休暇（SIL）">Service Incentive Leave</span></div>
   <div class="nav-item" onclick="show('compute')"><span class="nav-icon">⚙️</span><span data-en="Compute Payroll" data-ja="給与計算">Compute Payroll</span></div>
   <div class="nav-item" onclick="show('approve-publish')"><span class="nav-icon">✅</span><span data-en="Approve & Publish" data-ja="承認・公開">Approve & Publish</span></div>
   <div class="nav-item" onclick="show('remittances')"><span class="nav-icon">🏦</span><span data-en="Gov. Remittances" data-ja="政府拠出金送金">Gov. Remittances</span></div>
@@ -128,6 +129,7 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="nav-item" onclick="show('adjustments')"><span class="nav-icon">±</span><span data-en="Adjustments" data-ja="調整額">Adjustments</span></div>
   <div class="nav-item" onclick="show('dubai-calc')"><span class="nav-icon">🔢</span><span data-en="Run Calculation" data-ja="計算実行">Run Calculation</span></div>
   <div class="nav-item" onclick="show('transactions')"><span class="nav-icon">📄</span><span data-en="Transactions & Payslips" data-ja="取引・給与明細">Transactions & Payslips</span></div>
+  <div class="nav-item" onclick="show('dubai-eos')"><span class="nav-icon">🏁</span><span data-en="End of Service & Leave" data-ja="退職金・年次有給">End of Service & Leave</span></div>
   <div class="nav-item" onclick="show('leave-salary')"><span class="nav-icon">🏖️</span><span data-en="Leave Salary Advance" data-ja="年次有給前払い">Leave Salary Advance</span></div>
 
   <div class="sidebar-label" data-en="Cross-City" data-ja="共通">Cross-City</div>
@@ -717,12 +719,32 @@ td.muted{color:var(--muted);font-size:12px}
         <span class="chip red" data-en="No Prior Notice flag set by admin" data-ja="Adminによるノープライアーノーティスフラグ">No Prior Notice flag (admin-set)</span>
       </div>
     </div>
+    <div class="card" style="border-color:rgba(99,102,241,.45)">
+      <div class="card-title" data-en="From the announced date — the two are separated" data-ja="告知日以降 — 2つを分離します">From the announced date — the two are separated</div>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7" data-en="Measured over the September 2026 payout, the rules above forfeited 61% of the meal allowance: somebody who worked 14 days and ate 14 meals lost all fourteen days' worth over one absence. The allowance was named for meals and behaved as a second attendance bonus, charging the same lateness twice. From the month set in ALLOWANCE_RULES_V2_FROM the two are separated." data-ja="2026年9月支給分で測ると、上のルールは食事手当の61%を没収していました。14日働いて14回食べた人が、欠勤1回で14日分すべてを失う形です。名前は食事手当でも実質は2つ目の皆勤手当で、同じ遅刻を二重に罰していました。ALLOWANCE_RULES_V2_FROM に設定した月から、この2つを分離します。">The old rules forfeited 61% of the meal allowance. From the configured month the two are separated.</p>
+      <div class="table-wrap" style="margin-top:10px"><table>
+        <tr><th data-en="" data-ja=""></th><th data-en="Meal Allowance" data-ja="食事手当">Meal Allowance</th><th data-en="Perfect Attendance" data-ja="皆勤賞">Perfect Attendance</th></tr>
+        <tr><td data-en="Amount" data-ja="金額">Amount</td><td data-en="₱50 per day worked" data-ja="₱50／出勤日">₱50 per day worked</td><td data-en="₱500 per month" data-ja="₱500／月">₱500 per month</td></tr>
+        <tr><td data-en="Conditions" data-ja="条件">Conditions</td><td class="muted" data-en="None. The only exclusion is a shift shorter than 6 hours after the scheduled break — it holds no meal period, so there is no meal to pay for, and only that day is dropped. Hours come from the clock punches because regular_hours is never filled in; a day with no punch pair still counts." data-ja="なし。除外は所定休憩を引いて6時間未満のシフトだけです（食事時間が無いので払う食事がなく、落ちるのはその日のみ）。時間は打刻から取ります — regular_hours は一度も埋まっていません。打刻が欠けている日は計上します。">None, except a shift under 6 hours after the scheduled break — that day alone is dropped.</td><td class="muted" data-en="Everything the meal allowance used to carry, judged over the whole month: no absence without pay, no rejected or late-filed shift change, no No Prior Notice flag, employment for the whole period — and lateness under the line, which is one late arrival of up to 30 minutes. A second one, or more than 30 minutes in total, takes it." data-ja="以前まで食事手当が背負っていた条件すべてを、月単位で判定します：無給欠勤なし・却下／期限後のシフト変更なし・事前連絡なしフラグなし・通期在籍。遅刻は「1回かつ累計30分以内」までが許容で、2回目、または累計30分超で失格です。">All the conduct conditions over the whole month; one late arrival of up to 30 minutes is forgiven.</td></tr>
+        <tr><td data-en="Back Office" data-ja="Back Office">Back Office</td><td class="muted" data-en="Outside the policy, but only for staff hired on or after the first day of the first period on these rules. Everyone already receiving it keeps it — Article 100 of the Labor Code restricts withdrawing a benefit from the people who have been getting it." data-ja="対象外。ただし新ルール最初の期間の初日以降に入社した人だけです。すでに受け取っている人は継続します — 労働法典第100条が、受給してきた人からの取り上げを制限するためです。">Excluded forward only. Everyone already receiving it keeps it.</td><td class="muted" data-en="Unchanged — Back Office stays eligible for the bonus." data-ja="変更なし — Back Office は引き続き対象です。">Unchanged.</td></tr>
+      </table></div>
+      <div class="tip" style="margin-top:10px"><span class="tip-icon">💰</span><span data-en="This pays more, not less — about ₱37,500 a month more on September's figures, because the meals that were being forfeited now get paid. Months before the configured one keep the old rules, so recomputing an old month cannot change what somebody was already paid." data-ja="これは支給を増やす変更です。9月の数字で月およそ +₱37,500 — 没収されていた食事代を払うためです。設定した月より前は旧ルールのままなので、過去の月を再計算しても既に支払った額は変わりません。">Pays about ₱37,500 a month more, not less. Earlier months keep the old rules.</span></div>
+    </div>
+
     <div class="card blue-border">
       <div class="card-title" data-en="Perfect Attendance Bonus — ₱500/month" data-ja="皆勤賞 — ₱500/月">Perfect Attendance Bonus — ₱500/month</div>
-      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Flat ₱500 if staff has zero late AND zero AWOL across BOTH cutoffs for the month." data-ja="月の両カットオフで遅刻ゼロかつ無断欠勤ゼロの場合に₱500一律支給。">₱500 flat if zero late AND zero AWOL across BOTH cutoffs for the month.</p>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Under the old rules: flat ₱500 if zero late AND zero AWOL across both cutoffs. From the configured month: no absence without pay, no unapproved shift change, no No Prior Notice flag, employed for the whole period, and lateness within the line — one late arrival of up to 30 minutes across the month is forgiven, a second one or more than 30 minutes in total is not." data-ja="旧ルール：月の両カットオフで遅刻ゼロかつ無断欠勤ゼロなら ₱500。新ルール適用月以降：無給欠勤なし・未承認のシフト変更なし・事前連絡なしフラグなし・通期在籍、そして遅刻は月を通じて「1回かつ累計30分以内」まで許容。2回目、または累計30分超で失格。">Old: zero late and zero AWOL. New: one late arrival of up to 30 minutes across the month is forgiven.</p>
+      <div class="table-wrap" style="margin:10px 0"><table>
+        <tr><th data-en="Lateness in the month" data-ja="その月の遅刻">Lateness in the month</th><th data-en="₱500" data-ja="₱500">₱500</th></tr>
+        <tr><td class="muted">0x</td><td data-en="Kept" data-ja="支給">Kept</td></tr>
+        <tr><td class="muted" data-en="1x, up to 30 min" data-ja="1回・累計30分以内">1x, up to 30 min</td><td data-en="Kept" data-ja="支給">Kept</td></tr>
+        <tr><td class="muted" data-en="1x, more than 30 min" data-ja="1回・累計30分超">1x, more than 30 min</td><td data-en="Lost" data-ja="失格">Lost</td></tr>
+        <tr><td class="muted" data-en="2x or more, any length" data-ja="2回以上（長さを問わず）">2x or more, any length</td><td data-en="Lost" data-ja="失格">Lost</td></tr>
+      </table></div>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The line can be moved without a deploy: PA_LATE_COUNT_LIMIT and PA_LATE_MINUTES_LIMIT." data-ja="この線はデプロイ不要で変更できます：PA_LATE_COUNT_LIMIT・PA_LATE_MINUTES_LIMIT。">Configurable: PA_LATE_COUNT_LIMIT / PA_LATE_MINUTES_LIMIT.</p>
       <div class="tip" style="margin-top:0">
         <span class="tip-icon">💡</span>
-        <span data-en="The Perfect Attendance Bonus is added to the 2H run. It appears as a single ₱500 item when 2H payroll is computed." data-ja="皆勤賞は2Hランに追加されます。2H給与計算時に₱500の単一アイテムとして表示されます。">Bonus is added to the 2H run. Appears as ₱500 item when 2H is computed.</span>
+        <span data-en="⚠️ The bonus does not reach payroll on its own. Nothing outside this page reads the stored amounts — no MEAL_ALLOWANCE or PERFECT_ATTENDANCE line has ever been written to a Manila payroll run. Until that link is built, the figures on this page have to be entered into the 2H run by hand." data-ja="⚠️ この賞与は自動では給与に入りません。保存された金額を読む処理はこのページの外に存在せず、マニラの給与ランに MEAL_ALLOWANCE / PERFECT_ATTENDANCE の明細が書かれたことは一度もありません。連携ができるまでは、この画面の金額を2Hランへ手で入れてください。">The bonus does not reach payroll on its own — enter it into the 2H run by hand.</span>
       </div>
     </div>
   </div>
@@ -730,11 +752,47 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="card">
     <div class="card-title" data-en="How to Compute Allowances" data-ja="手当の計算方法">How to Compute Allowances</div>
     <ol class="steps">
-      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select the month" data-ja="月を選択">Select the month</strong><p data-en="Use the month picker to choose the month. Both Cutoff 1 and Cutoff 2 data for that month will be processed." data-ja="月ピッカーで月を選択。その月のカットオフ1と2の両方のデータが処理されます。">Month picker → select month. Both Cutoff 1 (26th–10th) and Cutoff 2 (11th–25th) processed.</p></div></li>
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Select the month" data-ja="月を選択">Select the month</strong><p data-en="Use the month picker to choose the month. Cutoff 1 runs from the 16th to the end of the previous month, and Cutoff 2 from the 1st to the 15th — note these are not the payroll periods, which run 26th–10th and 11th–25th." data-ja="月ピッカーで月を選択。Cutoff 1 は前月16日〜月末、Cutoff 2 は当月1日〜15日です。給与期間（26日〜10日／11日〜25日）とは別の区切りである点に注意してください。">Month picker → select month. Cutoff 1 (16th → end of the previous month) and Cutoff 2 (1st → 15th) are both processed.</p></div></li>
       <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Click Compute" data-ja="Computeをクリック">Click Compute</strong><p data-en="Engine reads DTR records for each cutoff, applies eligibility rules, and stores meal allowance and bonus amounts per staff per cutoff." data-ja="エンジンが各カットオフのDTR記録を読み込み、資格ルールを適用し、スタッフ・カットオフごとに食事手当とボーナス額を保存。">Engine reads DTR, applies rules, stores amounts per staff per cutoff.</p></div></li>
-      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review results" data-ja="結果を確認">Review results</strong><p data-en="Expand each staff row to see per-cutoff eligibility and disqualification reasons. Set No Prior Notice flag if needed." data-ja="各スタッフ行を展開してカットオフごとの資格と失格理由を確認。必要に応じてノープライアーノーティスフラグを設定。">Expand staff rows to see per-cutoff eligibility + reasons. Set No Prior Notice flags if needed.</p></div></li>
-      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="The amounts are automatically picked up when payroll is computed" data-ja="給与計算時に自動取得される">Auto-picked up during payroll compute</strong><p data-en="No further action needed. When you run Compute Payroll, the engine reads the stored allowance amounts and includes them as MEAL_ALLOWANCE and PERFECT_ATTENDANCE line items." data-ja="追加操作は不要。給与計算を実行すると、エンジンが保存された手当額を読み込み、MEAL_ALLOWANCEとPERFECT_ATTENDANCEとして明細に含めます。">Compute Payroll automatically reads stored amounts → MEAL_ALLOWANCE + PERFECT_ATTENDANCE line items.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Review results" data-ja="結果を確認">Review results</strong><p data-en="Expand each staff row to see per-cutoff eligibility and disqualification reasons. Set No Prior Notice flag if needed. Under the new rules the cutoff cell reads &quot;— ₱0 / no days worked&quot; when somebody simply had no working days, which is not a disqualification; a dropped short shift shows as (−1d short) next to the day count. The late, AWOL and rejected-request counters in the detail panel, and the No advance notice checkbox, decide the ₱500 only — they no longer touch the ₱50." data-ja="各スタッフ行を展開してカットオフごとの資格と失格理由を確認。必要に応じてノープライアーノーティスフラグを設定。新ルールでは、単に勤務日が無かった場合セルは「— ₱0 / no days worked」と表示します（失格ではありません）。6時間未満で落ちた日は日数の横に (−1d short) と出ます。詳細パネルの遅刻・AWOL・却下申請のカウンタと「No advance notice」チェックは₱500だけを決めるもので、₱50には影響しません。">Expand staff rows for per-cutoff detail. &quot;no days worked&quot; is not a disqualification; the conduct counters now decide the ₱500 only.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Carry the amounts into the 2H run yourself" data-ja="金額は2Hランへ自分で入れる">Carry the amounts into the 2H run yourself</strong><p data-en="Compute Payroll does NOT read this table. Measured on 19 Sep 2026: across every Manila payroll item ever written, there is no MEAL_ALLOWANCE and no PERFECT_ATTENDANCE line. Add each amount to the 2H run as a manual addition until the link is built." data-ja="給与計算はこのテーブルを読みません。2026年9月19日に実測：これまでにマニラの給与明細へ書かれた項目の中に MEAL_ALLOWANCE も PERFECT_ATTENDANCE も1件もありません。連携ができるまでは、各金額を2Hランへ手動追加してください。">Compute Payroll does NOT read this table — add each amount to the 2H run manually.</p></div></li>
     </ol>
+  </div>
+</div>
+
+<!-- ══════════ SERVICE INCENTIVE LEAVE ══════════ -->
+<div class="section" id="sec-sil">
+  <div class="section-hero">
+    <div class="hero-icon">🌴</div>
+    <div>
+      <div class="section-title" data-en="Service Incentive Leave" data-ja="有給休暇（SIL）">Service Incentive Leave</div>
+      <div class="section-path">/admin/payroll/manila/sil</div>
+      <div class="section-desc" data-en="Five paid days a year once someone has served a year (Labor Code Art. 95), and what the unused ones are worth." data-ja="勤続1年で年5日の有給（労働法典第95条）。未消化分の金額もここで出ます。">Five paid days a year after one year of service, and the cash value of what is unused.</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card blue-border">
+      <div class="card-title" data-en="The rule" data-ja="ルール">The rule</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px;align-items:flex-start">
+        <span class="chip" data-en="5 days a year" data-ja="年5日">5 days a year</span>
+        <span class="chip" data-en="From the service anniversary — not 1 January" data-ja="発生は勤続1年の応当日。1月1日ではありません">From the service anniversary — not 1 January</span>
+        <span class="chip" data-en="Unused days are convertible to cash" data-ja="未消化分は現金化できます">Unused days are convertible to cash</span>
+      </div>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7;margin-top:10px" data-en="Eligibility is rechecked every time the page is opened, so somebody who reaches a year in March is entitled in March. Manila's earliest hire is 26 September 2025, so the first five days fall due on 26 September 2026." data-ja="資格はページを開くたびに再判定します。3月に1年を迎えた人はその月から対象です。マニラの最古の入社日は2025年9月26日なので、最初の5日は2026年9月26日に発生します。">Eligibility is rechecked on every visit. The first entitlement falls due 26 September 2026.</p>
+    </div>
+    <div class="card" style="border-color:rgba(16,185,129,.45)">
+      <div class="card-title" data-en="How a day is taken off the balance" data-ja="残日数はどう減るか">How a day is taken off the balance</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Staff submit a request" data-ja="スタッフが申請する">Staff submit a request</strong><p data-en="/request → Paid Leave → Annual Leave. That option IS this leave; sick, emergency, unpaid and maternity leave do not touch it." data-ja="/request → Paid Leave → Annual Leave。この選択肢が SIL 本体です。病欠・緊急・無給・産休は対象外です。">Paid Leave → Annual Leave draws on these five days.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="A manager approves it" data-ja="マネージャーが承認する">A manager approves it</strong><p data-en="Approving takes the days off the balance. Approving more days than are left deducts what is there and records the excess — those days are not paid from the five." data-ja="承認した時点で残日数から引かれます。残日数を超えて承認した場合は、あるぶんだけ引き、超過分は記録されます（5日からは支払われません）。">Approval deducts the days; any excess is recorded, not hidden.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Unused days are cashed out" data-ja="未消化分を現金化する">Unused days are cashed out</strong><p data-en="Cash out on this page. The amount is computed from the person's own daily rate (monthly ÷ 26.0833) and written onto a payroll period as a manual addition — that is what puts it on a payslip." data-ja="この画面で現金化します。金額は本人の日給（月給÷26.0833）から自動計算し、選んだ給与期間に手動加算として書き込みます。これで明細に乗ります。">The amount is computed, not typed in, and lands on a payroll period.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tip"><span class="tip-icon">⚠️</span><span data-en="The entitlement is counted from the hire date on the payroll profile. Anybody without one can never reach the anniversary — the page counts them and links to Staff Profiles." data-ja="発生は給与プロファイルの入社日から数えます。入社日が未入力の人は永久に対象になりません。画面に人数を出し、Staff Profiles へのリンクを付けています。">Staff with no hire date on file can never become eligible — the page counts them.</span></div>
   </div>
 </div>
 
@@ -1196,6 +1254,40 @@ td.muted{color:var(--muted);font-size:12px}
 </div>
 
 <!-- ══════════ LEAVE SALARY ══════════ -->
+<div class="section" id="sec-dubai-eos">
+  <div class="section-hero">
+    <div class="hero-icon">🏁</div>
+    <div>
+      <div class="section-title" data-en="End of Service &amp; Leave — Dubai" data-ja="退職金・年次有給（ドバイ）">End of Service &amp; Leave — Dubai</div>
+      <div class="section-path">/admin/payroll/dubai/end-of-service</div>
+      <div class="section-desc" data-en="What the company would owe if everyone left today. Gratuity accrues daily and falls due on the day somebody goes, so this is a standing liability." data-ja="全員が今日辞めた場合に会社が負う金額。退職金は毎日積み上がり退職日に支払義務が生じるので、これは常時抱えている負債です。">A standing liability, not a forecast.</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card blue-border">
+      <div class="card-title" data-en="Gratuity — Federal Decree-Law 33/2021 Art. 51" data-ja="退職金 — 連邦法令33/2021 第51条">Gratuity — Art. 51</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px;align-items:flex-start">
+        <span class="chip" data-en="Under 1 year: nothing" data-ja="勤続1年未満：なし">Under 1 year: nothing</span>
+        <span class="chip" data-en="1–5 years: 21 days of BASIC wage a year" data-ja="1〜5年：年あたり基本給21日分">1–5 years: 21 days of basic wage a year</span>
+        <span class="chip" data-en="Beyond 5 years: 30 days a year" data-ja="5年超：年あたり30日分">Beyond 5 years: 30 days a year</span>
+        <span class="chip" data-en="Capped at 2 years' wage · part years pro-rated" data-ja="上限は2年分の賃金・端数は日割り">Capped at 2 years' wage · part years pro-rated</span>
+        <span class="chip red" data-en="Basic wage only — housing and transport are excluded" data-ja="基本給のみ。住宅手当・交通費は含みません">Basic wage only</span>
+      </div>
+    </div>
+    <div class="card" style="border-color:rgba(245,158,11,.45)">
+      <div class="card-title" data-en="Both numbers are wrong in a known direction" data-ja="2つの数字は、ずれる向きが分かっています">Both numbers are wrong in a known direction</div>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7" data-en="Nobody has a hire date on their Dubai payroll profile, so length of service is counted from the first month each person appears in the imported payroll. Anyone employed before that import counts as shorter-serving than they are, so THE GRATUITY IS A FLOOR — the real figure is higher. Filling in hire dates is what fixes it." data-ja="ドバイの給与プロファイルには入社日が1件も入っていないため、勤続は「取込済み給与に最初に現れた月」から数えています。それ以前から在籍している人は実際より短く数えられるので、退職金の金額は下限です（実際はもっと多い）。入社日を入れれば解消します。">The gratuity is a floor: no hire dates on file, so service is counted from the first imported payroll month.</p>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7;margin-top:8px" data-en="Leave taken is only recorded from June 2026, so days taken before that are invisible and the balances read as though almost nobody has had a holiday. THE LEAVE FIGURE IS AN UPPER BOUND." data-ja="消化した有給は2026年6月以降しか記録がないため、それ以前の取得は見えません。結果として「ほぼ誰も休んでいない」ように出ます。有給の金額は上限です。">The leave figure is an upper bound: leave taken before June 2026 is not recorded.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Annual leave — Art. 29" data-ja="年次有給 — 第29条">Annual leave — Art. 29</div>
+    <p style="color:var(--muted);font-size:12.5px;line-height:1.7" data-en="Thirty days a year once a year of service is complete, two days a month between six and twelve months. What is left over is paid in cash when the employment ends, at the basic wage." data-ja="勤続1年で年30日。6〜12か月は月2日。退職時、未消化分は基本給ベースで現金精算します。">30 days a year after one year; 2 days a month from six months; unused days paid in cash on leaving.</p>
+  </div>
+</div>
+
 <div class="section" id="sec-leave-salary">
   <div class="section-hero">
     <div class="hero-icon">🏖️</div>

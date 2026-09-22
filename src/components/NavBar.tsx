@@ -487,6 +487,18 @@ export default function NavBar() {
   const [adminRequestBadge, setAdminRequestBadge] = useState(0);
   const [privateReportBadge, setPrivateReportBadge] = useState(0);
   const [inboxBadge, setInboxBadge] = useState(0);
+  // Day-off and leave requests waiting in the /request inbox.
+  //
+  // Nothing counted these. The same request is written to two tables and the
+  // Admin Dashboard reviews the other one, so every notification ever created
+  // still read "pending" and nothing on this bar said so. Six days passed that
+  // way with the person still published as working.
+  //
+  // The endpoint counts only the ones the dashboard has not already settled,
+  // so this number is work somebody owes. requestUrgent is the part whose day
+  // is within a week or already gone, and that is what turns the badge orange.
+  const [requestBadge, setRequestBadge] = useState(0);
+  const [requestUrgent, setRequestUrgent] = useState(0);
   const [otBadge, setOtBadge] = useState(0);
   const [nteBadge, setNteBadge] = useState(0);
   // Management Inbox: what is waiting on the person looking at this bar.
@@ -752,8 +764,11 @@ export default function NavBar() {
         const auth = getAuth();
         // Only poll if logged in as admin-capable user
         if (!auth?.hasSession && !auth?.accessToken) { if (!cancelled) setAdminRequestBadge(0); return; }
-        const city = String(auth.city || "dubai").toLowerCase();
-        const res = await fetch(`${API_BASE}/api/admin/requests/badge?city=${encodeURIComponent(city)}`, {
+        // No city: both. This used to pass the viewer's own, so HQ -- all
+        // registered in dubai -- was shown dubai's zero while manila's queue
+        // sat open, including a day off for the next day that the manager had
+        // approved and HQ had not. That is the pile-up the store reported.
+        const res = await fetch(`${API_BASE}/api/admin/requests/badge`, {
           cache: "no-store",
         });
         if (!res.ok) return;
@@ -824,6 +839,54 @@ export default function NavBar() {
       cancelled = true;
       window.clearInterval(id);
       window.removeEventListener(BADGE_EVENTS.inbox, onRefresh);
+    };
+  }, []);
+
+  // Request badge — day-off / leave requests still pending review
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRequestBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.hasSession && !auth?.accessToken) {
+          if (!cancelled) { setRequestBadge(0); setRequestUrgent(0); }
+          return;
+        }
+        // The same condition the endpoint's own gate uses (_admin_auth_check),
+        // read from the token rather than guessed from a role-name list, so the
+        // badge and the inbox never disagree about who reviews these. The
+        // endpoint answers 0 rather than 403 either way -- this only keeps the
+        // other hundred and fifty phones from polling it every minute.
+        const perms = (auth?.permissions || []) as string[];
+        const canReview =
+          String(auth?.role || "").toUpperCase() === "HQ"
+          || perms.includes("*")
+          || perms.includes("channel.admin.payroll.view")
+          || perms.includes("channel.admin.payroll.manage");
+        if (!canReview) {
+          if (!cancelled) { setRequestBadge(0); setRequestUrgent(0); }
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/request/notifications/badge`, {
+          cache: "no-store",
+          headers: getAuthHeaders(auth),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setRequestBadge(Number(data?.badge_count ?? 0));
+          setRequestUrgent(Number(data?.urgent_count ?? 0));
+        }
+      } catch {}
+    };
+    void fetchRequestBadge();
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchRequestBadge(); }, 60_000);
+    const onRefresh = () => void fetchRequestBadge();
+    window.addEventListener(BADGE_EVENTS.requests, onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener(BADGE_EVENTS.requests, onRefresh);
     };
   }, []);
 
@@ -1342,7 +1405,17 @@ export default function NavBar() {
         return true;
       })
       .map((item) =>
-        item.href === "/incidents"
+        item.href === "/request"
+          ? {
+              ...item,
+              badgeCount: requestBadge,
+              // Orange once a request is within a week of its day, or past it;
+              // the plain grey pill otherwise, so "waiting" and "about to be
+              // too late" do not look the same. Orange also carries up to the
+              // group header when the group is collapsed (groupTone).
+              badgeWarning: requestUrgent > 0,
+            }
+          : item.href === "/incidents"
           ? { ...item, badgeCount: incidentBadge, badgeWarning: incidentBadge > 0 }
           : item.href === "/inbox"
           ? { ...item, badgeCount: inboxBadge, badgeWarning: inboxBadge > 0 }
@@ -1361,7 +1434,7 @@ export default function NavBar() {
             }
           : item,
       );
-  }, [resolvedAuth, incidentBadge, inboxBadge, nteBadge, myMgmtBadge, myMgmtOverdue]);
+  }, [resolvedAuth, incidentBadge, inboxBadge, nteBadge, myMgmtBadge, myMgmtOverdue, requestBadge, requestUrgent]);
 
   /**
    * Which groups are open.

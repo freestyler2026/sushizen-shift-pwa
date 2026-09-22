@@ -14,6 +14,7 @@ vi.mock("@/lib/image-compress", () => ({ prepareUpload: async (f: File) => f }))
 const mockFetch = vi.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
+import { chooseValueByName } from "#tests/select-dark";
 import DailyCheckPage from "@/app/store/daily-check/page";
 
 function serve(over: Record<string, unknown> = {}) {
@@ -25,6 +26,7 @@ function serve(over: Record<string, unknown> = {}) {
       : u.includes("/submit") ? { check: { id: "chk-1" } }
       : u.includes("/photo") ? { ok: true, photo_url: "https://drive/x" }
       : u.includes("branches") ? { branches: [{ code: "PAR", label: "Paranaque" }] }
+      : u.includes("/api/staff/names") ? { names: ["Erica", "Tester"] }
       : {};
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...body, ...over }) });
   });
@@ -33,8 +35,13 @@ function serve(over: Record<string, unknown> = {}) {
 async function submitAs(label: string) {
   render(<DailyCheckPage />);
   fireEvent.click(await screen.findByText(label));
-  const name = screen.getByPlaceholderText(/name/i) as HTMLInputElement;
-  fireEvent.change(name, { target: { value: "Erica" } });
+  // The name is picked off the roster now, not typed, so wait for the roster
+  // to arrive — the control is disabled until it does.
+  await waitFor(() => {
+    const el = screen.getByRole("combobox", { name: /your name/i });
+    if ((el as HTMLButtonElement).disabled) throw new Error("roster still loading");
+  });
+  chooseValueByName(/your name/i, "Erica");
   fireEvent.click(screen.getByText(new RegExp(`Submit ${label}`, "i")));
 }
 
@@ -109,6 +116,7 @@ describe("submitting again corrects the record", () => {
             submitted_at: "2026-09-11T02:59:00+00:00", status: "SUBMITTED", photo_urls: [] }] }
         : u.includes("/submit") ? { check: { id: "chk-0", revision: revision + 1 } }
         : u.includes("branches") ? { branches: [{ code: "PAR", label: "Paranaque" }] }
+      : u.includes("/api/staff/names") ? { names: ["Erica", "Tester"] }
         : {};
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
     });
@@ -133,8 +141,11 @@ describe("submitting again corrects the record", () => {
     withExisting();
     render(<DailyCheckPage />);
     fireEvent.click(await screen.findByText("Lunch Open"));
-    const name = await screen.findByPlaceholderText(/name/i);
-    fireEvent.change(name, { target: { value: "Erica" } });
+    await waitFor(() => {
+      const el = screen.getByRole("combobox", { name: /your name/i });
+      if ((el as HTMLButtonElement).disabled) throw new Error("roster still loading");
+    });
+    chooseValueByName(/your name/i, "Erica");
     fireEvent.click(screen.getByText(/Update Lunch Open/i));
     expect(await screen.findByText(/Check updated\. Add photos below\./i)).toBeTruthy();
   });
@@ -155,6 +166,7 @@ describe("adding a photo later is not a correction", () => {
         : u.includes("/today") ? { checks: [{ id: "chk-0", check_type: "LUNCH_OPEN", submitted_by: "Erica",
             submitted_at: "2026-09-11T02:59:00+00:00", status: "CONFIRMED_OK", photo_urls: [] }] }
         : u.includes("branches") ? { branches: [{ code: "PAR", label: "Paranaque" }] }
+      : u.includes("/api/staff/names") ? { names: ["Erica", "Tester"] }
         : {};
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
     });
@@ -177,6 +189,7 @@ describe("adding a photo later is not a correction", () => {
         : u.includes("/today") ? { checks: [{ id: "chk-9", check_type: "BUSINESS_CLOSE", submitted_by: "Erica",
             submitted_at: "2026-09-11T02:59:00+00:00", status: "SUBMITTED", photo_urls: [] }] }
         : u.includes("branches") ? { branches: [{ code: "PAR", label: "Paranaque" }] }
+      : u.includes("/api/staff/names") ? { names: ["Erica", "Tester"] }
         : {};
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
     });

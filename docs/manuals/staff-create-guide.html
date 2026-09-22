@@ -1,0 +1,431 @@
+<title>新しいスタッフを登録する</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --paper:#f7f6f9; --surface:#ffffff; --sunk:#f1eff5;
+    --ink:#1b1726; --muted:#5b5570; --faint:#8b85a0;
+    --line:#e2dfeb; --hair:#efedf4;
+    --accent:#6d4aca; --accent-soft:#ece6fb; --accent-ink:#4a2f96;
+    --stop:#b02a4a; --stop-soft:#fbe7ec;
+    --go:#2f6b4f; --go-soft:#e4f0ea;
+    --warn:#96631a; --warn-soft:#fbf0dc;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#131120; --surface:#1c1930; --sunk:#181528;
+      --ink:#efedf6; --muted:#a49dbb; --faint:#7a7391;
+      --line:#2e2a45; --hair:#252138;
+      --accent:#a98cf5; --accent-soft:#2a2247; --accent-ink:#c7b4ff;
+      --stop:#f0879f; --stop-soft:#3a1f28;
+      --go:#8cd0a9; --go-soft:#1c2e25;
+      --warn:#e6bc6e; --warn-soft:#332a18;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#131120; --surface:#1c1930; --sunk:#181528;
+    --ink:#efedf6; --muted:#a49dbb; --faint:#7a7391;
+    --line:#2e2a45; --hair:#252138;
+    --accent:#a98cf5; --accent-soft:#2a2247; --accent-ink:#c7b4ff;
+    --stop:#f0879f; --stop-soft:#3a1f28;
+    --go:#8cd0a9; --go-soft:#1c2e25;
+    --warn:#e6bc6e; --warn-soft:#332a18;
+  }
+
+  body{background:var(--paper); color:var(--ink);
+    font-family:"Noto Sans JP",system-ui,sans-serif; font-size:15px; line-height:1.85;
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:960px; margin:0 auto; padding:44px 24px 100px;}
+  @media (max-width:600px){ .wrap{padding:26px 16px 64px;} }
+
+  h1,h2,h3{font-family:"Zen Kaku Gothic New","Noto Sans JP",sans-serif; margin:0; text-wrap:balance;}
+  h1{font-size:clamp(28px,5vw,44px); font-weight:900; letter-spacing:-.01em; line-height:1.18;}
+  h2{font-size:clamp(19px,2.6vw,24px); font-weight:700;}
+  h3{font-size:16.5px; font-weight:700;}
+  p{margin:0 0 15px;} p:last-child{margin-bottom:0;}
+  code,.mono{font-family:"IBM Plex Mono",monospace; font-size:.9em;}
+  .num{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;}
+
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--accent); font-weight:600; margin:0 0 14px;}
+  .lede{font-size:16.5px; color:var(--muted); max-width:60ch; margin-top:16px;}
+  hr.rule{border:0; height:1px; background:var(--line); margin:44px 0;}
+  section{margin-top:46px;}
+  .sub{color:var(--muted); max-width:66ch; margin-top:10px;}
+
+  /* the numbered spine: these are real sequence, one after another */
+  ol.steps{list-style:none; margin:28px 0 0; padding:0; counter-reset:step;}
+  ol.steps > li{position:relative; counter-increment:step;
+    padding:0 0 30px 62px; border-left:2px solid var(--hair); margin-left:17px;}
+  ol.steps > li:last-child{border-left-color:transparent; padding-bottom:0;}
+  ol.steps > li::before{content:counter(step); position:absolute; left:-18px; top:-2px;
+    width:36px; height:36px; border-radius:50%; display:grid; place-items:center;
+    background:var(--accent); color:#fff; font-family:"IBM Plex Mono",monospace;
+    font-size:14px; font-weight:600;}
+  ol.steps h3{margin-bottom:8px;}
+  ol.steps p{color:var(--muted); font-size:14.5px;}
+  ol.steps p strong{color:var(--ink); font-weight:700;}
+
+  .btn{display:inline-block; background:var(--accent); color:#fff; border-radius:8px;
+    padding:3px 11px; font-size:13.5px; font-weight:600; white-space:nowrap;}
+  .field{display:inline-block; background:var(--sunk); border:1px solid var(--line);
+    border-radius:5px; padding:1px 7px; font-family:"IBM Plex Mono",monospace;
+    font-size:12.5px; white-space:nowrap;}
+  .path{font-family:"IBM Plex Mono",monospace; font-size:13px; color:var(--accent-ink);
+    background:var(--accent-soft); border-radius:5px; padding:2px 8px; white-space:nowrap;}
+
+  .scroll{overflow-x:auto; margin-top:22px;}
+  table{border-collapse:collapse; width:100%; font-size:14px;}
+  th,td{text-align:left; padding:10px 13px; border-bottom:1px solid var(--hair); vertical-align:top;}
+  thead th{font-size:11.5px; letter-spacing:.06em; color:var(--faint); font-weight:700;
+    border-bottom:1px solid var(--line); white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:0;}
+  td.req{white-space:nowrap; font-weight:700; color:var(--stop);}
+  td.opt{white-space:nowrap; color:var(--faint);}
+
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:22px 24px;}
+  .note{border-left:3px solid var(--accent); background:var(--accent-soft);
+    border-radius:0 8px 8px 0; padding:16px 20px; margin:22px 0; max-width:70ch;}
+  .note.stop{border-left-color:var(--stop); background:var(--stop-soft);}
+  .note.warn{border-left-color:var(--warn); background:var(--warn-soft);}
+  .note strong{font-weight:700;}
+  .note .h{font-family:"Zen Kaku Gothic New",sans-serif; font-weight:700; display:block; margin-bottom:6px;}
+
+  .grid2{display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); margin-top:22px;}
+
+  ul.plain{margin:12px 0 0; padding-left:20px;} ul.plain li{margin-bottom:8px; color:var(--muted);}
+  ul.plain li strong{color:var(--ink);}
+  li::marker{color:var(--faint);}
+
+  .fails li{margin-bottom:14px;}
+  .fails .why{display:block; color:var(--muted); font-size:14px; margin-top:2px;}
+
+  footer{margin-top:60px; padding-top:22px; border-top:1px solid var(--line);
+    color:var(--faint); font-size:12.5px;}
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">Sushi ZEN Workforce OS &middot; Staff</p>
+  <h1>新しいスタッフを登録する</h1>
+  <p class="lede">
+    登録は <b>Create Staff Record</b> の1画面で完結します。ここで入れた入社日は
+    在職証明書に印字され、シフトの自動生成にも使われるので、<b>契約書を見ながら</b>
+    入力してください。所要およそ2分です。
+  </p>
+
+  <div class="note">
+    <span class="h">先に手元に用意するもの</span>
+    雇用契約書（氏名・入社日・役職・雇用会社）、自分のログインPIN、
+    そして<b>本人の携帯</b>。最後にその場でPINを作ってもらうのが一番早く終わります。
+  </div>
+
+  <hr class="rule">
+
+  <section>
+    <h2>手順</h2>
+
+    <ol class="steps">
+      <li>
+        <h3>Staff ページを開く</h3>
+        <p>
+          サイドバーの <b>ADMIN</b> &rarr; <span class="path">PEOPLE &amp; ACCESS</span>
+          を開いて <span class="path">Staff</span>。そこの「Add New Staff」で
+          <span class="btn">Go to Create Staff</span> を押します。
+          直接なら <span class="path">/admin/staff/create</span>。
+        </p>
+        <p>
+          <strong>PEOPLE &amp; ACCESS は既定で閉じています。</strong>開かないと
+          Staff は出てきません。Admin Dashboard 上部の横並びリンクからも行けますが、
+          そちらでは同じ画面が <b>Staff Master</b> という名前になっています。
+        </p>
+        <p>
+          <strong>Staff ページの一覧からは登録できません。</strong>マニラは役職・入社日・
+          雇用会社が必須で、一覧の簡易フォームにはその欄が無いためです。入口はこの1つだけです。
+        </p>
+      </li>
+
+      <li>
+        <h3>City と Branch を選ぶ</h3>
+        <p>
+          マニラの選択肢は <span class="field">PAR</span> <span class="field">CUB</span>
+          <span class="field">TAFT</span> <span class="field">CK</span>
+          <span class="field">WH</span> <span class="field">BO</span> の6つです。
+        </p>
+        <p>
+          <strong>MANAGER の人は自分の拠点しか選べません。</strong>他の拠点を選ぶと
+          「manager can create staff only in own branch」で弾かれます。
+          ADMIN・HQ・HR_MANAGER は全拠点を登録できます。
+        </p>
+      </li>
+
+      <li>
+        <h3>氏名を入力する</h3>
+        <p>
+          <strong>契約書どおりのフルネームで。</strong>この名前が打刻・シフト・給与すべての
+          紐付けキーになります。ミドルネームの有無や綴りが違うと、同じ人が二重に登録された
+          状態になります。
+        </p>
+      </li>
+
+      <li>
+        <h3>入社日を入れる</h3>
+        <p>
+          <strong>ドバイにも入社日の欄があります（任意）。</strong>休暇の付与日数はここから
+          数えます。分からなければ空のままで結構です — Staff ページの
+          <span class="btn">Details</span> から後で入れられます。
+        </p>
+        <p>
+          ⚠️ <strong>生年月日の欄と間違えないでください。</strong>ドバイの欄は長く日付が
+          これ1つだったため、入社日が生年月日として保存された例があります。
+          <b>生年月日は未来の日付・15歳未満・1940年より前を保存できません。</b>
+        </p>
+        <p>
+          <strong>これから入社する人の、先の日付を入れられます。</strong>
+          入社が決まった時点で登録しておけば、<b>シフトの自動生成は入社日まで
+          その人を組みません</b>（入社日以降から入ります）。上限は1年先までで、
+          これは年の打ち間違いを止めるためです。
+        </p>
+      </li>
+
+      <li>
+        <h3>マニラの3項目を埋める（マニラのみ必須）</h3>
+        <p>
+          <span class="field">Position</span> <span class="field">Hire Date</span>
+          <span class="field">Employing Company</span> の3つです。1つでも空だと保存できません。
+          ドバイでは表示されません。
+        </p>
+        <p>
+          <strong>入社日は2025年8月1日より前を受け付けません</strong>（先の日付は入れられます）。マニラ1号店の準備開始が
+          その月だからです。それ以前の日付は打ち間違いとして扱われます。
+        </p>
+      </li>
+
+      <li>
+        <h3>Role と Status はそのまま</h3>
+        <p>
+          Role は <span class="field">STAFF</span>、Status は <span class="field">ACTIVE</span>
+          のままで結構です。店長として登録する場合だけ Role を
+          <span class="field">MANAGER</span> にします。
+          細かい権限は登録後に <span class="path">Role Management</span> で付けます。
+        </p>
+      </li>
+
+      <li>
+        <h3>自分の名前とPINを入れて作成する</h3>
+        <p>
+          Manager Name と Manager PIN は<b>ログイン情報から自動で入っています。</b>
+          空のときだけ自分で入れてください。<b>登録する人（あなた）</b>のもので、
+          新しいスタッフのものではありません。画面上部の <b>Verified role</b> に
+          自分の権限（HQ など）が出ていれば通ります。
+        </p>
+        <p>
+          氏名・Manager Name・Manager PIN の<b>3つが揃うまでボタンは押せません</b>。
+          灰色のままなら、このどれかが空です。
+        </p>
+      </li>
+
+      <li>
+        <h3>Setup Code を本人に渡す</h3>
+        <p>
+          6桁の <b>Setup Code</b> が表示されます。<span class="btn">Copy Setup Code</span>
+          でコピーできます。
+        </p>
+        <p>
+          <strong>有効期限は72時間です。</strong>切れたら
+          <span class="path">Onboarding &amp; Setup</span> の
+          <span class="btn">Reset PIN</span> で作り直せます。
+        </p>
+        <p>
+          ⚠️ <strong>画面に出る期限はUTC表示です。</strong>
+          <span class="mono">2026-09-23T10:54+00:00</span> と出ていたら、
+          <b>マニラでは9月23日の18時54分</b>（+8時間）、ドバイでは14時54分（+4時間）です。
+          そのまま読むと半日早く切れると勘違いします。
+        </p>
+      </li>
+
+      <li>
+        <h3>本人にPINを作ってもらう</h3>
+        <p>
+          本人の携帯で <span class="path">/setup-pin</span> を開き、
+          <b>氏名 &middot; Setup Code &middot; 新しいPIN</b> を入力します。
+          作成画面の <span class="btn">Open Set Up PIN</span> からそのまま開けます。
+        </p>
+        <p>
+          PINは<b>数字4〜8桁</b>。<span class="field">1111</span> やゾロ目、
+          <span class="field">1234</span> のような連番は拒否されます。
+          PINは給与明細の前に立つ唯一の鍵なので、その場で本人に決めてもらってください。
+        </p>
+      </li>
+    </ol>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>入力項目の一覧</h2>
+    <p class="sub">「必須」はサーバー側で検証されます。空のまま保存すると赤いエラーが出ます。</p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>項目</th><th>必須</th><th>内容</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>City</td><td class="req">必須</td><td>Dubai / Manila</td></tr>
+          <tr><td>Branch</td><td class="req">必須</td><td>マニラは PAR / CUB / TAFT / CK / WH / BO。MANAGER は自拠点のみ</td></tr>
+          <tr><td>Staff Name</td><td class="req">必須</td><td>契約書どおりのフルネーム。全システムの紐付けキー</td></tr>
+          <tr><td>Date of Birth</td><td class="opt">任意</td><td>生年月日</td></tr>
+          <tr><td>Marital Status</td><td class="opt">任意</td><td>Single / Married / Widowed / Separated</td></tr>
+          <tr><td>Position / Job Title</td><td class="req">マニラ必須</td><td>Service Crew、Kitchen Staff など。<b>在職証明書に印字</b></td></tr>
+          <tr><td>Hire Date</td><td class="req">マニラ必須</td><td>契約書の入社日。2025-08-01 より前は不可、<b>先の日付は1年先まで可</b>。<b>在職証明書に印字</b></td></tr>
+          <tr><td>Employing Company</td><td class="req">マニラ必須</td><td>SUSHIZEN または 7CZ ANGEL CORP.。<b>在職証明書に印字</b></td></tr>
+          <tr><td>Role</td><td class="req">必須</td><td>STAFF / MANAGER</td></tr>
+          <tr><td>Status</td><td class="req">必須</td><td>ACTIVE のままにする</td></tr>
+          <tr><td>Manager Name / PIN</td><td class="req">必須</td><td><b>登録する人</b>の名前とPIN</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note stop">
+      <span class="h">入社日・役職・雇用会社は、後から復元できません</span>
+      打刻やシフトの記録から逆算することはできません。フィリピンの在職証明書（COE）は
+      請求から3営業日以内に出す義務があり、<b>この3項目が空だと発行できません。</b>
+      だから登録時の必須項目にしてあります。<br><br>
+      <b>間違えて入れた場合は直せます。</b>Staff ページの行にある
+      <span class="btn">Details</span> から、入社日・役職・雇用会社を含む全項目を
+      変更できます。変更は監査ログに<b>変更前の値つきで</b>残ります。
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>登録したあと</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>PIN未設定の人を確認する</h3>
+        <p class="sub" style="margin-top:8px">
+          <span class="path">Staff &rarr; Onboarding &amp; Setup</span><br>
+          まだPINを作っていない人が <b>Pending</b> として並びます。
+          期限切れは各行の <span class="btn">Reset PIN</span> で作り直せます
+          （<b>Setup PIN</b> は本人の設定画面を開くボタンで、別物です）。
+        </p>
+      </div>
+      <div class="card">
+        <h3>ランクを設定する</h3>
+        <p class="sub" style="margin-top:8px">
+          <span class="path">/admin/staff-ranks</span><br>
+          L0〜L10。<b>L7以上</b>がシフトのPIC（責任者）として数えられます。
+          未設定のままだと自動生成がPIC不足の警告を出します。
+        </p>
+      </div>
+      <div class="card">
+        <h3>権限を付ける</h3>
+        <p class="sub" style="margin-top:8px">
+          <span class="path">Staff &rarr; Role Management</span><br>
+          店舗スタッフは既定のままで足ります。発注や在庫を触る人だけ、
+          ここでチャンネルを追加します。
+        </p>
+      </div>
+      <div class="card">
+        <h3>入れ間違いを直す</h3>
+        <p class="sub" style="margin-top:8px">
+          <span class="path">Staff</span> の行の <span class="btn">Details</span><br>
+          入社日・役職・雇用会社・生年月日・婚姻状況・WhatsApp・週の上限日数・連続勤務日数を
+          変更できます。<b>空にすればその項目は消えます。</b>変更は監査ログに残ります。
+        </p>
+      </div>
+      <div class="card">
+        <h3>在籍状態を変える</h3>
+        <p class="sub" style="margin-top:8px">
+          <span class="path">Staff</span> の一覧で
+          <b>ACTIVE / ON_LEAVE / SEPARATED</b> を切り替えます。
+          休職・退職はどちらもアカウントを凍結し、違いは<b>権限を残すか奪うか</b>だけです。<br>
+          <b>一覧は「Login &amp; Load」を押すまで空（0 members）です。</b>
+          自分の名前を入れて読み込んでから探してください。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>入社日はシフトの自動生成にも使われます</h2>
+    <p class="sub">
+      2026年9月20日から、Draft の自動生成が <b>入社日を読むようになりました</b>。
+      この欄の意味が1つ増えています。
+    </p>
+    <ul class="plain">
+      <li><strong>入社日より前の日には組まれません。</strong>
+        以前は9月15日入社の人にも月26日分のシフトが入っていて、
+        1人あたり20行を手で消す必要がありました。</li>
+      <li><strong>入社日が入っていれば、初月からDraftに出ます。</strong>
+        以前は「先月のシフトに出ていない人」を除外していたため、
+        新人は<b>入社から丸1か月以上、Draftに一切現れません</b>でした。
+        8月24日以降に手入力された190セルは、全部この新人分でした。</li>
+      <li><strong>入社日は2か所に同時に書かれます。</strong>
+        試用期間の管理が <span class="mono">staff_master.hired_at</span>、
+        給与の日割りが <span class="mono">official_hire_date</span> を読みます。
+        この画面から入れれば必ず一致します。</li>
+    </ul>
+    <div class="note">
+      <span class="h">週の上限日数・連続勤務日数も Details から変えられます</span>
+      一覧の <span class="mono">max/wk:6 | max/cons:6</span> は長く表示だけでしたが、
+      <span class="btn">Details</span> に編集欄があります。既定は全員6日・6連勤です。
+      <b>シフトの自動生成はこの連勤上限で休みの位置を決めます</b>ので、
+      変えると翌月のDraftの形が変わります。
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>つまずきやすいところ</h2>
+    <ul class="plain fails">
+      <li><strong>「Create Staff Record」が押せない</strong>
+        <span class="why">氏名・Manager Name・Manager PIN のどれかが空です。この3つが揃うまでボタンは無効のままです。</span></li>
+      <li><strong>保存すると赤いエラーが出る（マニラ）</strong>
+        <span class="why">Position / Hire Date / Employing Company のどれかが空です。実際の文言は
+        「position, hire_date, company required. These are printed on the Certificate of Employment
+        and cannot be recovered later.」で、足りない項目名がそのまま並びます。</span></li>
+      <li><strong>入社日が古すぎる／先すぎると言われる</strong>
+        <span class="why">「hire_date is earlier than 2025-08-01.」（マニラ）／
+        「is earlier than 2022-01-01.」（ドバイ）。先の日付は1年先まで入れられ、それを超えると
+        「more than 12 months ahead. Check the year.」が出ます — ほぼ年の打ち間違いです。</span></li>
+      <li><strong>生年月日が未来だと言われる</strong>
+        <span class="why">「date_of_birth is in the future. Did the hire date go in this box?」。
+        <b>入社日を生年月日の欄に入れています。</b>入社日は別の欄です。</span></li>
+      <li><strong>「manager can create staff only in own branch」</strong>
+        <span class="why">MANAGER が自分以外の拠点を選んでいます。その拠点の店長か、ADMIN・HQ・HR_MANAGER に依頼してください。</span></li>
+      <li><strong>「invalid approver credentials」</strong>
+        <span class="why">Manager Name か PIN が違います。<b>新しいスタッフのPINではなく、あなたのPIN</b>です。</span></li>
+      <li><strong>本人が Setup Code を入れても通らない</strong>
+        <span class="why">72時間を過ぎています。Onboarding &amp; Setup から再発行してください。</span></li>
+      <li><strong>PINが「決められない」と言われる</strong>
+        <span class="why">1111・ゾロ目・<span class="mono">1234</span> のような連番は
+        「Pick a PIN that is not 1111, four of the same digit, or digits in a row like 1234.」で拒否されます。
+        4桁未満は「PIN must be 4 to 8 digits」、入力欄2つが違うと「PIN confirmation does not match」、
+        Setup Code が違うと「Invalid setup code」です。</span></li>
+      <li><strong>Staff の一覧に誰も出てこない</strong>
+        <span class="why">この画面は開いた時点では <b>0 members</b> です。上の
+        「Login &amp; Load」を押すまで読み込まれません。登録した人が消えたわけではありません。</span></li>
+      <li><strong>期限が切れているように見える</strong>
+        <span class="why">Onboarding の Expires は<b>UTC表示</b>です。マニラは+8時間、ドバイは+4時間して読んでください。</span></li>
+      <li><strong>同じ人が2人いる</strong>
+        <span class="why">氏名の綴りが違うと別人として登録されます。打刻と給与が分かれるので、気づいた時点で統合が必要です。登録時に契約書を見るのが唯一の予防策です。</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    画面: <span class="mono">/admin/staff/create</span> ・
+    <span class="mono">/admin/staff</span> ・
+    <span class="mono">/admin/staff/onboarding</span> ・
+    <span class="mono">/setup-pin</span>。
+    登録は <span class="mono">staff_created</span> として監査ログに残り、
+    作成画面の「View Audit Logs」から本人分だけを開けます。
+    <b>2026年9月20日に本番で1件登録して全手順を通し、確認後そのレコードは削除しました。</b>
+    2026年9月21日に Details からの編集も本番で往復確認しています。
+    画面の文言・エラーメッセージ・72時間の期限・PINの規則は、すべてそのときの実測です。
+  </footer>
+
+</div>

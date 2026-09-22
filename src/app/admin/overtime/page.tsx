@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Clock, CheckCircle, XCircle, AlertCircle, Download, Banknote, UserCheck } from "lucide-react";
+import { AlertCircle, AlertTriangle, Banknote, CheckCircle, Clock, Download, UserCheck, XCircle } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import SelectDark from "@/components/SelectDark";
@@ -54,6 +54,19 @@ type OTRequest = {
   cause_codes?: string;
   ot_context?: OtContext;
   asked_after_start_minutes?: number | null;
+  /** Whether the same person arrived late that day, from the roster and the
+      punch. The claim and the punch live in different places, so a request for
+      fifty minutes used to carry no hint that the shift had started
+      thirty-two minutes before the person did. */
+  late_minutes_that_day?: number | null;
+  late_that_day?: boolean;
+  shift_start_that_day?: number | null;
+  clock_in_that_day?: string | null;
+  /** Set when the claimed hours belong to the shift of the day BEFORE the one
+      on the request — a closing shift that ran past midnight is filed on the
+      following date, because the form fills in the calendar date at the moment
+      of filing. Null when they are the same day. */
+  ot_shift_day?: string | null;
   ot_minutes_original?: number | null;
   ot_minutes_source?: string;
   ot_minutes_set_by?: string;
@@ -90,6 +103,9 @@ type OtFacts = {
   claimed_minutes: number | null;
   delta_minutes: number | null;
   unavailable: string | null;
+  /** The night these hours were measured against, when it is not the date
+   *  on the request. A claim filed at 02:00 carries the new day. */
+  shift_day?: string | null;
 };
 
 type ModalAction = "manager_approve" | "mark_paid" | "remove_from_payroll" | "reject";
@@ -239,6 +255,50 @@ function AskedWhen({ minutes }: { minutes?: number | null }) {
   return <span className="mt-0.5 block text-[11px] text-amber-300/80">{label}</span>;
 }
 
+/** Late that day, beside the claim.
+ *
+ *  Dubai asked whether a claim had been made to offset a late arrival. This is
+ *  the number that answers it, and it is only a number: nothing is blocked and
+ *  no request is scored. Of 235 requests since July, four have a claim close
+ *  enough to the lateness to look like a trade, and the one that prompted the
+ *  question is not among the people who do it — he was late once in
+ *  twenty-four days and leaves most of his overtime unclaimed. The reviewer
+ *  decides; the screen just stops hiding half of it.
+ */
+/** The claim was filed on the day after the shift it extends.
+ *
+ *  Jheymar Fabros worked 15:00–24:00 on the 17th, clocked out at 01:30 and
+ *  filed 00:00–01:30 against the 18th — so the 18th reads as 140 minutes of
+ *  overtime for a man who stayed 50 minutes over that day. The hours are
+ *  right; the date is the one the form filled in at 02:03.
+ */
+function OvernightTail({ r }: { r: OTRequest }) {
+  if (!r.ot_shift_day) return null;
+  return (
+    <span className="mt-0.5 block text-[11px] text-sky-300">
+      these hours extend the {r.ot_shift_day} shift
+    </span>
+  );
+}
+
+function LateThatDay({ r }: { r: OTRequest }) {
+  if (!r.late_that_day || r.late_minutes_that_day == null) return null;
+  const covers = r.ot_minutes >= r.late_minutes_that_day;
+  return (
+    <span className="mt-0.5 block text-[11px] text-amber-300">
+      clocked in {r.late_minutes_that_day}m late that day
+      {r.clock_in_that_day && r.shift_start_that_day != null && (
+        <span className="text-white/40">
+          {" "}({formatHour(r.shift_start_that_day)} shift, in at {r.clock_in_that_day})
+        </span>
+      )}
+      {covers && (
+        <span className="text-white/40"> · the claim covers it</span>
+      )}
+    </span>
+  );
+}
+
 /** Quarter of an hour. Below this the typed time and the clock agree well
  *  enough that saying so would be noise -- people walk to the terminal. */
 const CLOCK_TOLERANCE_MIN = 15;
@@ -292,6 +352,11 @@ function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) 
       </button>
       {open && (
         <div className="mt-2 space-y-1 rounded-lg border border-white/10 bg-black/30 p-2 text-[11px] leading-relaxed text-white/70">
+          {f.shift_day && (
+            <p className="text-sky-300">
+              Measured against the {f.shift_day} shift &mdash; these hours are its tail.
+            </p>
+          )}
           <p>
             Rostered:{" "}
             <span className="text-white">
@@ -993,6 +1058,8 @@ export default function AdminOvertimePage() {
                       <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
                       <ClockCheck f={r.ot_facts} compact />
                       <AskedWhen minutes={r.asked_after_start_minutes} />
+                      <OvernightTail r={r} />
+                      <LateThatDay r={r} />
                     </div>
                     <p className="text-sm text-white/70">{r.reason}</p>
                     <DecisionNotes r={r} onCloseDispute={closeDispute} />
@@ -1096,6 +1163,8 @@ export default function AdminOvertimePage() {
                             {r.request_type === "pre" ? "Pre" : "Post"}
                           </span>
                           <AskedWhen minutes={r.asked_after_start_minutes} />
+                      <OvernightTail r={r} />
+                      <LateThatDay r={r} />
                         </td>
                         <td className={TABLE_CELL}>
                           {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
@@ -1204,6 +1273,16 @@ export default function AdminOvertimePage() {
               {reviewing.ot_facts && !reviewing.ot_facts.unavailable
                 && reviewing.ot_facts.computed_minutes !== null && (
                 <div className="rounded-lg border border-white/10 bg-black/30 p-2 space-y-0.5 text-xs">
+                  {/* Which night the two numbers below belong to. A claim filed
+                      after midnight carries the new day's date, and reading the
+                      roster and punches of that date compares the hours with a
+                      different shift entirely. */}
+                  {reviewing.ot_facts.shift_day && (
+                    <p className="text-sky-300">
+                      Measured against the {reviewing.ot_facts.shift_day} shift &mdash; these
+                      hours are its tail.
+                    </p>
+                  )}
                   <p>
                     <span className="text-white/50">Rostered:</span>{" "}
                     {reviewing.ot_facts.shift_segments
@@ -1238,6 +1317,46 @@ export default function AdminOvertimePage() {
                 <p><span className="text-white/50">Stage 1 by:</span> <span className="text-blue-300">{reviewing.manager_approved_by}</span></p>
               )}
             </div>
+            {/* More than the clock supports — said in full, at the moment of
+                deciding, with the company's money named.
+
+                The claim used to be the only number on this screen, and the
+                form arrives pre-filled with 21:00–23:00: 49 of Dubai's 78
+                requests are that exact window untouched. So "2h" is often the
+                default rather than a claim, and approving it as asked pays for
+                hours the record does not show. */}
+            {modalAction === "manager_approve"
+              && reviewing.ot_facts
+              && !reviewing.ot_facts.unavailable
+              && reviewing.ot_facts.computed_minutes !== null
+              && (reviewing.ot_facts.delta_minutes ?? 0) > CLOCK_TOLERANCE_MIN && (
+              <div className="rounded-lg border border-amber-500/50 bg-amber-950/30 p-3 space-y-2">
+                <div className="flex items-start gap-2 text-xs text-amber-200">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    They asked for <strong>{formatMinutes(reviewing.ot_minutes)}</strong>.
+                    The roster and the clock show{" "}
+                    <strong>{formatMinutes(reviewing.ot_facts.computed_minutes)}</strong>{" "}
+                    outside the shift. Approving as asked pays{" "}
+                    <strong>{formatMinutes(reviewing.ot_facts.delta_minutes ?? 0)}</strong>{" "}
+                    more than the record supports.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const m = reviewing.ot_facts?.computed_minutes ?? 0;
+                    setAdjH(String(Math.floor(m / 60)));
+                    setAdjM(String(m % 60));
+                    setAdjOpen(true);
+                    setActionError("");
+                  }}
+                  className="w-full rounded-lg border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-900/50 transition"
+                >
+                  Approve {formatMinutes(reviewing.ot_facts.computed_minutes)} instead — what the clock shows
+                </button>
+              </div>
+            )}
             {modalAction === "mark_paid" && (
               <div className="flex items-start gap-2 rounded-lg border border-green-800/40 bg-green-950/20 p-3 text-xs text-green-300">
                 <Banknote className="h-4 w-4 shrink-0 mt-0.5" />

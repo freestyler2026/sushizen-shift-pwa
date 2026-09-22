@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import ApplicantContact from "@/components/apply/ApplicantContact";
 import { useParams } from "next/navigation";
 
 /**
@@ -297,6 +298,9 @@ export default function BookPage() {
       <Shell>
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-3 text-sm leading-relaxed text-zinc-400">{body}</p>
+        {/* 「送った message に返信してください」は、SMSで届いた人には
+            返信先が存在しない。ここが一番の行き止まりなので、連絡先を出す。 */}
+        <ApplicantContact lang={lang} />
       </Shell>
     );
   }

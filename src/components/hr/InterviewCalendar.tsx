@@ -14,6 +14,7 @@ import {
   T_SECTION,
 } from "@/lib/ui-tokens";
 import { downloadIcs } from "@/lib/interview-ics";
+import OutcomeRecorder from "@/components/hr/OutcomeRecorder";
 
 /**
  * When the interviews are.
@@ -141,6 +142,10 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
   const [remindErr, setRemindErr] = useState("");
   const [remindBusy, setRemindBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  // 面接官はカレンダーで日を開き、応募者を読んで電話をかける。そこで結果を
+  // 書けないと、記録は別画面に行った人だけがすることになる。
+  const [outcomeFor, setOutcomeFor] = useState<string>("");
+  const [justRecorded, setJustRecorded] = useState<Record<string, string>>({});
   /** Whether the OS can text at all, and the result of pressing Send. Read
    *  once per panel: a button that is offered and then fails is worse than no
    *  button, so it is only drawn when the gateway says it can send. */
@@ -517,9 +522,28 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                     </button>
                   )}
 
-                  {/* Finding the interview here and being unable to do anything
-                      with it is a dead end. Moving, cancelling and recording all
-                      live on the Interviews tab — go there, on this one. */}
+                  {/* 結果はここで書ける。別のタブに送ると、送られた先で
+                      書かれないまま日をまたぐ。移動と取り消しだけが向こう。 */}
+                  {/* 記録済みの行にも出す。押すと入っている評価が見える。
+                      隠していたので「何が入っているか」を確かめる手段が
+                      画面に無く、過去分を埋める作業では二重入力になる。 */}
+                  {!justRecorded[iv.id] && (
+                    <OutcomeRecorder
+                      scheduleId={iv.id}
+                      open={outcomeFor === iv.id}
+                      onToggle={() => setOutcomeFor(outcomeFor === iv.id ? "" : iv.id)}
+                      onRecorded={(label) => {
+                        setJustRecorded((p) => ({ ...p, [iv.id]: label }));
+                        setOutcomeFor("");
+                        void load();
+                      }}
+                    />
+                  )}
+                  {justRecorded[iv.id] && (
+                    <span className={BADGE_SUCCESS}>
+                      Recorded — {justRecorded[iv.id]}
+                    </span>
+                  )}
                   {onOpenInterview && !selected.is_past && !iv.recorded && (
                     <button
                       className={SMALL_BUTTON}

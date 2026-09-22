@@ -17,6 +17,10 @@
  *   3. It ended with "the workflow will now run every 4 hours automatically".
  *      That cron was removed on 2026-08-24 when Dubai moved to manual upload,
  *      so the closing line promised an automation that no longer exists.
+ *      (The cron came back on 2026-09-05, on careem-dubai-daily-payout.yml.
+ *      The closing line then kept saying the opposite -- that you must run the
+ *      workflow by hand -- until 2026-09-22. A note about automation goes stale
+ *      in both directions; check the workflow file, not this comment.)
  *
  * It also used to save only when you pressed Enter, so closing the browser
  * window -- the natural thing to do once you can see the dashboard -- threw the
@@ -99,9 +103,9 @@ async function main() {
 
   console.log('\n--- 次にやること ---');
   console.log('  gh secret set CAREEM_SESSION < ' + path.relative(process.cwd(), B64_FILE));
-  console.log('\n※ Careem の日次 cron は 2026-08-24 に外されています（ドバイは手動アップロードへ移行）。');
-  console.log('  取込を走らせるには GitHub Actions の');
-  console.log('  "Careem Dubai — Payout Extract" を Run workflow で手動実行してください。');
+  console.log('\n※ シークレットを入れれば、あとは毎朝の cron が回します（careem-dubai-daily-payout.yml）。');
+  console.log('  2026-08-24 に外された cron は 2026-09-05 に戻っています。手動実行は要りません。');
+  console.log('  いま取り込みたいときだけ: gh workflow run careem-dubai-daily-payout.yml');
 
   process.exit(0);
 }

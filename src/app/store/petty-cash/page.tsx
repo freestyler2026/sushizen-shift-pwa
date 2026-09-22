@@ -14,6 +14,7 @@ import {
 import { prepareUpload } from "@/lib/image-compress";
 import { clearAuth, getAuth, getAuthHeaders } from "@/lib/auth";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -368,8 +369,8 @@ export default function PettyCashPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Your Name</label>
-              <input type="text" className={SELECT_CLASS} placeholder="Full name"
-                value={staffName} onChange={(e) => setStaffName(e.target.value)} />
+              <StaffNamePicker city="manila" placeholder="Full name" className={SELECT_CLASS}
+                aria-label="Your name" value={staffName} onChange={setStaffName} />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Branch</label>

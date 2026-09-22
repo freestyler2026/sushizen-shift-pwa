@@ -15,6 +15,7 @@ import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, refreshAuthFromApi, getUploadHeaders } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
+import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
   INPUT_CLASS, SELECT_CLASS, TEXTAREA_CLASS,
@@ -48,12 +49,30 @@ const REASON_CATEGORIES: { value: string; label: string }[] = [
 ];
 
 type LeaveBalance = {
-  id: number;
+  id: number | null;
   leave_type: string;
   entitled_days: number;
   used_days: number;
   remaining_days: number;
+  // Service Incentive Leave only: inside your first year the five days are
+  // ahead of you, not absent, and "0 / 0d" says the wrong thing about that.
+  is_eligible?: boolean;
+  eligible_from?: string | null;
 };
+
+type ShiftConflict = {
+  staff_name: string;
+  work_date: string;
+  kind: "approved_but_rostered" | "undecided_and_rostered";
+  days_away: number | null;
+  shifts: { role: string | null; start_hour: number; end_hour: number; branch_code: string | null }[];
+};
+
+/** Roster hours are decimals, and 24.5 means 00:30 the next day. */
+function rosterTime(h: number) {
+  const mins = Math.round((Number(h) || 0) * 60);
+  return `${String(Math.floor(mins / 60) % 24).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
 
 type Notification = {
   id: string;
@@ -71,6 +90,14 @@ type Notification = {
   reviewed_at: string | null;
   review_note: string | null;
   created_at: string;
+  /** Which of the two approval stages is sitting on it, while it is pending.
+      The store asked to know whether it was the manager or HQ; for Patrick
+      Danel Santiago's 2026-09-20 it was HQ, for three weeks. */
+  waiting_on?: "Manager" | "HQ" | null;
+  manager_status?: string;
+  hq_status?: string;
+  urgency_status?: string | null;
+  branch?: string | null;
 };
 
 function todayIso() { return isoToday(); }
@@ -181,7 +208,15 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
 
 // ── Tab 3: Inbox ───────────────────────────────────────────────────────────────
 
-function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: number) => void }) {
+function InboxTab({
+  city,
+  onCityChange,
+  byCity,
+}: {
+  city: string;
+  onCityChange: (c: "dubai" | "manila") => void;
+  byCity: Record<string, number>;
+}) {
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -202,14 +237,13 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
       const d = await r.json() as { items: Notification[] };
       const next = d.items ?? [];
       setItems(next);
-      onCountChange?.(next.length);
       setLastLoaded(new Date());
     } catch (e) {
       if (seq === loadRef.current) setError(String(e));
     } finally {
       if (seq === loadRef.current) setLoading(false);
     }
-  }, [city, onCountChange]);
+  }, [city]);
 
   useEffect(() => {
     void load();
@@ -218,6 +252,59 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [load]);
+
+  // Days somebody asked off where the roster still has them working.
+  //
+  // Approving a request and editing the roster are two separate acts, and
+  // nothing connected them, so only the first happening looked exactly like
+  // both happening. Mary Jane Tegerero worked 2026-08-21 and Abegail A.
+  // Dalida worked 2026-09-06 -- both approved off, weeks earlier.
+  const [conflicts, setConflicts] = useState<ShiftConflict[]>([]);
+  useEffect(() => {
+    let dead = false;
+    apiFetch(`/api/admin/shift-conflicts?city=${encodeURIComponent(city)}`)
+      .then(r => r.ok ? r.json() as Promise<{ items?: ShiftConflict[] }> : Promise.resolve({}))
+      .then((d: { items?: ShiftConflict[] }) => { if (!dead) setConflicts(d.items ?? []); })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [city]);
+
+  const openCount = items.length;
+
+  // Which city's requests these are.
+  //
+  // The inbox used to follow the form's city, which follows the reviewer's own
+  // registration. Yuri is HQ registered in dubai, so his inbox opened on dubai
+  // -- empty -- while fourteen manila requests sat unanswered behind a selector
+  // nobody had a reason to touch. The review permission is not scoped to a
+  // city, so neither is this: both are here, each with its own count.
+  const cityPicker = (
+    <div className="flex items-center gap-1.5">
+      {(["manila", "dubai"] as const).map((c) => {
+        const n = Number(byCity[c] || 0);
+        return (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onCityChange(c)}
+            className={[
+              "rounded-lg px-2.5 py-1 text-xs font-semibold capitalize transition",
+              city === c
+                ? "bg-violet-500/20 text-violet-200 border border-violet-500/40"
+                : "bg-white/5 text-neutral-400 border border-white/10 hover:text-white",
+            ].join(" ")}
+          >
+            {c}
+            {n > 0 && (
+              <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-black">
+                {n}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   async function review(id: string, action: "approved" | "rejected") {
     setReviewBusy(true);
@@ -233,11 +320,11 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
         }),
       });
       if (!r.ok) throw new Error(await r.text());
-      setItems(prev => {
-        const next = prev.filter(i => i.id !== id);
-        onCountChange?.(next.length);
-        return next;
-      });
+      setItems(prev => prev.filter(i => i.id !== id));
+      // The tab count and the left-nav badge both come from the badge endpoint,
+      // so one event refreshes both. Without it the number the reviewer just
+      // acted on stays on screen for up to thirty seconds.
+      dispatchBadgeRefresh("requests");
       setReviewingId(null);
       setReviewNote("");
     } catch (e) {
@@ -254,8 +341,8 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
           <h2 className={T_SECTION + " flex items-center gap-2"}>
             <BellRing size={18} className="text-amber-400" />
             Pending Inbox
-            {items.length > 0 && (
-              <span className={BADGE_WARNING}>{items.length}</span>
+            {openCount > 0 && (
+              <span className={BADGE_WARNING}>{openCount}</span>
             )}
           </h2>
           {lastLoaded && (
@@ -264,14 +351,54 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
             </p>
           )}
         </div>
-        <button onClick={load} className={SMALL_BUTTON + " flex items-center gap-1.5"}>
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {cityPicker}
+          <button onClick={load} className={SMALL_BUTTON + " flex items-center gap-1.5"}>
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
           <AlertCircle size={14} /> {error}
+        </div>
+      )}
+
+      {conflicts.length > 0 && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4">
+          <p className="text-sm font-semibold text-rose-200">
+            Still on the roster for a day they asked off
+          </p>
+          <p className="mt-0.5 text-xs text-rose-300/80">
+            Approving a request does not move the shift. Manual Shift is where the day is changed.
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            {conflicts.map((c) => {
+              const sh = c.shifts[0];
+              return (
+                <li key={`${c.staff_name}|${c.work_date}`} className="text-xs text-zinc-300">
+                  <span className="font-semibold text-white">{c.staff_name}</span>
+                  {" · "}{c.work_date}
+                  {" · "}
+                  <span className={c.kind === "approved_but_rostered" ? "text-rose-300" : "text-amber-300"}>
+                    {c.kind === "approved_but_rostered" ? "approved" : "not answered yet"}
+                  </span>
+                  {sh && (
+                    <> · rostered {rosterTime(sh.start_hour)}–{rosterTime(sh.end_hour)}
+                      {sh.branch_code ? ` ${sh.branch_code}` : ""}</>
+                  )}
+                  {typeof c.days_away === "number" && (
+                    <span className="text-zinc-500">
+                      {c.days_away === 0 ? " · today"
+                        : c.days_away > 0 ? ` · in ${c.days_away}d`
+                        : ` · ${Math.abs(c.days_away)}d ago`}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
@@ -282,7 +409,19 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
       ) : items.length === 0 ? (
         <div className={GLASS_CARD + " p-10 text-center"}>
           <Bell size={36} className="mx-auto mb-3 text-zinc-600" />
-          <p className="text-sm text-zinc-500">No pending requests.</p>
+          <p className="text-sm text-zinc-500">No pending requests in {city}.</p>
+          {(["manila", "dubai"] as const)
+            .filter((c) => c !== city && Number(byCity[c] || 0) > 0)
+            .map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => onCityChange(c)}
+                className="mt-3 text-sm font-semibold text-violet-300 underline underline-offset-4 hover:text-violet-200"
+              >
+                {byCity[c]} waiting in <span className="capitalize">{c}</span>
+              </button>
+            ))}
         </div>
       ) : (
         <div className="space-y-3">
@@ -295,6 +434,13 @@ function InboxTab({ city, onCountChange }: { city: string; onCountChange?: (n: n
                     <span className={BADGE_INFO + " capitalize"}>
                       {n.notification_type.replace(/_/g, " ")}
                     </span>
+                    {/* Which stage it is sitting on. "Pending" alone does not
+                        say whose answer is missing, and for Patrick Danel
+                        Santiago's day off the missing one was HQ's. */}
+                    {n.waiting_on && (
+                      <span className={BADGE_WARNING}>Waiting on {n.waiting_on}</span>
+                    )}
+                    {n.branch && <span className={BADGE_INFO}>{n.branch}</span>}
                   </div>
                   <p className="mt-1.5 text-sm text-zinc-300">{n.reason}</p>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
@@ -536,6 +682,12 @@ export default function RequestPage() {
   const [auth, setAuth] = useState(() => getAuth());
   const [activeTab, setActiveTab] = useState<Tab>("form");
   const [inboxCount, setInboxCount] = useState(0);
+  // The inbox's city, kept apart from the form's. They were one piece of state,
+  // which meant a reviewer could not look at manila's requests without also
+  // switching the city of the request he was about to file.
+  const [inboxCity, setInboxCity] = useState<"dubai" | "manila">("manila");
+  const [inboxByCity, setInboxByCity] = useState<Record<string, number>>({});
+  const inboxCityPinned = useRef(false);
 
   // Form state
   const [city, setCity] = useState<"dubai" | "manila">("manila");
@@ -618,19 +770,40 @@ export default function RequestPage() {
       .catch(() => setLeaveBalances([]));
   }, [staffName, city]);
 
-  // Poll inbox count so the badge is live on any tab
+  // Poll the pending count so the tab badge is live on any tab.
+  //
+  // This counts every city, not the reviewer's own, and so matches the badge in
+  // the left nav. It also decides which city the inbox opens on: the one
+  // holding the request whose day comes soonest. Opening on the reviewer's own
+  // city showed Yuri an empty dubai inbox while fourteen manila requests waited.
   useEffect(() => {
     if (!isInbox) return;
+    type BadgeResponse = {
+      badge_count?: number;
+      soonest_city?: string | null;
+      by_city?: Record<string, { badge_count?: number }>;
+    };
     const poll = () => {
-      apiFetch(`/api/request/notifications/inbox?city=${encodeURIComponent(city)}&status=pending&limit=100`)
-        .then(r => r.ok ? r.json() as Promise<{ items: unknown[] }> : Promise.resolve({ items: [] }))
-        .then(d => setInboxCount((d.items ?? []).length))
+      apiFetch(`/api/request/notifications/badge`)
+        .then(r => r.ok ? r.json() as Promise<BadgeResponse> : Promise.resolve({} as BadgeResponse))
+        .then((d: BadgeResponse) => {
+          setInboxCount(Number(d.badge_count ?? 0));
+          const per: Record<string, number> = {};
+          Object.entries(d.by_city ?? {}).forEach(([c, v]) => {
+            per[c] = Number(v?.badge_count ?? 0);
+          });
+          setInboxByCity(per);
+          // Only until the reviewer picks a city — after that it is his choice.
+          if (!inboxCityPinned.current && (d.soonest_city === "manila" || d.soonest_city === "dubai")) {
+            setInboxCity(d.soonest_city);
+          }
+        })
         .catch(() => {});
     };
     poll();
     const id = setInterval(poll, 30_000);
     return () => clearInterval(id);
-  }, [isInbox, city]);
+  }, [isInbox]);
 
   const branchOptions = BRANCHES[city] ?? [];
 
@@ -649,43 +822,14 @@ export default function RequestPage() {
       if (requestType === "overtime_request" && (parseFloat(otHours) || 0) <= 0) throw new Error("Overtime hours must be greater than 0.");
       if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (parseFloat(leaveDays) || 0) <= 0) throw new Error("Leave days must be greater than 0.");
 
-      if (requestType === "overtime_request") {
-        const r = await apiFetch("/api/request/notify", {
-          method: "POST",
-          body: JSON.stringify({
-            sender_name: staffName,
-            sender_city: city,
-            notification_type: "overtime",
-            target_date: workDate,
-            overtime_hours: parseFloat(otHours),
-            reason: reason.trim(),
-          }),
-        });
-        if (!r.ok) throw new Error(await r.text());
-        const d = await r.json() as Record<string, unknown>;
-        setResult(d);
-        setReason("");
-        return;
-      }
-
+      // One call.
+      //
+      // This used to post leave and day-off to /api/request/notify first and
+      // then submit them again here, and post overtime only to that endpoint.
+      // Two tables, two review screens, nothing between them: every one of the
+      // fourteen rows in the second table still read "pending" while thirteen
+      // had been answered on the dashboard weeks earlier.
       const isLeaveType = ["paid_leave", "vacation", "absence", "day_off"].includes(requestType);
-      if (isLeaveType) {
-        const notifyType = (requestType === "paid_leave" || requestType === "vacation") ? "leave" : requestType;
-        const notifyBody: Record<string, unknown> = {
-          sender_name: staffName,
-          sender_city: city,
-          notification_type: notifyType,
-          target_date: workDate,
-          leave_days: parseFloat(leaveDays) || 1,
-          reason: reason.trim(),
-          reason_category: reasonCategory,
-        };
-        if (notifyType === "leave") notifyBody.leave_type = leaveSubType;
-        await apiFetch("/api/request/notify", {
-          method: "POST",
-          body: JSON.stringify(notifyBody),
-        }).catch(() => {});
-      }
 
       let payload: Record<string, string> = {};
       if (requestType === "time_change") payload = { from, to };
@@ -701,6 +845,12 @@ export default function RequestPage() {
       form.set("branch", branch);
       form.set("medical_doc", String(medicalDoc));
       form.set("payload_json", JSON.stringify(payload));
+      form.set("reason_category", reasonCategory);
+      if (isLeaveType) {
+        form.set("leave_days", String(parseFloat(leaveDays) || 1));
+        if (requestType === "paid_leave" || requestType === "vacation") form.set("leave_type", leaveSubType);
+      }
+      if (requestType === "overtime_request") form.set("overtime_hours", String(parseFloat(otHours) || 0));
       if (medicalDocumentFile) form.set("medical_document_file", await prepareIfImage(medicalDocumentFile));
 
       const apiBase = "";
@@ -745,13 +895,29 @@ export default function RequestPage() {
           </div>
           {leaveBalances.length > 0 && (
             <div className="flex flex-wrap justify-end gap-1.5">
-              {leaveBalances.slice(0, 3).map(b => (
-                <div key={b.id} className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-xs">
-                  <span className="text-violet-300 font-medium capitalize">{b.leave_type.replace(/_/g, " ")}</span>
-                  <span className="ml-1.5 font-bold text-white">{b.remaining_days}</span>
-                  <span className="text-zinc-500">/{b.entitled_days}d</span>
-                </div>
-              ))}
+              {leaveBalances.slice(0, 3).map((b, i) => {
+                const notYet = b.is_eligible === false;
+                return (
+                  <div key={b.id ?? `${b.leave_type}-${i}`}
+                       className={"rounded-xl border px-3 py-1.5 text-xs " + (notYet
+                         ? "border-white/10 bg-white/5"
+                         : "border-violet-500/20 bg-violet-500/10")}>
+                    <span className={(notYet ? "text-zinc-400" : "text-violet-300") + " font-medium capitalize"}>
+                      {b.leave_type.replace(/_/g, " ")}
+                    </span>
+                    {notYet ? (
+                      <span className="ml-1.5 text-zinc-500">
+                        {b.eligible_from ? `from ${b.eligible_from}` : "after 1 year"}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="ml-1.5 font-bold text-white">{b.remaining_days}</span>
+                        <span className="text-zinc-500">/{b.entitled_days}d</span>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -880,7 +1046,7 @@ export default function RequestPage() {
                         value={leaveSubType}
                         onChange={setLeaveSubType}
                         options={[
-                          { value: "annual_leave", label: "Annual Leave" },
+                          { value: "annual_leave", label: "Annual Leave (uses your 5 SIL days)" },
                           { value: "sick_leave", label: "Sick Leave" },
                           { value: "emergency_leave", label: "Emergency Leave" },
                           { value: "unpaid_leave", label: "Unpaid Leave" },
@@ -1017,7 +1183,11 @@ export default function RequestPage() {
 
           {/* ── Tab 3: Inbox ─────────────────────────────────────────── */}
           {activeTab === "inbox" && isInbox && (
-            <InboxTab city={city} onCountChange={setInboxCount} />
+            <InboxTab
+              city={inboxCity}
+              onCityChange={(c) => { inboxCityPinned.current = true; setInboxCity(c); }}
+              byCity={inboxByCity}
+            />
           )}
         </div>
       </div>

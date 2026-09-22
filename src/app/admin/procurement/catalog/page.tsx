@@ -16,6 +16,7 @@ import {
   BADGE_WARNING,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
+import { countsInWholeThings } from "@/lib/order-step";
 import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package, Plus, Trash2, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SelectDark from "@/components/SelectDark";
@@ -77,6 +78,7 @@ export default function ProcurementCatalogPage() {
   const [filterStore, setFilterStore] = useState("");
   const [filterSearch, setFilterSearch] = useState("");
   const [filterFastRunning, setFilterFastRunning] = useState(false);
+  const [filterNoStep, setFilterNoStep] = useState(false);
   const [activeOnly, setActiveOnly] = useState(true);
 
   // Edit modal
@@ -169,11 +171,22 @@ export default function ProcurementCatalogPage() {
       if (filterOrderType && r.order_type !== filterOrderType) return false;
       if (filterStore && r.store_scope !== filterStore && filterStore !== "ALL") return false;
       if (filterFastRunning && !r.fast_running) return false;
+      if (filterNoStep && !(r.order_step == null && countsInWholeThings(r.unit))) return false;
       if (!activeOnly && false) return false;
       if (q && !r.item_name.toLowerCase().includes(q) && !r.supplier_name.toLowerCase().includes(q) && !r.section.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [rows, filterOrderType, filterStore, filterFastRunning, filterSearch, activeOnly]);
+  }, [rows, filterOrderType, filterStore, filterFastRunning, filterNoStep, filterSearch, activeOnly]);
+
+  // How many items the order generator will not round. The chip that used to
+  // sit on each of these rows put an amber badge on 424 of 700 -- a wall, not a
+  // signal. One number and a filter is the same information, read.
+  const noStepCount = useMemo(
+    () => rows.filter(
+      (r) => (activeOnly ? r.active : true) && r.order_step == null && countsInWholeThings(r.unit),
+    ).length,
+    [rows, activeOnly],
+  );
 
   const stores = useMemo(() => {
     const s = new Set(rows.map((r) => r.store_scope));
@@ -621,6 +634,18 @@ export default function ProcurementCatalogPage() {
             </div>
             <div className="flex items-center gap-2 pb-0.5">
               <input
+                id="nostep-filter"
+                type="checkbox"
+                checked={filterNoStep}
+                onChange={(e) => setFilterNoStep(e.target.checked)}
+                className="accent-violet-500"
+              />
+              <label htmlFor="nostep-filter" className={`${T_LABEL} cursor-pointer`}>
+                No order step ({noStepCount})
+              </label>
+            </div>
+            <div className="flex items-center gap-2 pb-0.5">
+              <input
                 id="fr-filter"
                 type="checkbox"
                 checked={filterFastRunning}
@@ -785,6 +810,7 @@ export default function ProcurementCatalogPage() {
                     )}
                     <th className="px-3 py-2">Unit</th>
                     <th className="px-3 py-2">Unit Price</th>
+                    <th className="px-3 py-2">Order Step</th>
                     <th className="px-3 py-2">Min Stock</th>
                     <th className="px-3 py-2">Pkg</th>
                     <th className="px-3 py-2">FR</th>
@@ -806,6 +832,22 @@ export default function ProcurementCatalogPage() {
                       <td className="px-3 py-2 text-zinc-400">{r.unit || "—"}</td>
                       <td className="px-3 py-2 text-zinc-300">
                         {r.unit_price > 0 ? `${city === "dubai" ? "AED" : "₱"}${r.unit_price.toLocaleString()}` : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.order_step != null ? (
+                          <span className="text-zinc-300">{r.order_step}</span>
+                        ) : (
+                          <span
+                            className="text-zinc-600"
+                            title={
+                              countsInWholeThings(r.unit)
+                                ? "No rounding. A shortfall of 29.998 packets is ordered as 29.998."
+                                : "No rounding."
+                            }
+                          >
+                            —
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-zinc-400">{r.min_stock_qty || "—"}</td>
                       <td className="px-3 py-2 text-zinc-400">{r.package_spec || "—"}</td>

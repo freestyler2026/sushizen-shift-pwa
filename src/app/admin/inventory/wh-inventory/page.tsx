@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryDueBanner from "@/components/InventoryDueBanner";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
+import ModalScrim from "@/components/ModalScrim";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import type { City } from "@/lib/branches";
 import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
@@ -107,6 +109,13 @@ type CountDraft = Record<string, string>; // key: item_id -> qty string
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** 金額。確認画面でしか使わないので、桁区切りだけ。 */
+function fmt2(v: number | null | undefined): string {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "0.00";
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function fmt3(v: number | null | undefined): string {
   return Number(v ?? 0).toFixed(3);
@@ -878,6 +887,41 @@ export default function WhInventoryPage() {
   // Auto Order
   // ---------------------------------------------------------------------------
 
+  /** 画面で直した数量。キーが無い行は need_qty のまま。 */
+  const [orderQty, setOrderQty] = useState<Record<string, string>>({});
+  /** 外した行。Generate の対象から抜く。 */
+  const [excluded, setExcluded] = useState<Record<string, boolean>>({});
+  /** 「これを作ります」の確認。ここを通るまで何も作らない。 */
+  const [confirmRows, setConfirmRows] = useState<
+    { supplier_id: string; supplier_name: string;
+      items: { id: string; name: string; qty: number; unit: string; price: number }[] }[] | null
+  >(null);
+
+  function qtyOf(row: StockViewRow): number {
+    const raw = orderQty[row.id];
+    if (raw === undefined || raw === "") return row.need_qty || 0;
+    const v = parseFloat(raw);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  }
+
+  /** 送る前に、何が作られるかを組み立てる。金額は確認のための表示で、
+   *  サーバは単価も仕入先もマスタから引き直す。 */
+  function buildConfirm(groups: Record<string, { name: string; items: StockViewRow[] }>) {
+    const out = Object.entries(groups)
+      .map(([sid, g]) => ({
+        supplier_id: sid,
+        supplier_name: g.name,
+        items: g.items
+          .filter((r) => !excluded[r.id] && qtyOf(r) > 0)
+          .map((r) => ({
+            id: r.id, name: r.name, qty: qtyOf(r),
+            unit: r.order_unit || r.unit, price: r.purchase_cost || 0,
+          })),
+      }))
+      .filter((g) => g.items.length > 0);
+    setConfirmRows(out);
+  }
+
   async function handleGenerateOrders() {
     setGenerating(true);
     setGenerateError("");
@@ -894,7 +938,14 @@ export default function WhInventoryPage() {
         store_code: "WH",
         requested_by: staffName,
         request_date: todayIso(),
+        // 画面で確認した通りを送る。サーバは数量だけを採り、仕入先・単位・
+        // 単価はマスタから引き直す。
+        items: (confirmRows ?? []).flatMap((g) =>
+          g.items.map((i) => ({ item_id: i.id, qty: i.qty }))),
       });
+      setConfirmRows(null);
+      setOrderQty({});
+      setExcluded({});
       setGeneratedOrders(res.created || []);
       setSkippedNoSupplier(res.skipped_no_supplier || []);
       // Refresh stock view to reflect any changes
@@ -1454,12 +1505,13 @@ export default function WhInventoryPage() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-neutral-500">Staff</label>
-              <input
-                type="text"
+              <StaffNamePicker
+                city={city}
                 value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
+                onChange={setStaffName}
                 placeholder="Your name"
-                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600"
+                aria-label="Your name"
+                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -1895,7 +1947,7 @@ export default function WhInventoryPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm text-neutral-400">
-                Items below par level are grouped by supplier. Click <strong className="text-neutral-200">Generate Purchase Orders</strong> to create one Direct Purchase per supplier in the Procurement Approval Inbox.
+                Items below par level are grouped by supplier. <strong className="text-neutral-200">Edit the quantity, or untick a line to leave it out.</strong> Generate shows you exactly what will be created — nothing is ordered until you confirm it.
               </p>
             </div>
             <button
@@ -1966,16 +2018,30 @@ export default function WhInventoryPage() {
                     <table className="min-w-full text-left text-sm">
                       <thead className="border-b border-neutral-800 bg-neutral-900/30 text-xs uppercase tracking-wide text-neutral-500">
                         <tr>
+                          <th className="px-4 py-2 w-10">Order</th>
                           <th className="px-4 py-2">Item</th>
                           <th className="px-4 py-2 text-right">Current Stock</th>
                           <th className="px-4 py-2 text-right">Par Level</th>
                           <th className="px-4 py-2 text-right text-amber-400">Need Qty</th>
+                          <th className="px-4 py-2 text-right text-teal-300">Order Qty</th>
                           <th className="px-4 py-2">Unit</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {group.items.map((row) => (
-                          <tr key={row.id} className="border-t border-neutral-800 hover:bg-neutral-900/20">
+                        {group.items.map((row) => {
+                          const off = !!excluded[row.id];
+                          return (
+                          <tr key={row.id}
+                              className={`border-t border-neutral-800 hover:bg-neutral-900/20 ${off ? "opacity-40" : ""}`}>
+                            <td className="px-4 py-2">
+                              <input
+                                type="checkbox"
+                                checked={!off}
+                                onChange={() => setExcluded((p) => ({ ...p, [row.id]: !off }))}
+                                aria-label={`Order ${row.name}`}
+                                className="h-4 w-4 accent-teal-500"
+                              />
+                            </td>
                             <td className="px-4 py-2 text-neutral-200">{row.name}</td>
                             <td className={`px-4 py-2 text-right font-mono ${stockColor(row.theoretical_qty)}`}>
                               {fmt3(row.theoretical_qty)}
@@ -1983,12 +2049,25 @@ export default function WhInventoryPage() {
                             <td className="px-4 py-2 text-right font-mono text-neutral-400">
                               {fmt3(row.par_level)}
                             </td>
-                            <td className="px-4 py-2 text-right font-mono font-semibold text-amber-300">
+                            <td className="px-4 py-2 text-right font-mono text-amber-300">
                               {fmt3(row.need_qty)}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                disabled={off}
+                                value={orderQty[row.id] ?? String(row.need_qty ?? 0)}
+                                onChange={(e) => setOrderQty((p) => ({ ...p, [row.id]: e.target.value }))}
+                                aria-label={`Order quantity for ${row.name}`}
+                                className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-right font-mono text-sm text-teal-200 disabled:opacity-40"
+                              />
                             </td>
                             <td className="px-4 py-2 text-neutral-500">{row.order_unit || row.unit}</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -2032,12 +2111,109 @@ export default function WhInventoryPage() {
                     <button
                       type="button"
                       disabled={generating}
-                      onClick={() => void handleGenerateOrders()}
+                      onClick={() => buildConfirm(supplierGroups)}
                       className="rounded-xl bg-teal-700 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-teal-600 disabled:opacity-50 transition"
                     >
-                      {generating ? "Generating..." : `Generate Purchase Orders (${Object.keys(supplierGroups).length} supplier${Object.keys(supplierGroups).length !== 1 ? "s" : ""})`}
+                      {generating ? "Generating..." : "Generate Purchase Orders…"}
                     </button>
                   </div>
+                )}
+
+                {/* 「これを作ります」。ここを通るまで何も作られない。
+                    編集は一覧側に置いてある — スマホでポップアップの中に
+                    編集できる表を入れると使えなくなる。 */}
+                {confirmRows !== null && (
+                  <ModalScrim className="bg-black/60">
+                    <div className="mx-auto my-4 w-full max-w-lg rounded-2xl border border-neutral-800 bg-neutral-950 p-5 shadow-xl"
+                         role="dialog" aria-modal="true" aria-labelledby="wh-confirm-title">
+                      <h2 id="wh-confirm-title" className="text-base font-semibold text-neutral-100">
+                        これを発注します
+                      </h2>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        Confirm を押すと、仕入先ごとに Direct Purchase が Procurement の
+                        Approval Inbox に作られます。押すまでは何も作られません。
+                      </p>
+
+                      {confirmRows.length === 0 && (
+                        <p className="mt-4 text-sm text-amber-300">
+                          発注する行がありません。数量を入れるか、チェックを戻してください。
+                        </p>
+                      )}
+
+                      <div className="mt-3 max-h-[55vh] space-y-3 overflow-y-auto overscroll-contain">
+                        {confirmRows.map((g) => {
+                          const sub = g.items.reduce((a, i) => a + i.qty * i.price, 0);
+                          return (
+                            <div key={g.supplier_id} className="rounded-xl border border-neutral-800">
+                              <div className="flex items-center justify-between bg-neutral-900/60 px-3 py-2">
+                                <span className="text-sm font-semibold text-neutral-100">{g.supplier_name}</span>
+                                <span className="font-mono text-xs text-teal-300">{fmt2(sub)}</span>
+                              </div>
+                              <table className="min-w-full text-left text-xs">
+                                <tbody>
+                                  {g.items.map((i) => (
+                                    <tr key={i.id} className="border-t border-neutral-800">
+                                      <td className="px-3 py-1.5 text-neutral-300">{i.name}</td>
+                                      <td className="px-3 py-1.5 text-right font-mono text-teal-200">
+                                        {fmt3(i.qty)} {i.unit}
+                                      </td>
+                                      {/* 単価が入っていない品目を 0.00 と書くと「無料」に読める。
+                                          金額が言えないことを、金額の代わりに書く。 */}
+                                      <td className="px-3 py-1.5 text-right font-mono text-neutral-500">
+                                        {i.price > 0 ? `× ${fmt2(i.price)}` : "単価未設定"}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-right font-mono text-neutral-300">
+                                        {i.price > 0 ? fmt2(i.qty * i.price) : "—"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {confirmRows.length > 0 && (
+                        <p className="mt-3 text-right text-sm text-neutral-300">
+                          合計{" "}
+                          <span className="font-mono font-semibold text-teal-300">
+                            {fmt2(confirmRows.reduce((a, g) =>
+                              a + g.items.reduce((b, i) => b + i.qty * i.price, 0), 0))}
+                          </span>
+                          <span className="ml-2 text-xs text-neutral-500">
+                            （{confirmRows.length} 仕入先・
+                            {confirmRows.reduce((a, g) => a + g.items.length, 0)} 品目）
+                          </span>
+                          {(() => {
+                            const noPrice = confirmRows.reduce(
+                              (a, g) => a + g.items.filter((i) => !(i.price > 0)).length, 0);
+                            return noPrice > 0 ? (
+                              <span className="ml-2 block text-xs text-amber-400">
+                                うち {noPrice} 品目は単価未設定です。合計に入っていません。
+                              </span>
+                            ) : null;
+                          })()}
+                        </p>
+                      )}
+
+                      {generateError && (
+                        <p className="mt-2 text-sm text-rose-300">{generateError}</p>
+                      )}
+
+                      <div className="mt-4 flex justify-end gap-2">
+                        <button type="button" onClick={() => setConfirmRows(null)}
+                          className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-200">
+                          戻る
+                        </button>
+                        <button type="button" disabled={generating || confirmRows.length === 0}
+                          onClick={() => void handleGenerateOrders()}
+                          className="rounded-xl bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-600 disabled:opacity-40">
+                          {generating ? "作成中…" : "Confirm — 発注を作る"}
+                        </button>
+                      </div>
+                    </div>
+                  </ModalScrim>
                 )}
 
                 {generateError && (

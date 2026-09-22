@@ -1,7 +1,7 @@
 // src/app/admin/disposal/page.tsx
 "use client";
 
-import { isoToday, isoDate } from "@/lib/date";
+import { businessToday, isoToday, isoDate } from "@/lib/date";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prepareUpload } from "@/lib/image-compress";
@@ -82,6 +82,7 @@ interface DisposalReport {
   status: string;
   created_at: string;
   photo_urls: string[];
+  no_disposal?: boolean;
   lines: DisposalReportLine[];
 }
 
@@ -94,6 +95,14 @@ interface DisposalReportLine {
   unit: string;
   disposal_reason: string;
   notes: string;
+}
+
+interface NilStat {
+  branch_code: string;
+  open_days: number;
+  reported_days: number;
+  nil_days: number;
+  wrong_nil: number;
 }
 
 // ─── Category normalisation (JP → EN) ────────────────────────────────────────
@@ -125,7 +134,21 @@ function normaliseCategory(cat: string): string {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function todayStr(): string { return isoToday(); }
+/** The business day this entry belongs to, not the calendar day the phone is
+ *  showing. The logbook operation enters the whole day at closing, which is
+ *  after midnight: with the calendar date the default files the night against
+ *  the day that has only just started, and the day that was actually worked
+ *  stays "missing" for ever. No deadline can fix that — it is the wrong date,
+ *  not a late one.
+ *
+ *  Already visible in the last 60 days: five reports carry a report_date equal
+ *  to the calendar date they were filed on at 00:07–01:03 (PAR 9/20 and 9/22,
+ *  TAFT 9/16 and 9/19, CUB 9/14). Under the logbook that becomes most nights.
+ *
+ *  businessToday() is the same 05:00 rule the Cash Report and the Travel Path
+ *  use. It changes nothing during the day — the boundary sits five hours before
+ *  the earliest ordinary daytime entry. */
+function todayStr(): string { return businessToday(); }
 
 function formatDateTime(iso: string): string {
   if (!iso) return "";
@@ -558,7 +581,17 @@ function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
               <span className="rounded-full bg-violet-900/40 px-2 py-0.5 text-[11px] font-semibold text-violet-300">{r.branch_code}</span>
               <span className={BADGE_INFO}>{r.shift}</span>
               <span className="text-xs text-zinc-400">by {r.reported_by}</span>
-              <span className="text-xs text-zinc-500 ml-auto">{r.lines?.length ?? 0} items</span>
+              {/* 宣言と、明細のあるレポートを一目で分ける。
+                  superseded は「無かったと言ったが、実際にはあった日」。 */}
+              {r.no_disposal ? (
+                r.status === "superseded" ? (
+                  <span className={`${BADGE_WARNING} ml-auto`}>No Disposal — superseded</span>
+                ) : (
+                  <span className={`${BADGE_INFO} ml-auto`}>No Disposal</span>
+                )
+              ) : (
+                <span className="text-xs text-zinc-500 ml-auto">{r.lines?.length ?? 0} items</span>
+              )}
               {isAdmin && (
                 <>
                   <button
@@ -692,9 +725,19 @@ export default function DisposalPage() {
   const [headerNotes, setHeaderNotes] = useState("");
   const [lines, setLines] = useState<DisposalLine[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
+  // 「ログブックを確認したが1件も無かった」の宣言。
+  // ⚠️ **下書きには保存しない。** 宣言はその日ログブックを見た人の行為で、
+  //    前の下書きから復元されると「既にチェックが入った画面」になる —
+  //    それがこの選択肢を入れないでいた理由そのもの（安い道が既定になる）。
+  const [noDisposal, setNoDisposal] = useState(false);
 
   // ── Staff list for autocomplete ──
   const [staffNames, setStaffNames] = useState<string[]>([]);
+
+  // ── この拠点の「No Disposal」の出方 ──
+  // 提出する側の画面に出す。宣言が既定になっていないかを見張るのは
+  // 摩擦ではなく、数字が見えていること（CLAUDE.md 型#1）。
+  const [nilStats, setNilStats] = useState<NilStat[]>([]);
 
   // ── Photo state ──
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
@@ -742,6 +785,17 @@ export default function DisposalPage() {
     void fetchStaff();
   }, [city]);
 
+  const loadNilStats = useCallback(async () => {
+    try {
+      const d = await apiFetch<{ branches: NilStat[] }>(
+        `/api/admin/disposal/nil-stats?city=${city}&days=30`
+      );
+      setNilStats(d.branches ?? []);
+    } catch { /* non-fatal — 数字が出ないだけで提出は止めない */ }
+  }, [city]);
+
+  useEffect(() => { void loadNilStats(); }, [loadNilStats]);
+
   useEffect(() => {
     const branches = BRANCHES[city];
     if (branches.length > 0) setBranchCode(branches[0].code);
@@ -756,7 +810,7 @@ export default function DisposalPage() {
   }, []);
 
   const handleClear = useCallback(() => {
-    setLines([]); setHeaderNotes("");
+    setLines([]); setHeaderNotes(""); setNoDisposal(false);
     setSubmitSuccess(""); setSubmitError("");
     setDraftRestored(false);
     clearDraft();
@@ -764,7 +818,14 @@ export default function DisposalPage() {
 
   const handleSubmit = async () => {
     const validLines = lines.filter((l) => l.item_name_snapshot.trim() && parseFloat(l.quantity) > 0);
-    if (!validLines.length) { setSubmitError("Please add at least one item with a valid quantity."); return; }
+    if (noDisposal && validLines.length) {
+      setSubmitError("You have items listed. Untick \u201cNo disposal today\u201d, or remove the items.");
+      return;
+    }
+    if (!noDisposal && !validLines.length) {
+      setSubmitError("Please add at least one item, or tick \u201cNo disposal today\u201d.");
+      return;
+    }
     if (!reportedBy.trim()) { setSubmitError("Please enter the reporter name."); return; }
 
     setSubmitting(true); setSubmitError(""); setSubmitSuccess("");
@@ -772,6 +833,8 @@ export default function DisposalPage() {
       const result = await apiFetch<{
         report_id: number;
         status: string;
+        no_disposal?: boolean;
+        superseded_nil?: number;
         ledger?: { ok?: boolean; ledger_posted?: number; errors?: string[] };
       }>(
         "/api/admin/disposal/report",
@@ -780,6 +843,7 @@ export default function DisposalPage() {
           body: JSON.stringify({
             city, branch_code: branchCode, report_date: reportDate,
             reported_by: reportedBy.trim(), shift, notes: headerNotes.trim(),
+            no_disposal: noDisposal,
             lines: validLines.map((l) => ({
               item_type: l.item_type, item_id: l.item_id,
               item_name_snapshot: l.item_name_snapshot,
@@ -821,10 +885,24 @@ export default function DisposalPage() {
         : result.ledger?.ok === false
           ? " — Ledger sync failed (report saved)."
           : "";
-      setSubmitSuccess(`Report #${result.report_id} submitted.${photoNote}${ledgerNote}`);
-      setLines([]); setHeaderNotes("");
+      if (result.no_disposal) {
+        setSubmitSuccess(
+          result.status === "already_submitted"
+            ? `${branchCode} already has a No Disposal record for ${reportDate} (#${result.report_id}). Nothing more to submit.`
+            : `No Disposal recorded for ${branchCode} on ${reportDate} (#${result.report_id}).`
+        );
+      } else {
+        // 同じ日に出ていた「無かった」宣言は、この提出で事実と違うことが
+        // 確定する。黙って書き換えず、提出した人にその場で伝える。
+        const nilNote = (result.superseded_nil ?? 0) > 0
+          ? " The earlier \u201cNo Disposal\u201d for this day has been marked superseded."
+          : "";
+        setSubmitSuccess(`Report #${result.report_id} submitted.${photoNote}${ledgerNote}${nilNote}`);
+      }
+      setLines([]); setHeaderNotes(""); setNoDisposal(false);
       setDraftRestored(false);
       clearDraft();
+      void loadNilStats();
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -833,6 +911,8 @@ export default function DisposalPage() {
   };
 
   const itemCount = lines.filter((l) => l.item_name_snapshot.trim()).length;
+  const lineCount = itemCount;
+  const branchNil = nilStats.find((b) => b.branch_code === branchCode) ?? null;
 
   return (
     <>
@@ -891,6 +971,15 @@ export default function DisposalPage() {
                 <label className={`${T_LABEL} block mb-1.5`}>Date</label>
                 <input type="date" className={`${INPUT_CLASS} py-3 text-base`} value={reportDate}
                   onChange={(e) => setReportDate(e.target.value)} />
+                {/* After midnight the box shows yesterday on purpose, and a box
+                    that disagrees with the phone's clock without saying why is a
+                    box people "correct" back to the wrong day. */}
+                {reportDate === businessToday() && businessToday() !== isoToday() && (
+                  <p className="mt-1 text-[11px] leading-snug text-amber-300/80">
+                    It is past midnight, so this is filed under the day the shift
+                    belongs to. Change it if you are writing up a different day.
+                  </p>
+                )}
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Reported By</label>
@@ -967,8 +1056,57 @@ export default function DisposalPage() {
             </div>
           </div>
 
+          {/* No Disposal — the day the logbook is empty.
+              ログブックを見た人が、見たと言える場所。明細と排他。 */}
+          <div className={`${GLASS_CARD} p-4 sm:p-6`}>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={noDisposal}
+                onChange={(e) => { setNoDisposal(e.target.checked); setSubmitError(""); }}
+                className="mt-1 h-5 w-5 shrink-0 accent-violet-500"
+              />
+              <span>
+                <span className="block text-base font-semibold text-white">No disposal today</span>
+                <span className="block text-sm text-zinc-400">
+                  Tick this only after checking the day&rsquo;s disposal log and finding
+                  nothing for the whole day &mdash; not from memory. This records that{" "}
+                  {branchCode} had zero disposal on {reportDate}; it is not the same as
+                  skipping the report.
+                </span>
+              </span>
+            </label>
+
+            {noDisposal && lineCount > 0 && (
+              <p className="mt-3 text-sm text-amber-300">
+                {lineCount} item{lineCount !== 1 ? "s" : ""} still listed below. Remove them, or untick this box.
+              </p>
+            )}
+
+            {branchNil && (
+              <p className="mt-3 text-xs text-zinc-500">
+                Last 30 days at {branchNil.branch_code}: {branchNil.reported_days} day
+                {branchNil.reported_days !== 1 ? "s" : ""} reported out of {branchNil.open_days} open
+                {branchNil.open_days !== 1 ? " days" : " day"}, {branchNil.nil_days} of them No Disposal.
+                {branchNil.wrong_nil > 0 && (
+                  <span className="text-amber-400">
+                    {" "}{branchNil.wrong_nil} No Disposal record{branchNil.wrong_nil !== 1 ? "s were" : " was"} later
+                    superseded by an actual disposal.
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+
           {/* Disposal Items — z-10 ensures search dropdowns appear above Past Reports */}
-          <div className={`${GLASS_CARD} p-4 sm:p-6 relative z-10`}>
+          <div className={`${GLASS_CARD} p-4 sm:p-6 relative z-10 ${noDisposal ? "opacity-40" : ""}`}>
+            {/* 宣言中は明細に触れない。触れれば矛盾した提出が作れてしまう。 */}
+            <div className={noDisposal ? "pointer-events-none" : ""}>
+            {noDisposal && (
+              <p className="mb-3 text-sm text-zinc-400">
+                Items are not needed for a No Disposal report. Untick the box above to add items.
+              </p>
+            )}
             <div className="flex items-center justify-between mb-4">
               <h2 className={T_CARD_TITLE}>Disposal Items</h2>
               <span className="text-xs text-zinc-500">{itemCount} item{itemCount !== 1 ? "s" : ""}</span>
@@ -1015,6 +1153,7 @@ export default function DisposalPage() {
             {/* Manual add for free-text items */}
             <button type="button" onClick={() => setLines((prev) => [...prev, emptyLine()])}
               className={`${SMALL_BUTTON} mt-2`}>+ Add manually</button>
+            </div>
           </div>
 
           {/* Past Reports — all branches for selected city */}
@@ -1028,7 +1167,9 @@ export default function DisposalPage() {
         <div className="mx-auto max-w-5xl flex items-center gap-3">
           <button onClick={handleSubmit} disabled={submitting}
             className={`${PRIMARY_BUTTON} flex-1 py-3.5 text-base justify-center`}>
-            {submitting ? "Submitting..." : "Submit Disposal Report"}
+            {submitting
+              ? "Submitting..."
+              : noDisposal ? "Submit — No Disposal" : "Submit Disposal Report"}
           </button>
           <button type="button" onClick={handleClear} className={`${SECONDARY_BUTTON} py-3.5`}>
             Clear

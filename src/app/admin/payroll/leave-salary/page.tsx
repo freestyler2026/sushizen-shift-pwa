@@ -8,6 +8,7 @@ import {
   ChevronRight, Clock, Loader2, Plus, RefreshCw, XCircle,
 } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
+import StaffNamePicker from "@/components/StaffNamePicker";
 import { getAuth, getAuthHeaders, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
@@ -167,9 +168,9 @@ function CreateModal({
           <div className="col-span-2">
             <p className={T_LABEL}>Staff Name *</p>
             <div className="flex gap-2 mt-1">
-              <input className={`${INPUT_CLASS} flex-1`} value={staffName}
-                onChange={e => setStaffName(e.target.value)}
-                placeholder="e.g. Tanaka Yuki" />
+              <StaffNamePicker city={city} className={`${INPUT_CLASS} flex-1`} value={staffName}
+                onChange={setStaffName}
+                placeholder="Staff name" aria-label="Staff name" />
               <button onClick={fetchRate} disabled={fetchingRate}
                 className={`${SECONDARY_BUTTON} whitespace-nowrap`}>
                 {fetchingRate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Fetch Rate"}

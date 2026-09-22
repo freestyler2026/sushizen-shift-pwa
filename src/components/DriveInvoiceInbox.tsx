@@ -18,6 +18,12 @@ export interface DriveInvoice {
   invoice_date: string | null;
   due_date: string | null;
   total_amount: number | null;
+  /** What the invoice prints before tax, the tax, and the rate. Held by the
+   *  reading all along; the review panel had nowhere to show them, so a
+   *  two-line invoice could not be made to add up. */
+  amount_excl_tax?: number | null;
+  tax_amount?: number | null;
+  tax_rate_pct?: number | null;
   currency: string;
   line_items: LineItem[];
   confidence_notes: string[];
@@ -41,7 +47,12 @@ export interface LineItem {
   qty: number | null;
   unit: string;
   unit_price: number | null;
+  /** The line total EXCLUDING tax — the column the invoice heads Amount or
+   *  Amount Excl. VAT. */
   amount: number | null;
+  /** Only where the invoice prints tax per line. */
+  tax_amount?: number | null;
+  amount_incl_tax?: number | null;
 }
 
 interface Props {
@@ -77,11 +88,24 @@ function FileIcon({ name }: { name: string }) {
   );
 }
 
+const STATUSES = [
+  { key: "pending_review", label: "Pending" },
+  { key: "archived", label: "Archived" },
+  { key: "approved", label: "Approved" },
+  { key: "not_supplier_invoice", label: "Not an invoice" },
+  { key: "rejected", label: "Rejected" },
+] as const;
+type StatusKey = (typeof STATUSES)[number]["key"];
+
 export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFolderUrl }: Props) {
   const [invoices, setInvoices] = useState<DriveInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DriveInvoice | null>(null);
   const [showAll, setShowAll] = useState(false);
+  /** Anything not pending_review had no way in: this panel asked for that one
+      status and nothing else in the app lists these at all. Archiving the 2025
+      backfill would have put 367 invoices somewhere nobody could reach. */
+  const [status, setStatus] = useState<StatusKey>("pending_review");
   /** How many are waiting, which is not how many were fetched. The endpoint
       used to return the page size as the total, so 634 read as 50. */
   const [pendingTotal, setPendingTotal] = useState(0);
@@ -89,7 +113,7 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
   const fetchInvoices = useCallback(async () => {
     try {
       const res = await fetch(
-        `/api/admin/drive-invoices?city=${city}&review_status=pending_review&limit=50`,
+        `/api/admin/drive-invoices?city=${city}&review_status=${status}&limit=50`,
         { headers: authHeaders }
       );
       if (!res.ok) return;
@@ -101,7 +125,7 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
     } finally {
       setLoading(false);
     }
-  }, [city, authHeaders]);
+  }, [city, authHeaders, status]);
 
   useEffect(() => {
     fetchInvoices();
@@ -112,16 +136,18 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
   const handleUpdated = (updated: DriveInvoice) => {
     setInvoices((prev) =>
       prev.filter((inv) =>
-        updated.review_status === "pending_review" ? true : inv.id !== updated.id
+        updated.review_status === status ? true : inv.id !== updated.id
       ).map((inv) => (inv.id === updated.id ? updated : inv))
     );
-    if (updated.review_status !== "pending_review") {
+    if (updated.review_status !== status) {
       setSelected(null);
     }
   };
 
   if (loading) return null;
-  if (invoices.length === 0) return null;
+  // Empty is a real answer once a status can be chosen — hiding the whole panel
+  // would read as "the filter is broken" rather than "there are none".
+  if (invoices.length === 0 && status === "pending_review") return null;
 
   const displayed = showAll ? invoices : invoices.slice(0, 6);
   const hasMore = invoices.length > 6 && !showAll;
@@ -136,7 +162,8 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
             <div>
               <h3 className="font-semibold text-white text-sm">Invoice Inbox</h3>
               <p className="text-white/50 text-xs">
-                {pendingTotal.toLocaleString()} invoice{pendingTotal !== 1 ? "s" : ""} pending review
+                {pendingTotal.toLocaleString()} invoice{pendingTotal !== 1 ? "s" : ""}{" "}
+                {STATUSES.find((x) => x.key === status)?.label.toLowerCase()}
                 {pendingTotal > invoices.length
                   ? ` · showing the oldest ${invoices.length}`
                   : ""}
@@ -155,6 +182,22 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
                 Invoice Drive
               </a>
             )}
+            <div className="flex items-center gap-0.5 rounded-lg border border-white/10 p-0.5">
+              {STATUSES.map((x) => (
+                <button
+                  key={x.key}
+                  onClick={() => { setStatus(x.key); setShowAll(false); }}
+                  className={
+                    "text-[11px] px-2 py-1 rounded-md transition-colors " +
+                    (status === x.key
+                      ? "bg-white/10 text-white"
+                      : "text-white/40 hover:text-white/70 hover:bg-white/5")
+                  }
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
             <button
               onClick={fetchInvoices}
               className="text-white/40 hover:text-white/70 transition-colors text-xs px-2 py-1 rounded hover:bg-white/5"
@@ -166,6 +209,11 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
 
         {/* Card grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {invoices.length === 0 && (
+            <p className="text-white/40 text-xs py-3 text-center">
+              Nothing {STATUSES.find((x) => x.key === status)?.label.toLowerCase()} for {city}.
+            </p>
+          )}
           {displayed.map((inv) => (
             <button
               key={inv.id}

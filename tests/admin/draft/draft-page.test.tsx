@@ -977,3 +977,160 @@ describe("AdminDraftPage — Pending Sheet Proposals section", () => {
     expect(selectShowing("All branches")).toBeTruthy();
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────────
+// An approved day off and a roster edit are two separate acts, and nothing used to
+// connect them: Abegail A. Dalida's 2026-09-06 was approved, stayed on the
+// schedule, and she was marked ABSENT. The Excel import is the path nobody
+// watches, because it arrives forty rows at a time.
+describe("AdminDraftPage — Excel import onto an approved day off", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  const DRAFT_ROW = {
+    id: 1, version_id: "v-test-1", work_date: "2026-09-06",
+    staff_name: "Abegail A. Dalida", role: "Prep Cook",
+    start_hour: 9, end_hour: 18, branch_code: "BB",
+  };
+
+  const CONFLICT = {
+    staff_name: "Abegail A. Dalida",
+    work_date: "2026-09-06",
+    request_type: "day_off",
+    start_hour: 9,
+    end_hour: 18,
+    branch_code: "BB",
+  };
+
+  function previewBody(conflicts: unknown[]) {
+    return {
+      ok: true, parsed_count: 1, warnings: [], version_id: "v-test-1", branch_code: "BB",
+      diff: { added: 1, removed: 0, modified: 0, unchanged: 0, added_rows: [DRAFT_ROW], removed_rows: [], modified_rows: [] },
+      new_rows: [DRAFT_ROW],
+      day_off_conflicts: conflicts,
+    };
+  }
+
+  /** Generate a draft (the only way versions exist), then land on the schedule
+   *  tab with one row, which is what puts the import toolbar on screen. */
+  async function generateThenSchedule(fetchMock: ReturnType<typeof vi.fn>) {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Prepared:.*Dubai stores/i, {}, { timeout: 5000 });
+    const unchecked = screen.getAllByRole("checkbox").find((cb) => !(cb as HTMLInputElement).checked);
+    if (unchecked) fireEvent.click(unchecked);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm Generate/i })).not.toBeDisabled();
+    }, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+    await screen.findByText("Generate Result", {}, { timeout: 8000 });
+    fireEvent.click(screen.getByRole("button", { name: /Schedule View/i }));
+    await screen.findByText(/Upload Adjusted Excel/i, {}, { timeout: 5000 });
+  }
+
+  function uploadTheFile() {
+    const input = document.querySelector('input[type="file"][accept=".xlsx,.xls"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
+    fireEvent.change(input, { target: { files: [new File(["x"], "week.xlsx")] } });
+  }
+
+  function baseOverrides(preview: unknown) {
+    return [
+      { match: "/api/auth/verify", body: { ok: true, role: "HQ" } },
+      { match: "/api/draft/generate_month", method: "POST", body: {
+          ok: true, version_id: "v-test-1", city: "dubai", branch_code: "BB",
+          rows_inserted: 1, days_generated: 1, version_week_start: "2026-08-31", source_days: [],
+          summary: { avg_branch_reliability: 0.9, total_overtime_hours: 0, total_unresolved_hours: 0 },
+        },
+      },
+      { match: "/api/draft/rows", body: { ok: true, version_id: "v-test-1", rows: [DRAFT_ROW] } },
+      { match: "/api/admin/draft/import-xlsx/preview", method: "POST", body: preview },
+    ];
+  }
+
+  it("names the person and the day the file would roster on top of", async () => {
+    await generateThenSchedule(makeDraftFetch(baseOverrides(previewBody([CONFLICT]))));
+    uploadTheFile();
+    await screen.findByText(
+      /Abegail A\. Dalida — 2026-09-06 is an approved day off, but this puts them on 09:00-18:00 at BB/,
+      {},
+      { timeout: 5000 },
+    );
+    expect(screen.getByText(/Already given off — 1 person, 1 day/i)).toBeInTheDocument();
+  });
+
+  it("offers importing anyway instead of the plain Apply button, and says what that does", async () => {
+    await generateThenSchedule(makeDraftFetch(baseOverrides(previewBody([CONFLICT]))));
+    uploadTheFile();
+    await screen.findByRole("button", { name: /Import anyway/i }, { timeout: 5000 });
+    // The ordinary Apply button is not also on screen -- one button, one meaning.
+    expect(screen.queryByRole("button", { name: /Apply 1 rows to Draft/i })).toBeNull();
+  });
+
+  it("sends allow_approved_day_off only when the person chooses to import anyway", async () => {
+    const fetchMock = makeDraftFetch([
+      ...baseOverrides(previewBody([CONFLICT])),
+      { match: "/api/admin/draft/import-xlsx/apply", method: "POST", body: { ok: true, rows: [DRAFT_ROW], rows_inserted: 1 } },
+    ]);
+    await generateThenSchedule(fetchMock);
+    uploadTheFile();
+    const anyway = await screen.findByRole("button", { name: /Import anyway/i }, { timeout: 5000 });
+    fireEvent.click(anyway);
+    await waitFor(() => {
+      const applyCall = fetchMock.mock.calls.find(([u]: [string]) =>
+        String(u).includes("/api/admin/draft/import-xlsx/apply"));
+      expect(applyCall).toBeTruthy();
+      expect(JSON.parse(String((applyCall![1] as RequestInit).body)).allow_approved_day_off).toBe(true);
+    }, { timeout: 5000 });
+  });
+
+  it("a clean file keeps the ordinary Apply button and does not ask for the override", async () => {
+    const fetchMock = makeDraftFetch([
+      ...baseOverrides(previewBody([])),
+      { match: "/api/admin/draft/import-xlsx/apply", method: "POST", body: { ok: true, rows: [DRAFT_ROW], rows_inserted: 1 } },
+    ]);
+    await generateThenSchedule(fetchMock);
+    uploadTheFile();
+    const apply = await screen.findByRole("button", { name: /Apply 1 rows to Draft/i }, { timeout: 5000 });
+    expect(screen.queryByText(/Already given off/i)).toBeNull();
+    fireEvent.click(apply);
+    await waitFor(() => {
+      const applyCall = fetchMock.mock.calls.find(([u]: [string]) =>
+        String(u).includes("/api/admin/draft/import-xlsx/apply"));
+      expect(applyCall).toBeTruthy();
+      expect(JSON.parse(String((applyCall![1] as RequestInit).body)).allow_approved_day_off).toBe(false);
+    }, { timeout: 5000 });
+  });
+
+  it("a day off approved after the preview was taken comes back as the same list, not a raw 409", async () => {
+    // The preview was clean; HQ approved the request while the file was being read.
+    const fetchMock = makeDraftFetch([
+      ...baseOverrides(previewBody([])),
+      {
+        match: "/api/admin/draft/import-xlsx/apply", method: "POST", status: 409,
+        body: { detail: { code: "approved_day_off", message: "already given off", day_off_conflicts: [CONFLICT] } },
+      },
+    ]);
+    await generateThenSchedule(fetchMock);
+    uploadTheFile();
+    const apply = await screen.findByRole("button", { name: /Apply 1 rows to Draft/i }, { timeout: 5000 });
+    fireEvent.click(apply);
+    await screen.findByText(
+      /Abegail A\. Dalida — 2026-09-06 is an approved day off/,
+      {},
+      { timeout: 5000 },
+    );
+    // "[object Object]" is what reading that detail as a string would have shown.
+    expect(screen.queryByText(/object Object/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Import anyway/i })).toBeInTheDocument();
+  });
+});

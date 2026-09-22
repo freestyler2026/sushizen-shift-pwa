@@ -334,10 +334,10 @@ describe("ManualShiftPage — load staff & shifts", () => {
     });
   });
 
-  it("shows + Add staff row manually link after load", async () => {
+  it("shows the add-staff link after load", async () => {
     await renderPage();
     await loadStaff();
-    expect(screen.getByText(/\+ Add staff row manually/i)).toBeInTheDocument();
+    expect(screen.getByText(/\+ Add staff to this week/i)).toBeInTheDocument();
   });
 
   it("grid header shows 7 day columns", async () => {
@@ -668,6 +668,19 @@ async function editOneCell() {
   await screen.findByText(/cell edited — not yet published/i, {}, { timeout: 3000 });
 }
 
+/** This week's Monday and Tuesday, in the device's own calendar -- the grid
+ *  labels its columns from those, so a UTC-derived date lands on the wrong one. */
+function thisWeek() {
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const d = new Date();
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  const weekStart = iso(d);
+  d.setDate(d.getDate() + 1);
+  return { weekStart, tuesday: iso(d) };
+}
+
 describe("ManualShiftPage — publish flow", () => {
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
@@ -738,6 +751,136 @@ describe("ManualShiftPage — publish flow", () => {
     await screen.findByText(/Permission denied/i, {}, { timeout: 5000 });
   });
 
+  it("refuses to publish somebody onto a day they have been given off, and names it", async () => {
+    const { weekStart, tuesday } = thisWeek();
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: {
+          rows: [{ work_date: tuesday, staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }],
+        },
+      },
+      {
+        match: "/api/admin/shifts/publish_week_cells",
+        status: 409,
+        method: "POST",
+        body: {
+          detail: {
+            code: "approved_day_off",
+            message: "This publish rosters somebody on a day they have already been given off:",
+            day_off_conflicts: [
+              {
+                staff_name: "Alice Cohen",
+                work_date: tuesday,
+                request_type: "day_off",
+                start_hour: 9,
+                end_hour: 17,
+                branch_code: "BB",
+              },
+            ],
+          },
+        },
+      },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await waitFor(() => expect(screen.getByText("9:00–17:00")).toBeInTheDocument(), { timeout: 3000 });
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    // The person and the day, not a status code.
+    await screen.findByText(
+      new RegExp(`Alice Cohen — ${tuesday} is an approved day off`),
+      {},
+      { timeout: 5000 },
+    );
+    expect(screen.getByText(/Not published — already given off/i)).toBeInTheDocument();
+    // Nothing was published, so the week is still being edited.
+    expect(screen.queryByText(/Published Schedule/i)).not.toBeInTheDocument();
+    expect(weekStart).toBeTruthy();
+  });
+
+  it("publishes anyway once the person says the day off no longer stands", async () => {
+    const { tuesday } = thisWeek();
+    let allowedOnSecondCall: unknown = null;
+    let calls = 0;
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      const u = String(url);
+      const method = ((opts?.method as string) || "GET").toUpperCase();
+      if (u.includes("/api/admin/shifts/publish_week_cells") && method === "POST") {
+        calls += 1;
+        const body = JSON.parse(String(opts?.body || "{}"));
+        if (calls === 1) {
+          return new Response(
+            JSON.stringify({
+              detail: {
+                code: "approved_day_off",
+                message: "already given off",
+                day_off_conflicts: [
+                  { staff_name: "Alice Cohen", work_date: tuesday, request_type: "day_off", start_hour: 9, end_hour: 17, branch_code: "BB" },
+                ],
+              },
+            }),
+            { status: 409, headers: { "Content-Type": "application/json" } },
+          );
+        }
+        allowedOnSecondCall = body.allow_approved_day_off;
+        return new Response(JSON.stringify({ ok: true, cells_applied: 1, rows_written: 1 }), {
+          status: 200, headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (u.includes("/api/admin/staff_master/names"))
+        return new Response(JSON.stringify({ names: STAFF_NAMES }), { status: 200, headers: { "Content-Type": "application/json" } });
+      if (u.includes("/api/published/week"))
+        return new Response(JSON.stringify({
+          rows: [{ work_date: tuesday, staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    await renderPage(fetchMock as any);
+    await loadStaff();
+    await waitFor(() => expect(screen.getByText("9:00–17:00")).toBeInTheDocument(), { timeout: 3000 });
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    const anyway = await screen.findByRole("button", { name: /Publish anyway/i }, { timeout: 5000 });
+    fireEvent.click(anyway);
+    await waitFor(() => expect(allowedOnSecondCall).toBe(true), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByText(/Published Schedule/i)).toBeInTheDocument(), { timeout: 5000 });
+  });
+
+  it("'Let me fix the cells' puts the week back in the person's hands without publishing", async () => {
+    const { tuesday } = thisWeek();
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: {
+          rows: [{ work_date: tuesday, staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }],
+        },
+      },
+      {
+        match: "/api/admin/shifts/publish_week_cells",
+        status: 409,
+        method: "POST",
+        body: {
+          detail: {
+            code: "approved_day_off",
+            message: "already given off",
+            day_off_conflicts: [
+              { staff_name: "Alice Cohen", work_date: tuesday, request_type: "day_off", start_hour: 9, end_hour: 17, branch_code: "BB" },
+            ],
+          },
+        },
+      },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await waitFor(() => expect(screen.getByText("9:00–17:00")).toBeInTheDocument(), { timeout: 3000 });
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    const dismiss = await screen.findByRole("button", { name: /Let me fix the cells/i }, { timeout: 5000 });
+    fireEvent.click(dismiss);
+    await waitFor(() =>
+      expect(screen.queryByText(/Not published — already given off/i)).not.toBeInTheDocument(),
+    );
+    // The edit is still unpublished, so the publish button still has something to do.
+    expect(screen.getByRole("button", { name: /🚀 Publish/ })).not.toBeDisabled();
+  });
+
   it("Preview before publishing link appears when there are shifts", async () => {
     const weekStart = (() => {
       const d = new Date();
@@ -765,40 +908,108 @@ describe("ManualShiftPage — publish flow", () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────────
-describe("ManualShiftPage — add staff row", () => {
+describe("ManualShiftPage — adding somebody to the week", () => {
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
-  it("clicking Add staff row manually calls prompt", async () => {
-    vi.spyOn(window, "prompt").mockReturnValueOnce(null);
-    await renderPage();
+  /**
+   * The name typed here becomes the key the published row is written under, and
+   * a shift filed under a name the register does not hold reaches nobody. Over
+   * 120 days fifteen such names carried 175 published rows -- `Bibek B K`
+   * against a register that says `Bibek BK`, and a row called `NEW`. So there
+   * is no typed way in: the register is the only source.
+   */
+  function fetchWithRegister(extra: string[] = ["Dara Okafor"]) {
+    return vi.fn(async (url: string, opts?: RequestInit) => {
+      const u = String(url);
+      const method = ((opts?.method as string) || "GET").toUpperCase();
+      const json = (body: unknown, status = 200) =>
+        new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+      if (u.includes("/api/admin/staff_master/names")) {
+        // Three different calls hit this path and they must not be conflated:
+        // the grid's own load (limit=5000), and the picker's two (limit=2000,
+        // with and without home_branch). Answering them all the same made the
+        // grid load the extra name too, so "adds that person" passed without
+        // the picker doing anything.
+        if (!u.includes("limit=2000")) return json({ names: STAFF_NAMES });
+        return json({ names: u.includes("home_branch=") ? STAFF_NAMES : [...STAFF_NAMES, ...extra] });
+      }
+      if (u.includes("/api/published/week")) return json({ rows: [] });
+      if (u.includes("/api/admin/manual-shift/hidden-staff")) return json({ hidden: [] });
+      if (method !== "GET") return json({ ok: true });
+      return json({ ok: true, rows: [] });
+    });
+  }
+
+  it("opens a picker of registered staff instead of asking for a typed name", async () => {
+    const promptSpy = vi.spyOn(window, "prompt");
+    await renderPage(fetchWithRegister());
     await loadStaff();
-    const addBtn = screen.getByText(/\+ Add staff row manually/i);
-    fireEvent.click(addBtn);
-    expect(window.prompt).toHaveBeenCalledWith("Enter staff name:");
-    vi.restoreAllMocks();
+    fireEvent.click(screen.getByText(/\+ Add staff to this week/i));
+
+    await screen.findByRole("dialog", {}, { timeout: 3000 });
+    expect(await screen.findByText("Dara Okafor", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(promptSpy).not.toHaveBeenCalled();
+    promptSpy.mockRestore();
   });
 
-  it("entering a name via prompt adds the staff row to the grid", async () => {
-    vi.spyOn(window, "prompt").mockReturnValueOnce("Zara New Staff");
-    await renderPage();
+  it("choosing a name puts that person on the grid", async () => {
+    await renderPage(fetchWithRegister());
     await loadStaff();
-    fireEvent.click(screen.getByText(/\+ Add staff row manually/i));
+    fireEvent.click(screen.getByText(/\+ Add staff to this week/i));
+    fireEvent.click(await screen.findByText("Dara Okafor", {}, { timeout: 3000 }));
+
     await waitFor(() => {
-      expect(screen.getByText("Zara New Staff")).toBeInTheDocument();
-    }, { timeout: 2000 });
-    vi.restoreAllMocks();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getByText("Dara Okafor")).toBeInTheDocument();
+    }, { timeout: 3000 });
   });
 
-  it("cancelling prompt (null) does not add a staff row", async () => {
-    vi.spyOn(window, "prompt").mockReturnValueOnce(null);
-    await renderPage();
+  it("somebody already on the grid cannot be added a second time", async () => {
+    await renderPage(fetchWithRegister());
     await loadStaff();
-    fireEvent.click(screen.getByText(/\+ Add staff row manually/i));
-    await waitFor(() => {
-      // Only original 3 staff names should be present
-      expect(screen.queryByText("Zara New Staff")).toBeNull();
-    }, { timeout: 2000 });
-    vi.restoreAllMocks();
+    fireEvent.click(screen.getByText(/\+ Add staff to this week/i));
+    await screen.findByRole("dialog", {}, { timeout: 3000 });
+
+    // All three loaded staff carry it, so this is findAll — the single-match
+    // form threw on the second one.
+    const marks = await screen.findAllByText(/already on the grid/i, {}, { timeout: 3000 });
+    expect(marks.length).toBe(STAFF_NAMES.length);
+    const row = screen.getAllByRole("button").find(
+      (b) => b.textContent?.includes("Alice Cohen") && b.textContent?.includes("already on the grid"));
+    expect(row).toBeTruthy();
+    expect(row).toBeDisabled();
+  });
+
+  it("says where somebody missing gets registered, rather than offering a text box", async () => {
+    await renderPage(fetchWithRegister());
+    await loadStaff();
+    fireEvent.click(screen.getByText(/\+ Add staff to this week/i));
+    await screen.findByRole("dialog", {}, { timeout: 3000 });
+
+    expect(screen.getByText(/Somebody missing\?/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Staff page/i })).toHaveAttribute("href", "/admin/staff");
+    expect(screen.queryByPlaceholderText(/Enter staff name/i)).toBeNull();
+  });
+
+  it("a register that will not load says so and offers to try again", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      const json = (body: unknown, status = 200) =>
+        new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+      // The grid's own load succeeds; only the picker's lookup fails, so the
+      // failure has to be visible inside the dialog.
+      if (u.includes("/api/admin/staff_master/names") && u.includes("limit=2000"))
+        return json({ detail: "Register unavailable" }, 500);
+      if (u.includes("/api/admin/staff_master/names")) return json({ names: STAFF_NAMES });
+      if (u.includes("/api/published/week")) return json({ rows: [] });
+      return json({ ok: true, rows: [] });
+    });
+    await renderPage(fetchMock as unknown as typeof fetch);
+    await loadStaff();
+    fireEvent.click(screen.getByText(/\+ Add staff to this week/i));
+
+    expect(await screen.findByText(/Register unavailable/i, {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Try again/i })).toBeInTheDocument();
   });
 });
 
