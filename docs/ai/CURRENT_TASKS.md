@@ -29972,3 +29972,60 @@ cash-report / overtime-request / admin travel-path の3画面だけ。**
 （利用者が日付を手で変えれば従来どおり）。admin/travel-path と同じく
 「前日扱いになっています」の注記も付けられる。
 **記録がどの営業日に属するかを変える変更なので、実装前に承認を求める。**
+
+## 2026-09-22 — ドバイ9月給与 P0（誤控除の停止）実施済み
+
+**原因**: ドバイのOS→DTR同期が**打刻の無いセッションからDTR行を作り**、
+`absent_without_pay=TRUE` になって給与エンジンが全日控除する。
+
+打刻なしセッションはドバイに47件。発生源は
+`app/db.py:52417` の管理者による手動セッション作成（No-Show用、`check_in_at=None` 可）。
+一意キーが `(city, staff_name, work_date)` なので**綴り違いは別人として通る。**
+
+**内訳（実測）**
+```
+Raji Deeban Jegan  25件 … 全て同日に「Raj」名義の本物の打刻あり（純粋な重複）
+Yogesh Bashyal     14件 … 11件は absences に VACATION_LEAVE
+Bibek BK / Lyssa    6件 … 全て absences に記録あり
+NEW / Ramuel        2件 … 記録なし
+```
+
+**修正（デプロイ済み）**: `main.py` のドバイ同期で `check_in IS NULL` のセッションを
+**スキップ**し、`skipped_no_punch` として件名を返す（黙って落とさない）。
+マニラが 2026-08-28 `c7070762` で学んだのと同じ規則。
+
+**データ修正**: 既に書き込まれていた行のうち**9月サイクル(8/26-9/25)の34行を削除**。
+バックアップ `_dubai_attn_phantom_bk_20260922`。トランザクション内で件数検証。
+**8月以前の11行は指示どおり温存**（手計算期のため）。
+
+**検証（本番 preview_only・書き込みなし）**
+```
+1,155件 → 書き込み 1,119件 / skip 36件
+9月サイクル: rows 979 / absent_without_pay 0 / 打刻なし 0
+Raj Deeban Jegan: 21日すべて is_worked=True で健在
+```
+**止めた誤控除: Yogesh Bashyal AED 1,057.69 + Lyssa Rae AED 184.62 = AED 1,242.31**
+（両名とも absences は VACATION_LEAVE）。
+Raji の21日は monthly_rate が NULL でエンジンがスキップしていたため金額は出ていないが、
+**名寄せしていたら勤務21日が欠勤控除に変わっていた。**
+
+### 🔴 名寄せ(P0の2件目)は実施していない — 正式名が確定できないため
+
+```
+attendance_employee_aliases id=242 (dubai, bayzat, 2026-03-21)
+   raw 'Raj Deeban Jegan' → canonical 'Raji Deeban Jegan'   ← 別名表は Raji が正
+dubai_staff_profiles  'Raj'  monthly_rate 2,300 (支払可) / 'Raji' NULL
+実打刻・OT申請・給与プロフィール = すべて Raj
+shift_draft_rows 72行・base_shift_normalized 2行 = Raji
+```
+**どちらが本人の名前かはオーナー判断。**
+
+⚠️ **ただし9月の給与はこの名寄せ無しで正しく回る。** 同期が空セッションを飛ばすので
+Raji のDTR行は今後作られず、実働はすべて Raj（rate 2,300）に付く。
+
+### 🔴 残る穴（P1）— 無給欠勤が一切控除されない
+
+ドバイの同期は `absences` を読まない（マニラは読む）。9月サイクルの
+`ABSENT` 15日（Lyssa Rae 4・Nishan 2・Kelvin 2・Sherileene 2・他5名各1）は
+**DTRに行が無いので控除されない。** 今回の修正で新たに生じた穴ではなく、
+従来は「たまたま空セッションがある日だけ」偶然控除されていた。
