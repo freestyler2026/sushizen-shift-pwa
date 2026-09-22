@@ -30192,3 +30192,22 @@ Raj Deeban Jegan は staff_master 1行・profile 1行・9月DTR 18行（OT 3.00h
 `(city, staff_name, work_date)` を一意キーにしているため（`db.py:52417`）。
 氏名が自由入力・または重複したプロフィールから選べる限り、また起きる。
 ※ただし**打刻なしセッションは同期がスキップするので、給与への被害は出ない。**
+
+## 2026-09-22 — 氏名の選択式化と Dubai 9月の検証
+
+**やったこと**
+- `src/components/StaffNamePicker.tsx`（新規）。14画面の氏名自由入力を名簿からの選択に変更。
+  `includeSeparated` は退職者を含む名簿（COE / Draft Exclusions / HR Performance）。
+  **フォームが既に持っている名前は名簿外でも選択肢に残す** — 古い記録を開いて氏名が消えないため。
+- `app/db.py: admin_create_os_session` に名簿ガード（400で拒否、近い綴りを提示）。
+- `app/attendance_facts.absence_without_pay()` — 休日に欠勤控除をかけない。
+
+**未着手**
+- Manila: 9/1–21 の予定勤務日のうち **280人日に DTR 行が無い**（Dubai は13）。
+  原因未特定。`ADMIN`/BO ロールが打刻しないだけの可能性があるが**未検証**。
+- `Dipesh Thapa`（Dubai AM, ACTIVE）— 9/11〜18 の8日、シフトあり・DTR無し・欠勤記録無し・控除無し。
+- `Anthony Plaza` / `Anthony Ricaplaza` — Manila で同一人物が2名に分裂（DTR 31行 / 84行、
+  プロフィールは Plaza 側が is_active=False）。別名表 id=267 が逆向き。金額が動くので未修正。
+- 別名表 id=228 `Shawne Patrick Lozana` → `Patrick shawn lozana` も逆向き。
+- 自由入力のまま残した氏名欄: login / setup-pin / swap-approve（認証前・名簿の公開になる）、
+  requisition の `resigned_staff_name`（city がスコープに無い）。
