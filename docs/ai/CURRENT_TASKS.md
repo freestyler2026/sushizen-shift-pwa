@@ -30206,8 +30206,13 @@ Raj Deeban Jegan は staff_master 1行・profile 1行・9月DTR 18行（OT 3.00h
 - Manila: 9/1–21 の予定勤務日のうち **280人日に DTR 行が無い**（Dubai は13）。
   原因未特定。`ADMIN`/BO ロールが打刻しないだけの可能性があるが**未検証**。
 - `Dipesh Thapa`（Dubai AM, ACTIVE）— 9/11〜18 の8日、シフトあり・DTR無し・欠勤記録無し・控除無し。
-- `Anthony Plaza` / `Anthony Ricaplaza` — Manila で同一人物が2名に分裂（DTR 31行 / 84行、
-  プロフィールは Plaza 側が is_active=False）。別名表 id=267 が逆向き。金額が動くので未修正。
+- ~~`Anthony Plaza` / `Anthony Ricaplaza`~~ — **2026-09-22 マージ済み**
+  （`scripts/merge_anthony_plaza.py` / 336行リネーム・105行削除 /
+  退避 `_anthony_merge_bk_20260922_*` 19表）。原因は `staff_auth.original_name` が示すとおり
+  **改名が staff_auth までしか波及しなかった**ことと、別名表 id=267 の向きが逆で
+  改名後も旧姓を作り続けていたこと。削除は全て重複（DTR 31行は全日が実在行と衝突し
+  29行は空、残る2行の打刻は実在打刻と22秒・38秒差。給与は period 5 の重複明細で
+  gross が1センタボまで一致・全期間 `paid` 到達なし）。監査ログ7,359行は履歴なので不変更。
 - 別名表 id=228 `Shawne Patrick Lozana` → `Patrick shawn lozana` も逆向き。
 - 自由入力のまま残した氏名欄: login / setup-pin / swap-approve（認証前・名簿の公開になる）、
   requisition の `resigned_staff_name`（city がスコープに無い）。
