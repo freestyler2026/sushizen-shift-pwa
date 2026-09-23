@@ -1,5 +1,56 @@
 # CURRENT_TASKS.md
 
+## 2026-09-23 — Daily Inventory: カテゴリを選択式にし、並び替えできるようにした（本番稼働中）
+
+Yusuke からの相談「カテゴリ名が登録後に変更できず、アイテムも登録順でバラバラ」。
+
+**実測した状態**: カテゴリ **27個・うち9個は有効アイテム0**（`CK` 60件・`KITCHEN` 47件・
+`HOT_GRILL` 16件などが全部非有効）。`DRY_ITEMS`(有効20) と `DRY ITEMS`(0) と
+`DRY GOODS`(0) が併存、`#N/A` というカテゴリまである。
+**有効287件中86件が `sort_order = 999`** で、同点なので `item_code`（登録順）で並んでいた。
+
+**原因**: 登録フォームのカテゴリが**自由入力**（`addSection.trim().toUpperCase()`）。
+スタッフ名を選択式にしたのと同じ問題。
+
+**調べて分かった重要な点**: `section` は `daily_inv_report_items` のテキスト列だけで、
+**他のどのテーブルも持っていない**（`information_schema` 全件確認）。
+棚卸し記録 `daily_inv_entries`（42,375件）は **`item_code`** で紐づく。
+つまり**カテゴリ名を変えても履歴は1件も壊れない。** Hair Net の件とは逆。
+
+### 実装
+
+**新テーブル `daily_inv_sections`**（name / sort_order / is_active）。起動時ではなく
+`ensure_daily_inventory_tables()` で作られ、既存の27個から自動で seed。
+**有効アイテムが1つも無いカテゴリは `is_active=FALSE` で入る**ので、9個が自動的に
+選択肢から外れる（行は消さない）。
+
+- `list_daily_inv_items` は `LEFT JOIN daily_inv_sections` して**カテゴリ順**で返す。
+  ⚠️ 両テーブルに `is_active` と `sort_order` があるので、**WHERE 句を全部 `i.` で修飾**した。
+- `sort_order` を `UpdateItemInput` と `update_daily_inv_item` に追加（**これまで更新手段が皆無だった**）
+- 新API: `GET/POST /sections`、`POST /sections/rename`、`POST /sections/reorder`、`POST /items/reorder`
+- 並び順は **10, 20, 30…** で振り直す（後から間に挿せる）
+- フロント: カテゴリ見出しに **Rename ▲▼**、アイテム行に **▲▼** と **Move**、
+  追加フォームのカテゴリを **SelectDark**（`+ New category…` で新規作成）
+
+**統合の扱い**: 既存名へのリネームは**統合**。ダイアログで移動件数を明示し、
+「過去の記録は影響を受けない」ことも書く。**取り消しは無い**（どのアイテムがどちらから
+来たかを記録するものが無いため）。
+
+### 検証（本番で実際にボタンを押した）
+
+Yukihiro Nishimura でログイン → Manage Items。
+- カテゴリ順が **CENTRAL KITCHEN → CK**（新しい sort_order）で、アルファベット順ではない
+- Petron 50KG Gas の ▼ → Sugar と入れ替わり（`POST /items/reorder` → 200）→ ▲ で復元
+- 追加フォームのカテゴリが **19 of 19** の検索付きリスト。死んだ9カテゴリは出ない
+- コンソールに新規エラーなし
+
+**未検証**: Rename の実行（本番データを動かすので押していない）。API とダイアログ文言は実装済み。
+
+**未対応**: 既存の似た名前（`DRY ITEMS` → `DRY_ITEMS` など）の統合は現場判断なので
+こちらでは触っていない。画面から実行できる。
+
+---
+
 ## 2026-09-23 — CK Par Level: ドリンクの単位と米の単価（Yusuke回答を反映・適用済み）
 
 ### 1. 「1 CASE = 何 BTL」は誰も入力していなかった
