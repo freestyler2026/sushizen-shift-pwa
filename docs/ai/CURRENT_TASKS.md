@@ -1,5 +1,72 @@
 # CURRENT_TASKS.md
 
+## 2026-09-23 — CK Par Level: ドリンクの単位と米の単価（Yusuke回答を反映・適用済み）
+
+### 1. 「1 CASE = 何 BTL」は誰も入力していなかった
+
+画面に入力欄を作り、Yusuke に依頼したが、`unit_size` は**6行すべて空のまま**だった。
+そして**その数字は品名にそのまま書いてある**（`Coke Mismo (290ml) 12pcs/case`）。
+**システムが知っていることを人に打たせていた**（設計思想の#8）。
+
+品名から正規表現で読み、6行に書き込んだ。**推測はしていない** —
+`[0-9]+\s*(pcs?|btl)\s*/\s*case` に一致した行だけで、par の単位が CASE で
+ないものはスキップする。
+
+| 品目 | 1 CASE |
+|---|---|
+| Coke Mismo / Sprite Mismo / Mountain Dew / Royal | 12 BTL |
+| Water Summit / Pineapple Juice ACE | 24 BTL |
+
+効果（実コードパスで確認）: `12.0 BTL → 1.0 CASE`、Coke Mismo は par 3 に対し
+**2箱不足**と出るようになった（以前は「3 − 12 = −9、OK」で発注から消えていた）。
+
+⚠️ **par のある167行のうち、名前から読めるのは8行だけ。** 残りは
+`SALT 1 SACK ↔ 25 KG` のように**名前が入り数ではなく内容量**を持っている
+（`Wasabi Powder 1KG` など）。**そこは人に聞くしかない。**
+名前から読める形（`Npcs/case`）だけを自動化の対象にすること。
+
+**未実装**: 登録・取込の時点で名前から `unit_size` を既定値にする。
+今回は6行を手で埋めただけなので、次に同じ形の品が増えたらまた空になる。
+
+### 2. 米が実際と違う仕入先の単価で計上されていた
+
+| | |
+|---|---|
+| par 行 | `King Crab Rice 25KG` / Sack / 仕入先 Restaurant Depot |
+| カタログ | `King Crab **Japanese** Rice 25KG` @ Restaurant Depot / **PCS** / 1,430 |
+
+**品名が違うので仕入先一致で引けず**、品名だけで引いた結果
+**Better mart の ₱1,550** が使われていた。実際の仕入は Restaurant Depot ₱1,430
+（Yusuke 確認・Cartimar 1,450〜1,500 より安く、Invoice が出るため）。
+**1袋あたり ₱120 高く見積もっていた**（6月以降38回・₱262,700 の品目）。
+
+対応: par 行の `catalog_item_name` に正式名を入れて紐づけ、カタログ側の
+単位 **PCS → SACK** を修正。確認後は `1430.0 / supplier` で引けている。
+
+### 3. Restaurant Depot に価格を登録（Yusuke回答）
+
+- Pineapple Juice ACE 24pcs / Case → **₱744.00 / CASE**
+- Water Summit (500ml) 24pcs/case → **₱240.00 / CASE**
+
+バックアップ `_ckpar_bk_20260923` / `_catalog_bk_20260923`。
+⚠️ `proc_curated_catalog_items.id` に **DEFAULT が無い**（UUID を呼び出し側が渡す）。
+INSERT では `gen_random_uuid()` を明示すること。最初これで NotNullViolation。
+
+### 4. 残っている穴
+
+**Coke Mismo / Sprite Mismo / Mountain Dew / Royal の4品は依然 `not_in_catalog`。**
+Restaurant Depot の価格を聞いていなかった（質問したのは2品だけ）。
+このまま発注すると**単価0円**。旧 SUY Sing 価格は 199.95 / 199.95 / 199.00 / 199.95。
+
+**ビール3品**（Red Horse / San Miguel Light / Pilsen）は par 未設定・直近の購入実績なし・
+SUY Sing は9/18に無効化済み。Yusuke の提示は旧 SUY Sing 価格で、現在の仕入先は無い。
+⚠️ カタログの San Miguel Light / Pilsen は **1,235.20** だが Yusuke は **1,235.00**。
+1,235.20 は Red Horse の価格。ただし全行 inactive・購入実績なしなので触っていない。
+Red Horse のカタログ行は `Red **Hourse** (330ml) 24pcs/case` と綴られており、
+par 行の `catalog_item_name` もその綴りで一致している（動作はする）。
+
+---
+
 ## 2026-09-23 — ドバイの入社日を資料から取り込んだ（5件 → 62件）
 
 日割りの自動化に必要な入社日が **68名中5名**しか入っていなかった。
