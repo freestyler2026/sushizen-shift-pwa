@@ -48,13 +48,44 @@ Dipesh Thapa      交通費のみ 控除 110.00  支給 1,251.88
 つまり**電話番号を直すためにパネルを開いて保存しただけで、入社日と職位が消える。**
 Sangita に入社日があって職位が無いのはこれ。
 
-修正: 4列を SELECT と返却 dict に追加。本番で確認
-（`hire_date = ''` → **`'2026-09-19'`**）。職位はバグで消えた分なので再入力が要る。
+**修正は2段階**:
+
+1. `get_staff_master_row` の SELECT と返却 dict に4列を追加
+   （本番確認: `hire_date = ''` → **`'2026-09-19'`**）
+2. **Staff Roster の保存が「変わった項目だけ」を送るようにした。**
+   API は `StaffDetailsReq` 全項目 Optional で「送らなければ据え置き・`""` は消去」。
+   フロントが全項目を `?? ""` で送っていたので、**保存のたびに画面が持っている値で
+   レコード全体を書き直していた。** Employment Details ページは最初から
+   「定義された項目だけ送る」実装で、そちらは無事だった。
+
+**本番で往復させて証明**（`TestClient`・Sangita）:
+
+```
+新しい送り方（position だけ）  → position 保存、hired_at と生年月日は無傷
+古い送り方（全項目を空で送る）→ hired_at = None、date_of_birth = None  ← 再現
+```
+
+画面でも確認（Details パネル）: 入社日 2026-09-19 / 生年月日 1995-09-14 /
+職位 Kitchen Helper が表示される。Sangita のレコードは復旧済み。
+
+**監査ログも道連れになっていた**: `before = get_staff_master_row(name)` なので、
+消えた4項目の「変更前の値」は全件 空で記録されていた。**何が失われたかを
+記録すべきログが、同じ欠落で答えられなかった。** 今後は記録される。
+
+**被害範囲**: `staff_details_updated` は全期間で **12件のみ**（Bibek Tamang 8・
+Sangita 2・Mohan 1・Jeffril 1）。ドバイ68名の職位は全員空だが、監査ログ上
+「値があったものが消えた」証跡は無く、**そもそも入力が成功していなかった**
+側の可能性が高い。マニラは12名に職位あり。
 
 ⚠️ `.get()` が欠けたキーを静かに None にする形。**テストでは `[]` で取る。**
 
-⚠️ **未修正**: `get_staff_master_row` は `WHERE staff_name = ... LIMIT 1` で**都市を見ない**。
-同名が2都市にいると任意の行が返る。今回の原因ではないが潜在バグ。
+**`get_staff_master_row` の非決定性も直した**: `WHERE staff_name = ... LIMIT 1` に
+`ORDER BY is_active DESC NULLS LAST, city ASC` を追加。**同名は現在0件**
+（137名で確認）なので今回の原因ではないが、プランに依存する答えは答えではない。
+
+**Cyrine のもう一つの質問への答え**: `/admin/staff/employment-details` は
+**「職位・入社日・会社のどれかが欠けている人」を支店ごとに出す作業リスト**で、
+氏名検索は無い。誰でも編集できるのは **Staff Roster の Details**。
 
 ### 残り
 
