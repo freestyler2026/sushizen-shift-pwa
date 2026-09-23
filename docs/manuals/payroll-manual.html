@@ -1054,6 +1054,17 @@ td.muted{color:var(--muted);font-size:12px}
       <span class="tip-icon">ℹ️</span>
       <span data-en="Late / absent / undertime penalties are computed from daily_rate (which uses basic_salary / 26), not from gross. This means allowances are never penalized." data-ja="遅刻・欠勤・早退ペナルティはdaily_rate（basic_salary / 26を使用）から計算され、総支給額からではありません。つまり手当はペナルティ対象になりません。">Penalties use daily_rate = basic_salary / 26, not gross — allowances are never penalized.</span>
     </div>
+
+    <div class="formula-label" style="margin-top:14px" data-en="Hourly engagements (part-timers)" data-ja="時給契約（パートタイマー）">Hourly engagements (part-timers)</div>
+    <div class="formula-box">basic_salary = paid_hours &times; hourly_rate<br>paid_hours = regular_hours + MAX(overtime_hours &minus; approved_ot_hours, 0)&nbsp;&nbsp;<span class="muted">per day, summed over the cycle month</span></div>
+    <div class="tip danger" style="margin-top:8px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Where a salary config has hourly_rate &gt; 0, the stored basic_salary is IGNORED — the figure is read from that month's DTR every time the payroll table is opened and again when the run is frozen. Typing a basic_salary for these staff has no effect. Staff on a monthly salary have hourly_rate = 0 and are never touched by this." data-ja="給与設定の hourly_rate が 0 より大きいスタッフは、登録されている basic_salary は無視されます。給与テーブルを開くたび、また確定時にも、その月の DTR から金額を読み直します。この人たちに basic_salary を入力しても効果はありません。月給制スタッフは hourly_rate = 0 なので一切影響を受けません。">Where hourly_rate &gt; 0 the stored basic_salary is IGNORED — the figure is read from that month&rsquo;s DTR. Typing one has no effect. Monthly staff (hourly_rate = 0) are untouched.</span>
+    </div>
+    <div class="tip info" style="margin-top:8px;margin-bottom:0">
+      <span class="tip-icon">ℹ️</span>
+      <span data-en="Approved overtime is excluded from paid_hours because the adjustment engine already pays it separately at 1.25×; counting it here as well would pay those hours at 2.25×. Overtime with no approved request is still time worked, so it is paid here at the plain rate." data-ja="承認済み残業は paid_hours から除きます。調整エンジンが別途 1.25 倍で支払うため、ここでも数えると 2.25 倍になってしまいます。申請の無い残業も実際に働いた時間なので、ここで通常の時給で支払われます。">Approved OT is excluded — the engine already pays it at 1.25&times;, so counting it here too would pay 2.25&times;. Unapproved OT is still time worked and is paid here at the plain rate.</span>
+    </div>
   </div>
 </div>
 
