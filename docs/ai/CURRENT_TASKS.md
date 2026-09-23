@@ -1,5 +1,72 @@
 # CURRENT_TASKS.md
 
+## 2026-09-23 — 上の Daily Inventory 実装を自己検証したら、12件欠陥が出た（全件修正・本番確認済み）
+
+オーナーの「詳しく調査し問題ないか確認して」を受けて、自分の変更を敵対的にレビューした
+（Agent に「間違いを探せ、同意するな」と渡し、指摘は全て本体で裏取り）。
+
+### 🔴 一番大きい見落とし：直した画面が違った
+
+`AdminDailyInventoryTab.tsx` には**カテゴリでグループ化するコンポーネントが3つ**ある。
+
+```
+216行  ReportDetailView       sections(457行・.sort()なし) → API順  ✓
+895行  ItemMasterView         sections(1501行・修正した)    → カテゴリ順 ✓
+2047行 AdminDailyInventoryTab ← キッチンが数量を入力する画面
+       sections(2422行・plain .sort())                    → アルファベット順 ❌
+```
+
+**私はブラウザで Manage Items だけを見て「動いている」と報告した。**
+Yusuke の依頼は入力画面の並びで、そこには届いていなかった。
+`orderSections()` を1つにして両方から呼ぶ形にした。
+
+⚠️ **検証の罠**: seed が `row_number() OVER (ORDER BY section)` で採番しているので、
+**現在の並び順はアルファベット順と完全に一致している。** そのまま画面を見ても
+直ったかどうか分からない。DRINK を先頭に動かして画面が追随することを確認し、
+元の27件の並びに戻した（`restored exactly: True`）。**失敗しうる検証でなければ検証ではない。**
+
+### 🔴 在庫が数えられなくなる経路を持ち込んでいた
+
+入力画面は `CK_INTERNAL_SECTIONS`（INGREDIENTS / KITCHEN / VEGETABLE など7つ）を
+**両タブで除外**する（2208-2209行）。追加した「Move to…」はタブでフィルタしておらず、
+**選んだ瞬間そのアイテムが日次棚卸しから消える**。警告も無かった。
+CK内部アイテムには正当な移動先なので、禁止ではなく**確認を出す**形にした。Rename も同じ。
+
+### 🔴 並び順は隣のボタン3つで消えていた
+
+`Import Excel`（全行 `sort_order: 999` を書く）/ `Sync Warehouse` / seed が
+すべて `sort_order = EXCLUDED.sort_order` で上書きしていた。
+**ON CONFLICT の SET から外した** — 新規行は渡された値を使い、既存行は人が決めた順を保つ。
+本番で seed を往復させ、`sort_order` が残り他の列は更新されることを確認。
+
+### その他9件（すべて修正済み）
+
+| # | 内容 |
+|---|---|
+| 4 | 追加フォームでカテゴリ未選択が通り、**存在しない `CK_ITEMS`** を新設していた → 必須に |
+| 5 | 非提供カテゴリへの統合で、生きたアイテムが選べないカテゴリに入る。**UIから再有効化する手段が無い**（画面が `POST /sections` を呼んでいない）→ 統合先に生きたアイテムが来たら自動で有効化 |
+| 6 | `reorder_daily_inv_items` が表示中タブ分しか採番せず、残りと**番号が衝突して互いの順序を壊す**。`KITCHEN` は ck/supplier/warehouse の47件 → 残りを相対順のまま後ろに続けて採番 |
+| 7 | Rename ダイアログの件数が現在タブ分だけ。**件数を伝えるのが目的のダイアログが過少申告** → カテゴリ一覧の `total_items` から取る |
+| 8 | `reorder_daily_inv_sections` が `len(names)` を返し、**0件更新でも成功**（教訓15を引用した週に同じ形を書いた）→ rowcount |
+| 9 | `upsert_daily_inv_section` の `COALESCE(EXCLUDED.sort_order, …)` が死んでいた（EXCLUDED 側が既に `COALESCE(%s,999)` で NULL にならない）→ 生パラメータに |
+| 10 | `create` / `update` が `section.upper()` だけで空白を畳まず、`DRY␣␣GOODS` を作ると**二度とリネームも並び替えもできない** → `_clean_section` に統一（フロントの入力も畳む） |
+| 11 | 新カテゴリ作成後に `loadSections()` を呼ばず、次のアイテムで選べない → 追加 |
+| 12 | `fmtSection` が `DRY_ITEMS` と `DRY ITEMS` を同じ "Dry Items" と表示 → 曖昧なときは生の名前を出す |
+
+**問題が無いと確認できた箇所**: JOIN の行数（536→536）、`name` の UNIQUE PK、
+`section` が NULL/空の行は0件、返却キー不変、`ensure` の冪等性とフラグ位置（commit 後）、
+起動フックに乗っていない、ルート衝突なし、権限、トランザクション、rename の拒否条件、
+HTTP 境界（200 / 400 / 401）。
+
+⚠️ **検証の副作用**: `KITCHEN` の47件が 999 → 10〜470 に採番された（全件 非有効・
+元々順序が無かったので実害なし）。`COLD_SECTION` の1件は unit を往復させて元に戻した。
+
+⚠️ **教訓85の再確認**: 検証スクリプトが読み取りトランザクションを開いたままだと、
+`ensure_daily_inventory_tables()` の `ALTER TABLE` が ACCESS EXCLUSIVE を取れず
+`statement timeout` で落ちる。検証側は `autocommit = True` にする。
+
+---
+
 ## 2026-09-23 — Daily Inventory: カテゴリを選択式にし、並び替えできるようにした（本番稼働中）
 
 Yusuke からの相談「カテゴリ名が登録後に変更できず、アイテムも登録順でバラバラ」。
