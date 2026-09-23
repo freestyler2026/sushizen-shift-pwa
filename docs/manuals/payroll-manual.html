@@ -1065,6 +1065,10 @@ td.muted{color:var(--muted);font-size:12px}
       <span class="tip-icon">ℹ️</span>
       <span data-en="Approved overtime is excluded from paid_hours because the adjustment engine already pays it separately at 1.25×; counting it here as well would pay those hours at 2.25×. Overtime with no approved request is still time worked, so it is paid here at the plain rate." data-ja="承認済み残業は paid_hours から除きます。調整エンジンが別途 1.25 倍で支払うため、ここでも数えると 2.25 倍になってしまいます。申請の無い残業も実際に働いた時間なので、ここで通常の時給で支払われます。">Approved OT is excluded — the engine already pays it at 1.25&times;, so counting it here too would pay 2.25&times;. Unapproved OT is still time worked and is paid here at the plain rate.</span>
     </div>
+    <div class="tip danger" style="margin-top:8px;margin-bottom:0">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="No penalty is charged against an hourly engagement. Lateness, undertime, absence and the missing-punch fee are all skipped where hourly_rate &gt; 0: the hours come from the span between the punches, so time the person was not there is already outside what is being paid, and deducting it would charge them twice. The minutes stay on the attendance row — this changes what a minute costs, not whether it happened. Break excess is the one deduction that remains, because a break longer than the roster&rsquo;s sits INSIDE the clocked span and is therefore being paid." data-ja="時給契約にはペナルティを課しません。hourly_rate &gt; 0 のスタッフには遅刻・早退・欠勤・打刻漏れ手数料のいずれも適用されません。支給時間は打刻の間隔から出るので、いなかった時間は最初から支給に入っておらず、控除すれば二重取りになります。分数は勤怠記録に残ります（変わるのは1分の金額であって、遅刻した事実ではありません）。休憩超過だけは残ります — シフトより長い休憩は打刻の間隔の内側にあり、支払われてしまっているためです。">No penalty is charged against an hourly engagement: lateness, undertime, absence and the missing-punch fee are skipped where hourly_rate &gt; 0, because that time is already outside the hours being paid. Break excess remains — it sits inside the clocked span.</span>
+    </div>
   </div>
 </div>
 
