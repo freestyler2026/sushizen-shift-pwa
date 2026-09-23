@@ -925,6 +925,8 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   const [renameVal, setRenameVal] = useState("");
   const [sectionBusy, setSectionBusy] = useState(false);
   const [movingCode, setMovingCode] = useState<string | null>(null);
+  const [posCode, setPosCode] = useState<string | null>(null);
+  const [posVal, setPosVal] = useState("");
 
   // Add item form
   const [addOpen, setAddOpen] = useState(false);
@@ -1077,6 +1079,30 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
         body: JSON.stringify({ section: sec, item_codes: order }),
       });
       if (!res.ok) throw new Error((await res.text()) || "Reorder failed");
+      await loadItems();
+    } catch (e) { setError(e instanceof Error ? e.message : "Reorder failed"); }
+    finally { setSectionBusy(false); }
+  }
+
+  async function handleMoveItemToPosition(sec: string, code: string, raw: string) {
+    // One arrow per place is fine for a nudge and useless for the real job:
+    // INGREDIENTS holds 57 items, so bringing one to the top is 56 clicks.
+    // Typing the position moves it in two taps, with no drag library.
+    const order = items.filter((i) => i.section === sec).map((i) => i.item_code);
+    const from = order.indexOf(code);
+    const want = parseInt(raw, 10);
+    if (from < 0 || !Number.isFinite(want)) { setPosCode(null); return; }
+    const to = Math.max(0, Math.min(order.length - 1, want - 1));
+    if (to === from) { setPosCode(null); return; }
+    order.splice(to, 0, ...order.splice(from, 1));
+    setSectionBusy(true); setError("");
+    try {
+      const res = await apiFetch("/api/daily-inventory/items/reorder", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: sec, item_codes: order }),
+      });
+      if (!res.ok) throw new Error((await res.text()) || "Reorder failed");
+      setPosCode(null);
       await loadItems();
     } catch (e) { setError(e instanceof Error ? e.message : "Reorder failed"); }
     finally { setSectionBusy(false); }
@@ -1682,7 +1708,11 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                 <SelectDark
                   value={addSection}
                   onChange={(v) => { if (v === "__new__") { setAddSectionNew(true); setAddSection(""); } else setAddSection(v); }}
-                  options={[...offeredSections, { value: "__new__", label: "+ New category…" }]}
+                  options={[
+                    ...offeredSections.map((n) => ({ value: n,
+                      label: isCkInternalSection(n) ? `${n} — not on the count form` : n })),
+                    { value: "__new__", label: "+ New category…" },
+                  ]}
                   placeholder="— Select —"
                   aria-label="Category"
                 />
@@ -1746,6 +1776,15 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
               ) : (
                 <div className="flex items-center gap-1.5">
                   <h3 className={T_SECTION}>{sectionLabel(sec, sections)}</h3>
+                  {isCkInternalSection(sec) && (
+                    // 106 of the 287 live items sit in one of these. Arranging
+                    // them changes nothing on the screen the kitchen fills in,
+                    // and until this badge there was no way to know that.
+                    <span
+                      className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
+                      title="The Daily Inventory form hides this category on every tab. Items here are counted in CK Inventory instead."
+                    >not on the count form</span>
+                  )}
                   <button
                     onClick={() => { setRenameFrom(sec); setRenameVal(sec); }}
                     className="rounded-lg px-2 py-0.5 text-xs text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
@@ -1776,7 +1815,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {secItems.map((item) => (
+                  {secItems.map((item, idx) => (
                     <tr key={item.item_code} className={`${TABLE_ROW} ${!item.is_active ? "opacity-40" : ""}`}>
                       <td className={`${TABLE_CELL} px-4`}>
                         <div className="flex items-start gap-2">
@@ -1790,6 +1829,27 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                               className="leading-none px-1 text-[10px] text-zinc-600 hover:text-zinc-200"
                               title="Move down">▼</button>
                           </div>
+                          {posCode === item.item_code ? (
+                            <input
+                              type="number" min={1} max={secItems.length}
+                              value={posVal}
+                              onChange={(e) => setPosVal(e.target.value)}
+                              onBlur={() => void handleMoveItemToPosition(sec, item.item_code, posVal)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") void handleMoveItemToPosition(sec, item.item_code, posVal);
+                                if (e.key === "Escape") setPosCode(null);
+                              }}
+                              aria-label={`Position of ${item.item_name} in ${sec}`}
+                              className="w-12 rounded-lg border border-violet-500/40 bg-violet-500/10 px-1 py-0.5 text-center text-xs text-white focus:outline-none"
+                              autoFocus
+                            />
+                          ) : (
+                            <button
+                              onClick={() => { setPosCode(item.item_code); setPosVal(String(idx + 1)); }}
+                              className="rounded-lg px-1 py-0.5 text-xs tabular-nums text-zinc-600 hover:bg-white/5 hover:text-zinc-200"
+                              title={`Position ${idx + 1} of ${secItems.length} — click to type a new one`}
+                            >#{idx + 1}</button>
+                          )}
                           <div>
                             <div className="font-medium text-zinc-200">{item.item_name}</div>
                             <div className="text-xs text-zinc-600">{item.item_code}</div>
@@ -1932,7 +1992,10 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                             <SelectDark
                               value=""
                               onChange={(v) => void handleMoveItemToSection(item.item_code, v)}
-                              options={offeredSections.filter((n) => n !== item.section)}
+                              options={offeredSections
+                                .filter((n) => n !== item.section)
+                                .map((n) => ({ value: n,
+                                  label: isCkInternalSection(n) ? `${n} — not on the count form` : n }))}
                               placeholder="Move to…"
                               aria-label={`Move ${item.item_name} to another category`}
                               className="w-40"
