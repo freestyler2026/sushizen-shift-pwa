@@ -7,6 +7,7 @@ import {
   Plus, Trash2, Settings2, Loader2, RefreshCw, Package,
 } from "lucide-react";
 
+import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import {
   GLASS_CARD,
@@ -62,6 +63,14 @@ const CK_INTERNAL_SECTIONS = new Set([
 ]);
 const isCkInternalSection = (section: string) =>
   CK_INTERNAL_SECTIONS.has((section || "").toUpperCase().replace(/_/g, " ").trim());
+
+type InvSection = {
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  live_items: number;
+  total_items: number;
+};
 
 const SOURCE_SECTION_LABELS: Record<string, string> = {
   COLD_SUSHI:      "Cold Sushi",
@@ -891,10 +900,19 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   const [msg, setMsg] = useState("");
   const [seeding, setSeeding] = useState(false);
 
+  // Categories. The list is the master: what may be picked, in what order it
+  // shows. Items still carry the name as text, so nothing downstream changed.
+  const [sectionList, setSectionList] = useState<InvSection[]>([]);
+  const [renameFrom, setRenameFrom] = useState<string | null>(null);
+  const [renameVal, setRenameVal] = useState("");
+  const [sectionBusy, setSectionBusy] = useState(false);
+  const [movingCode, setMovingCode] = useState<string | null>(null);
+
   // Add item form
   const [addOpen, setAddOpen] = useState(false);
   const [addName, setAddName] = useState("");
   const [addSection, setAddSection] = useState("");
+  const [addSectionNew, setAddSectionNew] = useState(false);
   const [addUnit, setAddUnit] = useState("KG");
   const [addMinLevel, setAddMinLevel] = useState("");
   const [addParLevel, setAddParLevel] = useState("");
@@ -956,7 +974,102 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     } finally { setLoading(false); }
   }
 
-  useEffect(() => { void loadItems(); }, [sourceFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function loadSections() {
+    try {
+      const res = await apiFetch("/api/daily-inventory/sections");
+      if (!res.ok) return;                     // the list still works without it
+      const data = JSON.parse(await res.text()) as InvSection[];
+      setSectionList(Array.isArray(data) ? data : []);
+    } catch { /* ordering falls back to alphabetical */ }
+  }
+
+
+  async function handleRenameSection(from: string) {
+    const to = renameVal.trim().toUpperCase().replace(/\s+/g, " ");
+    if (!to || to === from) { setRenameFrom(null); return; }
+    const merging = sectionList.some((x) => x.name === to);
+    const count = items.filter((i) => i.section === from).length;
+    // Name the consequence before it happens. Afterwards nothing knows which
+    // items arrived from where, so "are you sure" on its own would be a trap.
+    const ok = window.confirm(
+      merging
+        ? `${to} already exists.\n\nThis MERGES ${from} into ${to}: ${count} item(s) move across and ${from} disappears.\nThere is no undo that knows which items came from where.\n\nContinue?`
+        : `Rename ${from} to ${to}?\n\n${count} item(s) move with it. Past inventory records are not affected — they are tied to the item code, not the category.`
+    );
+    if (!ok) return;
+    setSectionBusy(true); setError("");
+    try {
+      const res = await apiFetch("/api/daily-inventory/sections/rename", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from_name: from, to_name: to }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Rename failed");
+      const d = JSON.parse(text) as { items_moved: number; merged: boolean };
+      setMsg(d.merged
+        ? `Merged ${from} into ${to} — ${d.items_moved} item(s) moved.`
+        : `Renamed ${from} to ${to} — ${d.items_moved} item(s) moved.`);
+      setRenameFrom(null);
+      await loadItems(); await loadSections();
+    } catch (e) { setError(e instanceof Error ? e.message : "Rename failed"); }
+    finally { setSectionBusy(false); }
+  }
+
+  async function handleMoveSection(name: string, dir: -1 | 1) {
+    // Reorder against the full list, not the categories this tab happens to
+    // show: the endpoint renumbers what it is given, and renumbering a subset
+    // would drop the rest on top of them.
+    const order = sectionList.map((x) => x.name);
+    const i = order.indexOf(name);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    setSectionBusy(true); setError("");
+    try {
+      const res = await apiFetch("/api/daily-inventory/sections/reorder", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ names: order }),
+      });
+      if (!res.ok) throw new Error((await res.text()) || "Reorder failed");
+      await loadSections();
+    } catch (e) { setError(e instanceof Error ? e.message : "Reorder failed"); }
+    finally { setSectionBusy(false); }
+  }
+
+  async function handleMoveItem(sec: string, code: string, dir: -1 | 1) {
+    const order = items.filter((i) => i.section === sec).map((i) => i.item_code);
+    const i = order.indexOf(code);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    [order[i], order[j]] = [order[j], order[i]];
+    setSectionBusy(true); setError("");
+    try {
+      const res = await apiFetch("/api/daily-inventory/items/reorder", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: sec, item_codes: order }),
+      });
+      if (!res.ok) throw new Error((await res.text()) || "Reorder failed");
+      await loadItems();
+    } catch (e) { setError(e instanceof Error ? e.message : "Reorder failed"); }
+    finally { setSectionBusy(false); }
+  }
+
+  async function handleMoveItemToSection(code: string, to: string) {
+    if (!to) { setMovingCode(null); return; }
+    setSectionBusy(true); setError("");
+    try {
+      const res = await apiFetch(`/api/daily-inventory/items/${encodeURIComponent(code)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ section: to }),
+      });
+      if (!res.ok) throw new Error((await res.text()) || "Move failed");
+      setMovingCode(null);
+      await loadItems(); await loadSections();
+    } catch (e) { setError(e instanceof Error ? e.message : "Move failed"); }
+    finally { setSectionBusy(false); }
+  }
+
+  useEffect(() => { void loadItems(); void loadSections(); }, [sourceFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (sourceFilter !== "supplier") return;
@@ -1363,7 +1476,15 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     }
   }
 
-  const sections = [...new Set(items.map((i) => i.section))].sort();
+  // The category list decides the order. A category that is on an item but
+  // not yet in the list sorts last rather than vanishing -- an import can
+  // still make one, and a row the screen refuses to show is worse than a
+  // row in the wrong place.
+  const sectionRank = new Map(sectionList.map((x, idx) => [x.name, idx]));
+  const sections = [...new Set(items.map((i) => i.section))].sort(
+    (a, b) => (sectionRank.get(a) ?? 9999) - (sectionRank.get(b) ?? 9999) || a.localeCompare(b)
+  );
+  const offeredSections = sectionList.filter((x) => x.is_active).map((x) => x.name);
   const retiredCount = items.filter((i) => !i.is_active && i.item_name.startsWith("[Retired]")).length;
 
   return (
@@ -1509,9 +1630,24 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
               <input type="text" value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. Tonkotsu Broth" className={INPUT_CLASS} />
             </div>
             <div>
-              <label className={`${T_LABEL} mb-1 block`}>Section</label>
-              <input type="text" value={addSection} onChange={(e) => setAddSection(e.target.value)}
-                placeholder={sourceFilter === "ck" ? "HOT_RAMEN" : "SUPPLIER"} className={INPUT_CLASS} />
+              <label className={`${T_LABEL} mb-1 block`}>Category</label>
+              {addSectionNew ? (
+                <div className="flex items-center gap-1">
+                  <input type="text" value={addSection} onChange={(e) => setAddSection(e.target.value)}
+                    placeholder={sourceFilter === "ck" ? "HOT_RAMEN" : "SUPPLIER"}
+                    aria-label="New category name" className={INPUT_CLASS} autoFocus />
+                  <button type="button" onClick={() => { setAddSectionNew(false); setAddSection(""); }}
+                    className="px-1 text-xs text-zinc-500 hover:text-zinc-300" title="Pick an existing category instead">✕</button>
+                </div>
+              ) : (
+                <SelectDark
+                  value={addSection}
+                  onChange={(v) => { if (v === "__new__") { setAddSectionNew(true); setAddSection(""); } else setAddSection(v); }}
+                  options={[...offeredSections, { value: "__new__", label: "+ New category…" }]}
+                  placeholder="— Select —"
+                  aria-label="Category"
+                />
+              )}
             </div>
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Unit</label>
@@ -1549,8 +1685,40 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
         const secItems = items.filter((i) => i.section === sec);
         return (
           <div key={sec} className={GLASS_CARD}>
-            <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
-              <h3 className={T_SECTION}>{fmtSection(sec)}</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 px-5 py-3">
+              {renameFrom === sec ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={renameVal}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleRenameSection(sec); if (e.key === "Escape") setRenameFrom(null); }}
+                    className="w-52 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-sm text-white focus:outline-none"
+                    aria-label={`New name for ${sec}`}
+                    autoFocus
+                  />
+                  <button onClick={() => void handleRenameSection(sec)} disabled={sectionBusy}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20">
+                    {sectionBusy ? "…" : "✓"}
+                  </button>
+                  <button onClick={() => setRenameFrom(null)} className="px-1 text-xs text-zinc-500 hover:text-zinc-300">✕</button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <h3 className={T_SECTION}>{fmtSection(sec)}</h3>
+                  <button
+                    onClick={() => { setRenameFrom(sec); setRenameVal(sec); }}
+                    className="rounded-lg px-2 py-0.5 text-xs text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
+                    title="Rename this category. Past records are not affected."
+                  >Rename</button>
+                  <button onClick={() => void handleMoveSection(sec, -1)} disabled={sectionBusy}
+                    className="rounded-lg px-1.5 py-0.5 text-xs text-zinc-600 hover:bg-white/5 hover:text-zinc-200"
+                    title="Move this category up">▲</button>
+                  <button onClick={() => void handleMoveSection(sec, 1)} disabled={sectionBusy}
+                    className="rounded-lg px-1.5 py-0.5 text-xs text-zinc-600 hover:bg-white/5 hover:text-zinc-200"
+                    title="Move this category down">▼</button>
+                </div>
+              )}
               <span className="text-xs text-zinc-500">{secItems.length} items</span>
             </div>
             <div className="overflow-x-auto">
@@ -1571,8 +1739,22 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                   {secItems.map((item) => (
                     <tr key={item.item_code} className={`${TABLE_ROW} ${!item.is_active ? "opacity-40" : ""}`}>
                       <td className={`${TABLE_CELL} px-4`}>
-                        <div className="font-medium text-zinc-200">{item.item_name}</div>
-                        <div className="text-xs text-zinc-600">{item.item_code}</div>
+                        <div className="flex items-start gap-2">
+                          <div className="flex flex-col pt-0.5">
+                            <button onClick={() => void handleMoveItem(sec, item.item_code, -1)}
+                              disabled={sectionBusy}
+                              className="leading-none px-1 text-[10px] text-zinc-600 hover:text-zinc-200"
+                              title="Move up">▲</button>
+                            <button onClick={() => void handleMoveItem(sec, item.item_code, 1)}
+                              disabled={sectionBusy}
+                              className="leading-none px-1 text-[10px] text-zinc-600 hover:text-zinc-200"
+                              title="Move down">▼</button>
+                          </div>
+                          <div>
+                            <div className="font-medium text-zinc-200">{item.item_name}</div>
+                            <div className="text-xs text-zinc-600">{item.item_code}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className={`${TABLE_CELL} px-3 text-center`}>
                         {editUnitCode === item.item_code ? (
@@ -1705,11 +1887,31 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                         </button>
                       </td>
                       <td className={`${TABLE_CELL} px-4 text-center`}>
-                        {item.is_active && (
-                          <button onClick={() => void handleDelete(item.item_code, item.item_name)}
-                            className="rounded-lg p-1.5 text-zinc-600 hover:bg-red-500/10 hover:text-red-400">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        {movingCode === item.item_code ? (
+                          <div className="flex items-center gap-1">
+                            <SelectDark
+                              value=""
+                              onChange={(v) => void handleMoveItemToSection(item.item_code, v)}
+                              options={offeredSections.filter((n) => n !== item.section)}
+                              placeholder="Move to…"
+                              aria-label={`Move ${item.item_name} to another category`}
+                              className="w-40"
+                            />
+                            <button onClick={() => setMovingCode(null)}
+                              className="px-1 text-xs text-zinc-500 hover:text-zinc-300">✕</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={() => setMovingCode(item.item_code)}
+                              className="rounded-lg px-2 py-1 text-[11px] text-zinc-600 hover:bg-white/5 hover:text-zinc-200"
+                              title="Move to another category">Move</button>
+                            {item.is_active && (
+                              <button onClick={() => void handleDelete(item.item_code, item.item_name)}
+                                className="rounded-lg p-1.5 text-zinc-600 hover:bg-red-500/10 hover:text-red-400">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>
