@@ -64,6 +64,24 @@ const CK_INTERNAL_SECTIONS = new Set([
 const isCkInternalSection = (section: string) =>
   CK_INTERNAL_SECTIONS.has((section || "").toUpperCase().replace(/_/g, " ").trim());
 
+// The category list decides the order on every screen that groups by
+// category. Defined once: the count form and the Item Master disagreeing
+// about the order is the whole thing this was meant to fix.
+function orderSections(sectionNames: string[], list: InvSection[]): string[] {
+  const rank = new Map(list.map((x, idx) => [x.name, idx]));
+  return [...new Set(sectionNames)].sort(
+    (a, b) => (rank.get(a) ?? 9999) - (rank.get(b) ?? 9999) || a.localeCompare(b)
+  );
+}
+
+// Two categories can render to the same pretty label (DRY_ITEMS and DRY ITEMS
+// both read "Dry Items"), which is exactly the pair someone is trying to merge.
+// Show the stored name when the label would not tell them apart.
+function sectionLabel(sec: string, all: string[]): string {
+  const pretty = fmtSection(sec);
+  return all.some((o) => o !== sec && fmtSection(o) === pretty) ? sec : pretty;
+}
+
 type InvSection = {
   name: string;
   sort_order: number;
@@ -988,13 +1006,23 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     const to = renameVal.trim().toUpperCase().replace(/\s+/g, " ");
     if (!to || to === from) { setRenameFrom(null); return; }
     const merging = sectionList.some((x) => x.name === to);
-    const count = items.filter((i) => i.section === from).length;
+    // From the category list, not from `items`: this tab holds one source
+    // type, and the rename moves every item in the category. Counting what is
+    // on screen would under-report in the dialog whose job is the count.
+    const count = sectionList.find((x) => x.name === from)?.total_items
+      ?? items.filter((i) => i.section === from).length;
+    // The count form hides these categories on every tab, so items renamed
+    // into one stop being counted. Nothing else on this screen would say so.
+    const leavesTheCount = isCkInternalSection(to) && !isCkInternalSection(from);
+    const countWarning = leavesTheCount
+      ? `\n\nWARNING: ${to} is not counted on the Daily Inventory form. These ${count} item(s) will stop appearing there.`
+      : "";
     // Name the consequence before it happens. Afterwards nothing knows which
     // items arrived from where, so "are you sure" on its own would be a trap.
     const ok = window.confirm(
       merging
-        ? `${to} already exists.\n\nThis MERGES ${from} into ${to}: ${count} item(s) move across and ${from} disappears.\nThere is no undo that knows which items came from where.\n\nContinue?`
-        : `Rename ${from} to ${to}?\n\n${count} item(s) move with it. Past inventory records are not affected — they are tied to the item code, not the category.`
+        ? `${to} already exists.\n\nThis MERGES ${from} into ${to}: ${count} item(s) move across and ${from} disappears.\nThere is no undo that knows which items came from where.${countWarning}\n\nContinue?`
+        : `Rename ${from} to ${to}?\n\n${count} item(s) move with it. Past inventory records are not affected — they are tied to the item code, not the category.${countWarning}`
     );
     if (!ok) return;
     setSectionBusy(true); setError("");
@@ -1056,6 +1084,16 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
 
   async function handleMoveItemToSection(code: string, to: string) {
     if (!to) { setMovingCode(null); return; }
+    const from = items.find((i) => i.item_code === code)?.section || "";
+    if (isCkInternalSection(to) && !isCkInternalSection(from)) {
+      // Moving into one of these takes the item off the Daily Inventory form
+      // on every tab. It is a legitimate destination for a CK-internal item,
+      // so this asks rather than refuses -- but it does not happen silently.
+      const ok = window.confirm(
+        `${to} is not counted on the Daily Inventory form.\n\nMoving this item there means staff will no longer see it when they do the daily count.\n\nContinue?`
+      );
+      if (!ok) { setMovingCode(null); return; }
+    }
     setSectionBusy(true); setError("");
     try {
       const res = await apiFetch(`/api/daily-inventory/items/${encodeURIComponent(code)}`, {
@@ -1242,7 +1280,10 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
       if (!res.ok) throw new Error(text || "Create failed");
       setAddName(""); setAddSection(""); setAddUnit("KG"); setAddMinLevel(""); setAddParLevel(""); setAddCost("");
       setAddOpen(false);
-      await loadItems();
+      // Also the categories: "+ New category" makes one, and without this it
+      // is missing from the picker until the tab is switched -- so the very
+      // next item cannot be put in the category just created.
+      await loadItems(); await loadSections();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Create failed");
     } finally { setAddBusy(false); }
@@ -1480,10 +1521,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   // not yet in the list sorts last rather than vanishing -- an import can
   // still make one, and a row the screen refuses to show is worse than a
   // row in the wrong place.
-  const sectionRank = new Map(sectionList.map((x, idx) => [x.name, idx]));
-  const sections = [...new Set(items.map((i) => i.section))].sort(
-    (a, b) => (sectionRank.get(a) ?? 9999) - (sectionRank.get(b) ?? 9999) || a.localeCompare(b)
-  );
+  const sections = orderSections(items.map((i) => i.section), sectionList);
   const offeredSections = sectionList.filter((x) => x.is_active).map((x) => x.name);
   const retiredCount = items.filter((i) => !i.is_active && i.item_name.startsWith("[Retired]")).length;
 
@@ -1633,7 +1671,8 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
               <label className={`${T_LABEL} mb-1 block`}>Category</label>
               {addSectionNew ? (
                 <div className="flex items-center gap-1">
-                  <input type="text" value={addSection} onChange={(e) => setAddSection(e.target.value)}
+                  <input type="text" value={addSection}
+                    onChange={(e) => setAddSection(e.target.value.replace(/\s+/g, " ").toUpperCase())}
                     placeholder={sourceFilter === "ck" ? "HOT_RAMEN" : "SUPPLIER"}
                     aria-label="New category name" className={INPUT_CLASS} autoFocus />
                   <button type="button" onClick={() => { setAddSectionNew(false); setAddSection(""); }}
@@ -1668,7 +1707,8 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <button onClick={() => setAddOpen(false)} className={SECONDARY_BUTTON}>Cancel</button>
-            <button onClick={() => void handleAddItem()} disabled={addBusy || !addName.trim()} className={PRIMARY_BUTTON}>
+            <button onClick={() => void handleAddItem()}
+              disabled={addBusy || !addName.trim() || !addSection.trim()} className={PRIMARY_BUTTON}>
               {addBusy ? "Adding…" : "Add Item"}
             </button>
           </div>
@@ -1705,7 +1745,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <h3 className={T_SECTION}>{fmtSection(sec)}</h3>
+                  <h3 className={T_SECTION}>{sectionLabel(sec, sections)}</h3>
                   <button
                     onClick={() => { setRenameFrom(sec); setRenameVal(sec); }}
                     className="rounded-lg px-2 py-0.5 text-xs text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
@@ -2391,7 +2431,20 @@ export default function AdminDailyInventoryTab() {
     })();
   }, [branch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sections = [...new Set(items.map((i) => i.section))].sort();
+  // The order the categories are counted in, same source as the Item Master.
+  const [sectionList, setSectionList] = useState<InvSection[]>([]);
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiFetch("/api/daily-inventory/sections");
+        if (!res.ok) return;                 // falls back to alphabetical
+        const d = JSON.parse(await res.text()) as InvSection[];
+        setSectionList(Array.isArray(d) ? d : []);
+      } catch { /* falls back to alphabetical */ }
+    })();
+  }, []);
+
+  const sections = orderSections(items.map((i) => i.section), sectionList);
   const countBySection = (sec: string) => {
     const sec_items = items.filter((i) => i.section === sec);
     const filled = sec_items.filter((i) => entries[i.item_code]?.qty !== "").length;
