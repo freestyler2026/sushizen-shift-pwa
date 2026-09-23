@@ -927,6 +927,10 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   const [movingCode, setMovingCode] = useState<string | null>(null);
   const [posCode, setPosCode] = useState<string | null>(null);
   const [posVal, setPosVal] = useState("");
+  // Enter commits and closes the box, which then blurs -- and the blur handler
+  // would commit the same move a second time, against a list that has not
+  // reloaded yet. This remembers the row Enter already dealt with.
+  const posHandledRef = useRef<string | null>(null);
 
   // Add item form
   const [addOpen, setAddOpen] = useState(false);
@@ -1834,10 +1838,22 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                               type="number" min={1} max={secItems.length}
                               value={posVal}
                               onChange={(e) => setPosVal(e.target.value)}
-                              onBlur={() => void handleMoveItemToPosition(sec, item.item_code, posVal)}
+                              onBlur={() => {
+                                if (posHandledRef.current === item.item_code) {
+                                  posHandledRef.current = null;
+                                  return;                       // Enter already did it
+                                }
+                                void handleMoveItemToPosition(sec, item.item_code, posVal);
+                              }}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter") void handleMoveItemToPosition(sec, item.item_code, posVal);
-                                if (e.key === "Escape") setPosCode(null);
+                                if (e.key === "Enter") {
+                                  posHandledRef.current = item.item_code;
+                                  void handleMoveItemToPosition(sec, item.item_code, posVal);
+                                }
+                                if (e.key === "Escape") {
+                                  posHandledRef.current = item.item_code;
+                                  setPosCode(null);
+                                }
                               }}
                               aria-label={`Position of ${item.item_name} in ${sec}`}
                               className="w-12 rounded-lg border border-violet-500/40 bg-violet-500/10 px-1 py-0.5 text-center text-xs text-white focus:outline-none"
