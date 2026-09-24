@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
 import ModalScrim from "@/components/ModalScrim";
 import { getAuth, refreshAuthFromApi, getAuthHeaders, getUploadHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
+import FormFunnel from "@/components/hr/FormFunnel";
 import { prepareIfImage } from "@/lib/image-compress";
 import { API_BASE } from "@/lib/api";
 import {
@@ -4488,6 +4489,7 @@ function ClosedList({
 
 const ALLOWED_ROLES = ["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"];
 
+
 export default function HRRecruitmentPage() {
   const router = useRouter();
   const [accessReady, setAccessReady] = useState(false);
@@ -5447,6 +5449,10 @@ export default function HRRecruitmentPage() {
         />
       ) : (
         <>
+          {/* Who applied and who tried and could not are the same question
+              asked twice, so they belong on the same screen. */}
+          <FormFunnel />
+
           {/* Three screens rather than one board of 152 cards. The counts are on
               the tabs because the number of people waiting on a decision is the
               reason to open that screen, and it has to be readable without
