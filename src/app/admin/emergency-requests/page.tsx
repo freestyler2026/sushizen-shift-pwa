@@ -19,6 +19,7 @@ import {
   T_SECTION,
   T_LABEL,
   T_BODY,
+  T_CAPTION,
   BADGE_SUCCESS,
   BADGE_ERROR,
   BADGE_WARNING,
@@ -42,6 +43,11 @@ interface EPRItem {
   estimated_total: number;
   notes: string;
   current_stock?: number;
+  /** What the store originally asked for. Written once, the first time a line
+   *  is cut, so the shortfall survives the correction. */
+  qty_requested?: number;
+  qty_adjust_reason?: string;
+  qty_adjusted_by?: string;
   cancelled?: boolean;
   cancel_reason?: string;
   cancelled_by?: string;
@@ -146,19 +152,39 @@ function RequestCard({
   const [voidReason, setVoidReason] = useState("");
   const [selectedItemIndices, setSelectedItemIndices] = useState<number[]>([]);
   const [itemCancelReason, setItemCancelReason] = useState("");
+  /** Quantity edits, keyed by item index, as typed. Empty until somebody opens
+   *  the panel, so an untouched line is never sent. */
+  const [qtyEdits, setQtyEdits] = useState<Record<number, string>>({});
+  const [qtyReason, setQtyReason] = useState("");
   const [confirmAction, setConfirmAction] = useState<
-    "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items" | null
+    "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items" | "adjust_qty" | null
   >(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function doAction(action: "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items") {
+  /** Only lines whose number actually moved. Sending the rest would stamp an
+   *  adjustment reason on items nobody touched. */
+  function pendingQtyChanges() {
+    const out: { index: number; qty: number }[] = [];
+    for (const [k, v] of Object.entries(qtyEdits)) {
+      const i = Number(k);
+      const q = parseFloat(v);
+      if (!Number.isFinite(q) || q <= 0) continue;
+      if (req.items[i] && Math.abs(q - Number(req.items[i].qty)) > 1e-9) out.push({ index: i, qty: q });
+    }
+    return out;
+  }
+
+  async function doAction(action: "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items" | "adjust_qty") {
     setLoading(true);
     setError("");
     try {
+      const slug = action === "cancel_items" ? "cancel-items"
+        : action === "adjust_qty" ? "adjust-quantities"
+        : action;
       const endpoint = action === "receive"
         ? `/api/store/emergency-request/${req.id}/receive`
-        : `/api/admin/emergency-requests/${req.id}/${action === "cancel_items" ? "cancel-items" : action}`;
+        : `/api/admin/emergency-requests/${req.id}/${slug}`;
       let body: Record<string, unknown> = {};
 
       if (action === "approve") {
@@ -183,6 +209,8 @@ function RequestCard({
         body = { voided_by: actorName, void_reason: voidReason };
       } else if (action === "cancel_items") {
         body = { cancelled_by: actorName, cancel_reason: itemCancelReason, item_indices: selectedItemIndices };
+      } else if (action === "adjust_qty") {
+        body = { adjusted_by: actorName, reason: qtyReason, changes: pendingQtyChanges() };
       }
 
       const res = await fetch(endpoint, {
@@ -194,6 +222,8 @@ function RequestCard({
       if (data.ok) {
         setSelectedItemIndices([]);
         setItemCancelReason("");
+        setQtyEdits({});
+        setQtyReason("");
         onAction();
       } else setError(data.detail || "Action failed");
     } catch {
@@ -258,7 +288,11 @@ function RequestCard({
       <div className="flex flex-wrap gap-1">
         {req.items.map((it, i) => (
           <span key={i} className={`rounded-lg border px-2 py-0.5 text-xs ${it.cancelled ? "bg-red-500/10 border-red-500/20 text-zinc-500 line-through" : "bg-white/6 border-white/8 text-zinc-200"}`}>
-            {it.item_name} ×{it.qty}{it.unit}
+            {it.item_name} ×
+            {it.qty_requested != null && Number(it.qty_requested) !== Number(it.qty) && (
+              <span className="text-amber-300/70 line-through mr-1">{it.qty_requested}</span>
+            )}
+            {it.qty}{it.unit}
             {it.current_stock != null && it.current_stock > 0 && <span className="text-zinc-500 ml-1">(Stock:{it.current_stock})</span>}
             {it.estimated_total > 0 && <span className="text-zinc-400"> ₱{Number(it.estimated_total).toFixed(0)}</span>}
             {it.cancelled && <span className="text-orange-400 ml-1 no-underline" style={{textDecoration:"none"}}>✕</span>}
@@ -305,6 +339,63 @@ function RequestCard({
             )}
             <p className="text-zinc-500">Submitted {req.created_at}</p>
           </div>
+
+          {/* Quantity adjustment. Between sending all of it and cancelling the
+              line there used to be nothing, so a supplier with 4 of the 10 was
+              handled off-system and the record kept saying 10. Open while the
+              request is still being decided or arranged; once it is dispatched
+              the number on the record is what was sent. */}
+          {["pending", "approved", "arranging"].includes(req.status) && !confirmAction && (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+              <p className="text-xs font-medium text-amber-300">Adjust quantities</p>
+              <p className={T_CAPTION}>
+                For when the supplier or CK cannot send the full amount. What the store
+                asked for is kept on the line, so the shortfall stays visible.
+              </p>
+              <div className="space-y-1">
+                {req.items.map((it, i) => (
+                  <div key={i} className={`flex items-center gap-2 ${it.cancelled ? "opacity-40 pointer-events-none" : ""}`}>
+                    <span className="flex-1 truncate text-xs text-zinc-200">
+                      {it.item_name}
+                      {it.qty_requested != null && Number(it.qty_requested) !== Number(it.qty) && (
+                        <span className="ml-1 text-amber-300/70">(asked {it.qty_requested}{it.unit})</span>
+                      )}
+                    </span>
+                    <input
+                      type="number"
+                      min={0.01}
+                      step="0.01"
+                      disabled={it.cancelled}
+                      value={qtyEdits[i] ?? String(it.qty)}
+                      onChange={(e) => setQtyEdits((p) => ({ ...p, [i]: e.target.value }))}
+                      className="w-24 rounded-lg border border-white/10 bg-white/6 px-2 py-1 text-right text-xs tabular-nums text-white outline-none focus:border-amber-400/50"
+                    />
+                    <span className="w-10 text-xs text-zinc-500">{it.unit}</span>
+                  </div>
+                ))}
+              </div>
+              {pendingQtyChanges().length > 0 && (
+                <>
+                  <input
+                    value={qtyReason}
+                    onChange={(e) => setQtyReason(e.target.value)}
+                    placeholder="Why — e.g. supplier only had 4kg"
+                    className="w-full rounded-lg border border-white/10 bg-white/6 px-2 py-1.5 text-xs text-white placeholder:text-zinc-500 outline-none focus:border-amber-400/50"
+                  />
+                  <button
+                    className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
+                    disabled={loading || !qtyReason.trim()}
+                    onClick={() => void doAction("adjust_qty")}
+                  >
+                    {loading ? "Saving…" : `Apply ${pendingQtyChanges().length} change${pendingQtyChanges().length > 1 ? "s" : ""}`}
+                  </button>
+                  {!qtyReason.trim() && (
+                    <p className={T_CAPTION}>Say why before applying — the store and the root-cause report both read it.</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Item-level cancel (available for active orders) */}
           {["approved", "arranging", "dispatched", "received"].includes(req.status) && !confirmAction && (
