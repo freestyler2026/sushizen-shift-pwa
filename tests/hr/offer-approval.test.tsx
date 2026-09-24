@@ -76,6 +76,11 @@ async function mount() {
   await waitFor(() => expect(screen.getByText("Ronidel S. Sanciangco")).toBeTruthy());
 }
 
+/** Waited past the stale threshold, so the board files it under
+ *  "Needs a decision" instead of the Awaiting approval column. */
+const STALE = { ...WAITING, id: "app-stale", full_name: "Stale Approval",
+                days_since_move: 30, days_in_pipeline: 30 };
+
 describe("Awaiting approval", () => {
   beforeEach(() => { mockFetch.mockReset(); });
 
@@ -155,5 +160,39 @@ describe("Awaiting approval", () => {
       expect(body.decision).toBe("approved");
       expect(body.note).toBe("Agreed, go ahead.");
     });
+  });
+
+  it("can still be approved once it has waited past the stale threshold", async () => {
+    // These are the approvals the feature exists for. They used to land in
+    // "Needs a decision", whose only control opens the interview-outcome
+    // panel — which offers reject and lapse and nothing else.
+    install(["*"]);
+    mockFetch.mockImplementation(async (url: string) =>
+      new Response(JSON.stringify(
+        String(url).includes("/applicants") ? { applicants: [STALE] } : routeJson(String(url))),
+        { status: 200, headers: { "Content-Type": "application/json" } }));
+    const { default: Page } = await import("@/app/admin/hr/recruitment/page");
+    render(<Page />);
+    await waitFor(() => expect(screen.getByText(/Needs a decision/)).toBeTruthy());
+    fireEvent.click(screen.getByText(/Needs a decision/));
+    await waitFor(() => expect(screen.getByText("Stale Approval")).toBeTruthy());
+    expect(screen.getByText("Approve or send back")).toBeTruthy();
+    // "Decide" is the interview-outcome panel; it must not be the only way out.
+    expect(screen.queryByText("Decide")).toBeNull();
+  });
+
+  it("does not offer a stale approval to somebody who cannot approve", async () => {
+    install(["channel.admin.hr_recruitment.view"], "HR_MANAGER");
+    mockFetch.mockImplementation(async (url: string) =>
+      new Response(JSON.stringify(
+        String(url).includes("/applicants") ? { applicants: [STALE] } : routeJson(String(url))),
+        { status: 200, headers: { "Content-Type": "application/json" } }));
+    const { default: Page } = await import("@/app/admin/hr/recruitment/page");
+    render(<Page />);
+    await waitFor(() => expect(screen.getByText(/Needs a decision/)).toBeTruthy());
+    fireEvent.click(screen.getByText(/Needs a decision/));
+    await waitFor(() => expect(screen.getByText("Stale Approval")).toBeTruthy());
+    expect(screen.getByText("waiting on an approver")).toBeTruthy();
+    expect(screen.queryByText("Approve or send back")).toBeNull();
   });
 });

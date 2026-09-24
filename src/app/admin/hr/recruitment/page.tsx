@@ -230,6 +230,15 @@ async function errorDetail(res: Response): Promise<string> {
     const raw = await res.text();
     try {
       const data = JSON.parse(raw);
+      // FastAPI sends 422 as detail: [{loc, msg, type}, ...]. String() on an
+      // array of objects renders "[object Object]", which tells nobody
+      // anything -- so read the messages out.
+      if (Array.isArray(data?.detail)) {
+        const msgs = data.detail
+          .map((d: { msg?: string }) => d?.msg)
+          .filter(Boolean);
+        if (msgs.length) return msgs.join("; ");
+      }
       if (data?.detail) return String(data.detail);
     } catch {
       if (raw.trim()) return raw.trim().slice(0, 300);
@@ -2063,7 +2072,13 @@ function DetailPanel({
                   className={`${SELECT_CLASS} mt-2`}
                   value={localStatus}
                   onChange={v => void handleStatusChange(v as KanbanStatus)}
-                  options={ALL_STATUSES.map(s => ({ value: s, label: KANBAN_COLUMNS.find(c => c.id === s)?.label || s }))}
+                  /* Not "Awaiting approval" and not "Offer Sent": reaching
+                   either is a decision somebody has to be entitled to make
+                   and has to leave a record of, so the server refuses them
+                   here. Offering them would be a menu of errors. */
+                options={ALL_STATUSES
+                  .filter(s => s !== "approval" && s !== "offer_sent")
+                  .map(s => ({ value: s, label: KANBAN_COLUMNS.find(c => c.id === s)?.label || s }))}
                 />
                 {/* A named way back. The dropdown could already do this, but it
                     reads as "set the stage", not as "I pressed the wrong
@@ -3056,7 +3071,10 @@ function OfferApprovalRequestModal({
   const [letter, setLetter] = useState<File | null>(null);
   const [error, setError] = useState("");
 
-  const ready = !salaryVisible || Number(basic) > 0;
+  // Enabled only when a salary will actually be on the offer. Letting
+  // somebody who may not see the money press Send gave them a 400 they could
+  // do nothing about; the offer has to be recorded by someone who may.
+  const ready = salaryVisible && Number(basic) > 0;
 
   return (
     <ModalScrim className="bg-black/60">
@@ -4204,11 +4222,15 @@ function DecisionList({
   decided,
   onSelect,
   onRecordOutcome,
+  onDecideApproval,
+  canApprove,
 }: {
   rows: Applicant[];
   decided: Record<string, string>;
   onSelect: (a: Applicant) => void;
   onRecordOutcome: (a: Applicant) => void;
+  onDecideApproval: (a: Applicant) => void;
+  canApprove: boolean;
 }) {
   if (!rows.length) {
     return (
@@ -4306,6 +4328,25 @@ function DecisionList({
                 <span className="shrink-0 text-xs font-medium text-emerald-300">
                   ✓ {done}
                 </span>
+              ) : a.status === "approval" ? (
+                /* The offer is waiting on an approver, and this lane is where
+                   the ones that have waited longest end up. Sending them
+                   through the interview-outcome panel would offer only
+                   "reject" and "lapse" — so the approvals most in need of a
+                   yes were the only ones that could not be given one. */
+                canApprove ? (
+                  <button
+                    type="button"
+                    onClick={() => onDecideApproval(a)}
+                    className="shrink-0 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/25 transition-colors"
+                  >
+                    Approve or send back
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-xs text-zinc-500">
+                    waiting on an approver
+                  </span>
+                )
               ) : (
                 <button
                   type="button"
@@ -4820,8 +4861,13 @@ export default function HRRecruitmentPage() {
       // The letter first: if it fails the request has not happened yet, so
       // nobody is looking at an approval with a missing attachment.
       if (data.letter) {
+        // A phone photo of a printed letter is 4-8MB and the platform's body
+        // limit is ~4.3MB, which comes back as a text/plain 413. Because the
+        // letter uploads first, that failure would stop the approval request
+        // from happening at all (lesson 24). The CV upload already does this.
+        const small = await prepareIfImage(data.letter);
         const fd = new FormData();
-        fd.append("letter", data.letter);
+        fd.append("letter", small);
         const up = await fetch(
           `${API_BASE}/api/admin/hr/applicants/${approvalFor.id}/offer-approval/letter`,
           { method: "POST", headers: getUploadHeaders(auth), body: fd },
@@ -4849,6 +4895,8 @@ export default function HRRecruitmentPage() {
       // believing a message went out (lesson 21).
       const reached = (out.notified || []).join(", ");
       const missed = (out.unreachable || []).join(", ");
+      setSelectedApplicant((cur) =>
+        cur && cur.id === approvalFor.id ? { ...cur, status: "approval" } : cur);
       setJustDecided((m) => ({
         ...m,
         [approvalFor.id]: reached
@@ -4881,6 +4929,15 @@ export default function HRRecruitmentPage() {
         ...m,
         [decideFor.id]: data.decision === "approved" ? "Approved" : "Sent back",
       }));
+      // The panel behind the modal is showing this person. Left alone it
+      // keeps the old status and the old approval line until somebody closes
+      // and reopens it, which reads as the decision not having landed.
+      setSelectedApplicant((cur) =>
+        cur && cur.id === decideFor.id
+          ? { ...cur,
+              status: data.decision === "approved" ? "offer_sent" : "interviewed",
+              approval_decision: data.decision }
+          : cur);
       void loadData();
       return null;
     } catch (e: unknown) {
@@ -5432,6 +5489,8 @@ export default function HRRecruitmentPage() {
                 decided={justDecided}
                 onSelect={setSelectedApplicant}
                 onRecordOutcome={setOutcomeFor}
+                onDecideApproval={setDecideFor}
+                canApprove={canApprove}
               />
             ) : lane === "closed" ? (
               <ClosedList
