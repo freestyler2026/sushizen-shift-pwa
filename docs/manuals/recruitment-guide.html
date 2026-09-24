@@ -1478,7 +1478,7 @@ open one of these, then press send yourself.
         <span class="ui">How did it go?</span> を押します。画面を移らなくて済みます。</p>
       <div class="screen">How did it go?
 
-  [ Move to offer       ]   moves them to Offer Sent
+  [ Move to offer       ]   asks for the offer to be approved
   [ Hold — decide later ]   stays in Interviewed, reason on record
   [ Not for this role    ]   moves them to Rejected
   [ Did not turn up      ]   closes them, filed as a no-show
@@ -1488,7 +1488,11 @@ Reason *   (for Hold and Not for this role)
   (Availability) (Took someone else)
   (Never answered) (They withdrew) (Other)</div>
       <ul lang="en">
-        <li><strong>Move to offer</strong> — no reason needed.</li>
+        <li><strong>Move to offer</strong> — no reason needed, but this no longer
+          sends an offer. It opens a short form for the basic salary, the start
+          date, an optional draft offer letter and anything the approver should
+          know, and the card moves to <span class="ui">Awaiting approval</span>.
+          See <strong>Getting an offer approved</strong> below.</li>
         <li><strong>Hold — decide later</strong> and <strong>Not for this role</strong>
           — please pick one reason. These are the two that get asked about weeks
           later.</li>
@@ -1498,6 +1502,58 @@ Reason *   (for Hold and Not for this role)
           <span class="ui">No-show</span> in amber — so weeks later you can still tell
           “we decided against them” from “they never came”.</li>
         <li><strong>Other</strong> — add a short note saying what happened.</li>
+      </ul>
+
+      <h3 lang="en">Getting an offer approved</h3>
+      <h3 lang="ja" hidden>オファーの承認をもらう</h3>
+      <p lang="en">This used to happen in Discord. You asked whether to hire
+        somebody, the answer came back in the channel, and the reason a person
+        was hired ended up somewhere the CV, the interview notes and the agreed
+        pay could not reach. It happens on the board now.</p>
+      <p lang="ja" hidden>以前はDiscordで行っていました。採用してよいかを尋ね、
+        チャンネルで返事が来る — その結果、採用した理由が、CVも面接記録も
+        金額も届かない場所に残っていました。これをボード上で行います。</p>
+      <div class="screen">Awaiting approval
+
+  Ronidel S. Sanciangco
+  Peter Villafuerte asked for approval - 23 Sep
+  [CV] [Offer letter] [2 comments]
+
+  [ Approve or send back ]</div>
+      <ul lang="en">
+        <li><strong>You cannot ask without a salary.</strong> Approving an offer
+          is approving the money, so the form will not send until the basic
+          salary is on it. Payroll then fills the staff profile from that
+          figure, so it is typed once rather than twice.</li>
+        <li><strong>Attach the draft letter</strong> if you have one. It opens
+          from the card, next to the CV.</li>
+        <li><strong>The approver gets a Discord message</strong> with a link.
+          Discord has not gone away — it is how they find out. What changed is
+          that the message is one line and the record stays here. After you
+          send, the card tells you who was actually notified.</li>
+        <li><strong>Approve</strong> moves the person to
+          <span class="ui">Offer Sent</span>. <strong>Send back</strong> returns
+          them to <span class="ui">Interviewed</span> with the comment on the
+          card, and you can ask again once it is sorted.</li>
+        <li><strong>Comments</strong> are at the bottom of the applicant panel,
+          under every tab. Anything asked or agreed about a person belongs
+          there.</li>
+      </ul>
+      <ul lang="ja" hidden>
+        <li><strong>金額が無いと依頼できません。</strong>オファーの承認とは金額の
+          承認なので、基本給が入るまで送信できません。給与はこの数字から
+          スタッフプロフィールを作るので、二度打ちが無くなります。</li>
+        <li><strong>ドラフトのオファーレター</strong>があれば添付してください。
+          CVの隣からカード上で開けます。</li>
+        <li><strong>承認者にはDiscordでリンクが届きます。</strong>Discordは
+          無くなりません — 気づく場所だからです。変わったのは、メッセージが
+          1行になり、記録がこちらに残ることです。送信後、実際に誰に通知が
+          届いたかがカードに表示されます。</li>
+        <li><strong>Approve</strong> で <span class="ui">Offer Sent</span> に進み、
+          <strong>Send back</strong> でコメント付きのまま
+          <span class="ui">Interviewed</span> に戻ります。解決したら再度依頼できます。</li>
+        <li><strong>コメント</strong>は応募者パネルの一番下、どのタブでも見えます。
+          その人について尋ねたこと・決めたことはここに書いてください。</li>
       </ul>
       <ul lang="ja" hidden>
         <li><strong>Move to offer</strong> ── 理由は不要です。</li>

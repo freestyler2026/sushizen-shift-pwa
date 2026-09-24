@@ -1,5 +1,68 @@
 # CURRENT_TASKS.md
 
+## 2026-09-24 — 採用の承認をDiscordからOSに移した（オーナー依頼・本番稼働中）
+
+オーナー:「ピーターからDiscordで『この人を採用していいか』と来る。**どのような
+流れだったか、面接はどうだったかがDiscordに写ることで途切れる**」。
+
+**承認に必要な材料は全部OSにあった。決定だけが外にあった。**
+
+| 材料 | 状態 |
+|---|---|
+| CV | あった（Drive・`/voice-screenings/{id}/resume`） |
+| 面接コメント | あった（`hr_interview_evaluations`） |
+| オファー金額 | テーブルもタブもあった — **ただし0行** |
+| オファーレター添付 | 無かった |
+| 承認ステップ | 無かった（`proceed` が `interviewed` → `offer_sent` 直行） |
+
+**決定的な数字: `hr_applicant_offers` は採用24名に対して0行。** Offerタブは
+存在するのに誰も使っていなかった。Discordの方が軽いからで、CLAUDE.md の型1・2。
+**だから承認画面はDiscordのメッセージより軽くなければならない。**
+
+### 実装
+
+- `interviewed` と `offer_sent` の間に **`approval`** ステージ
+- `hr_offer_approvals`（依頼者・日時・レター・決定）/ `hr_applicant_comments`（スレッド）
+- **金額が無いオファーは承認ステージに入れない**（オーナー指示）。
+  **入口は2つとも塞いだ** — 新しい request API と `record_interview_outcome("proceed")`
+- 依頼フォームに基本給と入社日を載せたので、**依頼する人はOfferタブの存在を
+  知らなくてよい**。書き込みは `save_offer` 経由なので金額の置き場所は1つのまま
+- レターは**先にアップロードする** — 失敗したら依頼自体が起きないので、
+  添付の無い承認を誰も見ない
+- カードは**汎用の「次のステージへ」ボタンを出さない**。誰も判断していないのに
+  カードが進むボタンだからで、代わりに CV とレターが1タップの位置にある
+- 権限が無い人には**誰の番かを書く**。押すと失敗するボタンより良い（教訓21）
+- `hr.approve_offer` を Role Management に追加。HQ はロールで通る。
+  判定は**トークンの permissions から**読む（教訓25）
+- **Discordは消していない。** 気づく場所だから。DMは1行＋リンクにし、
+  **実際に誰に届いたかを返す**
+
+### ⚠️ 通知が届かない人がいる
+
+`management_channel_discord` に **Yukihiro Nishimura と Yuri Yamada のIDが無い**。
+HQ4名のうち Ayako と Yusuke にしか DM が飛ばない。
+依頼画面には「誰に届いたか／誰のIDが無いか」を出しているので嘘にはならないが、
+**オーナー自身に通知が行かない**。Management Channel の Discord 設定に
+追加するまで、ボードの Awaiting approval 列を見る運用になる。
+
+### 本番での確認（`city='qa-selftest'` で隔離・実行後に id 指定で削除）
+
+```
+金額なし -> request_approval 拒否 / proceed も拒否・statusは interviewed のまま
+金額あり -> approval へ / send_back -> interviewed / 再依頼 -> approve -> offer_sent
+承認済みをもう一度承認 -> 拒否（"not waiting for approval"）
+コメント4件が順に並ぶ / イベントログ4件 / 削除後 残存0行
+```
+
+フロント 8テスト（`tests/hr/offer-approval.test.tsx`）。変異4種
+（列の削除・汎用ボタンへの後退・全員に Approve・decision body の欠落）を全て検出。
+
+### 未了
+
+- ドバイでも同じ流れが有効（都市で分けていない）。運用するかは未確認
+- 承認者を HQ 以外に広げるなら Role Management で `hr.approve_offer` を付与する
+
+
 ## 2026-09-24 — 上の 26–25 実装を敵対的に監査したら、6件の実害が出た（修正・本番確認済み）
 
 **私の commit message が誤っていた。**「The rule lives on the cycle so every
