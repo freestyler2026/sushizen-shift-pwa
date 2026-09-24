@@ -387,12 +387,25 @@ export default function DubaiPayrollPage() {
                         </span>
                         <span className="ml-2 text-xs text-slate-500">ID #{c.id}</span>
                         {/* The month is only a name. Say which days are paid,
-                            or nobody can check the figures against the DTR. */}
+                            or nobody can check the figures against the DTR.
+                            Cycles opened before 2026-09-24 recorded no period,
+                            and the cycles closed by then were not all one span
+                            (August paid the monthly staff to 08-25 and the
+                            hourly staff to 08-31), so say "not recorded"
+                            rather than assert a range that was never true. */}
                         <div className="mt-1 text-xs text-slate-400">
-                          Pays for {cycleWindow(c)[0]} &ndash; {cycleWindow(c)[1]}
-                          {c.hourly_period_start && c.hourly_period_end && (
-                            <span className="ml-2 text-amber-300">
-                              &middot; hourly staff {c.hourly_period_start} &ndash; {c.hourly_period_end}
+                          {c.period_start && c.period_end ? (
+                            <>
+                              Pays for {c.period_start} &ndash; {c.period_end}
+                              {c.hourly_period_start && c.hourly_period_end && (
+                                <span className="ml-2 text-amber-300">
+                                  &middot; hourly staff {c.hourly_period_start} &ndash; {c.hourly_period_end}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-slate-500">
+                              Period not recorded &mdash; check the DTR dates before using these figures
                             </span>
                           )}
                         </div>
