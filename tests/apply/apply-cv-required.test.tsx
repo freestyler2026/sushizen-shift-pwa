@@ -79,8 +79,13 @@ describe("the CV on the application form", () => {
     // Not "complete the highlighted fields": every box is filled in, and that
     // sentence points at nothing the applicant can see is wrong.
     expect(await screen.findByText(/Please attach your CV/)).toBeTruthy();
-    // Nothing was sent, so nothing was lost either.
-    expect(mockFetch).not.toHaveBeenCalled();
+    // Nothing was sent, so nothing was lost either. Checked against the
+    // application endpoint rather than fetch itself: a stopped send now also
+    // reports which field stopped it, and that call is not an application.
+    const applyCalls = mockFetch.mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.includes("/api/apply") && !u.includes("/api/apply/outcome"));
+    expect(applyCalls).toEqual([]);
     expect(screen.queryByText("Thank you")).toBeNull();
   });
 

@@ -201,6 +201,30 @@ const BAD = "border-red-400/70";
  *  number, role, branch, experience — and a sixth said "(optional)" while
  *  refusing to send. HR heard it from applicants before we heard it from the
  *  screen. Every blocking rule below renders this. */
+/** Tells the server that a send was stopped, and later that it got through.
+ *
+ *  We could not say how many people the form turns away: the only record of a
+ *  submission is written when one SUCCEEDS. This is the other half.
+ *
+ *  Field names and the language, nothing else — no name, no number, no
+ *  Facebook link. `keepalive` so it still goes if the applicant closes the tab
+ *  on the spot, which is exactly the case we most need to count, and every
+ *  failure is swallowed: a form that will not send because the counting is
+ *  down would be worse than not counting.
+ */
+function reportOutcome(formId: string, stage: "blocked" | "sent",
+                       fields: string[], language: string) {
+  if (!formId) return;
+  try {
+    void fetch("/api/apply/outcome", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ form_id: formId, stage, fields, language }),
+      keepalive: true,
+    }).catch(() => { /* never the applicant's problem */ });
+  } catch { /* no fetch, no counting */ }
+}
+
 function Req() {
   return <span className="text-rose-400" aria-hidden="true"> *</span>;
 }
@@ -270,6 +294,21 @@ export default function ApplyPage() {
   const [firstJob, setFirstJob] = useState(false);
   const needsLastJob = !firstJob;
   const branchPicked = BRANCHES.find((b) => b.code === form.branch);
+  // Made on first use, not in useState(() => ...): this page is prerendered at
+  // the edge and a random value decided during render makes the server's HTML
+  // and the browser's first paint disagree (lesson 42). It only has to exist by
+  // the time somebody presses Send.
+  const formId = useRef("");
+  const formKey = () => {
+    if (!formId.current) {
+      formId.current =
+        (globalThis.crypto?.randomUUID?.() ??
+          `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    }
+    return formId.current;
+  };
+  /** Whether this form was ever stopped, so a clean send is not counted. */
+  const wasBlocked = useRef(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
@@ -378,6 +417,8 @@ export default function ApplyPage() {
       // dropdown, and an applicant who has filled every box in cannot tell
       // that the thing still missing is a file.
       setErr(missing.length === 1 && missing[0] === "cv" ? t.cvMissing : t.errRequired);
+      wasBlocked.current = true;
+      reportOutcome(formKey(), "blocked", missing, lang);
       return;
     }
 
@@ -396,7 +437,11 @@ export default function ApplyPage() {
         const text = await res.text();
         let fields: string[] = [];
         try { fields = JSON.parse(text)?.detail?.invalid_fields || []; } catch { /* text */ }
-        if (fields.length) { setBad(fields); setErr(t.errRequired); }
+        if (fields.length) {
+          setBad(fields); setErr(t.errRequired);
+          wasBlocked.current = true;
+          reportOutcome(formKey(), "blocked", fields, lang);
+        }
         else setErr(t.errNetwork);
         return;
       }
@@ -409,6 +454,10 @@ export default function ApplyPage() {
       // press so nobody has to be asked twice, but a failure here only sets a
       // note -- it must never turn a saved application into an error screen.
       if (cv) setCvLate(!(token && await sendCv(token, cv)));
+      // Only for a form that was stopped at least once. Counting clean sends
+      // too would make "recovered" meaningless -- the number we want is how
+      // many of the people the form turned away came back and finished.
+      if (wasBlocked.current) reportOutcome(formKey(), "sent", [], lang);
       setDone(true);
     } catch {
       setErr(t.errNetwork);

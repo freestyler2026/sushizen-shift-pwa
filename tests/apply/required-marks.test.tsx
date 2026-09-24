@@ -87,3 +87,62 @@ describe("public application form — the mark matches the rule", () => {
     );
   });
 });
+
+describe("public application form — counting the sends that were stopped", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue({ ok: true, text: async () => "{}", json: async () => ({ ok: true }) } as unknown as Response);
+  });
+
+  const outcomes = () =>
+    mockFetch.mock.calls
+      .filter((c) => String(c[0]).includes("/api/apply/outcome"))
+      .map((c) => JSON.parse(String((c[1] as RequestInit).body)));
+
+  it("records which fields stopped the send, and nothing about the person", async () => {
+    render(<ApplyPage />);
+    const nameLabel = (await screen.findAllByText(/Full name/)).at(-1)!;
+    const name = nameLabel.parentElement!.querySelector("input")!;
+    fireEvent.change(name, { target: { value: "Maria Santos" } });
+    fireEvent.click(screen.getByRole("button", { name: /Send application/i }));
+
+    await waitFor(() => expect(outcomes().length).toBe(1));
+    const sent = outcomes()[0];
+    expect(sent.stage).toBe("blocked");
+    expect(sent.fields).toContain("cv");
+    expect(sent.fields).toContain("phone");
+    // the whole point: the payload carries no personal data
+    const raw = JSON.stringify(sent);
+    expect(raw).not.toContain("Maria");
+    expect(raw).not.toContain("Santos");
+    expect(Object.keys(sent).sort()).toEqual(["fields", "form_id", "language", "stage"]);
+  });
+
+  it("keeps the same form id across two stopped attempts, so one person counts once", async () => {
+    render(<ApplyPage />);
+    await screen.findByText(/Work at Sushi ZEN/i);
+    const send = screen.getByRole("button", { name: /Send application/i });
+    fireEvent.click(send);
+    await waitFor(() => expect(outcomes().length).toBe(1));
+    fireEvent.click(send);
+    await waitFor(() => expect(outcomes().length).toBe(2));
+    expect(outcomes()[0].form_id).toBe(outcomes()[1].form_id);
+    expect(outcomes()[0].form_id).toBeTruthy();
+  });
+
+  it("still tells the applicant what is missing when the counting is down", async () => {
+    // What this does NOT prove: that the .catch on the beacon matters. A
+    // rejection left loose here is not surfaced by this harness -- I tried
+    // twice, with a window listener and a process listener, and removing the
+    // catch passes either way. The catch stays because lesson 94 is what an
+    // unhandled rejection costs; this test is only claiming the smaller thing.
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes("/api/apply/outcome")) return Promise.reject(new Error("down"));
+      return Promise.resolve({ ok: true, text: async () => "{}" } as unknown as Response);
+    });
+    render(<ApplyPage />);
+    await screen.findByText(/Work at Sushi ZEN/i);
+    fireEvent.click(screen.getByRole("button", { name: /Send application/i }));
+    expect(await screen.findByText(/highlighted fields|attach your CV/i)).toBeTruthy();
+  });
+});
