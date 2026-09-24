@@ -36,6 +36,11 @@ interface EPRItem {
   estimated_total: number;
   notes: string;
   current_stock: number | "";
+  /** Set when the amount was cut because the supplier or CK could not send it
+   *  all. The store has to see their own number next to what is coming --
+   *  otherwise a part delivery arrives looking like the whole order. */
+  qty_requested?: number;
+  qty_adjust_reason?: string;
 }
 
 interface EPRRequest {
@@ -674,12 +679,33 @@ export default function EmergencyRequestPage() {
 
                 <div className="flex flex-wrap gap-1 text-xs text-zinc-300">
                   {req.items.map((it, i) => (
-                    <span key={i} className="rounded-lg bg-white/5 border border-white/8 px-2 py-0.5">
-                      {it.item_name} ×{it.qty}{it.unit}
+                    <span
+                      key={i}
+                      className="rounded-lg bg-white/5 border border-white/8 px-2 py-0.5"
+                      title={it.qty_adjust_reason || undefined}
+                    >
+                      {it.item_name} ×
+                      {it.qty_requested != null && Number(it.qty_requested) !== Number(it.qty) && (
+                        <span className="text-amber-300/70 line-through mr-1">{it.qty_requested}</span>
+                      )}
+                      {it.qty}{it.unit}
                       {Number(it.current_stock) > 0 && <span className="text-zinc-500 ml-1">(Stock:{it.current_stock})</span>}
                     </span>
                   ))}
                 </div>
+
+                {req.items.some((it) => it.qty_requested != null && Number(it.qty_requested) !== Number(it.qty)) && (
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-2 py-1.5">
+                    {req.items
+                      .filter((it) => it.qty_requested != null && Number(it.qty_requested) !== Number(it.qty))
+                      .map((it, i) => (
+                        <p key={i} className="text-xs text-amber-200/90">
+                          {it.item_name}: sending {it.qty}{it.unit} instead of {it.qty_requested}{it.unit}
+                          {it.qty_adjust_reason ? ` — ${it.qty_adjust_reason}` : ""}
+                        </p>
+                      ))}
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center">
                   <p className="text-xs text-zinc-500">

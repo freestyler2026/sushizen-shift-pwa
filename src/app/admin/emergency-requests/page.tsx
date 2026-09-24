@@ -224,6 +224,14 @@ function RequestCard({
         setItemCancelReason("");
         setQtyEdits({});
         setQtyReason("");
+        // These two were seeded from the totals when the card mounted, and a
+        // refetch does not re-seed them. Cutting a line and then pressing
+        // Approve would otherwise approve the amount from before the cut.
+        if (action === "adjust_qty" && data.request) {
+          const t = data.request.total_estimated_amount;
+          if (t != null) setApproveAmount(String(t));
+          setCompleteAmount(String(data.request.final_amount ?? t));
+        }
         onAction();
       } else setError(data.detail || "Action failed");
     } catch {
