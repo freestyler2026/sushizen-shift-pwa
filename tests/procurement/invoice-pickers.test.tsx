@@ -13,8 +13,8 @@
 //     item has been read at 2.00 and at 130.00 on these invoices
 //   - the picker stays open after a pick, because an invoice has a dozen lines
 import React from "react";
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("lucide-react", async () => (await import("#tests/lucide-mock")).lucideMock({}));
 vi.mock("@/components/PhotoLoupe", () => ({ default: () => <div data-testid="loupe" /> }));
@@ -26,9 +26,9 @@ import DriveInvoiceModal from "@/components/DriveInvoiceModal";
 import type { DriveInvoice } from "@/components/DriveInvoiceInbox";
 
 const VENDORS = [
-  { name: "SAWHNEY FOODSTUFF TR. CO. LLC SP", invoice_count: 325, last_invoice_date: "2026-09-24", is_internal: false, trn: "100457236600007" },
-  { name: "Sushi ZEN Central Kitchen", invoice_count: 83, last_invoice_date: "2026-09-22", is_internal: true, trn: null },
-  { name: "MIY FOODSTUFFS TRADING LLC", invoice_count: 68, last_invoice_date: "2026-09-20", is_internal: false, trn: "104428997100003" },
+  { name: "SAWHNEY FOODSTUFF TR. CO. LLC SP", invoice_count: 325, last_invoice_date: "2026-09-24", is_internal: false },
+  { name: "Sushi ZEN Central Kitchen", invoice_count: 83, last_invoice_date: "2026-09-22", is_internal: true },
+  { name: "MIY FOODSTUFFS TRADING LLC", invoice_count: 68, last_invoice_date: "2026-09-20", is_internal: false },
 ];
 
 const ITEMS = [
@@ -201,5 +201,101 @@ describe("invoice inbox — vendor and item pickers", () => {
     mount();
     await openItemPicker();
     expect(await screen.findByText(/Could not load this vendor's items/i)).toBeTruthy();
+  });
+});
+
+describe("invoice inbox — the vendor field does not storm the server", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    mockFetch.mockImplementation((url: string) => Promise.resolve(route(String(url)) as unknown as Response));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("asks once for a vendor typed letter by letter, not once per letter", async () => {
+    mount();
+    const field = await screen.findByPlaceholderText(/Type, or pick from the list/);
+    fireEvent.click(await screen.findByRole("button", { name: /Pick item/ }));
+    await waitFor(() =>
+      expect(mockFetch.mock.calls.filter((c) => String(c[0]).includes("/vendor-items")).length).toBe(1),
+    );
+
+    // Measured on production before this guard existed: five keystrokes with
+    // the picker open fired five requests, each one a scan.
+    for (const v of ["S", "SA", "SAW", "SAWH", "SAWHN"]) {
+      fireEvent.change(field, { target: { value: v } });
+    }
+    await act(async () => { vi.advanceTimersByTime(500); });
+
+    await waitFor(() => {
+      const items = mockFetch.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/vendor-items"));
+      // one for the vendor the invoice arrived with, one for what they typed
+      expect(items.length).toBe(2);
+      expect(items[1]).toContain("SAWHN");
+    });
+  });
+});
+
+describe("invoice inbox — what the audit found", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    mockFetch.mockImplementation((url: string) => Promise.resolve(route(String(url)) as unknown as Response));
+  });
+
+  it("a vendor list that failed to load is not reported as 'every vendor is new'", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes("/vendors")) return Promise.resolve({ ok: false, status: 403, json: async () => ({}) } as unknown as Response);
+      return Promise.resolve(route(u) as unknown as Response);
+    });
+    mount();
+    expect(await screen.findByText(/could not load the vendor list/i)).toBeTruthy();
+    // The amber warning would otherwise fire on every single invoice, which is
+    // how a warning stops being read.
+    expect(screen.queryByText(/not a vendor we have invoiced before/i)).toBeNull();
+  });
+
+  it("does not show the previous vendor's items when the vendor changed first", async () => {
+    mount();
+    const field = await screen.findByPlaceholderText(/Type, or pick from the list/);
+    // change the vendor while the picker is CLOSED, then open it
+    fireEvent.focus(field);
+    fireEvent.click(await screen.findByText("MIY FOODSTUFFS TRADING LLC"));
+    await waitFor(() => expect((field as HTMLInputElement).value).toBe("MIY FOODSTUFFS TRADING LLC"));
+    await openItemPicker();
+    await waitFor(() => {
+      const items = mockFetch.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/vendor-items"));
+      expect(items.length).toBeGreaterThan(0);
+      // never asks for the vendor the invoice arrived with
+      expect(items.some((u) => u.includes("SAWHNEY"))).toBe(false);
+      expect(items[items.length - 1]).toContain("MIY%20FOODSTUFFS");
+    });
+    expect(screen.getByPlaceholderText(/Search MIY FOODSTUFFS TRADING LLC's items/)).toBeTruthy();
+  });
+
+  it("is a combobox a keyboard can drive", async () => {
+    mount();
+    const field = await screen.findByRole("combobox", { name: /Vendor Name/ });
+    expect(field.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByLabelText(/Vendor Name/)).toBe(field);
+    fireEvent.focus(field);
+    await waitFor(() => expect(field.getAttribute("aria-expanded")).toBe("true"));
+    fireEvent.keyDown(field, { key: "ArrowDown" });
+    fireEvent.keyDown(field, { key: "ArrowDown" });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() =>
+      expect((field as HTMLInputElement).value).toBe("Sushi ZEN Central Kitchen"),
+    );
+    // Escape closes the list, not the invoice
+    fireEvent.focus(field);
+    await waitFor(() => expect(field.getAttribute("aria-expanded")).toBe("true"));
+    fireEvent.keyDown(field, { key: "Escape" });
+    await waitFor(() => expect(field.getAttribute("aria-expanded")).toBe("false"));
+  });
+
+  it("prints the remembered price as money, not a bare number", async () => {
+    mount();
+    await openItemPicker();
+    expect(await screen.findByText(/last AED 24\.00/)).toBeTruthy();
   });
 });
