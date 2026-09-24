@@ -54,8 +54,20 @@ from app.db_public_apply import apply_block_summary
 apply_block_summary(14)   # {'blocked_people','recovered_people','gave_up','by_field'}
 ```
 
-**未実装**: これを見る画面が無い。教訓55・58の形（作ったが繋いでいない）なので、
-数字が溜まったら BO Dashboard か Recruitment に出す必要がある。
+**画面も作った（同日）。** 最初オーナーに heroku のワンライナーを渡してしまい、
+「これを実行するのですか」と聞かれた。**教訓55・58そのもの**（作ったが繋いでいない／
+読める数字が押せない）。`src/components/hr/FormFunnel.tsx` を
+HR Recruitment の Pipeline 上部に置いた。
+
+- **Gave up を先頭に出す。** Stopped と Fixed-and-sent は隣。止まっても直して送れた人は
+  損失ではないので、見出しの数字は「失った人数」でなければならない（教訓73）
+- **空の状態を2つに分ける。** 「まだ記録が無い（9/24開始）」と「読めなかった」は別の文面。
+  取得失敗を0人と表示しない（教訓58）
+- 項目名は**応募者の画面の文言**で出す。`facebook_url` とは書かない（教訓73の「内部キーを
+  画面に出さない」）
+- 表の列見出しは `Never sent`。タイルの `Gave up` と同じ語を2つの粒度に使わない
+- ⚠️ **`page.tsx` から名前付き export はできない**（Next がビルドで落とす。`tsc` は通る）。
+  コンポーネントは `src/components/hr/` に置くこと。`npx next build` で初めて出た
 
 ### CV添付
 
