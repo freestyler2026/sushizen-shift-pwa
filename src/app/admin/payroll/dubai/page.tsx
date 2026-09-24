@@ -86,11 +86,6 @@ type CalcResult = {
 
 type StaffGroup = "all" | "parttime";
 
-const PARTTIME_NAMES = [
-  "Krishna Tamang", "Dipak Dahal", "Bijien Mijar", "Padam Bahadur K C",
-  "Kelvin Gurung", "Raman Miya", "Pukar K C", "Mahima Pansilu Dadallage",
-];
-
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export default function DubaiPayrollPage() {
@@ -184,10 +179,11 @@ export default function DubaiPayrollPage() {
   async function handleGetOrCreateCycle() {
     setCreatingCycle(true); setCycleErr("");
     try {
-      const r = await apiFetch(
-        `${PAY_API}/cycles?city=dubai&year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
-        { method: "POST" },
-      );
+      // No year/month: the server knows Dubai's cycle runs 26th-to-25th, so
+      // on the 26th it opens the NEXT month's cycle. Sending the browser's
+      // calendar month re-opened the cycle that had just stopped paying —
+      // and those six days are exactly when the new cycle must be created.
+      const r = await apiFetch(`${PAY_API}/cycles?city=dubai`, { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
       await loadCycles();
     } catch (e) { setCycleErr(String(e)); }
@@ -212,10 +208,12 @@ export default function DubaiPayrollPage() {
     const df = rangeFrom[cycle.id] || null;
     const dt = rangeTo[cycle.id] || null;
     const group = staffGroup[cycle.id] ?? "all";
-    const staffNamesPayload = group === "parttime" ? PARTTIME_NAMES : null;
     const body: Record<string, unknown> = { cycle_id: cycle.id, year: cycle.year, month: cycle.month };
     if (useRange && df && dt) { body.date_from = df; body.date_to = dt; }
-    if (staffNamesPayload) body.staff_names = staffNamesPayload;
+    // Who is paid by the hour is a property of the salary config. Sending a
+    // list from here meant maintaining it here, and the list had two people
+    // who had left and was missing one who had joined.
+    if (group === "parttime") body.staff_group = "parttime";
     try {
       const r = await apiFetch(`${API}/auto-adjustments`, {
         method: "POST",
@@ -502,8 +500,12 @@ export default function DubaiPayrollPage() {
                           </button>
                         </div>
                         <p className="text-xs text-slate-500">
-                          Catch-up example — Regular: <span className="text-slate-300 font-mono">2026-06-26 → 2026-08-25</span> ·
-                          Part-time penalty catch-up: <span className="text-slate-300 font-mono">2026-07-01 → 2026-08-31</span>
+                          Leave the dates empty to recalculate the days this cycle pays for
+                          {c.period_start && c.period_end
+                            ? <> (<span className="text-slate-300 font-mono">{c.period_start} → {c.period_end}</span>)</>
+                            : null}.
+                          A narrower range replaces only the days inside it and leaves the rest
+                          of the cycle alone.
                         </p>
                       </div>
                     )}
