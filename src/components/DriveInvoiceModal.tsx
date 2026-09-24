@@ -124,7 +124,10 @@ function VendorPicker({
   }, [open]);
 
   const typed = query ?? value;
-  const needle = foldKey(typed);
+  // The whole list until they type. Seeding the filter with the name already in
+  // the field narrowed it to that one vendor, so opening the picker showed the
+  // reviewer only the answer they already had.
+  const needle = query === null ? "" : foldKey(query);
   const shown = needle
     ? options.filter((o) => foldKey(o.name).includes(needle))
     : options;
@@ -140,7 +143,7 @@ function VendorPicker({
       </label>
       <input
         value={typed}
-        onFocus={() => { setQuery(value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
         onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
         placeholder={loading ? "Loading vendors…" : "Type, or pick from the list"}
         className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
