@@ -672,6 +672,13 @@ function KanbanCard({
                 {applicant.comment_count} comment{applicant.comment_count === 1 ? "" : "s"}
               </span>
             ) : null}
+            {/* A card can arrive here from the Calendar, which has no salary
+                field. Saying so beats an Approve button that refuses. */}
+            {!applicant.offer_recorded && (
+              <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-amber-300">
+                no salary recorded
+              </span>
+            )}
           </div>
           {canApprove ? (
             <button
