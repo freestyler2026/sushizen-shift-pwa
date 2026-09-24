@@ -46,6 +46,7 @@ const T = {
     apps: "Which of these do you use on this number?",
     appsHelp: "So we can send you the next step. Leave blank if you are not sure — we will text you.",
     fb: "Facebook profile link (optional)",
+    fbForMessenger: "Facebook profile link",
     fbPh: "facebook.com/yourname",
     referrer: "Who referred you? (optional)",
     referrerPh: "Name of the person",
@@ -66,6 +67,7 @@ const T = {
     doneAgain: "Send another application",
     resumeNote: "Picking up where you left off — your answers so far are saved.",
     errRequired: "Please complete the highlighted fields.",
+    starMeans: "You cannot send without this. Everything else is optional.",
     errNetwork: "Could not send. Check your connection and try again.",
     errBusy: "Too many applications from this connection. Please try later, or message us on Facebook.",
     positions: {
@@ -106,6 +108,7 @@ const T = {
     apps: "Alin sa mga ito ang gamit mo sa numerong ito?",
     appsHelp: "Para maipadala namin ang susunod na hakbang. Pwedeng iwanang blangko — ite-text ka namin.",
     fb: "Link ng Facebook profile (opsyonal)",
+    fbForMessenger: "Link ng Facebook profile",
     fbPh: "facebook.com/pangalanmo",
     referrer: "Sino ang nag-refer sa iyo? (opsyonal)",
     referrerPh: "Pangalan ng tao",
@@ -126,6 +129,7 @@ const T = {
     doneAgain: "Magpadala ng panibagong aplikasyon",
     resumeNote: "Itutuloy po natin kung saan ka tumigil — nakasave na ang mga sinagot mo.",
     errRequired: "Pakikumpleto ang mga naka-highlight na bahagi.",
+    starMeans: "Kailangan ito bago makapagpadala. Opsyonal ang lahat ng iba.",
     errNetwork: "Hindi naipadala. Pakicheck ang koneksyon at subukan ulit.",
     errBusy: "Masyadong maraming aplikasyon mula sa koneksyong ito. Subukan mamaya, o mag-message sa Facebook.",
     positions: {
@@ -190,6 +194,16 @@ const FIELD =
   "w-full rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-base text-white " +
   "placeholder:text-zinc-500 focus:border-violet-400/60 focus:outline-none";
 const BAD = "border-red-400/70";
+
+/** The mark that means "you cannot send without this".
+ *
+ *  Five of the eight things that stop the form carried no mark at all — name,
+ *  number, role, branch, experience — and a sixth said "(optional)" while
+ *  refusing to send. HR heard it from applicants before we heard it from the
+ *  screen. Every blocking rule below renders this. */
+function Req() {
+  return <span className="text-rose-400" aria-hidden="true"> *</span>;
+}
 
 /** Where the interview link is kept while it is being answered.
  *
@@ -483,9 +497,13 @@ export default function ApplyPage() {
 
       <p className="mb-6 text-sm text-zinc-400">{t.intro}</p>
 
+      <p className="mb-4 text-xs text-zinc-500">
+        <span className="text-rose-400">*</span> {t.starMeans}
+      </p>
+
       <form onSubmit={submit} className="space-y-5" noValidate>
         <div>
-          <label className="mb-1.5 block text-sm text-zinc-300">{t.name}</label>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.name}<Req /></label>
           <input
             value={form.full_name} onChange={(e) => set("full_name", e.target.value)}
             placeholder={t.namePh} autoComplete="name" enterKeyHint="next"
@@ -494,7 +512,7 @@ export default function ApplyPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm text-zinc-300">{t.phone}</label>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.phone}<Req /></label>
           <input
             value={form.phone} onChange={(e) => set("phone", e.target.value)}
             placeholder={t.phonePh} type="tel" inputMode="tel" autoComplete="tel"
@@ -504,7 +522,7 @@ export default function ApplyPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm text-zinc-300">{t.position}</label>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.position}<Req /></label>
           <SelectDark
             className={`${FIELD} ${bad.includes("position_group") ? BAD : ""}`}
             value={form.position_group}
@@ -518,7 +536,7 @@ export default function ApplyPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm text-zinc-300">{t.branch}</label>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.branch}<Req /></label>
           <SelectDark
             className={`${FIELD} ${bad.includes("branch") ? BAD : ""}`}
             value={form.branch}
@@ -537,7 +555,7 @@ export default function ApplyPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm text-zinc-300">{t.experience}</label>
+          <label className="mb-1.5 block text-sm text-zinc-300">{t.experience}<Req /></label>
           <SelectDark
             className={`${FIELD} ${bad.includes("experience_level") ? BAD : ""}`}
             value={form.experience_level}
@@ -640,7 +658,10 @@ export default function ApplyPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm text-zinc-300">{t.fb}</label>
+          <label className="mb-1.5 block text-sm text-zinc-300">
+            {apps.includes("messenger") ? t.fbForMessenger : t.fb}
+            {apps.includes("messenger") && <Req />}
+          </label>
           <input
             value={form.facebook_url} onChange={(e) => set("facebook_url", e.target.value)}
             placeholder={t.fbPh} inputMode="url" autoComplete="off"
