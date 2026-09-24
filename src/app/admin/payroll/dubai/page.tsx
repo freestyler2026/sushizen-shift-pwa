@@ -42,7 +42,28 @@ type PayrollCycle = {
   status: string;
   closed_at: string | null;
   created_at: string;
+  // The days this cycle actually pays for. Dubai runs 26th-to-25th, so the
+  // month in the name is a label. Null means the calendar month.
+  period_start: string | null;
+  period_end: string | null;
+  // September 2026 pays the hourly staff for a different span, because
+  // August ended on the 25th for monthly staff and the 31st for hourly.
+  // Null means they share the window above.
+  hourly_period_start: string | null;
+  hourly_period_end: string | null;
 };
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** The first and last day a cycle pays for; the calendar month when unset. */
+function cycleWindow(c: PayrollCycle, hourly = false): [string, string] {
+  if (hourly && c.hourly_period_start && c.hourly_period_end) {
+    return [c.hourly_period_start, c.hourly_period_end];
+  }
+  if (c.period_start && c.period_end) return [c.period_start, c.period_end];
+  const lastDay = new Date(c.year, c.month, 0).getDate();
+  return [`${c.year}-${pad2(c.month)}-01`, `${c.year}-${pad2(c.month)}-${pad2(lastDay)}`];
+}
 
 type CalcResult = {
   ok: boolean;
@@ -365,6 +386,16 @@ export default function DubaiPayrollPage() {
                           {c.status}
                         </span>
                         <span className="ml-2 text-xs text-slate-500">ID #{c.id}</span>
+                        {/* The month is only a name. Say which days are paid,
+                            or nobody can check the figures against the DTR. */}
+                        <div className="mt-1 text-xs text-slate-400">
+                          Pays for {cycleWindow(c)[0]} &ndash; {cycleWindow(c)[1]}
+                          {c.hourly_period_start && c.hourly_period_end && (
+                            <span className="ml-2 text-amber-300">
+                              &middot; hourly staff {c.hourly_period_start} &ndash; {c.hourly_period_end}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {/* Clear Auto-Calc — two-step confirm */}
@@ -405,12 +436,12 @@ export default function DubaiPayrollPage() {
                         <button
                           onClick={() => {
                             setShowRangeId(prev => prev === c.id ? null : c.id);
-                            // default dates: first/last of cycle month
+                            // Default to the days the cycle pays for, not the
+                            // calendar month — for Dubai they are not the same.
                             if (showRangeId !== c.id) {
-                              const pad = (n: number) => String(n).padStart(2, "0");
-                              const lastDay = new Date(c.year, c.month, 0).getDate();
-                              setRangeFrom(prev => ({ ...prev, [c.id]: prev[c.id] ?? `${c.year}-${pad(c.month)}-01` }));
-                              setRangeTo(prev => ({ ...prev, [c.id]: prev[c.id] ?? `${c.year}-${pad(c.month)}-${pad(lastDay)}` }));
+                              const [wFrom, wTo] = cycleWindow(c);
+                              setRangeFrom(prev => ({ ...prev, [c.id]: prev[c.id] ?? wFrom }));
+                              setRangeTo(prev => ({ ...prev, [c.id]: prev[c.id] ?? wTo }));
                             }
                           }}
                           className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-40 transition-colors"
