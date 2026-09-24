@@ -64,6 +64,9 @@ type Interview = {
   available_from: string;
   attended: boolean | null;
   recorded: boolean;
+  /** What was recorded. 'hire' and 'consider' keep the person in the running;
+   *  'no_hire' and 'not_assessed' close them. Empty until an outcome exists. */
+  recommendation?: string;
 };
 
 type Day = {
@@ -480,8 +483,23 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                       <ArrowRight className="h-3 w-3" />
                     </button>
                   )}
+                  {/* A grey "Recorded" said the same about the person being
+                      hired and the person turned down, so the calendar could
+                      not show who is still in the running. */}
                   {iv.recorded ? (
-                    <span className={BADGE_SUCCESS}>Recorded</span>
+                    iv.recommendation === "hire" || iv.recommendation === "consider" ? (
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                          iv.recommendation === "hire"
+                            ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                            : "border-amber-500/50 bg-amber-500/15 text-amber-300"
+                        }`}
+                      >
+                        {iv.recommendation === "hire" ? "Move to offer" : "Hold — decide later"}
+                      </span>
+                    ) : (
+                      <span className={BADGE_SUCCESS}>Recorded</span>
+                    )
                   ) : selected.is_past ? (
                     <span className={BADGE_WARNING}>No outcome yet</span>
                   ) : null}

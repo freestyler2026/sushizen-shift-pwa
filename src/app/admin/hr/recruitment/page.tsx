@@ -588,9 +588,20 @@ function KanbanCard({
   canApprove: boolean;
   nextStatus: KanbanStatus | null;
 }) {
+  // Still in the running after the interview. Until now a card that had been
+  // assessed looked exactly like one nobody had looked at, so the Interviewed
+  // column could not show who was kept.
+  const kept = applicant.latest_recommendation === "hire"
+    || applicant.latest_recommendation === "consider";
   return (
     <div
-      className={`${GLASS_CARD} p-3 cursor-pointer hover:border-violet-500/30 transition-all duration-150`}
+      className={`${GLASS_CARD} p-3 cursor-pointer hover:border-violet-500/30 transition-all duration-150 ${
+        kept
+          ? applicant.latest_recommendation === "hire"
+            ? "border-emerald-500/50 bg-emerald-500/5"
+            : "border-amber-500/50 bg-amber-500/5"
+          : ""
+      }`}
       onClick={onSelect}
     >
       {/* Position badge */}
@@ -622,6 +633,24 @@ function KanbanCard({
       {/* Score */}
       {applicant.latest_score !== undefined && applicant.latest_score !== null && (
         <div className="mt-1.5">{scoreDisplay(applicant.latest_score)}</div>
+      )}
+
+      {/* What the interviewer decided. Named for the button they pressed, so
+          the card and the outcome panel say the same words. */}
+      {kept && (
+        <div className="mt-1.5">
+          <span
+            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+              applicant.latest_recommendation === "hire"
+                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                : "border-amber-500/50 bg-amber-500/15 text-amber-300"
+            }`}
+          >
+            {applicant.latest_recommendation === "hire"
+              ? "Move to offer"
+              : "Hold — decide later"}
+          </span>
+        </div>
       )}
 
       {/* Waiting on a person, so the card says who and offers the decision
