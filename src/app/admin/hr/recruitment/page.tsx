@@ -49,6 +49,10 @@ type KanbanStatus =
   | "screened"
   | "scheduled"
   | "interviewed"
+  /** Somebody has asked for this offer to be approved. The decision used to
+   *  happen in Discord, so the reason a person was hired lived in a chat log
+   *  nothing else could reach. */
+  | "approval"
   | "offer_sent"
   | "hired"
   | "rejected";
@@ -98,6 +102,16 @@ type Applicant = {
    *  boundary. */
   offer_recorded?: boolean;
   offer_sent_at?: string | null;
+  /** The approval request on this card. No file and no amount travels here —
+   *  only who asked, what was decided, and whether a letter exists
+   *  (lesson 29). */
+  approval_requested_by?: string;
+  approval_requested_at?: string | null;
+  approval_decision?: string;
+  approval_decided_by?: string;
+  has_offer_letter?: boolean;
+  offer_letter_filename?: string;
+  comment_count?: number;
   booking_invited_at?: string | null;
   booking_token_expires_at?: string | null;
   booking_sent_at?: string | null;
@@ -200,9 +214,30 @@ function isImageName(name: string): boolean {
  *  The board's one-tap button only ever moves forward, and until now the only
  *  route back was a dropdown two clicks inside a panel nobody had opened. */
 function getPrevStatus(status: KanbanStatus): KanbanStatus | null {
-  const order: KanbanStatus[] = ["new", "screened", "scheduled", "interviewed", "offer_sent"];
+  const order: KanbanStatus[] = ["new", "screened", "scheduled", "interviewed", "approval", "offer_sent"];
   const i = order.indexOf(status);
   return i > 0 ? order[i - 1] : null;
+}
+
+/** What a failed call actually said.
+ *
+ *  Read as text first: a 413 from the platform comes back as text/plain, and
+ *  calling res.json() on it throws and takes the real reason with it
+ *  (lesson 24).
+ */
+async function errorDetail(res: Response): Promise<string> {
+  try {
+    const raw = await res.text();
+    try {
+      const data = JSON.parse(raw);
+      if (data?.detail) return String(data.detail);
+    } catch {
+      if (raw.trim()) return raw.trim().slice(0, 300);
+    }
+  } catch {
+    /* the body could not be read at all */
+  }
+  return `HTTP ${res.status}`;
 }
 
 /** Readable size for a resume. A filename on its own does not say whether the
@@ -361,6 +396,7 @@ const KANBAN_COLUMNS: { id: KanbanStatus; label: string; color: string }[] = [
   { id: "screened",    label: "Screened",           color: "border-blue-600" },
   { id: "scheduled",   label: "Interview Sched.",   color: "border-amber-600" },
   { id: "interviewed", label: "Interviewed",        color: "border-violet-600" },
+  { id: "approval",    label: "Awaiting approval",  color: "border-sky-500" },
   { id: "offer_sent",  label: "Offer Sent",         color: "border-emerald-600" },
   { id: "hired",       label: "Hired ✓",       color: "border-green-500" },
   { id: "rejected",    label: "Rejected",           color: "border-red-800" },
@@ -527,6 +563,8 @@ function KanbanCard({
   onCloseStale,
   onAskForCv,
   onRecordOffer,
+  onDecideApproval,
+  canApprove,
   nextStatus,
 }: {
   applicant: Applicant;
@@ -537,6 +575,8 @@ function KanbanCard({
   onCloseStale: (a: Applicant) => void;
   onAskForCv: (a: Applicant) => void;
   onRecordOffer: (a: Applicant) => void;
+  onDecideApproval: (a: Applicant) => void;
+  canApprove: boolean;
   nextStatus: KanbanStatus | null;
 }) {
   return (
@@ -575,8 +615,72 @@ function KanbanCard({
         <div className="mt-1.5">{scoreDisplay(applicant.latest_score)}</div>
       )}
 
-      {/* Decision point: say what happened rather than just moving the card */}
-      {needsOutcome(applicant.status) ? (
+      {/* Waiting on a person, so the card says who and offers the decision
+          rather than a button that moves it along without one. */}
+      {applicant.status === "approval" ? (
+        <div className="mt-2 space-y-1.5">
+          <p className="text-[10px] text-sky-300">
+            {applicant.approval_requested_by
+              ? `${applicant.approval_requested_by} asked for approval`
+              : "Waiting for approval"}
+            {applicant.approval_requested_at
+              ? ` · ${shortDate(applicant.approval_requested_at)}`
+              : ""}
+          </p>
+          <div className="flex flex-wrap gap-1 text-[10px]">
+            {applicant.resume_screening_id ? (
+              <a
+                href={resumeHref(applicant.resume_screening_id)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="rounded-full border border-white/15 px-2 py-0.5 text-zinc-300 hover:bg-white/10 transition-colors"
+              >
+                CV
+              </a>
+            ) : (
+              <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-amber-300">
+                no CV
+              </span>
+            )}
+            {applicant.has_offer_letter ? (
+              <a
+                href={`/api/admin/hr/applicants/${applicant.id}/offer-approval/letter`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="rounded-full border border-white/15 px-2 py-0.5 text-zinc-300 hover:bg-white/10 transition-colors"
+              >
+                Offer letter
+              </a>
+            ) : (
+              <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-500">
+                no letter
+              </span>
+            )}
+            {applicant.comment_count ? (
+              <span className="rounded-full border border-white/15 px-2 py-0.5 text-zinc-300">
+                {applicant.comment_count} comment{applicant.comment_count === 1 ? "" : "s"}
+              </span>
+            ) : null}
+          </div>
+          {canApprove ? (
+            <button
+              className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1 border-sky-500/40 text-sky-200`}
+              onClick={(e) => { e.stopPropagation(); onDecideApproval(applicant); }}
+            >
+              <ClipboardList className="h-3 w-3" />
+              Approve or send back
+            </button>
+          ) : (
+            /* Saying whose move it is beats a button that does nothing when
+               pressed, and beats no explanation at all. */
+            <p className="text-[10px] text-zinc-500">
+              Someone with approval rights decides this one.
+            </p>
+          )}
+        </div>
+      ) : needsOutcome(applicant.status) ? (
         <div className="mt-2">
           <button
             className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
@@ -2314,6 +2418,113 @@ function DetailPanel({
             </div>
           </div>
         )}
+
+        {/* Outside the tabs on purpose. This is what replaces the Discord
+            thread, and a conversation filed behind a tab is one nobody reads
+            and therefore one nobody writes to. */}
+        <CommentThread applicantId={applicant.id} />
+      </div>
+    </div>
+  );
+}
+
+/** The conversation about one applicant.
+ *
+ *  It exists because the questions were going to Discord — "are you ok to
+ *  hire this one for TAFT" — and the answer then lived somewhere the CV, the
+ *  interview notes and the offer could not reach. The approval request and
+ *  the decision write into the same thread, so the record reads in order.
+ */
+function CommentThread({ applicantId }: { applicantId: string }) {
+  const [rows, setRows] = useState<
+    { id: string; author: string; body: string; kind: string; created_at: string }[]
+  >([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    const auth = getAuth();
+    if (!auth) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicantId}/comments`,
+        { headers: getAuthHeaders(auth) },
+      );
+      if (!res.ok) return;
+      const data = await res.json() as { comments?: typeof rows };
+      setRows(data.comments || []);
+    } catch {
+      /* the thread failing must not take the panel with it */
+    } finally {
+      setLoaded(true);
+    }
+  }, [applicantId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body) return;
+    const auth = getAuth();
+    if (!auth) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicantId}/comments`,
+        { method: "POST", headers: getAuthHeaders(auth), body: JSON.stringify({ body }) },
+      );
+      if (!res.ok) { setError(await errorDetail(res)); return; }
+      setDraft("");
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const kindLabel = (k: string) =>
+    k === "approval_request" ? "asked for approval"
+      : k === "approved" ? "approved"
+      : k === "sent_back" ? "sent it back"
+      : "";
+
+  return (
+    <div className="mt-5 border-t border-white/10 pt-4">
+      <p className={T_LABEL}>Comments</p>
+      {loaded && rows.length === 0 && (
+        <p className={`${T_CAPTION} mt-1`}>
+          Nothing yet. Anything asked or agreed about this person belongs here,
+          where the CV and the interview notes are.
+        </p>
+      )}
+      <div className="mt-2 space-y-2">
+        {rows.map((c) => (
+          <div key={c.id} className="rounded-lg border border-white/8 bg-white/3 px-3 py-2">
+            <p className={T_CAPTION}>
+              <span className="text-zinc-300">{c.author || "—"}</span>
+              {kindLabel(c.kind) ? ` ${kindLabel(c.kind)}` : ""}
+              {c.created_at ? ` · ${shortDate(c.created_at)}` : ""}
+            </p>
+            <p className={`${T_BODY} mt-0.5 whitespace-pre-wrap`}>{c.body}</p>
+          </div>
+        ))}
+      </div>
+      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      <div className="mt-2 flex gap-2">
+        <input
+          className={`${INPUT_CLASS} flex-1`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
+          placeholder="Add a comment…"
+        />
+        <button className={SMALL_BUTTON} disabled={busy || !draft.trim()} onClick={() => void send()}>
+          {busy ? "…" : "Post"}
+        </button>
       </div>
     </div>
   );
@@ -2778,7 +2989,7 @@ const OUTCOME_BUTTONS: {
   {
     key: "proceed",
     label: "Proceed to offer",
-    hint: "Moves them to Offer Sent",
+    hint: "Asks for the offer to be approved — you enter the salary next",
     cls: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25",
   },
   {
@@ -2811,6 +3022,263 @@ const OUTCOME_BUTTONS: {
  *  Interviewer and date are not asked for -- the signed-in user and today are
  *  already known, and a field that is asked for is a field that gets skipped.
  */
+// ─── Offer approval ──────────────────────────────────────────────────────────
+//
+// The exchange this replaces was two Discord messages: "are you ok to hire
+// this one for TAFT" and "we can proceed". Everything needed to answer it was
+// already in the OS; only the answer was somewhere else.
+
+/** Ask for the offer to be approved.
+ *
+ *  The salary is on this form rather than behind the Offer tab, because the
+ *  person asking should not have to know the tab exists — and because an
+ *  offer cannot be approved without one. hr_applicant_offers held 0 rows
+ *  against 24 hires; the figures only ever existed in a Discord attachment.
+ */
+function OfferApprovalRequestModal({
+  applicant,
+  salaryVisible,
+  onSubmit,
+  onClose,
+  saving,
+}: {
+  applicant: Applicant;
+  salaryVisible: boolean;
+  onSubmit: (data: {
+    basic_monthly: string; start_date: string; note: string; letter: File | null;
+  }) => Promise<string | null>;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const [basic, setBasic] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [note, setNote] = useState("");
+  const [letter, setLetter] = useState<File | null>(null);
+  const [error, setError] = useState("");
+
+  const ready = !salaryVisible || Number(basic) > 0;
+
+  return (
+    <ModalScrim className="bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-4`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className={T_SECTION}>{applicant.full_name}</p>
+            <p className={T_CAPTION}>
+              {applicant.position_applied}
+              {applicant.assigned_branch ? ` · ${applicant.assigned_branch}` : ""}
+            </p>
+          </div>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className={T_BODY}>
+          This asks for the offer to be approved. Nothing goes to the applicant.
+        </p>
+
+        {salaryVisible ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className={T_LABEL}>Basic salary *</p>
+              <input
+                type="number"
+                min={0}
+                className={`${INPUT_CLASS} mt-1`}
+                value={basic}
+                onChange={(e) => setBasic(e.target.value)}
+              />
+              <p className={`${T_CAPTION} mt-1`}>
+                What the letter says. Payroll fills the staff profile from it,
+                so it is typed once.
+              </p>
+            </div>
+            <div>
+              <p className={T_LABEL}>Start date</p>
+              <input
+                type="date"
+                className={`${INPUT_CLASS} mt-1`}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            The money on this offer is not yours to set, so somebody who may see
+            it has to record the salary before this can be approved.
+          </p>
+        )}
+
+        <div>
+          <p className={T_LABEL}>
+            Draft offer letter <span className="opacity-60">(optional)</span>
+          </p>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,image/*"
+            className={`${INPUT_CLASS} mt-1 file:mr-2 file:rounded file:border-0 file:bg-white/10 file:px-2 file:py-1 file:text-xs file:text-zinc-200`}
+            onChange={(e) => setLetter(e.target.files?.[0] ?? null)}
+          />
+        </div>
+
+        <div>
+          <p className={T_LABEL}>
+            Anything the approver should know{" "}
+            <span className="opacity-60">(optional)</span>
+          </p>
+          <textarea
+            className={`${TEXTAREA_CLASS} mt-1`}
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Experience in several restaurants, available immediately…"
+          />
+        </div>
+
+        {error && <p className="text-xs text-red-400">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <button className={SMALL_BUTTON} onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button
+            className={PRIMARY_BUTTON}
+            disabled={!ready || saving}
+            onClick={async () => {
+              setError("");
+              const err = await onSubmit({
+                basic_monthly: basic, start_date: startDate, note, letter,
+              });
+              if (err) setError(err);
+              else onClose();
+            }}
+          >
+            {saving ? "Sending…" : "Send for approval"}
+          </button>
+        </div>
+      </div>
+    </ModalScrim>
+  );
+}
+
+/** Approve it, or send it back. Two buttons and an optional line — the whole
+ *  point is that it is not heavier than typing an answer in Discord. */
+function OfferDecisionModal({
+  applicant,
+  onSubmit,
+  onClose,
+  saving,
+}: {
+  applicant: Applicant;
+  onSubmit: (data: { decision: string; note: string }) => Promise<string | null>;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+
+  const send = async (decision: string) => {
+    setError("");
+    const err = await onSubmit({ decision, note });
+    if (err) setError(err);
+    else onClose();
+  };
+
+  return (
+    <ModalScrim className="bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-4`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className={T_SECTION}>{applicant.full_name}</p>
+            <p className={T_CAPTION}>
+              {applicant.position_applied}
+              {applicant.assigned_branch ? ` · ${applicant.assigned_branch}` : ""}
+            </p>
+          </div>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 text-xs">
+          {applicant.resume_screening_id && (
+            <a
+              href={resumeHref(applicant.resume_screening_id)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-zinc-200 hover:bg-white/10 transition-colors"
+            >
+              Read the CV
+            </a>
+          )}
+          {applicant.has_offer_letter && (
+            <a
+              href={`/api/admin/hr/applicants/${applicant.id}/offer-approval/letter`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-zinc-200 hover:bg-white/10 transition-colors"
+            >
+              Read the offer letter
+            </a>
+          )}
+        </div>
+        {applicant.approval_requested_by && (
+          <p className={T_CAPTION}>
+            {applicant.approval_requested_by} asked
+            {applicant.approval_requested_at
+              ? ` on ${shortDate(applicant.approval_requested_at)}`
+              : ""}. Open the card for the interview notes and the comments.
+          </p>
+        )}
+
+        <div>
+          <p className={T_LABEL}>
+            Comment <span className="opacity-60">(optional)</span>
+          </p>
+          <textarea
+            className={`${TEXTAREA_CLASS} mt-1`}
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="We can proceed with hiring this candidate."
+          />
+        </div>
+
+        {error && <p className="text-xs text-red-400">{error}</p>}
+
+        <div className="grid gap-2">
+          <button
+            className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-3 text-left text-emerald-300 hover:bg-emerald-500/25 transition-colors disabled:opacity-40"
+            disabled={saving}
+            onClick={() => void send("approved")}
+          >
+            <span className="block text-sm font-semibold">Approve</span>
+            <span className="block text-xs opacity-70">Moves them to Offer Sent</span>
+          </button>
+          <button
+            className="rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-3 text-left text-amber-300 hover:bg-amber-500/25 transition-colors disabled:opacity-40"
+            disabled={saving}
+            onClick={() => void send("sent_back")}
+          >
+            <span className="block text-sm font-semibold">Send back</span>
+            <span className="block text-xs opacity-70">
+              Returns to Interviewed with your comment on the card
+            </span>
+          </button>
+        </div>
+      </div>
+    </ModalScrim>
+  );
+}
+
 function InterviewOutcomeModal({
   applicant,
   reasons,
@@ -3962,6 +4430,17 @@ export default function HRRecruitmentPage() {
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
   const [outcomeFor, setOutcomeFor] = useState<Applicant | null>(null);
+  const [approvalFor, setApprovalFor] = useState<Applicant | null>(null);
+  const [decideFor, setDecideFor] = useState<Applicant | null>(null);
+  const [savingApproval, setSavingApproval] = useState(false);
+  /** Resolved from the token, not guessed from the role name: a custom role
+   *  can hold the permission and would never match a hardcoded list
+   *  (lesson 25). */
+  const [canApprove, setCanApprove] = useState(false);
+  /** Whether this person may put a number on an offer. The same two ways in
+   *  the server allows: anyone who may read pay, and the HR people who write
+   *  the letters. The server decides; this only keeps the form honest. */
+  const [canSetOfferSalary, setCanSetOfferSalary] = useState(true);
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
   const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews" | "calendar">("pipeline");
@@ -4025,6 +4504,17 @@ export default function HRRecruitmentPage() {
         return;
       }
       authRef.current = auth;
+      {
+        const role = String(auth?.role || "").toUpperCase();
+        const held = (auth as { permissions?: string[] } | null)?.permissions || [];
+        setCanApprove(
+          role === "HQ" || role === "ADMIN" ||
+          held.includes("*") || held.includes("hr.approve_offer"));
+        setCanSetOfferSalary(
+          role === "HQ" || held.includes("*") ||
+          held.includes("payroll.view_salary") ||
+          held.includes("hr.view_offer_salary"));
+      }
       setAccessReady(true);
     });
   }, [router]);
@@ -4173,16 +4663,6 @@ export default function HRRecruitmentPage() {
 
   // Extract a human-readable detail from a failed JSON response (backend
   // returns {"detail": "..."} on validation errors).
-  const errorDetail = async (res: Response): Promise<string> => {
-    try {
-      const data = await res.json();
-      if (data?.detail) return String(data.detail);
-    } catch {
-      /* not JSON */
-    }
-    return `HTTP ${res.status}`;
-  };
-
   // Both Add modals share the same contract: return null on success (modal
   // closes), or an error string to show inside the still-open modal.
   const handleAddApplicant = async (
@@ -4297,6 +4777,15 @@ export default function HRRecruitmentPage() {
   ): Promise<string | null> => {
     const auth = authRef.current;
     if (!auth || !outcomeFor) return "Not signed in.";
+    // Proceeding does not send an offer any more, it asks for one to be
+    // approved -- and that needs a salary, which this form does not collect.
+    // Submitting here would come back as a 400 the person cannot act on.
+    if (data.outcome === "proceed") {
+      const who = outcomeFor;
+      setOutcomeFor(null);
+      setApprovalFor(who);
+      return null;
+    }
     setSavingOutcome(true);
     try {
       const res = await fetch(
@@ -4318,6 +4807,86 @@ export default function HRRecruitmentPage() {
       return e instanceof Error ? e.message : String(e);
     } finally {
       setSavingOutcome(false);
+    }
+  };
+
+  const handleRequestApproval = async (
+    data: { basic_monthly: string; start_date: string; note: string; letter: File | null }
+  ): Promise<string | null> => {
+    const auth = authRef.current;
+    if (!auth || !approvalFor) return "Not signed in.";
+    setSavingApproval(true);
+    try {
+      // The letter first: if it fails the request has not happened yet, so
+      // nobody is looking at an approval with a missing attachment.
+      if (data.letter) {
+        const fd = new FormData();
+        fd.append("letter", data.letter);
+        const up = await fetch(
+          `${API_BASE}/api/admin/hr/applicants/${approvalFor.id}/offer-approval/letter`,
+          { method: "POST", headers: getUploadHeaders(auth), body: fd },
+        );
+        if (up.status === 401) { redirectToLogin(); return "Your session has expired."; }
+        if (!up.ok) return await errorDetail(up);
+      }
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${approvalFor.id}/offer-approval/request`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({
+            note: data.note,
+            ...(data.basic_monthly ? { basic_monthly: Number(data.basic_monthly) } : {}),
+            ...(data.start_date ? { start_date: data.start_date } : {}),
+          }),
+        },
+      );
+      if (res.status === 401) { redirectToLogin(); return "Your session has expired."; }
+      if (!res.ok) return await errorDetail(res);
+      const out = await res.json() as { notified?: string[]; unreachable?: string[] };
+      // Who it actually reached. An approver with no Discord id will never
+      // learn they were asked, and saying nothing would leave the requester
+      // believing a message went out (lesson 21).
+      const reached = (out.notified || []).join(", ");
+      const missed = (out.unreachable || []).join(", ");
+      setJustDecided((m) => ({
+        ...m,
+        [approvalFor.id]: reached
+          ? `Sent for approval — told ${reached}`
+          : `Sent for approval — nobody could be notified${missed ? ` (${missed} have no Discord ID on file)` : ""}`,
+      }));
+      void loadData();
+      return null;
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      setSavingApproval(false);
+    }
+  };
+
+  const handleDecideApproval = async (
+    data: { decision: string; note: string }
+  ): Promise<string | null> => {
+    const auth = authRef.current;
+    if (!auth || !decideFor) return "Not signed in.";
+    setSavingApproval(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${decideFor.id}/offer-approval/decide`,
+        { method: "POST", headers: getAuthHeaders(auth), body: JSON.stringify(data) },
+      );
+      if (res.status === 401) { redirectToLogin(); return "Your session has expired."; }
+      if (!res.ok) return await errorDetail(res);
+      setJustDecided((m) => ({
+        ...m,
+        [decideFor.id]: data.decision === "approved" ? "Approved" : "Sent back",
+      }));
+      void loadData();
+      return null;
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      setSavingApproval(false);
     }
   };
 
@@ -4929,6 +5498,8 @@ export default function HRRecruitmentPage() {
                                 setDetailTab("offer");
                                 setSelectedApplicant(a);
                               }}
+                              onDecideApproval={setDecideFor}
+                              canApprove={canApprove}
                               nextStatus={getNextStatus(applicant.status)}
                             />
                           ))
@@ -5032,6 +5603,25 @@ export default function HRRecruitmentPage() {
           </div>
         </ModalScrim>
       )}
+      {approvalFor && (
+        <OfferApprovalRequestModal
+          applicant={approvalFor}
+          salaryVisible={canSetOfferSalary}
+          saving={savingApproval}
+          onSubmit={handleRequestApproval}
+          onClose={() => setApprovalFor(null)}
+        />
+      )}
+
+      {decideFor && (
+        <OfferDecisionModal
+          applicant={decideFor}
+          saving={savingApproval}
+          onSubmit={handleDecideApproval}
+          onClose={() => setDecideFor(null)}
+        />
+      )}
+
       {outcomeFor && (
         <InterviewOutcomeModal
           applicant={outcomeFor}
