@@ -4547,13 +4547,17 @@ function DecisionList({
               <button
                 type="button"
                 onClick={() => onSelect(a)}
-                className="min-w-0 flex-1 text-left"
+                className="min-w-[11rem] flex-1 text-left"
               >
                 <p className="truncate text-sm font-medium text-zinc-100">{a.full_name}</p>
                 {/* What to do, rather than what state it is in. "last moved 7
                     days ago" repeated the number already in the left column and
-                    left the reader to work out the action for themselves. */}
-                <p className="truncate text-xs text-zinc-400">
+                    left the reader to work out the action for themselves.
+                    It wraps rather than truncating: on a 700px window the chips
+                    squeeze this column and the sentence came out as "Close th…",
+                    which is the one line on the row that has to be read whole.
+                    A name survives truncation; an instruction does not. */}
+                <p className="text-xs text-zinc-400">
                   {reason ? nextActionFor(reason, waited) : "Decided just now."}
                 </p>
                 <p className="truncate text-xs text-zinc-500">
