@@ -16,7 +16,14 @@ import AssessmentOpinion from "@/components/hr/AssessmentOpinion";
 
 const FULL = {
   ok: true, model: "claude-opus-5", generated_at: "2026-09-25T09:00:00Z",
-  reading: ["記述はマクロな市場分析で一貫している。"],
+  tendencies: [{
+    trait: "1対1より、場に向けて話す方が動きやすい",
+    reads: "初対面の一対一には構えるが、人前で話すことには抵抗がない。",
+    evidence: ["「初対面の人と話すのは苦にならない」に 2/5", "「大勢の前で話すことに抵抗はない」に 4/5"],
+  }],
+  strengths: ["8問すべてで自分が動かせる側を選んでいる。"],
+  watch_outs: ["現場の当事者としての視点が記述に出てこない。"],
+  in_the_role: "朝礼や全体への指示は苦にしない一方、個別の面談は意識的に設計する必要がある。",
   ask: ["店長という役割を希望される理由を教えてください。"],
   cannot_say: ["外向性は設問3問なので、接客志向はこの数値からは判断できません。"],
   essay_note: "3問とも問いに正面から答えている。",
@@ -28,22 +35,46 @@ describe("店長適性検査 — AIの読み", () => {
   it("読む前に、合否ではないと言う", () => {
     render(<AssessmentOpinion candidateId="c1" complete />);
     expect(screen.getByText(/合否は書きません/)).toBeTruthy();
+    expect(screen.getByText(/根拠の無いものは出しません/)).toBeTruthy();
     expect(screen.getByText(/判断材料の1つ/)).toBeTruthy();
   });
 
   it("保存済みがあればそのまま出し、取りに行かない", () => {
     render(<AssessmentOpinion candidateId="c1" initial={FULL} complete />);
-    expect(screen.getByText(/マクロな市場分析/)).toBeTruthy();
+    expect(screen.getByText(/1対1より、場に向けて話す/)).toBeTruthy();
     expect(screen.getByText(/店長という役割/)).toBeTruthy();
     expect(screen.getByText(/設問3問なので/)).toBeTruthy();
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("三つの見出しを分けて出す — 読みと、確かめることと、判断できないこと", () => {
+  it("傾向には、その根拠になった本人の回答を並べて出す", () => {
+    // 「そう読める」だけの行は、評価ではなく感想になる。
+    // DOM に在ることではなく、**見えていること**を見る — hidden を付けても
+    // getByText は見つけてしまい、畳んだだけの変更を通してしまった。
     render(<AssessmentOpinion candidateId="c1" initial={FULL} complete />);
-    for (const h of ["読み取れること", "面接で確かめるとよいこと", "この結果では判断できないこと"]) {
+    for (const re of [/初対面の人と話すのは苦にならない.*2\/5/, /大勢の前で話すことに抵抗はない.*4\/5/]) {
+      const el = screen.getByText(re);
+      expect(el.closest("[hidden]")).toBeNull();
+      expect(window.getComputedStyle(el).display).not.toBe("none");
+    }
+  });
+
+  it("効くところと、つまずくところと、聞くことと、言えないことを分けて出す", () => {
+    render(<AssessmentOpinion candidateId="c1" initial={FULL} complete />);
+    for (const h of ["性格の傾向", "店長として、現場でどう出るか",
+                     "この仕事で効きそうなところ", "つまずきそうなところ",
+                     "面接で確かめるとよいこと", "この結果では判断できないこと"]) {
       expect(screen.getByText(h)).toBeTruthy();
     }
+  });
+
+  it("つまずきそうなところを、危険の赤では出さない", () => {
+    // 人格の否定ではなく、どういう条件で問題になるかを書く欄。
+    render(<AssessmentOpinion candidateId="c1" initial={FULL} complete />);
+    const el = screen.getByText(/現場の当事者としての視点/);
+    expect(el.className).toContain("amber");
+    expect(el.className).not.toContain("red");
+    expect(el.className).not.toContain("rose");
   });
 
   it("途中の回答には読ませるボタンを出さない", () => {
@@ -57,7 +88,7 @@ describe("店長適性検査 — AIの読み", () => {
     render(<AssessmentOpinion candidateId="c1" complete />);
     expect(mockFetch).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /読ませる/ }));
-    await waitFor(() => expect(screen.getByText(/マクロな市場分析/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/1対1より、場に向けて話す/)).toBeTruthy());
     expect(String(mockFetch.mock.calls[0][0])).toContain("/opinion");
   });
 
@@ -66,7 +97,7 @@ describe("店長適性検査 — AIの読み", () => {
     render(<AssessmentOpinion candidateId="c1" complete />);
     fireEvent.click(screen.getByRole("button", { name: /読ませる/ }));
     expect(await screen.findByText(/読みを出せませんでした/)).toBeTruthy();
-    expect(screen.queryByText("読み取れること")).toBeNull();
+    expect(screen.queryByText("性格の傾向")).toBeNull();
   });
 
   it("サーバが理由を返したらその理由を出す", async () => {

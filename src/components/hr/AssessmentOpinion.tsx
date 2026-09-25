@@ -16,17 +16,23 @@ export type Opinion = {
   ok?: boolean;
   model?: string;
   generated_at?: string;
-  reading?: string[];
+  /** 根拠を必ず伴う傾向。根拠の無いものはサーバで落としてある。 */
+  tendencies?: { trait: string; reads: string; evidence: string[] }[];
+  strengths?: string[];
+  watch_outs?: string[];
+  in_the_role?: string;
   ask?: string[];
   cannot_say?: string[];
   essay_note?: string;
   reason?: string;
 };
 
-const SECTIONS: { key: keyof Opinion; title: string; tone: string }[] = [
-  { key: "reading", title: "読み取れること", tone: "text-zinc-200" },
+const LISTS: { key: keyof Opinion; title: string; tone: string }[] = [
+  { key: "strengths", title: "この仕事で効きそうなところ", tone: "text-emerald-200" },
+  // 人格の否定ではなく「どういう条件で問題になるか」。琥珀で、赤ではない。
+  { key: "watch_outs", title: "つまずきそうなところ", tone: "text-amber-200" },
   { key: "ask", title: "面接で確かめるとよいこと", tone: "text-sky-200" },
-  { key: "cannot_say", title: "この結果では判断できないこと", tone: "text-amber-200" },
+  { key: "cannot_say", title: "この結果では判断できないこと", tone: "text-zinc-400" },
 ];
 
 export default function AssessmentOpinion({
@@ -62,7 +68,9 @@ export default function AssessmentOpinion({
     }
   }
 
-  const has = op?.ok && ((op.reading?.length ?? 0) || (op.ask?.length ?? 0) || (op.cannot_say?.length ?? 0));
+  const has =
+    op?.ok &&
+    ((op.tendencies?.length ?? 0) || (op.strengths?.length ?? 0) || (op.ask?.length ?? 0));
 
   return (
     <div className="rounded-xl border border-violet-500/25 bg-violet-900/10 p-3">
@@ -71,7 +79,7 @@ export default function AssessmentOpinion({
           <h3 className="text-sm font-semibold text-violet-200">AIの読み</h3>
           {/* 何であって何でないかを、読む前に言う。 */}
           <p className="text-[11px] leading-snug text-zinc-500">
-            判断材料の1つです。合否は書きません。設問数の少ない因子からは結論を出しません。
+            判断材料の1つです。合否は書きません。傾向は本人の回答を根拠に、根拠の無いものは出しません。
           </p>
         </div>
         {complete && (
@@ -96,7 +104,38 @@ export default function AssessmentOpinion({
 
       {has && (
         <div className="mt-3 space-y-3">
-          {SECTIONS.map(({ key, title, tone }) => {
+          {(op?.tendencies?.length ?? 0) > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                性格の傾向
+              </p>
+              <div className="mt-1 space-y-2">
+                {op!.tendencies!.map((t) => (
+                  <div key={t.trait} className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                    <p className="text-xs font-semibold text-violet-200">{t.trait}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-zinc-200">{t.reads}</p>
+                    {/* 根拠を畳まずに出す。「そう読める」だけの行を画面に置かない。 */}
+                    <ul className="mt-1.5 space-y-0.5">
+                      {t.evidence.map((e, i) => (
+                        <li key={i} className="text-[11px] leading-snug text-zinc-500">▸ {e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {op?.in_the_role && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                店長として、現場でどう出るか
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-200">{op.in_the_role}</p>
+            </div>
+          )}
+
+          {LISTS.map(({ key, title, tone }) => {
             const list = (op?.[key] as string[] | undefined) ?? [];
             if (list.length === 0) return null;
             return (
