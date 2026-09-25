@@ -1,6 +1,7 @@
 // src/app/admin/hr/manager-assessment/page.tsx
 "use client";
 
+import AssessmentOpinion, { type Opinion } from "@/components/hr/AssessmentOpinion";
 /**
  * 店長適性検査 — 受験者と結果。
  *
@@ -34,6 +35,7 @@ type Candidate = {
   id: string; full_name: string; agency: string; note: string;
   status: string; answered: number; link_until: string | null; opened_at: string | null;
   created_at: string; result: Result | null;
+  opinion?: Opinion | null;
 };
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -221,6 +223,12 @@ export default function ManagerAssessmentPage() {
                     {r.english.writing_missed.length > 0 &&
                       `　／　英語の作文で落とした問: ${r.english.writing_missed.join("・")}`}
                   </p>
+
+                  <AssessmentOpinion
+                    candidateId={c.id}
+                    initial={c.opinion ?? null}
+                    complete={r.answered >= r.total}
+                  />
 
                   {r.essays.map((e) => (
                     <div key={e.qn} className="rounded-xl border border-white/10 bg-black/20 p-3">
