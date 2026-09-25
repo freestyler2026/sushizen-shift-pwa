@@ -1,0 +1,713 @@
+{
+ "cycle": {
+  "label": "Dubai September payroll",
+  "start": "2026-08-26",
+  "end": "2026-09-25",
+  "cycle_id": 41
+ },
+ "questions": [
+  {
+   "rank": 1,
+   "staff": "Lyssa Rae",
+   "date": "4 Sep",
+   "kind": "Absence",
+   "check": "Marked absent without pay. Was this a real no-show? Note her annual leave starts 7 Sep, so this is before it.",
+   "system": "absent without pay",
+   "roster": "15:00-24:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - was on leave / No - worked / Other",
+   "_aed": 146.15,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "rank": 2,
+   "staff": "Sherileene Santiago",
+   "date": "4 Sep",
+   "kind": "Absence",
+   "check": "Marked absent without pay on a split-shift day. Was this a real no-show?",
+   "system": "absent without pay",
+   "roster": "11:00-15:00 & 17:00-21:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - was on leave / No - worked / Other",
+   "_aed": 119.23,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "rank": 3,
+   "staff": "Sherileene Santiago",
+   "date": "13 Sep",
+   "kind": "Absence",
+   "check": "Second absence for the same person. Was this a real no-show?",
+   "system": "absent without pay",
+   "roster": "11:00-15:00 & 17:00-21:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - was on leave / No - worked / Other",
+   "_aed": 119.23,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "staff": "Lyssa Rae",
+   "date": "6 Sep",
+   "kind": "Left 5h40m early",
+   "check": "She clocked out 5 hours 40 minutes before the end of her shift. This is the day before her annual leave starts. Was she allowed to go early, or is the shift wrong?",
+   "system": "340 min undertime, 2.51 hours worked",
+   "roster": "13:00-22:00",
+   "punch": "12:49-16:19 (Dubai time)",
+   "impact": "Deducts 5h40m of pay",
+   "answer_options": "Shift is correct - she left early / Shift is wrong - fix it / She was on leave / Other",
+   "fix": "If the shift is wrong, correct it in Manual Shift and re-sync the DTR.",
+   "_aed": 103.53,
+   "rank": 4
+  },
+  {
+   "rank": 5,
+   "staff": "Dipak Dahal",
+   "date": "14 Sep",
+   "kind": "Absence",
+   "check": "Marked absent without pay. Was this a real no-show?",
+   "system": "absent without pay",
+   "roster": "12:00-21:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - was on leave / No - worked / Other",
+   "_aed": 92.31,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "staff": "Muhammad Bilal Sabir",
+   "date": "18 Sep",
+   "kind": "Left 6h37m early",
+   "check": "He clocked out 6 hours 37 minutes before the end of his shift, after about 3 hours on site. Was he sent home, or is the shift wrong?",
+   "system": "397 min undertime, 2.13 hours worked",
+   "roster": "17:00-26:00",
+   "punch": "16:09-19:17 (Dubai time)",
+   "impact": "Deducts 6h37m of pay",
+   "answer_options": "Shift is correct - he left early / Shift is wrong - fix it / Other",
+   "fix": "If the shift is wrong, correct it in Manual Shift and re-sync the DTR.",
+   "_aed": 79.53,
+   "rank": 6
+  },
+  {
+   "rank": 7,
+   "staff": "Jessica Dela Cruz",
+   "date": "27 Aug",
+   "kind": "Absence",
+   "check": "Marked absent without pay. Was this a real no-show?",
+   "system": "absent without pay",
+   "roster": "12:00-21:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - was on leave / No - worked / Other",
+   "_aed": 69.23,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "rank": 8,
+   "staff": "Muna Rana Magar",
+   "date": "1 Sep",
+   "kind": "Absence",
+   "check": "Marked absent without pay. Was this a real no-show?",
+   "system": "absent without pay",
+   "roster": "14:00-23:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - was on leave / No - worked / Other",
+   "_aed": 69.23,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "rank": 9,
+   "staff": "Dipa Sitaula",
+   "date": "22 Sep",
+   "kind": "Absence",
+   "check": "Marked absent without pay. Was this a real no-show?",
+   "system": "absent without pay",
+   "roster": "12:00-21:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - was on leave / No - worked / Other",
+   "_aed": 69.23,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "rank": 10,
+   "staff": "Muskan Tamang",
+   "date": "8 Sep",
+   "kind": "Absence",
+   "check": "Marked absent without pay. Was this a real no-show?",
+   "system": "absent without pay",
+   "roster": "12:00-21:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - was on leave / No - worked / Other",
+   "_aed": 57.69,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "rank": 11,
+   "staff": "Nishan Nepal",
+   "date": "14 Sep",
+   "kind": "Absence",
+   "check": "Marked absent without pay on 14 Sep. You corrected 15 Sep on the last file - did you mean 14 Sep?",
+   "system": "absent without pay",
+   "roster": "15:00-24:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Yes - real absence / No - I meant this day / No - was on leave / Other",
+   "_aed": 57.69,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  },
+  {
+   "rank": 12,
+   "staff": "Kapil Bahadur",
+   "date": "24 Sep",
+   "kind": "Absence",
+   "check": "Marked absent without pay. His annual leave ended 23 Sep, so this is his first day back. Was the leave extended, or did he not come in?",
+   "system": "absent without pay",
+   "roster": "15:00-24:00",
+   "punch": "no clock-in",
+   "impact": "Deducts 1 day's pay",
+   "answer_options": "Real absence / Leave was extended / Worked / Other",
+   "_aed": 57.69,
+   "fix": "If it was not a real absence, clear the absent-without-pay tick on that DTR row."
+  }
+ ],
+ "open_punchout_0925": [
+  "Abishek Rana Magar",
+  "Aris Jhon De Ocampo",
+  "Dipa Sitaula",
+  "Dipak Dahal",
+  "Hayat Ullah Khan",
+  "Ian Tamano",
+  "Jasmine Sadoval",
+  "Jessica Dela Cruz",
+  "Jheymar Fabros",
+  "Jovenn Rio",
+  "Kapil Bahadur",
+  "Krishna Tamang",
+  "Man Bahadur B K",
+  "Manisha Tamang Gurung",
+  "Muna Rana Magar",
+  "Muskan Tamang",
+  "Nabin KC",
+  "Nishan Nepal",
+  "Pawan Pun Magar",
+  "Rafael Jonas Lagahit",
+  "Renuka Neupane",
+  "Sandesh Pun Magar",
+  "Sanjeev Tamang",
+  "Sharon Nagawa",
+  "Shyam Lal Pun",
+  "Sita Gurmachhan",
+  "Udaya Gurung"
+ ],
+ "clear": [
+  "Abishek Rana Magar",
+  "Alexandra Lim",
+  "Amar BK",
+  "Angelo Paule",
+  "Ashik Kahn",
+  "Bibek BK",
+  "Bikram Manger",
+  "Chandra Gurung",
+  "Dinesh Dhimal",
+  "Dipesh Thapa",
+  "Fahad Abdul Razzaq",
+  "Hayat Ullah Khan",
+  "Ian Tamano",
+  "Jasmine Sadoval",
+  "Jonathan Brembuela",
+  "Jovenn Rio",
+  "Kelvin Gurung",
+  "Krishna Tamang",
+  "Ma. Rosario Paguyan",
+  "Mahima Pansilu Dadallage",
+  "Mausein Luai",
+  "Nabaraj Sapkota",
+  "Nabin KC",
+  "Padam Bahadur K C",
+  "Pawan Pun Magar",
+  "Philip Ore",
+  "Pukar K C",
+  "Rafael Jonas Lagahit",
+  "Raj Deeban Jegan",
+  "Raman Miya",
+  "Renuka Neupane",
+  "Rubash Khadka",
+  "Sanam KC",
+  "Sandesh Pun Magar",
+  "Sanjeev Tamang",
+  "Sharon Nagawa",
+  "Shyam Lal Pun",
+  "Sota Horii"
+ ],
+ "overtime_pending": [
+  {
+   "date": "27 Aug",
+   "staff": "Shyam Lal Pun",
+   "min": 120
+  },
+  {
+   "date": "28 Aug",
+   "staff": "Nishan Nepal",
+   "min": 120
+  },
+  {
+   "date": "28 Aug",
+   "staff": "Pukar K C",
+   "min": 120
+  },
+  {
+   "date": "28 Aug",
+   "staff": "Jasmine Sadoval",
+   "min": 120
+  },
+  {
+   "date": "29 Aug",
+   "staff": "Kelvin Gurung",
+   "min": 120
+  },
+  {
+   "date": "29 Aug",
+   "staff": "Muskan Tamang",
+   "min": 120
+  },
+  {
+   "date": "29 Aug",
+   "staff": "Pukar K C",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Shyam Lal Pun",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Muskan Tamang",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Alexandra Lim",
+   "min": 60
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Pukar K C",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Pawan Pun Magar",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Ma. Rosario Paguyan",
+   "min": 60
+  },
+  {
+   "date": "24 Sep",
+   "staff": "Raj Deeban Jegan",
+   "min": 60
+  },
+  {
+   "date": "24 Sep",
+   "staff": "Jonathan Brembuela",
+   "min": 61
+  },
+  {
+   "date": "24 Sep",
+   "staff": "Jheymar Fabros",
+   "min": 59
+  }
+ ],
+ "overtime_stranded": [
+  {
+   "date": "22 Aug",
+   "staff": "Muskan Tamang",
+   "min": 120
+  },
+  {
+   "date": "13 Aug",
+   "staff": "Muskan Tamang",
+   "min": 120
+  },
+  {
+   "date": "31 Jul",
+   "staff": "Chandra Gurung",
+   "min": 60
+  }
+ ],
+ "zero_hours": [
+  {
+   "date": "20 Sep",
+   "staff": "Bibek BK",
+   "punch": "16:57 → 14:00 next day"
+  },
+  {
+   "date": "19 Sep",
+   "staff": "Bibek BK",
+   "punch": "16:57 → 14:00 next day"
+  },
+  {
+   "date": "18 Sep",
+   "staff": "Bibek BK",
+   "punch": "16:58 → 14:00 next day"
+  },
+  {
+   "date": "17 Sep",
+   "staff": "Bibek BK",
+   "punch": "16:58 → 14:00 next day"
+  },
+  {
+   "date": "18 Sep",
+   "staff": "Nishan Nepal",
+   "punch": "13:05 → 10:00 next day"
+  },
+  {
+   "date": "17 Sep",
+   "staff": "Jonathan Brembuela",
+   "punch": "16:51 → 14:00 next day"
+  },
+  {
+   "date": "16 Sep",
+   "staff": "Jonathan Brembuela",
+   "punch": "16:34 → 14:00 next day"
+  },
+  {
+   "date": "17 Sep",
+   "staff": "Shyam Lal Pun",
+   "punch": "12:03 → 09:00 next day"
+  },
+  {
+   "date": "16 Sep",
+   "staff": "Shyam Lal Pun",
+   "punch": "12:00 → 09:00 next day"
+  },
+  {
+   "date": "16 Sep",
+   "staff": "Sita Gurmachhan",
+   "punch": "10:55 → 08:35 next day"
+  },
+  {
+   "date": "8 Sep",
+   "staff": "Sota Horii",
+   "punch": "10:57 → 02:05 next day"
+  },
+  {
+   "date": "8 Sep",
+   "staff": "Udaya Gurung",
+   "punch": "11:58 → 02:19 next day"
+  },
+  {
+   "date": "1 Sep",
+   "staff": "Padam Bahadur K C",
+   "punch": "18:10 → 19:03 (53 minutes)"
+  },
+  {
+   "date": "26 Aug",
+   "staff": "Bijien Mijar",
+   "punch": "18:57 → 19:22 (25 minutes)"
+  }
+ ],
+ "settled": [
+  "Christian Baria",
+  "Shushma Kumari",
+  "Yogesh Bashyal"
+ ],
+ "we_fix": [
+  {
+   "staff": "Jeffril Marcos Vergara",
+   "date": "24 Sep",
+   "kind": "Joined on 24 Sep",
+   "finding": "1 working day, no part-month adjustment",
+   "action": "Add the part-month adjustment for 24 Sep, the same way it was done for Man Bahadur B K and Sangita Giri K C. His start date is already on his staff record.",
+   "_aed": 2619
+  },
+  {
+   "staff": "Bijien Mijar",
+   "date": "2 Sep",
+   "kind": "Break of 8h32m",
+   "finding": "break recorded as 512 min, 89% of the time on site",
+   "action": "Remove the break charge. A break cannot be 89% of the time on site.",
+   "_aed": 81.67
+  },
+  {
+   "staff": "Sharon Namale",
+   "date": "22 Sep",
+   "kind": "Break of 8h56m",
+   "finding": "break recorded as 536 min",
+   "action": "Remove the break charge. A break cannot be 100% of the time on site.",
+   "_aed": 60.0
+  },
+  {
+   "staff": "Four people",
+   "date": "10 dates",
+   "kind": "10-hour shifts are never completed",
+   "finding": "10 days charged undertime on 10-hour shifts",
+   "action": "Remove the undertime on all ten days. 8-hour shifts are 0% short, 9-hour 1%, 10-hour 37% — the shift length is the outlier, not the people.",
+   "_aed": 55.63
+  },
+  {
+   "staff": "Jessica Dela Cruz",
+   "date": "2 Sep",
+   "kind": "Break of 4h51m",
+   "finding": "break recorded as 291 min",
+   "action": "Remove the break charge. A break of 4h51m in a 9h11m day is a break that was never closed.",
+   "_aed": 24.66
+  }
+ ],
+ "charged_not_queried": [
+  {
+   "staff": "Jessica Dela Cruz",
+   "date": "23 Sep",
+   "kind": "Late 4h52m",
+   "system": "292 min late, 3.26 hours worked",
+   "roster": "12:00-21:00",
+   "punch": "16:52-21:07 (Dubai time)",
+   "_aed": 46.87
+  },
+  {
+   "staff": "Dipa Sitaula",
+   "date": "12 Sep",
+   "kind": "Late 3h47m",
+   "system": "227 min late, 2 min undertime, 4.17 hours worked",
+   "roster": "14:00-23:00",
+   "punch": "17:47-22:57 (Dubai time)",
+   "_aed": 37.5
+  },
+  {
+   "staff": "Dipa Sitaula",
+   "date": "23 Sep",
+   "kind": "Left 3h49m early",
+   "system": "229 min undertime, 4.17 hours worked",
+   "roster": "12:00-21:00",
+   "punch": "11:51-17:01 (Dubai time)",
+   "_aed": 33.03
+  },
+  {
+   "staff": "Manisha Tamang Gurung",
+   "date": "4 Sep",
+   "kind": "Late 3h12m",
+   "system": "192 min late, 45 min undertime, 4.95 hours worked",
+   "roster": "11:00-21:00",
+   "punch": "14:12-20:09 (Dubai time)",
+   "_aed": 30.65
+  },
+  {
+   "staff": "Man Bahadur B K",
+   "date": "21 Sep",
+   "kind": "Late 4h6m",
+   "system": "246 min late, 5.28 hours worked",
+   "roster": "12:00-21:00",
+   "punch": "16:06-22:22 (Dubai time)",
+   "_aed": 29.06
+  },
+  {
+   "staff": "Sita Gurmachhan",
+   "date": "18 Sep",
+   "kind": "Late 3h15m",
+   "system": "195 min late, 55 min undertime, 4.8 hours worked",
+   "roster": "12:00-22:00",
+   "punch": "15:15-21:03 (Dubai time)",
+   "_aed": 27.4
+  },
+  {
+   "staff": "Nishan Nepal",
+   "date": "13 Sep",
+   "kind": "Left 3h early",
+   "system": "180 min undertime, 5.13 hours worked",
+   "roster": "13:00-22:00",
+   "punch": "12:49-18:57 (Dubai time)",
+   "_aed": 21.63
+  },
+  {
+   "staff": "Dipa Sitaula",
+   "date": "17 Sep",
+   "kind": "Left 2h10m early",
+   "system": "130 min undertime, 5.55 hours worked",
+   "roster": "12:00-21:00",
+   "punch": "12:00-18:33 (Dubai time)",
+   "_aed": 18.75
+  },
+  {
+   "staff": "Udaya Gurung",
+   "date": "30 Aug",
+   "kind": "Late 52m",
+   "system": "52 min late, 7.36 hours worked",
+   "roster": "13:00-22:00",
+   "punch": "13:52-22:14 (Dubai time)",
+   "_aed": 5.34
+  },
+  {
+   "staff": "Sangita Giri K C",
+   "date": "21 Sep",
+   "kind": "Left 1h early",
+   "system": "60 min undertime, 8 hours worked",
+   "roster": "12:00-21:00",
+   "punch": "10:53-20:00 (Dubai time)",
+   "_aed": 4.81
+  }
+ ],
+ "classified": {
+  "Q": [
+   {
+    "s": "Lyssa Rae",
+    "d": "2026-09-04",
+    "r": "absence",
+    "ros": "15:00–24:00",
+    "p": "-----",
+    "a": 146.15
+   },
+   {
+    "s": "Sherileene Santiago",
+    "d": "2026-09-13",
+    "r": "absence",
+    "ros": "11:00–15:00 & 17:00–21:00",
+    "p": "-----",
+    "a": 119.23
+   },
+   {
+    "s": "Sherileene Santiago",
+    "d": "2026-09-04",
+    "r": "absence",
+    "ros": "11:00–15:00 & 17:00–21:00",
+    "p": "-----",
+    "a": 119.23
+   },
+   {
+    "s": "Dipak Dahal",
+    "d": "2026-09-14",
+    "r": "absence",
+    "ros": "12:00–21:00",
+    "p": "-----",
+    "a": 92.31
+   },
+   {
+    "s": "Dipa Sitaula",
+    "d": "2026-09-22",
+    "r": "absence",
+    "ros": "12:00–21:00",
+    "p": "-----",
+    "a": 69.23
+   },
+   {
+    "s": "Muna Rana Magar",
+    "d": "2026-09-01",
+    "r": "absence",
+    "ros": "14:00–23:00",
+    "p": "-----",
+    "a": 69.23
+   },
+   {
+    "s": "Jessica Dela Cruz",
+    "d": "2026-08-27",
+    "r": "absence",
+    "ros": "12:00–21:00",
+    "p": "-----",
+    "a": 69.23
+   },
+   {
+    "s": "Kapil Bahadur",
+    "d": "2026-09-24",
+    "r": "absence",
+    "ros": "15:00–24:00",
+    "p": "-----",
+    "a": 57.69
+   },
+   {
+    "s": "Nishan Nepal",
+    "d": "2026-09-14",
+    "r": "absence",
+    "ros": "15:00–24:00",
+    "p": "-----",
+    "a": 57.69
+   },
+   {
+    "s": "Muskan Tamang",
+    "d": "2026-09-08",
+    "r": "absence",
+    "ros": "12:00–21:00",
+    "p": "-----",
+    "a": 57.69
+   },
+   {
+    "s": "Man Bahadur B K",
+    "d": "2026-09-21",
+    "r": "late",
+    "ros": "12:00–21:00",
+    "p": "16:06-22:22",
+    "L": 246,
+    "a": 24.06,
+    "w": "his first day — there is no other day on a 12:00 start to compare with"
+   }
+  ],
+  "C": [
+   {
+    "s": "Bijien Mijar",
+    "d": "2026-09-02",
+    "r": "break",
+    "ros": "19:00–28:00",
+    "p": "18:51-04:23",
+    "a": 81.67,
+    "w": "break is 89% of the time on site"
+   },
+   {
+    "s": "Sharon Namale",
+    "d": "2026-09-22",
+    "r": "break",
+    "ros": "15:00–24:00",
+    "p": "15:05-00:02",
+    "a": 60,
+    "w": "break is 100% of the time on site"
+   },
+   {
+    "s": "Jessica Dela Cruz",
+    "d": "2026-09-02",
+    "r": "break",
+    "ros": "12:00–21:00",
+    "p": "12:00-21:11",
+    "a": 24.66,
+    "w": "break is 53% of the time on site"
+   },
+   {
+    "s": "Jheymar Fabros",
+    "d": "2026-09-12",
+    "r": "undertime",
+    "ros": "12:00–22:00",
+    "p": "11:14-21:06",
+    "a": 6.37,
+    "w": "he has never once completed a 10-hour shift (0 of 3)"
+   },
+   {
+    "s": "Jheymar Fabros",
+    "d": "2026-09-14",
+    "r": "undertime",
+    "ros": "12:00–22:00",
+    "p": "11:58-21:23",
+    "a": 4.45,
+    "w": "he has never once completed a 10-hour shift (0 of 3)"
+   },
+   {
+    "s": "Jheymar Fabros",
+    "d": "2026-09-19",
+    "r": "undertime",
+    "ros": "12:00–22:00",
+    "p": "11:54-21:34",
+    "a": 1.92,
+    "w": "he has never once completed a 10-hour shift (0 of 3)"
+   }
+  ]
+ },
+ "stands_total": 656.0,
+ "stands_items": 35,
+ "jeffril": {
+  "amount": 2619.0,
+  "note": "Joined 24 September — his start date is already on his staff record. A part-month adjustment is missing; every other joiner and leaver has one."
+ }
+}

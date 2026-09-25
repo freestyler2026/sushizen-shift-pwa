@@ -6,6 +6,7 @@ import {
   FileSpreadsheet, Info, Loader2, RefreshCw, Upload, X, Eye, Download, Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { DAY_TYPE_LABELS, dtrDayTypeLabel, dtrRowStatus } from "@/lib/dtr-status";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
@@ -97,10 +98,7 @@ const DAY_TYPE_OPTIONS = [
   "ordinary_day", "rest_day", "public_holiday", "public_holiday_and_rest_day",
 ];
 
-const DAY_TYPE_LABELS: Record<string, string> = {
-  ordinary_day: "Ordinary", rest_day: "Rest Day",
-  public_holiday: "Public Holiday", public_holiday_and_rest_day: "Holiday + Rest",
-};
+
 
 // ── CSV Parser ─────────────────────────────────────────────────────────────────
 
@@ -188,14 +186,7 @@ function fmtLate(mins: number) {
   return `Late ${mins}m`;
 }
 
-function rowStatus(row: AttendanceRow): string {
-  if (row.annual_leave_flag) return "Annual Leave";
-  if (row.absent_without_pay) return "Absent (AWP)";
-  if (row.absence_type) return `Absent (${row.absence_type})`;
-  if (row.approval_status === "no_clockin") return "No Clock-in";
-  if (row.is_scheduled_rest_day) return "Day Off";
-  return row.is_worked ? "Worked" : (DAY_TYPE_LABELS[row.day_type] ?? row.day_type);
-}
+const rowStatus = dtrRowStatus;
 
 function downloadDtrCsv(rows: AttendanceRow[], periodId: string) {
   const headers = [
@@ -213,7 +204,7 @@ function downloadDtrCsv(rows: AttendanceRow[], periodId: string) {
     String(r.regular_hours ?? 0),
     String(r.overtime_hours ?? 0),
     r.late_minutes > 15 ? String(r.late_minutes) : "0",
-    r.absent_without_pay ? "AWP" : (DAY_TYPE_LABELS[r.day_type] ?? r.day_type),
+    dtrDayTypeLabel(r),
     r.approval_status ?? "pending",
   ]);
   const csv = [headers, ...csvRows]

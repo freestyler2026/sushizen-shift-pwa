@@ -1,0 +1,470 @@
+{
+ "ev": {
+  "Lyssa Rae|4 Sep": {
+   "ros": "15:00-24:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Sherileene Santiago|4 Sep": {
+   "ros": "11:00-15:00 & 17:00-21:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Sherileene Santiago|13 Sep": {
+   "ros": "11:00-15:00 & 17:00-21:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Dipak Dahal|14 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Jessica Dela Cruz|27 Aug": {
+   "ros": "12:00-21:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Muna Rana Magar|1 Sep": {
+   "ros": "14:00-23:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Dipa Sitaula|22 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Muskan Tamang|8 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Nishan Nepal|14 Sep": {
+   "ros": "15:00-24:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Kapil Bahadur|24 Sep": {
+   "ros": "15:00-24:00",
+   "punch": "no clock-in",
+   "late": 0,
+   "und": 0,
+   "awp": true,
+   "ann": false,
+   "w": false
+  },
+  "Jessica Dela Cruz|23 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "16:52-21:07 (Dubai time)",
+   "late": 292,
+   "und": 0,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Dipa Sitaula|12 Sep": {
+   "ros": "14:00-23:00",
+   "punch": "17:47-22:57 (Dubai time)",
+   "late": 227,
+   "und": 2,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Manisha Tamang Gurung|4 Sep": {
+   "ros": "11:00-21:00",
+   "punch": "14:12-20:09 (Dubai time)",
+   "late": 192,
+   "und": 45,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Man Bahadur B K|21 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "16:06-22:22 (Dubai time)",
+   "late": 246,
+   "und": 0,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Sita Gurmachhan|18 Sep": {
+   "ros": "12:00-22:00",
+   "punch": "15:15-21:03 (Dubai time)",
+   "late": 195,
+   "und": 55,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Lyssa Rae|6 Sep": {
+   "ros": "13:00-22:00",
+   "punch": "12:49-16:19 (Dubai time)",
+   "late": 0,
+   "und": 340,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Muhammad Bilal Sabir|18 Sep": {
+   "ros": "17:00-26:00",
+   "punch": "16:09-19:17 (Dubai time)",
+   "late": 0,
+   "und": 397,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Sharon Namale|22 Sep": {
+   "ros": "15:00-24:00",
+   "punch": "15:05-00:02 (Dubai time)",
+   "late": 0,
+   "und": 0,
+   "awp": false,
+   "ann": false,
+   "w": true,
+   "brk": 536
+  },
+  "Dipa Sitaula|23 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "11:51-17:01 (Dubai time)",
+   "late": 0,
+   "und": 229,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Jessica Dela Cruz|2 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "12:00-21:11 (Dubai time)",
+   "late": 0,
+   "und": 0,
+   "awp": false,
+   "ann": false,
+   "w": true,
+   "brk": 291
+  },
+  "Nishan Nepal|13 Sep": {
+   "ros": "13:00-22:00",
+   "punch": "12:49-18:57 (Dubai time)",
+   "late": 0,
+   "und": 180,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Dipa Sitaula|17 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "12:00-18:33 (Dubai time)",
+   "late": 0,
+   "und": 130,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Sangita Giri K C|21 Sep": {
+   "ros": "12:00-21:00",
+   "punch": "10:53-20:00 (Dubai time)",
+   "late": 0,
+   "und": 60,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Jeffril Marcos Vergara|24 Sep": {
+   "ros": "15:00-24:00",
+   "punch": "12:56-22:08 (Dubai time)",
+   "late": 0,
+   "und": 0,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Bijien Mijar|2 Sep": {
+   "ros": "19:00-28:00",
+   "punch": "18:51-04:23 (Dubai time)",
+   "late": 0,
+   "und": 0,
+   "awp": false,
+   "ann": false,
+   "w": true,
+   "brk": 512
+  },
+  "Udaya Gurung|30 Aug": {
+   "ros": "13:00-22:00",
+   "punch": "13:52-22:14 (Dubai time)",
+   "late": 52,
+   "und": 0,
+   "awp": false,
+   "ann": false,
+   "w": true
+  },
+  "Four people|10 dates": {
+   "ros": "11:00-21:00 / 12:00-22:00 / 09:00-19:00",
+   "punch": "all clocked out about an hour before the shift end",
+   "late": 0,
+   "und": 0,
+   "awp": false,
+   "ann": false,
+   "w": true
+  }
+ },
+ "open25": [
+  "Abishek Rana Magar",
+  "Aris Jhon De Ocampo",
+  "Dipa Sitaula",
+  "Dipak Dahal",
+  "Hayat Ullah Khan",
+  "Ian Tamano",
+  "Jasmine Sadoval",
+  "Jessica Dela Cruz",
+  "Jheymar Fabros",
+  "Jovenn Rio",
+  "Kapil Bahadur",
+  "Krishna Tamang",
+  "Man Bahadur B K",
+  "Manisha Tamang Gurung",
+  "Muna Rana Magar",
+  "Muskan Tamang",
+  "Nabin KC",
+  "Nishan Nepal",
+  "Pawan Pun Magar",
+  "Rafael Jonas Lagahit",
+  "Renuka Neupane",
+  "Sandesh Pun Magar",
+  "Sanjeev Tamang",
+  "Sharon Nagawa",
+  "Shyam Lal Pun",
+  "Sita Gurmachhan",
+  "Udaya Gurung"
+ ],
+ "hourly": [
+  "Bijien Mijar",
+  "Dipesh Thapa",
+  "Kelvin Gurung",
+  "Mahima Pansilu Dadallage",
+  "Padam Bahadur K C",
+  "Pukar K C",
+  "Raman Miya",
+  "Rubash Khadka"
+ ],
+ "dtr_staff": 61,
+ "annual_days": 147,
+ "annual_people": 9,
+ "worked_on_annual": 0,
+ "worked_on_rest": 0,
+ "overtime_pending": [
+  {
+   "date": "27 Aug",
+   "staff": "Shyam Lal Pun",
+   "min": 120
+  },
+  {
+   "date": "28 Aug",
+   "staff": "Nishan Nepal",
+   "min": 120
+  },
+  {
+   "date": "28 Aug",
+   "staff": "Pukar K C",
+   "min": 120
+  },
+  {
+   "date": "28 Aug",
+   "staff": "Jasmine Sadoval",
+   "min": 120
+  },
+  {
+   "date": "29 Aug",
+   "staff": "Kelvin Gurung",
+   "min": 120
+  },
+  {
+   "date": "29 Aug",
+   "staff": "Muskan Tamang",
+   "min": 120
+  },
+  {
+   "date": "29 Aug",
+   "staff": "Pukar K C",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Shyam Lal Pun",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Muskan Tamang",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Alexandra Lim",
+   "min": 60
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Pukar K C",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Pawan Pun Magar",
+   "min": 120
+  },
+  {
+   "date": "30 Aug",
+   "staff": "Ma. Rosario Paguyan",
+   "min": 60
+  },
+  {
+   "date": "24 Sep",
+   "staff": "Raj Deeban Jegan",
+   "min": 60
+  },
+  {
+   "date": "24 Sep",
+   "staff": "Jonathan Brembuela",
+   "min": 61
+  },
+  {
+   "date": "24 Sep",
+   "staff": "Jheymar Fabros",
+   "min": 59
+  }
+ ],
+ "overtime_stranded": [
+  {
+   "date": "22 Aug",
+   "staff": "Muskan Tamang",
+   "min": 120
+  },
+  {
+   "date": "13 Aug",
+   "staff": "Muskan Tamang",
+   "min": 120
+  },
+  {
+   "date": "31 Jul",
+   "staff": "Chandra Gurung",
+   "min": 60
+  }
+ ],
+ "zero_hours": [
+  {
+   "date": "20 Sep",
+   "staff": "Bibek BK",
+   "punch": "16:57 \u2192 14:00 next day"
+  },
+  {
+   "date": "19 Sep",
+   "staff": "Bibek BK",
+   "punch": "16:57 \u2192 14:00 next day"
+  },
+  {
+   "date": "18 Sep",
+   "staff": "Bibek BK",
+   "punch": "16:58 \u2192 14:00 next day"
+  },
+  {
+   "date": "17 Sep",
+   "staff": "Bibek BK",
+   "punch": "16:58 \u2192 14:00 next day"
+  },
+  {
+   "date": "18 Sep",
+   "staff": "Nishan Nepal",
+   "punch": "13:05 \u2192 10:00 next day"
+  },
+  {
+   "date": "17 Sep",
+   "staff": "Jonathan Brembuela",
+   "punch": "16:51 \u2192 14:00 next day"
+  },
+  {
+   "date": "16 Sep",
+   "staff": "Jonathan Brembuela",
+   "punch": "16:34 \u2192 14:00 next day"
+  },
+  {
+   "date": "17 Sep",
+   "staff": "Shyam Lal Pun",
+   "punch": "12:03 \u2192 09:00 next day"
+  },
+  {
+   "date": "16 Sep",
+   "staff": "Shyam Lal Pun",
+   "punch": "12:00 \u2192 09:00 next day"
+  },
+  {
+   "date": "16 Sep",
+   "staff": "Sita Gurmachhan",
+   "punch": "10:55 \u2192 08:35 next day"
+  },
+  {
+   "date": "8 Sep",
+   "staff": "Sota Horii",
+   "punch": "10:57 \u2192 02:05 next day"
+  },
+  {
+   "date": "8 Sep",
+   "staff": "Udaya Gurung",
+   "punch": "11:58 \u2192 02:19 next day"
+  },
+  {
+   "date": "1 Sep",
+   "staff": "Padam Bahadur K C",
+   "punch": "18:10 \u2192 19:03 (53 minutes)"
+  },
+  {
+   "date": "26 Aug",
+   "staff": "Bijien Mijar",
+   "punch": "18:57 \u2192 19:22 (25 minutes)"
+  }
+ ],
+ "settled_elsewhere": [
+  "Christian Baria",
+  "Shushma Kumari",
+  "Yogesh Bashyal"
+ ]
+}
