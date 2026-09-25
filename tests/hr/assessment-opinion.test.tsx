@@ -27,6 +27,7 @@ const FULL = {
   ask: ["店長という役割を希望される理由を教えてください。"],
   cannot_say: ["外向性は設問3問なので、接客志向はこの数値からは判断できません。"],
   essay_note: "3問とも問いに正面から答えている。",
+  score_view: { agrees: "about_right" as const, why: "回答の中身と点は一致している。" },
 };
 
 describe("店長適性検査 — AIの読み", () => {
@@ -115,6 +116,22 @@ describe("店長適性検査 — AIの読み", () => {
     render(<AssessmentOpinion candidateId="c1" initial={FULL} complete />);
     fireEvent.click(screen.getByRole("button", { name: /作り直す/ }));
     await waitFor(() => expect(String(mockFetch.mock.calls[0][0])).toContain("refresh=true"));
+  });
+
+  it("点についての見立ては出すが、点そのものは出さない", () => {
+    render(<AssessmentOpinion candidateId="c1" initial={FULL} complete />);
+    expect(screen.getByText("参考点について")).toBeTruthy();
+    expect(screen.getByText(/点は妥当と見ている/)).toBeTruthy();
+    expect(screen.getByText(/回答の中身と点は一致/)).toBeTruthy();
+    // AIが独自の数字を出す欄はこのパネルに無い
+    expect(screen.queryByText(/\d+点$/)).toBeNull();
+  });
+
+  it("決めた3語以外の判定は表示しない", () => {
+    const bad = { ...FULL, score_view: { agrees: "採用可" as unknown as "high", why: "理由" } };
+    render(<AssessmentOpinion candidateId="c1" initial={bad} complete />);
+    expect(screen.queryByText("参考点について")).toBeNull();
+    expect(screen.queryByText("採用可")).toBeNull();
   });
 
   it("いつ・どのモデルが書いたかを残す", () => {

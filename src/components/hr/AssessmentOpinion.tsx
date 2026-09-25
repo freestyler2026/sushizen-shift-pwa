@@ -24,7 +24,15 @@ export type Opinion = {
   ask?: string[];
   cannot_say?: string[];
   essay_note?: string;
+  /** 計算された点についての見立て。**点そのものではない。** */
+  score_view?: { agrees: "high" | "about_right" | "low"; why: string } | null;
   reason?: string;
+};
+
+const AGREES: Record<string, { label: string; tone: string }> = {
+  high: { label: "点が高すぎると見ている", tone: "text-amber-200" },
+  about_right: { label: "点は妥当と見ている", tone: "text-emerald-200" },
+  low: { label: "点が低すぎると見ている", tone: "text-sky-200" },
 };
 
 const LISTS: { key: keyof Opinion; title: string; tone: string }[] = [
@@ -123,6 +131,18 @@ export default function AssessmentOpinion({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {op?.score_view && AGREES[op.score_view.agrees] && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                参考点について
+              </p>
+              <p className={`mt-1 text-xs font-semibold ${AGREES[op.score_view.agrees].tone}`}>
+                {AGREES[op.score_view.agrees].label}
+              </p>
+              <p className="mt-0.5 text-xs leading-relaxed text-zinc-300">{op.score_view.why}</p>
             </div>
           )}
 
