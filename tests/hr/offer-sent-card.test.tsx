@@ -12,7 +12,7 @@
 // So an approved candidate looked exactly like an unapproved one, and an
 // approved one with an offer already out was wearing "still deciding".
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setAdminAuth } from "../setup";
 
@@ -47,8 +47,19 @@ const ROCZELLE = {
   offer_sent_at: "2026-09-25T00:00:00Z",
   approval_decision: "approved", approval_decided_by: "Yusuke Uejima",
 };
+/** A hold whose clock is still running. This is what "at the interview stage"
+ *  now means on the board: from 2026-09-25 a review saying hire or reject moves
+ *  the card to the decide screen, because recording the review moves nobody and
+ *  10 people were sitting at 'interviewed' with a reject on file. A hold under
+ *  the line is the one interview-stage card still on the board. */
 const INTERVIEWED = {
   ...BASE, id: "iv", full_name: "Still Interviewing", status: "interviewed",
+  latest_recommendation: "consider", approval_decision: "",
+};
+/** Reviewed as a hire and never sent on. Owes a decision, so it is counted on
+ *  the decide screen rather than sitting quietly in the Interviewed column. */
+const HIRE_NOT_SENT = {
+  ...BASE, id: "hns", full_name: "Hire Not Sent", status: "interviewed",
   latest_recommendation: "hire", approval_decision: "",
 };
 
@@ -96,9 +107,21 @@ describe("Offer Sent のカード", () => {
     expect(screen.queryByText("Move to offer")).toBeNull();
   });
 
-  it("面接の段階では今までどおり出す", async () => {
+  it("面接の段階の保留は、盤面に残って残り日数を出す", async () => {
     await board([INTERVIEWED], "Still Interviewing");
-    expect(screen.getByText("Move to offer")).toBeTruthy();
+    expect(screen.getByText("Hold — decide later")).toBeTruthy();
+    expect(screen.getByText("Decide within 3 days")).toBeTruthy();
+  });
+
+  it("hire と記録されたのに送られていない人は、判断待ちの画面で数える", async () => {
+    // 評価を書いただけでは誰も動かない。盤面に静かに残すのをやめた。
+    await board([INTERVIEWED, HIRE_NOT_SENT], "Still Interviewing");
+    const decide = screen.getByRole("button", { name: /Needs a decision/ });
+    expect(within(decide).getByText("1")).toBeTruthy();
+    expect(screen.queryByText("Hire Not Sent")).toBeNull();
+    fireEvent.click(decide);
+    expect(await screen.findByText("Hire Not Sent")).toBeTruthy();
+    expect(screen.getByText("Send the offer for approval.")).toBeTruthy();
   });
 
   it("承認済みのカードと未承認のカードが、同じ見た目にならない", async () => {

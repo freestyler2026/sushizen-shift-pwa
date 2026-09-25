@@ -175,7 +175,82 @@ const EXPERIENCE_LABEL: Record<string, string> = {
  *  63 of 152 were past it, 45 of them sitting at "interviewed". */
 const STALE_DAYS = 14;
 
+/** How long a "hold -- decide later" may stand before the board asks for the
+ *  decision it promised.
+ *
+ *  Chosen here, and the number is on the screen next to the count it produces
+ *  (lesson 9). Measured 2026-09-25 across the 12 people carrying a hold: 6 were
+ *  past 3 days, 3 past a week, the oldest 11 days. A week-long line lets a
+ *  quarter of them sit a full week untouched first, which is the thing being
+ *  complained about; a same-day line asks for a decision from somebody who has
+ *  just deliberately postponed one. */
+const CONSIDER_DAYS = 3;
+
 type Lane = "active" | "decide" | "closed";
+
+/** Why a card owes a decision. One value per card, first match wins, and the
+ *  same value drives the lane, the card and the sentence -- so the three cannot
+ *  say different things about one person (lesson 62). */
+type DecideReason = "review_hire" | "review_reject" | "consider_due" | "idle";
+
+/** What was recorded, in the words of the thing that recorded it. */
+const DECIDE_REASON_LABEL: Record<DecideReason, string> = {
+  review_hire: "Review says hire",
+  review_reject: "Review says reject",
+  consider_due: "Held to decide later",
+  idle: "Nothing happening",
+};
+
+/** The one thing to do next. Named for the button that does it, so the board
+ *  and the panel it opens say the same words (lesson 73). */
+function nextActionFor(reason: DecideReason, waited: number): string {
+  const days = `${waited} ${waited === 1 ? "day" : "days"}`;
+  switch (reason) {
+    case "review_hire":
+      return "Send the offer for approval.";
+    case "review_reject":
+      return "Close them, or overturn the review.";
+    case "consider_due":
+      return `Held ${days} ago. Decide, or close it.`;
+    case "idle":
+      return `${days} with nothing happening. Move it on, or close it.`;
+  }
+}
+
+/** What this card owes, or null when it owes nothing yet.
+ *
+ *  The old rule was the idle count alone, which made the one screen named
+ *  "Needs a decision" the emptiest thing on the board: measured 2026-09-25 it
+ *  held 0 people, while 22 cards sat in Working on carrying a decision somebody
+ *  had already written down and nobody had acted on -- 12 held to decide later,
+ *  and 10 with a full scored review saying reject.
+ *
+ *  Those 10 are the reason this exists. `submit_evaluation` (app/db_hr.py)
+ *  writes the recommendation and moves nothing, so a review saying reject leaves
+ *  the person at 'interviewed' indefinitely, and the card said less about them
+ *  than about somebody nobody had opened.
+ */
+function decideReasonOf(a: Applicant): DecideReason | null {
+  const idle = a.days_since_move ?? a.days_in_pipeline ?? 0;
+  // A recorded review, read only at the stage where it is still the latest
+  // thing that happened. Past 'interviewed' somebody has acted on it already
+  // and the recommendation is history, not an open question -- one person is
+  // sitting at offer_sent with an old "consider" on file today.
+  if (a.status === "interviewed") {
+    // Two spellings of the same verdict: "reject" from the scored review form,
+    // "no_hire" from the three-tap outcome panel. The second normally arrives
+    // with status='rejected' and never reaches here, but the board must not be
+    // the place that decides they mean different things.
+    if (a.latest_recommendation === "reject"
+      || a.latest_recommendation === "no_hire") return "review_reject";
+    if (a.latest_recommendation === "hire") return "review_hire";
+    if (a.latest_recommendation === "consider" && idle > CONSIDER_DAYS) {
+      return "consider_due";
+    }
+  }
+  if (idle > STALE_DAYS) return "idle";
+  return null;
+}
 
 /** Which of the three screens a person belongs on.
  *
@@ -185,8 +260,7 @@ type Lane = "active" | "decide" | "closed";
  */
 function laneOf(a: Applicant): Lane {
   if (a.status === "hired" || a.status === "rejected") return "closed";
-  const idle = a.days_since_move ?? a.days_in_pipeline ?? 0;
-  return idle > STALE_DAYS ? "decide" : "active";
+  return decideReasonOf(a) ? "decide" : "active";
 }
 
 const LANE_LABEL: Record<Lane, string> = {
@@ -599,22 +673,40 @@ function KanbanCard({
   // approved one was indistinguishable from one nobody had approved.
   const atInterviewStage = applicant.status === "interviewed"
     || applicant.status === "approval";
-  const kept = atInterviewStage
-    && (applicant.latest_recommendation === "hire"
-      || applicant.latest_recommendation === "consider");
+  const rec = atInterviewStage ? applicant.latest_recommendation : undefined;
+  const kept = rec === "hire" || rec === "consider";
+  /** A review that says no, and nobody has closed them. The quietest card on
+   *  the board until now: no colour, no chip, nothing -- measured 2026-09-25,
+   *  10 people were sitting at 'interviewed' with a scored review saying
+   *  reject, and their cards said less than one nobody had opened. */
+  const declined = rec === "reject" || rec === "no_hire";
   // Approval is the fact the later columns need, and it was on the card for
   // exactly one column before this. It now travels with the person.
   const approved = applicant.approval_decision === "approved";
+  const waited = applicant.days_since_move ?? applicant.days_in_pipeline ?? 0;
+  /** Days left on a hold before the board starts asking, or null when this is
+   *  not a running hold.
+   *
+   *  Never negative here by construction: a hold past the line is on the decide
+   *  screen, not on this board (`grouped` is built from lanes.active only), so
+   *  anything this renders is a clock still running. */
+  const holdLeft = applicant.status === "interviewed"
+      && applicant.latest_recommendation === "consider"
+      && waited <= CONSIDER_DAYS
+    ? CONSIDER_DAYS - waited
+    : null;
   return (
     <div
       className={`${GLASS_CARD} p-3 cursor-pointer hover:border-violet-500/30 transition-all duration-150 ${
         approved
           ? "border-sky-500/50 bg-sky-500/5"
-          : kept
-            ? applicant.latest_recommendation === "hire"
-              ? "border-emerald-500/50 bg-emerald-500/5"
-              : "border-amber-500/50 bg-amber-500/5"
-            : ""
+          : declined
+            ? "border-rose-500/40 bg-rose-500/5"
+            : kept
+              ? rec === "hire"
+                ? "border-emerald-500/50 bg-emerald-500/5"
+                : "border-amber-500/50 bg-amber-500/5"
+              : ""
       }`}
       onClick={onSelect}
     >
@@ -662,21 +754,46 @@ function KanbanCard({
       )}
 
       {/* What the interviewer decided. Named for the button they pressed, so
-          the card and the outcome panel say the same words. */}
-      {kept && (
+          the card and the outcome panel say the same words -- including the
+          one that says no, which used to show nothing at all. */}
+      {(kept || declined) && (
         <div className="mt-1.5">
           <span
             className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-              applicant.latest_recommendation === "hire"
-                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
-                : "border-amber-500/50 bg-amber-500/15 text-amber-300"
+              declined
+                ? "border-rose-500/50 bg-rose-500/15 text-rose-300"
+                : rec === "hire"
+                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                  : "border-amber-500/50 bg-amber-500/15 text-amber-300"
             }`}
+            title={
+              declined
+                ? "The interview review says reject. Recording that review does not close anybody, so this card is still open."
+                : rec === "hire"
+                  ? "The interview review says hire."
+                  : "The interview was held to decide later."
+            }
           >
-            {applicant.latest_recommendation === "hire"
-              ? "Move to offer"
-              : "Hold — decide later"}
+            {declined
+              ? "Reject — still open"
+              : rec === "hire"
+                ? "Move to offer"
+                : "Hold — decide later"}
           </span>
         </div>
+      )}
+
+      {/* A hold is a promise to come back, so the card carries the clock on it.
+          Only here, and only while it is still running: the moment it passes
+          the line the card leaves for the decide screen, which is where the
+          overdue ones are counted. Without this the hold looked the same on day
+          one and day three and there was no warning before the backlog. */}
+      {holdLeft !== null && (
+        <p className="mt-1.5 text-[10px] font-medium text-amber-300">
+          {holdLeft === 0
+            ? "Decide today, or it moves to Needs a decision"
+            : `Decide within ${holdLeft} ${holdLeft === 1 ? "day" : "days"}`}
+        </p>
       )}
 
       {/* Waiting on a person, so the card says who and offers the decision
@@ -4328,41 +4445,90 @@ function DecisionList({
   onDecideApproval: (a: Applicant) => void;
   canApprove: boolean;
 }) {
+  const [only, setOnly] = useState<DecideReason | null>(null);
+
   if (!rows.length) {
     return (
       <div className="p-8 text-center">
-        <p className="text-sm text-zinc-400">Nothing has been waiting more than {STALE_DAYS} days.</p>
+        <p className="text-sm text-zinc-400">
+          Nothing is waiting on a decision.
+        </p>
+        <p className="mt-1 text-xs text-zinc-500">
+          A card arrives here when an interview review is recorded and nothing
+          acts on it, when a hold passes {CONSIDER_DAYS} days, or when {STALE_DAYS} days
+          pass with nothing happening at all.
+        </p>
       </div>
     );
   }
   const open = rows.filter((a) => !decided[a.id]);
-  const byStatus = open.reduce<Record<string, number>>((acc, a) => {
-    acc[a.status] = (acc[a.status] || 0) + 1; return acc;
+  // Counted by what is owed rather than by which column they sit in. The
+  // column was the old grouping and it could not tell a decision nobody acted
+  // on from a card nobody had opened -- both read "Interviewed".
+  const byReason = open.reduce<Record<string, number>>((acc, a) => {
+    const r = decideReasonOf(a);
+    if (r) acc[r] = (acc[r] || 0) + 1;
+    return acc;
   }, {});
   // People we never replied to at all. Worth its own number: it is the one
   // thing on this screen that is our doing rather than the candidate's.
   const silent = open.filter((a) => a.never_moved).length;
+  // The chips are the filter, not a caption. A readable number that cannot be
+  // pressed is the thing that made "Active Notices: 21" useless (lesson 7).
+  const shown = only
+    ? rows.filter((a) => decideReasonOf(a) === only || decided[a.id])
+    : rows;
+  const REASON_ORDER: DecideReason[] = [
+    "review_hire", "review_reject", "consider_due", "idle",
+  ];
 
   return (
     <div className="p-3">
-      <div className="mb-3 flex flex-wrap items-center gap-1.5">
-        {Object.entries(byStatus).map(([k, n]) => (
-          <span key={k} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-300">
-            {KANBAN_COLUMNS.find((c) => c.id === k)?.label ?? k}
-            <span className="ml-1.5 tabular-nums text-zinc-500">{n}</span>
-          </span>
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        {REASON_ORDER.filter((r) => byReason[r]).map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setOnly(only === r ? null : r)}
+            className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+              only === r
+                ? "border-violet-500/50 bg-violet-500/20 text-violet-100"
+                : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+            }`}
+          >
+            {DECIDE_REASON_LABEL[r]}
+            <span className="ml-1.5 tabular-nums text-zinc-500">{byReason[r]}</span>
+          </button>
         ))}
         {silent > 0 && (
           <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200">
             {silent} never had a reply from us
           </span>
         )}
+        {only && (
+          <button
+            type="button"
+            onClick={() => setOnly(null)}
+            className="text-xs text-zinc-500 underline hover:text-zinc-300"
+          >
+            show all
+          </button>
+        )}
       </div>
+      {/* The rule that put these here, where the counts it produced are. An
+          unexplained threshold is not believed (lesson 9). */}
+      <p className="mb-3 text-xs text-zinc-500">
+        A review recorded and not acted on · a hold older than {CONSIDER_DAYS} days ·
+        {" "}{STALE_DAYS} days with nothing happening
+      </p>
 
       <div className="flex flex-col gap-1.5">
-        {rows.map((a) => {
+        {shown.map((a) => {
           const waited = a.days_since_move ?? a.days_in_pipeline ?? 0;
           const done = decided[a.id];
+          // Null only on a row kept on screen because it was decided a moment
+          // ago -- it no longer owes anything, and saying so is the point.
+          const reason = decideReasonOf(a);
           return (
             <div
               key={a.id}
@@ -4384,16 +4550,36 @@ function DecisionList({
                 className="min-w-0 flex-1 text-left"
               >
                 <p className="truncate text-sm font-medium text-zinc-100">{a.full_name}</p>
+                {/* What to do, rather than what state it is in. "last moved 7
+                    days ago" repeated the number already in the left column and
+                    left the reader to work out the action for themselves. */}
+                <p className="truncate text-xs text-zinc-400">
+                  {reason ? nextActionFor(reason, waited) : "Decided just now."}
+                </p>
                 <p className="truncate text-xs text-zinc-500">
                   {a.position_applied || "—"}
-                  {a.never_moved
-                    ? " · applied and never heard back from us"
-                    : ` · last moved ${waited} days ago`}
+                  {a.never_moved && " · applied and never heard back from us"}
                   {(a.prior_applications ?? 0) > 0 && (
                     ` · applied before (${a.prior_last_applied ?? "earlier"})`
                   )}
                 </p>
               </button>
+
+              {/* Why it is here, next to the person. The column it sits in is
+                  the same word for all 22 of them and so says nothing. */}
+              {reason && (
+                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${
+                  reason === "review_reject"
+                    ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
+                    : reason === "review_hire"
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                      : reason === "consider_due"
+                        ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                        : "border-white/10 bg-white/5 text-zinc-400"
+                }`}>
+                  {DECIDE_REASON_LABEL[reason]}
+                </span>
+              )}
 
               <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-zinc-400">
                 {KANBAN_COLUMNS.find((c) => c.id === a.status)?.label ?? a.status}
@@ -5547,7 +5733,10 @@ export default function HRRecruitmentPage() {
               {lane === "active"
                 ? `Moved within the last ${STALE_DAYS} days`
                 : lane === "decide"
-                ? `Nothing has happened for over ${STALE_DAYS} days`
+                /* The lane no longer means "old". It means somebody owes an
+                   answer, and the rule has to be on the screen that counts by
+                   it -- the number changed meaning the day this shipped. */
+                ? `A review nobody acted on, a hold past ${CONSIDER_DAYS} days, or ${STALE_DAYS} days of silence`
                 : "Hired and rejected — kept so the source figures and repeat applications still work"}
             </p>
           </div>

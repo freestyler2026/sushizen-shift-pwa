@@ -72,6 +72,83 @@ const APPLICANTS = [
     applied_date: "2026-08-01", days_in_pipeline: 37, days_since_move: 37,
     never_moved: false, prior_applications: 0, prior_last_applied: null,
   },
+  /* The five shapes the lane used to get wrong. Measured 2026-09-25: the
+     "Needs a decision" screen held 0 people while 22 cards carried a decision
+     somebody had written down and nobody had acted on. */
+  {
+    // A scored review says reject. submit_evaluation moves nobody, so this
+    // person stays open, and the card used to show no colour and no chip at
+    // all -- less than a card nobody had opened.
+    id: "a5", city: "manila", requisition_id: null, full_name: "Said No To",
+    position_applied: "kitchen", phone: "0904", email: "", source: "facebook",
+    referrer_name: "", status: "interviewed", rejection_reason: "", notes: "",
+    applied_date: "2026-09-18", days_in_pipeline: 7, days_since_move: 2,
+    never_moved: false, prior_applications: 0, prior_last_applied: null,
+    latest_recommendation: "reject",
+  },
+  {
+    // Held to decide later, and the later never came.
+    id: "a6", city: "manila", requisition_id: null, full_name: "Held Eight Days",
+    position_applied: "server", phone: "0905", email: "", source: "facebook",
+    referrer_name: "", status: "interviewed", rejection_reason: "", notes: "",
+    applied_date: "2026-09-10", days_in_pipeline: 15, days_since_move: 8,
+    never_moved: false, prior_applications: 0, prior_last_applied: null,
+    latest_recommendation: "consider",
+  },
+  {
+    // Held yesterday. Somebody deliberately postponed this one, so asking them
+    // to decide again today is not a reminder, it is noise.
+    id: "a7", city: "manila", requisition_id: null, full_name: "Held Yesterday",
+    position_applied: "server", phone: "0906", email: "", source: "facebook",
+    referrer_name: "", status: "interviewed", rejection_reason: "", notes: "",
+    applied_date: "2026-09-20", days_in_pipeline: 5, days_since_move: 1,
+    never_moved: false, prior_applications: 0, prior_last_applied: null,
+    latest_recommendation: "consider",
+  },
+  {
+    // Reviewed as a hire and still sitting at 'interviewed'. Same hole as the
+    // rejects, opposite direction: the review moves nobody.
+    id: "a8", city: "manila", requisition_id: null, full_name: "Hire Not Sent",
+    position_applied: "kitchen", phone: "0907", email: "", source: "walk_in",
+    referrer_name: "", status: "interviewed", rejection_reason: "", notes: "",
+    applied_date: "2026-09-24", days_in_pipeline: 1, days_since_move: 0,
+    never_moved: false, prior_applications: 0, prior_last_applied: null,
+    latest_recommendation: "hire",
+  },
+  {
+    // An old "consider" on somebody whose offer is already out. Somebody has
+    // acted since; the review is history, not an open question, and dragging
+    // this card onto the decide screen would be the board contradicting itself.
+    id: "a9", city: "manila", requisition_id: null, full_name: "Offer Already Out",
+    position_applied: "cashier", phone: "0908", email: "", source: "facebook",
+    referrer_name: "", status: "offer_sent", rejection_reason: "", notes: "",
+    applied_date: "2026-09-19", days_in_pipeline: 6, days_since_move: 0,
+    never_moved: false, prior_applications: 0, prior_last_applied: null,
+    latest_recommendation: "consider", approval_decision: "approved",
+  },
+  {
+    // The last day of a hold. Exactly on the line, so still on the board --
+    // the card has to say the clock runs out today rather than looking the
+    // same as day one.
+    id: "a10", city: "manila", requisition_id: null, full_name: "Hold Last Day",
+    position_applied: "server", phone: "0909", email: "", source: "facebook",
+    referrer_name: "", status: "interviewed", rejection_reason: "", notes: "",
+    applied_date: "2026-09-15", days_in_pipeline: 10, days_since_move: 3,
+    never_moved: false, prior_applications: 0, prior_last_applied: null,
+    latest_recommendation: "consider",
+  },
+  {
+    // A review saying reject on somebody whose offer is already being approved.
+    // Nobody is in this state in production today, which is exactly why the
+    // card has to speak when somebody gets here -- the contradiction is the
+    // whole message. It stays on the board because a person has acted since.
+    id: "a11", city: "manila", requisition_id: null, full_name: "Approving Despite No",
+    position_applied: "cashier", phone: "0910", email: "", source: "facebook",
+    referrer_name: "", status: "approval", rejection_reason: "", notes: "",
+    applied_date: "2026-09-22", days_in_pipeline: 3, days_since_move: 1,
+    never_moved: false, prior_applications: 0, prior_last_applied: null,
+    latest_recommendation: "reject", approval_requested_by: "HR Staff",
+  },
 ];
 
 function route(url: string) {
@@ -98,15 +175,72 @@ beforeEach(() => {
 });
 
 describe("recruitment — three screens", () => {
-  it("splits on how long since anything happened, not on status", async () => {
+  it("counts a decision that was recorded and not acted on, not just an old card", async () => {
     await renderPage();
-    // Both a2 and a1 are 'interviewed'; only the stale one is a decision.
+    // Five owe something: the 88-day wait, the 59-day silence, the reject
+    // nobody closed, the hold that passed three days, and the hire nobody
+    // sent. Under the old rule -- idle days alone -- this number was 2, and
+    // in production it was 0 while 22 cards owed a decision.
     const decide = screen.getByRole("button", { name: /Needs a decision/ });
-    expect(within(decide).getByText("2")).toBeTruthy();
+    expect(within(decide).getByText("5")).toBeTruthy();
+    // Three owe nothing yet: seen two days ago, held yesterday, offer out.
     const active = screen.getByRole("button", { name: /Working on/ });
-    expect(within(active).getByText("1")).toBeTruthy();
+    expect(within(active).getByText("5")).toBeTruthy();
     const closed = screen.getByRole("button", { name: /Closed/ });
     expect(within(closed).getByText("1")).toBeTruthy();
+  });
+
+  it("leaves a hold alone until it passes the line, then asks", async () => {
+    // The pair that makes the threshold real rather than decorative: same
+    // status, same recommendation, one day versus eight.
+    await renderPage();
+    expect(screen.getByText("Held Yesterday")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Needs a decision/ }));
+    const list = await screen.findByText("Held Eight Days");
+    expect(list).toBeTruthy();
+    expect(screen.queryByText("Held Yesterday")).toBeNull();
+  });
+
+  it("does not drag a card back for a review somebody already acted on", async () => {
+    // a9 carries an old "consider" and has an offer out. The review is not an
+    // open question and the decide screen must not claim it is.
+    await renderPage();
+    expect(screen.getByText("Offer Already Out")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Needs a decision/ }));
+    await screen.findByText("Held Eight Days");
+    expect(screen.queryByText("Offer Already Out")).toBeNull();
+  });
+
+  it("names the next action per row rather than repeating the wait", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Needs a decision/ }));
+    await screen.findByText("Said No To");
+    // Scoped to the row each sentence belongs to. Asserting the four strings
+    // are on the screen somewhere passes even with the sentences swapped
+    // between people, which is the only way this can actually be wrong.
+    const rowFor = (name: string) => screen.getByText(name).closest("div")!;
+    expect(within(rowFor("Said No To"))
+      .getByText("Close them, or overturn the review.")).toBeTruthy();
+    expect(within(rowFor("Hire Not Sent"))
+      .getByText("Send the offer for approval.")).toBeTruthy();
+    expect(within(rowFor("Held Eight Days"))
+      .getByText("Held 8 days ago. Decide, or close it.")).toBeTruthy();
+    expect(within(rowFor("Long Wait"))
+      .getByText("88 days with nothing happening. Move it on, or close it.")).toBeTruthy();
+  });
+
+  it("filters the decision list by what is owed", async () => {
+    // The counts used to be captions. A readable number that cannot be
+    // pressed is what made "Active Notices: 21" useless (lesson 7).
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Needs a decision/ }));
+    await screen.findByText("Said No To");
+    fireEvent.click(screen.getByRole("button", { name: /Review says reject/ }));
+    expect(screen.getByText("Said No To")).toBeTruthy();
+    expect(screen.queryByText("Held Eight Days")).toBeNull();
+    expect(screen.queryByText("Long Wait")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /show all/ }));
+    expect(await screen.findByText("Held Eight Days")).toBeTruthy();
   });
 
   it("puts the longest wait first and says who never got a reply", async () => {
@@ -178,9 +312,35 @@ describe("recruitment — three screens", () => {
     expect(within(still).getByText(/We did not get back to them in time/)).toBeTruthy();
     expect(within(still).queryByText("Decide")).toBeNull();
 
-    // And the tab counts work remaining, not rows on screen.
+    // And the tab counts work remaining, not rows on screen. Five owed a
+    // decision, one has just been taken, so four are left while all five rows
+    // are still on screen.
     const decide = screen.getByRole("button", { name: /Needs a decision/ });
-    await waitFor(() => expect(within(decide).getByText("1")).toBeTruthy());
+    await waitFor(() => expect(within(decide).getByText("4")).toBeTruthy());
+  });
+
+  it("runs the hold's clock on the card, so the backlog is seen coming", async () => {
+    // Same status, same recommendation, three different days. Before this the
+    // three cards were identical and the first warning anybody got was the
+    // card having already moved to another screen.
+    await renderPage();
+    const yesterday = screen.getByText("Held Yesterday").closest("div")!;
+    expect(within(yesterday).getByText("Decide within 2 days")).toBeTruthy();
+    const lastDay = screen.getByText("Hold Last Day").closest("div")!;
+    expect(within(lastDay).getByText(
+      "Decide today, or it moves to Needs a decision")).toBeTruthy();
+    // And the card that owes nothing says nothing.
+    const fresh = screen.getByText("Fresh Candidate").closest("div")!;
+    expect(within(fresh).queryByText(/^Decide (within|today)/)).toBeNull();
+  });
+
+  it("says so when a review says reject and the card moved on anyway", async () => {
+    await renderPage();
+    const card = screen.getByText("Approving Despite No").closest("div")!;
+    expect(within(card).getByText("Reject — still open")).toBeTruthy();
+    // Not dressed as a candidate being kept: the colour has to differ from the
+    // hire and hold cards or the chip is the only thing carrying it.
+    expect(within(card).queryByText("Move to offer")).toBeNull();
   });
 
   it("searches the closed list", async () => {
