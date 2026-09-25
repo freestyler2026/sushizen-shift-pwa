@@ -1,5 +1,59 @@
 # CURRENT_TASKS.md
 
+## 2026-09-25 — 承認済みが一目で分かるようにした / Offer Sent の次の一手
+
+オーナー指示「NikkaをApproveした。承認されたことが一目で分かるように、
+Offer Sentの次のアクションをHRがすぐ理解できるように」。
+
+### 何が起きていたか（実データ）
+
+| 名前 | 面接評価 | 承認 | カードの見た目 |
+|---|---|---|---|
+| Jhon Albert | hire | **なし** | 緑「Move to offer」 |
+| Nikka | hire | **承認済（西村）** | 緑「Move to offer」← **同じ** |
+| Roczelle D. | consider | **承認済（上島）** | 琥珀「**Hold — decide later**」 |
+| RONIDEL | — | **承認済（上島）** | チップなし |
+
+**4枚中3枚が承認済みで、どれもそう言っていなかった。** 表示していたのは
+**面接の評価**で、この段階では古い。承認済みのRoczelleさんが「まだ決めかねて
+いる」と表示されていた。
+
+⚠️ `approval_decision` / `approval_decided_by` は**最初から盤面APIに載っていた。
+カードが読んでいなかっただけ。**
+
+### 直したこと
+
+- **面接の評価チップは `interviewed` / `approval` までで止める。** それ以降は
+  問いが終わっており、カードと矛盾する
+- **承認はその人に付いて回る。** 承認者名入りのバッジ＋カード全体を青に
+- **Offer Sent は仕事が2つある。** 金額未記録なら「記録する」が主ボタン、
+  記録済みなら「Hired へ」が主ボタン。**次に何をするかを文で書く**
+  - 合意額が残らないまま Hired に送ると給与が推測で埋まるので、未記録時の
+    Hired は「Accepted already?」として目立たせない（到達は可能）
+
+### 検証
+
+本番の4枚で確認。Nikka/Roczelle D./RONIDEL は青＋「Approved · 承認者」、
+Jhon は青くならず「Next: write down what the letter offers」＋Record the offer。
+古いチップは Offer Sent から消え、Interviewed 列には残っている。
+
+⚠️ 検証中に3度目の自作検出器の誤検知。`startsWith("Roczelle")` で
+**別人**（`Roczelle Lucena`・面接済・reject評価）を拾い、承認が出ていないと
+誤判定した。正しくは `Roczelle D. Lucena`。**完全一致で引くこと。**
+
+### 見つけた別件（未対応）
+
+**Roczelle が2人いる** — `Roczelle D. Lucena`（offer_sent・承認済）と
+`Roczelle Lucena`（interviewed・reject）。同一人物の重複の可能性がある。
+
+### テスト
+
+盤面ごと描画する既存の型（`offer-approval.test.tsx`）に合わせて9件。
+Next は `page.tsx` から名前付き export を許さず、459行の `KanbanCard` を
+抽出するのは変更本体より危険なので、抽出しない判断。
+変異6通り、全て検出（2件はテストを直してから — カード自体の見た目を
+見ていなかった件と、`hidden` を `getByText` が通した件）。
+
 ## 2026-09-25 — 店長適性検査に参考点（計算。AIが付けた点ではない）
 
 オーナー指示「総合評価で参考点数をつけてほしい」。
