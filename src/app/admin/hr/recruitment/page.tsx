@@ -6,7 +6,7 @@ import { reasonLabel, isNoShow, LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outco
 import { cvStateOf, openedSinceAsk } from "@/lib/cv-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
+import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight, Check } from "lucide-react";
 import ModalScrim from "@/components/ModalScrim";
 import { getAuth, refreshAuthFromApi, getAuthHeaders, getUploadHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
 import FormFunnel from "@/components/hr/FormFunnel";
@@ -592,16 +592,29 @@ function KanbanCard({
   // Still in the running after the interview. Until now a card that had been
   // assessed looked exactly like one nobody had looked at, so the Interviewed
   // column could not show who was kept.
-  const kept = applicant.latest_recommendation === "hire"
-    || applicant.latest_recommendation === "consider";
+  //
+  // It stops at the interview stages on purpose. Past them the question has
+  // been answered, and the chip starts contradicting the card: an approved
+  // candidate with an offer out was wearing "Hold — decide later", and an
+  // approved one was indistinguishable from one nobody had approved.
+  const atInterviewStage = applicant.status === "interviewed"
+    || applicant.status === "approval";
+  const kept = atInterviewStage
+    && (applicant.latest_recommendation === "hire"
+      || applicant.latest_recommendation === "consider");
+  // Approval is the fact the later columns need, and it was on the card for
+  // exactly one column before this. It now travels with the person.
+  const approved = applicant.approval_decision === "approved";
   return (
     <div
       className={`${GLASS_CARD} p-3 cursor-pointer hover:border-violet-500/30 transition-all duration-150 ${
-        kept
-          ? applicant.latest_recommendation === "hire"
-            ? "border-emerald-500/50 bg-emerald-500/5"
-            : "border-amber-500/50 bg-amber-500/5"
-          : ""
+        approved
+          ? "border-sky-500/50 bg-sky-500/5"
+          : kept
+            ? applicant.latest_recommendation === "hire"
+              ? "border-emerald-500/50 bg-emerald-500/5"
+              : "border-amber-500/50 bg-amber-500/5"
+            : ""
       }`}
       onClick={onSelect}
     >
@@ -634,6 +647,18 @@ function KanbanCard({
       {/* Score */}
       {applicant.latest_score !== undefined && applicant.latest_score !== null && (
         <div className="mt-1.5">{scoreDisplay(applicant.latest_score)}</div>
+      )}
+
+      {/* Approved, and it stays visible for the rest of the person's time on
+          the board. Three of the four cards in Offer Sent had been approved and
+          not one of them said so. */}
+      {approved && (
+        <div className="mt-1.5">
+          <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/50 bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold text-sky-300">
+            <Check className="h-2.5 w-2.5" />
+            Approved{applicant.approval_decided_by ? ` · ${applicant.approval_decided_by}` : ""}
+          </span>
+        </div>
       )}
 
       {/* What the interviewer decided. Named for the button they pressed, so
@@ -832,36 +857,70 @@ function KanbanCard({
                 card moves to Hired it leaves the board, and payroll meets the
                 figure again at the staff profile with nothing to check it
                 against. So the gap is said on the card, not left to be found. */}
-            {applicant.status === "offer_sent" && (
-              applicant.offer_recorded ? (
-                <button
-                  className="mb-1.5 w-full rounded-lg px-2 py-1 text-left text-[10px] font-medium text-emerald-400 hover:bg-white/5 transition-colors"
-                  title="The offer letter's terms are on file. Payroll fills the staff profile from them. Open it to change what was agreed."
-                  onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
-                >
-                  ✓ offer on file{applicant.offer_sent_at ? ` ${shortDate(applicant.offer_sent_at)}` : ""} · change
-                </button>
-              ) : (
-                <button
-                  className={`${SMALL_BUTTON} mb-1.5 w-full text-center justify-center flex items-center gap-1 border-amber-500/40 text-amber-300`}
-                  title="Nothing about the pay has been recorded for this offer. Enter what the letter says and payroll fills the staff profile from it, so the salary is typed once."
-                  onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
-                >
-                  <ClipboardList className="h-3 w-3" />
-                  Record the offer
-                </button>
-              )
+            {/* Offer Sent holds two different jobs and the card used to show
+                them at the same weight, with "Hired" the more finished-looking
+                of the two even when the pay had never been written down. The
+                one that has to happen first is the one that looks like the
+                button now; the other waits on the candidate and says so. */}
+            {applicant.status === "offer_sent" ? (
+              <>
+                <p className="mb-1.5 text-[10px] leading-snug text-zinc-500">
+                  {applicant.offer_recorded
+                    ? "Next: when they accept, move them to Hired."
+                    : "Next: write down what the letter offers. Payroll fills the staff profile from it."}
+                </p>
+                {applicant.offer_recorded ? (
+                  <>
+                    <button
+                      className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
+                      onClick={(e) => { e.stopPropagation(); onQuickStatus(applicant.id, nextStatus); }}
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                      {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
+                    </button>
+                    <button
+                      className="mt-1 w-full rounded-lg px-2 py-1 text-left text-[10px] font-medium text-emerald-400 hover:bg-white/5 transition-colors"
+                      title="The offer letter's terms are on file. Payroll fills the staff profile from them. Open it to change what was agreed."
+                      onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
+                    >
+                      ✓ offer on file{applicant.offer_sent_at ? ` ${shortDate(applicant.offer_sent_at)}` : ""} · change
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1 border-amber-500/60 bg-amber-500/10 text-amber-200`}
+                      title="Nothing about the pay has been recorded for this offer. Enter what the letter says and payroll fills the staff profile from it, so the salary is typed once."
+                      onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
+                    >
+                      <ClipboardList className="h-3 w-3" />
+                      Record the offer
+                    </button>
+                    {/* Still reachable — somebody may accept before the
+                        paperwork — but it no longer looks like the thing to
+                        press, because hiring with no agreed figure on file is
+                        how payroll ends up guessing it. */}
+                    <button
+                      className="mt-1 w-full rounded-lg px-2 py-1 text-center text-[10px] text-zinc-500 hover:bg-white/5 hover:text-zinc-300 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); onQuickStatus(applicant.id, nextStatus); }}
+                    >
+                      Accepted already? Move to {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
+                    </button>
+                  </>
+                )}
+              </>
+            ) : (
+              <button
+                className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickStatus(applicant.id, nextStatus);
+                }}
+              >
+                <ChevronRight className="h-3 w-3" />
+                {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
+              </button>
             )}
-            <button
-              className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onQuickStatus(applicant.id, nextStatus);
-              }}
-            >
-              <ChevronRight className="h-3 w-3" />
-              {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
-            </button>
             {/* No CV, so there is nothing to screen on. The form requires one,
                 but that only covers people who applied themselves: measured
                 2026-09-15, every one of the 132 from Facebook and 9 from
