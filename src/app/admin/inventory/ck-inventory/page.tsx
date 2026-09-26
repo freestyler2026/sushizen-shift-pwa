@@ -10,6 +10,7 @@ import type { City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 import { useUnsavedGuard } from "@/lib/unsavedGuard";
 import { usePersistedDraft } from "@/lib/draftStore";
+import { IncomingNote, incomingFor, type IncomingPayload } from "@/components/IncomingNote";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,6 +96,28 @@ export default function CkInventoryPage() {
   const [allowed, setAllowed] = useState(false);
   const [staffName, setStaffName] = useState("");
   const [city, setCity] = useState<City>("dubai");
+  // Ordered and not yet received, so a count can be read next to what is
+  // already on its way. CK is the only store that orders to this sheet: of the
+  // open supplier orders, 18 are CK and 11 WH, and none are PAR/CUB/TAFT.
+  const [incoming, setIncoming] = useState<IncomingPayload | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetch(
+          `/api/admin/procurement/incoming-stock?city=${city}&store=CK`,
+          { credentials: "include", cache: "no-store" });
+        if (!alive) return;
+        // A 403 is normal for somebody without procurement access: the column
+        // is then simply empty rather than the page failing.
+        setIncoming(r.ok ? ((await r.json()) as IncomingPayload) : null);
+      } catch {
+        if (alive) setIncoming(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [city]);
 
   const [tab, setTab] = useState<Tab>("stock");
 
@@ -460,6 +483,7 @@ export default function CkInventoryPage() {
                   <th className="px-4 py-2.5 text-right">Last Count</th>
                   <th className="px-4 py-2.5 text-right">Adjustments</th>
                   <th className="px-4 py-2.5 text-right">Theoretical</th>
+                  <th className="px-4 py-2.5">Incoming</th>
                   <th className="px-4 py-2.5">Last Count Date</th>
                   <th className="px-4 py-2.5">Status</th>
                 </tr>
@@ -490,6 +514,9 @@ export default function CkInventoryPage() {
                       <td className={["px-4 py-2.5 text-right font-mono text-sm font-semibold", stockColor(row.theoretical_qty)].join(" ")}>
                         {fmt3(row.theoretical_qty)}
                         <span className="ml-1 text-xs font-normal text-neutral-500">{row.unit}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <IncomingNote lines={incomingFor(incoming, row.name)} />
                       </td>
                       <td className="px-4 py-2.5 text-xs text-neutral-500">
                         {row.last_count_date ? String(row.last_count_date).slice(0, 10) : "Never"}

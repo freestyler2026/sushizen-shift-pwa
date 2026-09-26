@@ -9,6 +9,7 @@ import {
 
 import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { IncomingNote, incomingFor as incomingLinesFor, type IncomingPayload } from "@/components/IncomingNote";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -231,30 +232,6 @@ function cityFromBranch(branch: string): CityKey {
 
 type GeneratedPR = { type: string; request_no: string; case_no: string; request_id: string };
 
-/** A quantity already ordered and not yet received, as the order placed it. */
-interface IncomingLine {
-  qty: number;
-  unit: string;
-  expected_date: string;
-  days_past: number;
-  request_no: string;
-  po_no: string;
-  vendor_name: string;
-  item_name: string;
-  store_code: string;
-  sheet_unit?: string;
-  /** False means the order and the sheet count in different units — do not add. */
-  unit_matches?: boolean;
-}
-
-interface IncomingPayload {
-  incoming: Record<string, IncomingLine[]>;
-  not_on_sheet: IncomingLine[];
-  stale_excluded: number;
-  stale_days: number;
-  line_count: number;
-}
-
 // The reverse of _PROC_STORE_TO_BRANCH on the backend. Only the branches that
 // place supplier orders of their own appear: WH has no Daily Inventory branch to
 // map to, so it returns nothing rather than borrowing CK's figures.
@@ -264,38 +241,6 @@ const BRANCH_TO_STORE: Record<string, string> = {
   CUBAO: "CUB",
   TAFT: "TAFT",
 };
-
-/** "+2 BOX due 26 Sep" beside the stock figure.
- *
- * Never added into the stock number. 89% of these lines match an inventory item
- * by name but only 65% are counted in the unit the order used — SUGAR ordered by
- * the SACK against a sheet in kg, Pork Belly by the KG against a sheet in Block —
- * so the unit is always printed and a mismatch is marked. The reader converts,
- * which is what they do today; a single summed figure would be wrong on a third
- * of the lines and there would be no way to see which third.
- */
-function IncomingNote({ lines }: { lines: IncomingLine[] }) {
-  if (!lines.length) return null;
-  return (
-    <span className="ml-1.5 whitespace-nowrap text-xs text-sky-300">
-      {lines.map((l, i) => (
-        <span key={`${l.request_no}-${l.item_name}-${i}`}>
-          {i > 0 && <span className="text-sky-600"> · </span>}
-          +{l.qty} {l.unit}
-          {l.unit_matches === false && (
-            <span className="text-amber-400" title={`The sheet counts this in ${l.sheet_unit} — convert before adding`}>
-              {" "}⚠{l.sheet_unit}
-            </span>
-          )}
-          <span className="text-sky-500/80">
-            {" "}due {String(l.expected_date).slice(5)}
-            {l.days_past > 0 ? ` (${l.days_past}d late)` : ""}
-          </span>
-        </span>
-      ))}
-    </span>
-  );
-}
 
 function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; items: InvItem[]; onBack: () => void }) {
   const entryMap: Record<string, ReportEntry> = {};
@@ -335,9 +280,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     return () => { alive = false; };
   }, [incomingStore, detail.branch]);
 
-  /** Lines on their way for this item, keyed the same way the backend keyed them. */
-  const incomingFor = (itemName: string): IncomingLine[] =>
-    incoming?.incoming?.[(itemName || "").trim().toLowerCase()] ?? [];
+  const incomingFor = (itemName: string) => incomingLinesFor(incoming, itemName);
 
   // Direct Purchase from supplier WARN/LOW items
   const [dpModalOpen, setDpModalOpen] = useState(false);
