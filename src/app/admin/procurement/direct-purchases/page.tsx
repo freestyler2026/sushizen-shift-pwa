@@ -496,6 +496,11 @@ export default function DirectPurchasesAdminPage() {
         {LANES.map((l) => {
           const inLane = rows.filter(r => laneOf(r) === l.key);
           const flagged = inLane.filter(r => stageAlert(r)).length;
+          const working = l.key !== "RECEIVED" && l.key !== "CLOSED";
+          const oldest = working && inLane.length
+            ? Math.max(...inLane.map(r => Number(
+                l.key === "PO_ISSUED" ? (r.days_past_delivery_date ?? 0) : (r.days_in_stage || 0))))
+            : 0;
           const active = lane === l.key;
           return (
             <button key={l.key} type="button" onClick={() => setLane(l.key)}
@@ -504,9 +509,20 @@ export default function DirectPurchasesAdminPage() {
                        : "border-white/10 bg-white/4 text-zinc-300 hover:bg-white/8"}`}>
               <span className="text-xs font-semibold">{l.label}</span>
               <span className="ml-2 font-mono text-sm">{inLane.length}</span>
-              {flagged > 0 && (
+              {/* "N flagged" only when it is a strict subset. Every row in
+                  In Review and nearly every row in Needs PO is past its
+                  threshold right now, and a badge that reads "48 flagged" next
+                  to a count of 48 says nothing -- the same way a queue where
+                  83% is noise stops being read. The oldest age is informative
+                  either way, so that is what the chip carries. */}
+              {flagged > 0 && flagged < inLane.length && (
                 <span className="ml-2 rounded-lg bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
                   {flagged} flagged
+                </span>
+              )}
+              {working && inLane.length > 0 && oldest > 0 && (
+                <span className="ml-2 rounded-lg bg-white/8 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
+                  oldest {oldest}d
                 </span>
               )}
             </button>
@@ -515,6 +531,19 @@ export default function DirectPurchasesAdminPage() {
       </div>
       <p className={`${T_CAPTION} mb-3`}>
         {LANES.find(l => l.key === lane)?.hint}
+        {(() => {
+          const inLane = rows.filter(r => laneOf(r) === lane);
+          const flagged = inLane.filter(r => stageAlert(r)).length;
+          if (!inLane.length || flagged < inLane.length) return null;
+          // Saying "all of them" is the difference between a queue somebody
+          // works today and a backlog somebody schedules. Without it the
+          // screen looks like a daily list that is permanently on fire.
+          return (
+            <span className="text-amber-300">
+              {" "}All {inLane.length} are past that — this is a backlog to clear, not today&apos;s work.
+            </span>
+          );
+        })()}
       </p>
 
       {/* List */}

@@ -166,6 +166,7 @@ td.muted { color:var(--muted); font-size:12px; }
   <div class="sidebar-label" data-en="Admin Operations" data-ja="管理業務">Admin Operations</div>
   <div class="nav-item" onclick="show('approval-inbox')"><span class="nav-icon">✅</span><span data-en="Approval Inbox" data-ja="承認受信箱">Approval Inbox</span></div>
   <div class="nav-item" onclick="show('ck-orders')"><span class="nav-icon">🏭</span><span data-en="CK Orders" data-ja="CKオーダー">CK Orders</span></div>
+  <div class="nav-item" onclick="show('direct-purchases')"><span class="nav-icon">🧾</span><span data-en="Direct Purchases" data-ja="直接購入">Direct Purchases</span></div>
   <div class="nav-item" onclick="show('pos-invoices')"><span class="nav-icon">📄</span><span data-en="POs & Invoices" data-ja="PO・インボイス">POs &amp; Invoices</span></div>
   <div class="nav-item" onclick="show('invoice-inbox')"><span class="nav-icon">📥</span><span data-en="Invoice Inbox (Drive)" data-ja="インボイス受信箱（Drive）">Invoice Inbox (Drive)</span></div>
   <div class="nav-item" onclick="show('payments')"><span class="nav-icon">💳</span><span data-en="Payments" data-ja="支払い管理">Payments</span></div>
@@ -1054,6 +1055,70 @@ td.muted { color:var(--muted); font-size:12px; }
   <div class="tip">
     <span class="tip-icon">💡</span>
     <span data-en="The NavBar badge shows pending approvals at a glance. It refreshes automatically after each approve/reject/claim action without a page reload." data-ja="NavBarバッジで保留中の承認件数を一目で確認できます。承認・却下・クレーム操作後は自動更新されます（ページリロード不要）。">NavBar badge shows pending count — auto-refreshes after each approve/reject/claim action.</span>
+  </div>
+</div>
+
+<!-- ═══════════ DIRECT PURCHASES ═══════════ -->
+<div class="section" id="sec-direct-purchases">
+  <div class="section-hero">
+    <div class="hero-icon">🧾</div>
+    <div>
+      <div class="section-title" data-en="Direct Purchases" data-ja="直接購入">Direct Purchases</div>
+      <div class="section-path">/admin/procurement/direct-purchases</div>
+      <div class="section-desc" data-en="The Central Kitchen's own orders to suppliers. Five lanes show what each order is waiting for, so order quantities can be decided without asking anyone." data-ja="CKからサプライヤーへの発注。各オーダーが何を待っているかを5つのレーンで表示し、誰かに確認しなくても発注数量を決められるようにするための画面です。">The Central Kitchen's orders to suppliers, split into five lanes by what each one is waiting for.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="The five lanes" data-ja="5つのレーン">The five lanes</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="The screen opens on In Review, because that is the only lane where someone is waiting on a decision here. Each lane shows its count, and how many rows in it are flagged. Inside a working lane the oldest order is at the top." data-ja="開いたときは In Review が選ばれています。ここで判断を待っているのはこのレーンだけだからです。各レーンには件数と、そのうち何件がフラグ付きかが出ます。作業対象のレーンでは最も古いオーダーが一番上に来ます。">Opens on In Review — the only lane waiting on a decision here. Each lane shows its count and how many are flagged. Oldest first inside a working lane.</p>
+    <div class="table-wrap"><table>
+      <tr>
+        <th data-en="Lane" data-ja="レーン">Lane</th>
+        <th data-en="Means" data-ja="意味">Means</th>
+        <th data-en="Flagged when" data-ja="フラグの条件">Flagged when</th>
+      </tr>
+        <tr><td><b>In Review</b></td>
+          <td data-en="Submitted and waiting for approval." data-ja="申請済みで承認待ち。">Submitted, waiting for approval.</td>
+          <td data-en="More than 2 days old" data-ja="2日以上経過">More than 2 days old</td></tr>
+        <tr><td><b>Needs PO</b></td>
+          <td data-en="Approved, but no purchase order has been raised yet. Nothing has been ordered from the supplier." data-ja="承認済みだが、まだPOが発行されていない。サプライヤーには何も発注されていない状態。">Approved, but no PO raised — nothing ordered from the supplier yet.</td>
+          <td data-en="More than 3 days since approval" data-ja="承認から3日以上">More than 3 days since approval</td></tr>
+        <tr><td><b>Incoming</b></td>
+          <td data-en="Ordered from the supplier and not yet received by the kitchen. Includes orders the back office has marked Delivered." data-ja="サプライヤーに発注済みで、まだCKが受領していない。Back Office が Delivered を付けたものも含む。">Ordered, not yet received by the kitchen. Includes ones marked Delivered.</td>
+          <td data-en="The expected delivery date has passed — not by age. A PO placed 30 days ago for a delivery due next week is not late." data-ja="納品予定日を過ぎたとき。経過日数では判定しません。30日前に出したPOでも、予定が来週なら遅れではありません。">The expected delivery date has passed (not by age)</td></tr>
+        <tr><td><b>Received</b></td>
+          <td data-en="The kitchen confirmed receipt. Closed." data-ja="CKが受領を確定済み。完了。">Kitchen confirmed receipt. Closed.</td>
+          <td data-en="Never flagged" data-ja="フラグは付きません">Never</td></tr>
+        <tr><td><b>Rejected / Draft</b></td>
+          <td data-en="Not going ahead, or never submitted." data-ja="進めないもの、または未申請のもの。">Not going ahead, or never submitted.</td>
+          <td data-en="Never flagged" data-ja="フラグは付きません">Never</td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Has a PO been issued for this order?" data-ja="このオーダーにPOは出ているか？">Has a PO been issued for this order?</div>
+    <p style="color:var(--muted);font-size:12px" data-en="The PO number now appears on the order row itself, so there is no need to open the PO page to find out. An order in the Needs PO lane has no PO. If a row shows more than one PO, a badge says how many." data-ja="PO番号がオーダーの行に表示されるので、PO画面を開いて調べる必要はありません。Needs PO レーンにあるものはPOが無いということです。POが複数ある場合はその件数がバッジで出ます。">The PO number appears on the order row. An order in Needs PO has no PO. More than one PO shows as a badge.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="When the supplier moves the delivery date" data-ja="サプライヤーが納品日を変えてきたとき">When the supplier moves the delivery date</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Press Expected date on the order and enter the new date. Until this was added the date could not be changed after the PO was created, so the order stayed on the overdue list and the kitchen was asked to update the receiving status instead — which was never the problem." data-ja="オーダーの「Expected date」を押して新しい日付を入れます。これができるようになる前は、PO作成後に日付を変更する方法が無かったため、オーダーが延滞リストに残り続け、代わりにCKへ受領ステータスの更新を依頼することになっていました（原因はそこではありませんでした）。">Press "Expected date" and enter the new one. Before this existed the date could not be changed after PO creation, so the order stayed overdue and the kitchen was asked to update receiving instead.</p>
+    <div class="tip" style="margin-top:8px"><span class="tip-icon">⚠️</span><span data-en="The first promised date is kept. The order still counts as late against the original, so a supplier that keeps moving dates still shows up in their scorecard. The row displays both (&quot;Expected 27 Sep (was 24 Sep)&quot;)." data-ja="最初に約束された日付は残ります。延滞の判定は当初の日付に対しても行われるので、日付を動かし続けるサプライヤーは評価に反映されます。行には両方表示されます（「Expected 27 Sep (was 24 Sep)」）。">The first promised date is kept — the order still counts as late against it, so a supplier that keeps moving dates still shows in their scorecard.</span></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Logging a supplier confirmation call with a new expected date does the same thing — the date on the order moves with it." data-ja="仕入先確認コールに新しい予定日を記録した場合も同じで、オーダーの日付が一緒に動きます。">Logging a supplier confirmation call with a new date does the same thing.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Mark Delivered — optional" data-ja="Mark Delivered — 任意">Mark Delivered — optional</div>
+    <p style="color:var(--muted);font-size:12px" data-en="Back office presses Mark Delivered when the supplier's delivery has arrived but the kitchen has not yet confirmed receipt. It is reversible (Undo Delivered) and pressing it twice changes nothing. It is optional: an order whose receiving is confirmed is complete whether or not anyone pressed it, so skipping it never leaves an order stuck." data-ja="サプライヤーの納品が届いたが、まだCKが受領確定していない状態で Back Office が押します。取り消せます（Undo Delivered）。2回押しても変わりません。任意の操作です — 受領が確定したオーダーは、これを押したかどうかに関係なく完了扱いになるので、押さなくても詰まることはありません。">Back office marks it when the delivery has arrived but the kitchen has not confirmed receipt. Reversible, idempotent, and optional — skipping it never leaves an order stuck.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Two things this screen does not do yet" data-ja="この画面がまだできないこと">Two things this screen does not do yet</div>
+    <ul style="color:var(--muted);font-size:12px;padding-left:18px;line-height:1.7">
+      <li data-en="It does not send alerts. The lanes and the flags are on the screen only — nobody is notified after 48 hours yet." data-ja="アラートは送りません。レーンとフラグは画面上だけで、48時間後に誰かに通知が行くわけではありません。">No alerts are sent. Lanes and flags are on-screen only.</li>
+      <li data-en="Daily Inventory does not yet show incoming quantities. Until it does, the Incoming lane on this screen is where to look before deciding an order quantity." data-ja="Daily Inventory にはまだ入荷予定数量が出ません。それまでは、発注数量を決める前にこの画面の Incoming レーンを見てください。">Daily Inventory does not show incoming quantities yet — use the Incoming lane here before deciding an order quantity.</li>
+    </ul>
   </div>
 </div>
 
