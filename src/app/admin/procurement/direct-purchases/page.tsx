@@ -81,6 +81,28 @@ function buildEditState(row: DirectPurchaseRow): EditState {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+type AlertLogRow = {
+  request_id: string;
+  request_no: string;
+  alert_kind: string;
+  recipient_name: string;
+  delivery: string;
+  created_at: string;
+};
+
+type AlertPayload = {
+  threshold_hours: number;
+  go_live_at: string | null;
+  log: AlertLogRow[];
+  pending_count: number;
+  unreachable: {
+    staff_name: string;
+    alertable_requests: number;
+    open_requests: number;
+    last_30_days: number;
+  }[];
+};
+
 export default function DirectPurchasesAdminPage() {
   const auth = getAuth();
 
@@ -100,6 +122,8 @@ export default function DirectPurchasesAdminPage() {
 
   // ── Data ──
   const [rows, setRows]       = useState<DirectPurchaseRow[]>([]);
+  // What the two creator alerts have done, and who they cannot reach.
+  const [alerts, setAlerts] = useState<AlertPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
 
@@ -170,6 +194,15 @@ export default function DirectPurchasesAdminPage() {
         requestedBy, pin,
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      // Non-fatal on purpose: if this call is refused the banner is simply
+      // absent, rather than the whole screen failing over a caption.
+      try {
+        const a = await procurementJson<AlertPayload>(
+          `/api/admin/procurement/request-alerts?city=${encodeURIComponent(city)}`,
+          { method: "GET" }, requestedBy, pin,
+        );
+        setAlerts(a && Array.isArray(a.log) ? a : null);
+      } catch { setAlerts(null); }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -546,6 +579,50 @@ export default function DirectPurchasesAdminPage() {
         })()}
       </p>
 
+      {/* Alerts. The rule is on the screen because a rule nobody can see is a
+          rule nobody trusts, and the unreachable list is here because three of
+          the five creators on this screen have no Discord ID registered — an
+          alert addressed to them is written down and delivered nowhere. */}
+      {alerts && (
+        <div className="mb-3 rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
+          <p className={T_CAPTION}>
+            <span className="text-white/80">Alerts to the creator:</span>{" "}
+            still in review after {alerts.threshold_hours}h (checked each morning),
+            and immediately on rejection.
+            {alerts.go_live_at && (
+              <> Requests raised before{" "}
+                {new Date(alerts.go_live_at).toLocaleDateString("en-GB",
+                  { day: "2-digit", month: "short", year: "numeric" })}{" "}
+                are not alerted — the rows already sitting in review predate this
+                and are a backlog, not news.</>
+            )}
+            {alerts.pending_count > 0 && (
+              <span className="text-amber-300">
+                {" "}{alerts.pending_count} will be alerted on the next pass.
+              </span>
+            )}
+          </p>
+          {alerts.unreachable.length > 0 && (
+            <p className={`${T_CAPTION} mt-2 text-amber-300`}>
+              No Discord ID registered for{" "}
+              {alerts.unreachable
+                .map(u => {
+                  // Both numbers, because the two alerts have different
+                  // populations: stale review only touches open requests,
+                  // rejection touches whoever is raising them now.
+                  const parts = [];
+                  if (u.open_requests) parts.push(`${u.open_requests} open`);
+                  if (u.last_30_days) parts.push(`${u.last_30_days} in 30d`);
+                  return `${u.staff_name}${parts.length ? ` (${parts.join(", ")})` : ""}`;
+                })
+                .join(", ")}
+              {" "}— their alerts are recorded but not delivered. Register them in
+              Store Operations → Management Channel → Discord IDs.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* List */}
       <div className="space-y-3">
         {visibleRows.map((row) => {
@@ -571,6 +648,20 @@ export default function DirectPurchasesAdminPage() {
                           {row.po_no}
                         </span>
                       )}
+                      {(() => {
+                        // "Alerted" alone would read as "the creator knows".
+                        // When delivery failed, that is the opposite of true,
+                        // so the badge says which happened.
+                        const a = (alerts?.log || []).find(x => x.request_id === row.id);
+                        if (!a) return null;
+                        const landed = a.delivery === "discord";
+                        return (
+                          <span className={landed ? BADGE_INFO : BADGE_WARNING}
+                            title={`${a.alert_kind === "rejected" ? "Rejection" : "Stale review"} alert to ${a.recipient_name || "nobody"} — ${a.delivery}`}>
+                            {landed ? "Creator told" : "Alert not delivered"}
+                          </span>
+                        );
+                      })()}
                       {Number(row.po_count || 0) > 1 && (
                         <span className={BADGE_WARNING}>{row.po_count} POs</span>
                       )}
