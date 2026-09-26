@@ -231,11 +231,80 @@ function cityFromBranch(branch: string): CityKey {
 
 type GeneratedPR = { type: string; request_no: string; case_no: string; request_id: string };
 
+/** A quantity already ordered and not yet received, as the order placed it. */
+interface IncomingLine {
+  qty: number;
+  unit: string;
+  expected_date: string;
+  days_past: number;
+  request_no: string;
+  po_no: string;
+  vendor_name: string;
+  item_name: string;
+  store_code: string;
+  sheet_unit?: string;
+  /** False means the order and the sheet count in different units — do not add. */
+  unit_matches?: boolean;
+}
+
+interface IncomingPayload {
+  incoming: Record<string, IncomingLine[]>;
+  not_on_sheet: IncomingLine[];
+  stale_excluded: number;
+  stale_days: number;
+  line_count: number;
+}
+
+// The reverse of _PROC_STORE_TO_BRANCH on the backend. Only the branches that
+// place supplier orders of their own appear: WH has no Daily Inventory branch to
+// map to, so it returns nothing rather than borrowing CK's figures.
+const BRANCH_TO_STORE: Record<string, string> = {
+  "CENTRAL KITCHEN": "CK",
+  PARANAQUE: "PAR",
+  CUBAO: "CUB",
+  TAFT: "TAFT",
+};
+
+/** "+2 BOX due 26 Sep" beside the stock figure.
+ *
+ * Never added into the stock number. 89% of these lines match an inventory item
+ * by name but only 65% are counted in the unit the order used — SUGAR ordered by
+ * the SACK against a sheet in kg, Pork Belly by the KG against a sheet in Block —
+ * so the unit is always printed and a mismatch is marked. The reader converts,
+ * which is what they do today; a single summed figure would be wrong on a third
+ * of the lines and there would be no way to see which third.
+ */
+function IncomingNote({ lines }: { lines: IncomingLine[] }) {
+  if (!lines.length) return null;
+  return (
+    <span className="ml-1.5 whitespace-nowrap text-xs text-sky-300">
+      {lines.map((l, i) => (
+        <span key={`${l.request_no}-${l.item_name}-${i}`}>
+          {i > 0 && <span className="text-sky-600"> · </span>}
+          +{l.qty} {l.unit}
+          {l.unit_matches === false && (
+            <span className="text-amber-400" title={`The sheet counts this in ${l.sheet_unit} — convert before adding`}>
+              {" "}⚠{l.sheet_unit}
+            </span>
+          )}
+          <span className="text-sky-500/80">
+            {" "}due {String(l.expected_date).slice(5)}
+            {l.days_past > 0 ? ` (${l.days_past}d late)` : ""}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; items: InvItem[]; onBack: () => void }) {
   const entryMap: Record<string, ReportEntry> = {};
   detail.entries.forEach((e) => { entryMap[e.item_code] = e; });
 
   const [detailSourceTab, setDetailSourceTab] = useState<SourceType>("supplier");
+  // What is already on its way. Read here rather than left to the person to ask
+  // the kitchen, which is what happens today before every order.
+  const [incoming, setIncoming] = useState<IncomingPayload | null>(null);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderQtys, setOrderQtys] = useState<Record<string, string>>({});
   const [orderSelected, setOrderSelected] = useState<Record<string, boolean>>({});
@@ -247,6 +316,28 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   // on the delivery note -- where somebody types a figure in by hand and two
   // branches end up charged differently for the same tin.
   const [unpricedLines, setUnpricedLines] = useState<{ item_name: string; unit: string }[]>([]);
+
+  const incomingStore = BRANCH_TO_STORE[(detail.branch || "").toUpperCase()] || "";
+  useEffect(() => {
+    if (!incomingStore) { setIncoming(null); return; }
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await apiFetch(
+          `/api/admin/procurement/incoming-stock?city=${cityFromBranch(detail.branch)}`
+          + `&store=${encodeURIComponent(incomingStore)}`);
+        if (!alive) return;
+        setIncoming(r.ok ? ((await r.json()) as IncomingPayload) : null);
+      } catch {
+        if (alive) setIncoming(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [incomingStore, detail.branch]);
+
+  /** Lines on their way for this item, keyed the same way the backend keyed them. */
+  const incomingFor = (itemName: string): IncomingLine[] =>
+    incoming?.incoming?.[(itemName || "").trim().toLowerCase()] ?? [];
 
   // Direct Purchase from supplier WARN/LOW items
   const [dpModalOpen, setDpModalOpen] = useState(false);
@@ -629,6 +720,26 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               </div>
             ) : (
               <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+                {/* What the incoming figures do and do not cover. Both counts are
+                    stated because a quantity that quietly leaves things out is
+                    worse than one that says what it left out. */}
+                {incoming && (incoming.line_count > 0 || incoming.stale_excluded > 0) && (
+                  <div className="rounded-xl border border-sky-500/25 bg-sky-950/20 px-3 py-2">
+                    <p className="text-[11px] text-sky-200">
+                      <span className="font-semibold">Incoming</span> shows orders already placed and
+                      not yet received, in the unit they were ordered in —{" "}
+                      <span className="text-amber-300">⚠</span> means the sheet counts that item
+                      differently, so convert before adding.
+                    </p>
+                    <p className="mt-1 text-[11px] text-sky-300/80">
+                      {incoming.line_count} line(s) on their way
+                      {incoming.not_on_sheet.length > 0
+                        && ` · ${incoming.not_on_sheet.length} not counted on this sheet (${incoming.not_on_sheet.map((l) => l.item_name).join(", ")})`}
+                      {incoming.stale_excluded > 0
+                        && ` · ${incoming.stale_excluded} order(s) more than ${incoming.stale_days} days past their delivery date are not counted — those need closing, not re-ordering`}
+                    </p>
+                  </div>
+                )}
                 {modalOrderItems.filter(({ item }) => !item.is_commissary).length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Supplier Items</p>
@@ -639,7 +750,10 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                           className="h-4 w-4 rounded border-zinc-600 accent-violet-500" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
-                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}</p>
+                          <p className="text-xs text-zinc-500">
+                            Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}
+                            <IncomingNote lines={incomingFor(item.item_name)} />
+                          </p>
                         </div>
                         <input type="number" min="0" step="0.001" value={orderQtys[item.item_code] ?? ""} placeholder="qty"
                           onChange={(e) => setOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
@@ -659,7 +773,10 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                           className="h-4 w-4 rounded border-zinc-600 accent-violet-500" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
-                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}</p>
+                          <p className="text-xs text-zinc-500">
+                            Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}
+                            <IncomingNote lines={incomingFor(item.item_name)} />
+                          </p>
                         </div>
                         <input type="number" min="0" step="0.001" value={orderQtys[item.item_code] ?? ""} placeholder="qty"
                           onChange={(e) => setOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
