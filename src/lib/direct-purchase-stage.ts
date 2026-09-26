@@ -91,6 +91,15 @@ export const STAGE_LABEL: Record<string, string> = {
   RECEIVED: "Received",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
+  // PROC_STAGE_SQL falls through to r.status for anything its CASE does not
+  // name, so these are stages too. Measured on production 2026-09-26:
+  // Manila RETURNED 2 / IN_PRODUCTION 27 / PURCHASED 3, Dubai RETURNED 19.
+  // They were missing here, which made 121 orders belong to no group at all
+  // -- and the test that was supposed to catch that compared this list
+  // against itself instead of against the data.
+  RETURNED: "Returned to requester",
+  IN_PRODUCTION: "In production (CK)",
+  PURCHASED: "Purchased",
 };
 
 export type Lane = { key: string; label: string; stages: string[]; hint: string };
@@ -139,7 +148,38 @@ export const STORE_STAGES: Lane[] = [
     hint: "The kitchen confirmed receipt." },
 ];
 
-/** Which of the five a row belongs to, or "" for rejected/cancelled. */
+/**
+ * Stages deliberately left outside the five, with the reason. Anything not
+ * here and not in STORE_STAGES is an omission, not a decision, and the screen
+ * says how many orders it affects rather than quietly dropping them.
+ */
+export const OUTSIDE_THE_FIVE: Record<string, string> = {
+  REJECTED: "under the cards below",
+  CANCELLED: "under the cards below",
+  RETURNED: "under the cards below — waiting on the requester, not on a stage",
+  IN_PRODUCTION: "the kitchen is making it; not a supplier order",
+  PURCHASED: "bought directly; no delivery to track",
+};
+
+/**
+ * Stage words the Store Procurement row already prints as its status chip
+ * (DRAFT / RETURNED / REJECTED / IN REVIEW). A stage badge repeating one of
+ * these says nothing and collides with the KPI labels above.
+ *
+ * Everything else earns a badge — including IN_PRODUCTION, PURCHASED,
+ * CANCELLED and the four stages "APPROVED" hides. The chip has no branch for
+ * those, so without the badge 31 orders showed no state at all.
+ */
+const STATUS_CHIP_ALREADY_SHOWS = new Set([
+  "DRAFT", "SUBMITTED", "IN_REVIEW", "RETURNED", "REJECTED",
+]);
+
+/** Does the stage say something the row's own status chip does not? */
+export function stageAddsInformation(stage: string): boolean {
+  return !STATUS_CHIP_ALREADY_SHOWS.has(stage);
+}
+
+/** Which of the five a row belongs to, or "" for anything outside them. */
 export function storeStageOf(row: DirectPurchaseRow): string {
   const st = stageOf(row);
   const lane = STORE_STAGES.find(l => l.stages.includes(st));

@@ -40,7 +40,7 @@ import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/au
 import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { isActiveRequest, isCkDispatchVisible, isRejectedRequest, selectDisplayedRequests } from "@/lib/procurementStatus";
-import { STORE_STAGES, STAGE_LABEL, storeStageOf, stageOf, type DirectPurchaseRow } from "@/lib/direct-purchase-stage";
+import { STORE_STAGES, STAGE_LABEL, OUTSIDE_THE_FIVE, storeStageOf, stageOf, stageAddsInformation, type DirectPurchaseRow } from "@/lib/direct-purchase-stage";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, parseIsoTimeMs, useRelativeAgeNow } from "@/lib/timeAgo";
 import {
   GLASS_CARD,
@@ -1840,6 +1840,26 @@ export default function StoreProcurementHomePage() {
                   </span>
                 );
               })()}
+              {/* Orders that belong to none of the five. 121 of them on
+                  2026-09-26 — returned, in production, purchased. Leaving them
+                  uncounted makes the five look like the whole picture. */}
+              {(() => {
+                if (!serverStageCounts) return null;
+                const inFive = new Set(STORE_STAGES.flatMap(st => st.stages));
+                const rest = Object.entries(serverStageCounts)
+                  .filter(([k, n]) => !inFive.has(k) && n > 0)
+                  .sort((a, b) => b[1] - a[1]);
+                if (!rest.length) return null;
+                const total = rest.reduce((n, [, v]) => n + v, 0);
+                return (
+                  <span className="text-zinc-400">
+                    {" "}{total} order(s) are not in these five:{" "}
+                    {rest.map(([k, n]) => `${STAGE_LABEL[k] || k} ${n}`).join(", ")}
+                    {rest.some(([k]) => OUTSIDE_THE_FIVE[k])
+                      && ` — ${[...new Set(rest.map(([k]) => OUTSIDE_THE_FIVE[k]).filter(Boolean))].join("; ")}.`}
+                  </span>
+                );
+              })()}
             </p>
           </div>
 
@@ -2752,8 +2772,7 @@ export default function StoreProcurementHomePage() {
                             {(() => {
                               const dp = row as unknown as DirectPurchaseRow;
                               const st = stageOf(dp);
-                              const refines = ["APPROVED_NO_PO", "PO_ISSUED", "DELIVERED", "RECEIVED"];
-                              if (!refines.includes(st)) return null;
+                              if (!stageAddsInformation(st)) return null;
                               const days = Number(dp.days_in_stage || 0);
                               return (
                                 <span className={BADGE_INFO} title={`${days} day(s) at this stage`}>

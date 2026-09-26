@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  LANES, STAGE_LABEL, STORE_STAGES, storeStageOf, stageOf,
+  LANES, STAGE_LABEL, STORE_STAGES, OUTSIDE_THE_FIVE, storeStageOf, stageOf, stageAddsInformation,
   type DirectPurchaseRow,
 } from "@/lib/direct-purchase-stage";
 
@@ -47,10 +47,35 @@ describe("the Store Procurement five stages (Yusuke's 4)", () => {
     }
   });
 
-  it("leaves no stage unreachable on the store screen except the terminal ones", () => {
-    const covered = new Set(STORE_STAGES.flatMap(l => l.stages));
-    const uncovered = Object.keys(STAGE_LABEL).filter(st => !covered.has(st));
-    expect(uncovered.sort()).toEqual(["CANCELLED", "REJECTED"]);
+  // Every stage value production actually produces, counted on 2026-09-26
+  // across both cities. PROC_STAGE_SQL falls through to r.status for anything
+  // its CASE does not name, so this is the real vocabulary — not the one I
+  // wrote. The previous version of this test compared STAGE_LABEL against
+  // STORE_STAGES, i.e. my list against my list, and passed while 121 orders
+  // (RETURNED 90, IN_PRODUCTION 28, PURCHASED 3) belonged to no group at all.
+  const STAGES_IN_PRODUCTION = [
+    "APPROVED_NO_PO", "CANCELLED", "DELIVERED", "DRAFT", "IN_PRODUCTION",
+    "IN_REVIEW", "PO_ISSUED", "PURCHASED", "RECEIVED", "REJECTED",
+    "RETURNED", "SUBMITTED",
+  ];
+
+  it("has a name for every stage the data actually produces", () => {
+    const missing = STAGES_IN_PRODUCTION.filter(st => !STAGE_LABEL[st]);
+    expect(missing).toEqual([]);
+  });
+
+  it("accounts for every stage: in the five, or deliberately outside with a reason", () => {
+    const inFive = new Set(STORE_STAGES.flatMap(l => l.stages));
+    const unaccounted = STAGES_IN_PRODUCTION
+      .filter(st => !inFive.has(st) && !OUTSIDE_THE_FIVE[st]);
+    expect(unaccounted).toEqual([]);
+  });
+
+  it("does not quietly count an outside stage as one of the five", () => {
+    const inFive = new Set(STORE_STAGES.flatMap(l => l.stages));
+    for (const st of Object.keys(OUTSIDE_THE_FIVE)) {
+      expect(inFive.has(st), `${st} is both inside and outside`).toBe(false);
+    }
   });
 
   it("falls back to the row's status when the API sends no stage", () => {
@@ -63,18 +88,20 @@ describe("the row badge only says what the status badge does not", () => {
   // The store row already shows DRAFT / IN REVIEW / APPROVED / RETURNED /
   // REJECTED. Repeating those as a stage taught nobody anything and collided
   // with the KPI labels; what "APPROVED" hides is the whole point of (4).
-  const REFINES = ["APPROVED_NO_PO", "PO_ISSUED", "DELIVERED", "RECEIVED"];
-  const ALREADY_ON_THE_ROW = ["DRAFT", "SUBMITTED", "IN_REVIEW", "REJECTED", "CANCELLED"];
+  // The chip has branches for DRAFT / APPROVED / RETURNED / REJECTED /
+  // IN REVIEW only.
+  const CHIP_SHOWS = ["DRAFT", "SUBMITTED", "IN_REVIEW", "RETURNED", "REJECTED"];
 
-  it("covers every stage that APPROVED would otherwise hide", () => {
-    const afterApproval = Object.keys(STAGE_LABEL)
-      .filter(st => !ALREADY_ON_THE_ROW.includes(st));
-    expect(afterApproval.sort()).toEqual([...REFINES].sort());
+  it("says nothing twice", () => {
+    for (const st of CHIP_SHOWS) expect(stageAddsInformation(st)).toBe(false);
   });
 
-  it("does not repeat a status the row already shows", () => {
-    for (const st of ALREADY_ON_THE_ROW) {
-      expect(REFINES).not.toContain(st);
+  it("speaks for every stage the chip is silent about", () => {
+    // The four APPROVED hides, plus the ones with no chip branch at all —
+    // 31 orders on production showed no state whatsoever before this.
+    for (const st of ["APPROVED_NO_PO", "PO_ISSUED", "DELIVERED", "RECEIVED",
+                      "IN_PRODUCTION", "PURCHASED", "CANCELLED"]) {
+      expect(stageAddsInformation(st), `${st} would render blank`).toBe(true);
     }
   });
 });
