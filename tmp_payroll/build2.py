@@ -32,12 +32,21 @@ intro(ws,f"Dubai September payroll — {len(C['Q'])} questions for you",
  "coming in, and nothing in the data can tell us whether that is right. Fill in the two yellow columns and send "
  "this back. Everything else in this file either needs one click ('Overtime waiting') or is being corrected at "
  "this end ('We are correcting these').","H")
-head(ws,[("#",4),("Staff",23),("Date",12),("What the record says",30),("Shift published",26),
+head(ws,[("#",4),("Staff",23),("Date",12),("What the record says",52),("Shift published",26),
          ("Clocked in–out",20),("➜ YOUR ANSWER",26),("➜ Your note",30)])
 ws.freeze_panes="A5"
 for i,q in enumerate(C["Q"],1):
-    says = "marked absent without pay — no clock-in" if q["r"]=="absence" else \
-           f"{q.get('L')} minutes late — {q['w']}"
+    NOTE = {
+      ("Nishan Nepal","2026-09-14"):
+        " — you corrected 15 Sep on the last file; please check whether 14 Sep is the day you meant",
+      ("Kapil Bahadur","2026-09-24"):
+        " — this is his first day back, his annual leave ended 23 Sep. Was the leave extended?",
+      ("Sherileene Santiago","2026-09-04"):" — she has two of these, 4 and 13 Sep",
+      ("Sherileene Santiago","2026-09-13"):" — she has two of these, 4 and 13 Sep",
+      ("Lyssa Rae","2026-09-04"):" — her annual leave starts 7 Sep, so this is before it",
+    }
+    says = ("marked absent without pay — no clock-in" if q["r"]=="absence" else
+            f"{q.get('L')} minutes late — {q['w']}") + NOTE.get((q["s"],q["d"]),"")
     for j,v in enumerate((i,q["s"],q["d"],says,q["ros"],q["p"],"","")):
         c=ws.cell(row=4+i,column=j+1,value=v); c.font=BOLD if j==1 else BODY
         c.alignment=TOP; c.border=THIN
@@ -46,7 +55,7 @@ for i,q in enumerate(C["Q"],1):
          else '"Shift is correct - he was late,Shift is wrong - fix it,Other"'
     dv=DataValidation(type="list",formula1=opts,allow_blank=True,showDropDown=False)
     ws.add_data_validation(dv); dv.add(ws.cell(row=4+i,column=7))
-    ws.row_dimensions[4+i].height=32
+    ws.row_dimensions[4+i].height=44
 
 # ---- 2. corrections ----------------------------------------------------
 w2=wb.create_sheet("We are correcting these")
@@ -90,14 +99,16 @@ w3.freeze_panes="A5"
 
 # ---- 4. tonight --------------------------------------------------------
 w4=wb.create_sheet("Before you compute")
-intro(w4,"Do this on the night of 25 September, before the payroll is computed",
- "1. Wait until the last shift of 25 September has finished and everyone has clocked out.   "
- "2. Run 'Sync from OS Attendance' for Dubai.   3. Then recompute.   "
- f"Why: {len(d['open_punchout_0925'])} people below still had no clock-out for 25 September when this file was "
- "made. Computing after 25 September without a re-sync charges each of them a one-hour admin fee for a day that "
- "was simply still in progress. The stored figures were also computed on 24 September, before your corrections, "
- "so a recompute is needed either way.","D")
-head(w4,[("Staff",34),("Clocked out now?",20),("",16),("",16)])
+intro(w4,"Run the sync before the payroll is computed — in that order",
+ "1. Run 'Sync from OS Attendance' for Dubai.   2. Then recompute.   "
+ "There is no rush on the clock: 25 September's shifts run late into the evening in Dubai and the clock-outs "
+ "arrive overnight, so doing this whenever you next pick the payroll up is fine. What matters is only that the "
+ "sync happens first. "
+ f"Why: when this file was made, the {len(d['open_punchout_0925'])} people below had not clocked out for 25 "
+ "September yet, because they were still at work. The sync is what brings those clock-outs into the DTR. "
+ "Computing without it charges each of them a one-hour admin fee for a punch that had simply not happened yet. "
+ "The stored figures also date from 24 September, before your corrections, so a recompute is needed anyway.","D")
+head(w4,[("Staff",34),("Clocked out after the sync?",26),("",14),("",14)])
 for i,n in enumerate(d["open_punchout_0925"]):
     c=w4.cell(row=5+i,column=1,value=n); c.font=BODY; c.border=THIN
     c2=w4.cell(row=5+i,column=2,value=""); c2.fill=ASK; c2.border=THIN

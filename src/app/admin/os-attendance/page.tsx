@@ -2833,6 +2833,10 @@ type SummaryRow = {
   branch_code: string;
   worked_days: number;
   absent_count: number;
+  /** Approved leave, counted apart from absence. `absences` holds both, and
+   *  counting them together put four people on annual leave at the top of the
+   *  most-absent list and flagged them for it (2026-09-26, Dubai). */
+  leave_days?: number;
   late_count: number;
   total_late_min: number;
   no_clockout_count: number;
@@ -2890,9 +2894,9 @@ function AttendanceSummaryTab({ city }: { city: string }) {
   }
 
   function downloadCsv() {
-    const header = "Staff,Branch,Worked Days,Absences,Late Count,Late Minutes,No Clockout";
+    const header = "Staff,Branch,Worked Days,Absences,On Leave,Late Count,Late Minutes,No Clockout";
     const lines = sorted.map(r =>
-      [r.staff_name, r.branch_code, r.worked_days, r.absent_count,
+      [r.staff_name, r.branch_code, r.worked_days, r.absent_count, r.leave_days ?? 0,
        r.late_count, r.total_late_min, r.no_clockout_count].join(",")
     );
     const blob = new Blob([header + "\n" + lines.join("\n")], { type: "text/csv" });
@@ -2979,6 +2983,10 @@ function AttendanceSummaryTab({ city }: { city: string }) {
                     Absent <SortIcon k="absent" />
                   </button>
                 </th>
+                <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-zinc-500"
+                    title="Approved leave — vacation, medical, maternity, bereavement, injury, hospital. Not an absence.">
+                  On Leave
+                </th>
                 <th className="px-3 py-2.5 text-right">
                   <button onClick={() => toggleSort("late")} className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500 hover:text-zinc-300">
                     Late <SortIcon k="late" />
@@ -3009,6 +3017,14 @@ function AttendanceSummaryTab({ city }: { city: string }) {
                       {row.absent_count > 0 ? (
                         <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-bold ${absentFlag ? "bg-red-500/20 text-red-300" : "bg-zinc-700/50 text-zinc-300"}`}>
                           {row.absent_count}
+                        </span>
+                      ) : <span className="text-zinc-600">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {(row.leave_days ?? 0) > 0 ? (
+                        <span className="inline-flex items-center justify-center rounded-full bg-sky-500/15 px-2 py-0.5 text-xs font-bold text-sky-300"
+                              title="Approved leave, not an absence">
+                          {row.leave_days}
                         </span>
                       ) : <span className="text-zinc-600">—</span>}
                     </td>

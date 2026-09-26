@@ -57,7 +57,7 @@ OWNED={
  "14 zero-hour days":"no pay effect",
 }
 txt=" ".join(str(c.value) for s in wb.worksheets for row in s.iter_rows() for c in row if c.value)
-for item in ("Overtime waiting","re-sync","part-month","zero hours"):
+for item in ("Overtime waiting","Sync from OS Attendance","part-month","zero hours"):
     ck(f"the file tells the reader about: {item}", item.lower() in txt.lower())
 
 # The instructions that carry money must survive in THEIR OWN cell. A
@@ -84,6 +84,15 @@ for lab in NEEDED:
 
 # 6. the one thing that can still go wrong is named on the file
 ck("the file says a recompute is required", "recompute" in txt.lower())
+# the sync tab must give an order, not a deadline: Manila's day ends at 18:00
+# and 25 September's Dubai shifts run past it, so a "tonight" reads as a
+# demand to work late for something that cannot be done yet anyway.
+w4=wb["Before you compute"]
+sync=str(w4["A1"].value)+" "+str(w4["A2"].value)
+ck("the sync tab asks for an order, not a time", "before the payroll is computed" in sync)
+ck("the sync tab does not put a deadline on it",
+   not any(w in sync.lower() for w in ("tonight","the night of","stay","urgent","immediately")))
+ck("the sync tab says why the clock-outs are missing", "still at work" in sync)
 ck("the file says approving overtime is not enough",
    "added to payroll" in txt.lower())
 
