@@ -716,8 +716,16 @@ export default function ProcurementHubPage() {
                   </button>
                 </div>
                 <p className={`${T_CAPTION} mt-2`}>
-                  Acting on {city === "dubai" ? "Dubai" : "Manila"}. Change the
-                  city in the filter card below the list to switch.
+                  Acting on {city === "dubai" ? "Dubai" : "Manila"}.{" "}
+                  <button
+                    type="button"
+                    className="underline decoration-dotted hover:text-white"
+                    onClick={() => setCity(city === "dubai" ? "manila" : "dubai")}
+                  >
+                    Switch to {city === "dubai" ? "Manila" : "Dubai"}
+                  </button>
+                  {" "}— each city has its own backlog, and they are stamped
+                  separately.
                 </p>
                 {driftMsg && (
                   <p className="mt-2 text-xs text-white/80">{driftMsg}</p>
