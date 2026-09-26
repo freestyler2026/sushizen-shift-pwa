@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import ModalScrim from "@/components/ModalScrim";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
   defaultProcurementName,
@@ -54,7 +55,7 @@ type DirectPurchaseItem = {
   vendor_name: string;
 };
 
-type DirectPurchaseRow = {
+export type DirectPurchaseRow = {
   id: string;
   request_no: string;
   parent_case_no: string;
@@ -70,6 +71,26 @@ type DirectPurchaseRow = {
   data_verified_by: string;
   created_at: string;
   items: DirectPurchaseItem[];
+  // The pipeline. All of this was already stored and already accurate; this
+  // screen just never asked for it, which is why "has a PO been issued for
+  // this order?" had to be answered by copying an ID into the PO page.
+  po_status?: string | null;
+  receiving_status?: string | null;
+  po_no?: string | null;
+  po_id?: string | null;
+  po_count?: number;
+  delivery_date?: string | null;
+  delivery_date_original?: string | null;
+  delivery_date_revised_at?: string | null;
+  delivery_date_revised_by?: string | null;
+  delivery_date_revision_reason?: string | null;
+  receipt_confirmed_at?: string | null;
+  delivered_confirmed_at?: string | null;
+  delivered_confirmed_by?: string | null;
+  has_shortage?: boolean | null;
+  stage?: string | null;
+  days_in_stage?: number | null;
+  days_past_delivery_date?: number | null;
 };
 
 type CatalogItem = { item_name: string; unit: string; benchmark_unit_price: number; category: string };
@@ -77,17 +98,82 @@ type VendorEntry  = { name: string; isRegistered: boolean };
 
 const UNITS = ["kg", "g", "L", "mL", "pc", "box", "bag", "bottle", "pack", "tray", "can"];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// How long a stage may sit before the row is called out. Shown on screen
+// (pattern 9: a threshold nobody can see is a threshold nobody trusts) and
+// deliberately different per stage: review is meant to happen next day, while
+// a PO that has not been raised a week after approval is a different problem.
+export const STALE_DAYS: Record<string, number> = {
+  IN_REVIEW: 2,
+  APPROVED_NO_PO: 3,
+  PO_ISSUED: 0, // judged against its own delivery date, not a fixed age
+};
 
-function statusBadge(status: string) {
-  const s = (status || "").toUpperCase();
-  if (s === "APPROVED")   return <span className={BADGE_SUCCESS}>{s}</span>;
-  if (s === "REJECTED")   return <span className={BADGE_ERROR}>{s}</span>;
-  if (s === "CANCELLED")  return <span className={BADGE_ERROR}>CANCELLED</span>;
-  if (s === "IN_REVIEW")  return <span className={BADGE_WARNING}>IN REVIEW</span>;
-  if (s === "SUBMITTED")  return <span className={BADGE_INFO}>SUBMITTED</span>;
-  return <span className={BADGE_INFO}>{s || "DRAFT"}</span>;
+// The five stages the kitchen asked for, plus the one Yusuke named separately
+// ("approved but no PO yet") and the terminal states. Order is the pipeline
+// order, so the lane strip reads left to right the way the work flows.
+const STAGE_LABEL: Record<string, string> = {
+  DRAFT: "Draft",
+  SUBMITTED: "Submitted",
+  IN_REVIEW: "In Review",
+  APPROVED_NO_PO: "Approved · no PO",
+  PO_ISSUED: "PO issued · awaiting delivery",
+  DELIVERED: "Delivered · awaiting kitchen",
+  RECEIVED: "Received",
+  REJECTED: "Rejected",
+  CANCELLED: "Cancelled",
+};
+
+type Lane = { key: string; label: string; stages: string[]; hint: string };
+
+// In Review first and selected by default: it is the only lane where someone
+// is waiting on this screen. The rest are reachable but not in the way.
+export const LANES: Lane[] = [
+  { key: "IN_REVIEW", label: "In Review", stages: ["IN_REVIEW", "SUBMITTED"],
+    hint: "Waiting for approval. Flagged after 2 days." },
+  { key: "APPROVED_NO_PO", label: "Needs PO", stages: ["APPROVED_NO_PO"],
+    hint: "Approved, but no purchase order has been raised yet. Flagged after 3 days." },
+  { key: "PO_ISSUED", label: "Incoming", stages: ["PO_ISSUED", "DELIVERED"],
+    hint: "Ordered and not yet received by the kitchen. Flagged once the expected delivery date has passed." },
+  { key: "RECEIVED", label: "Received", stages: ["RECEIVED"], hint: "Closed — the kitchen confirmed receipt." },
+  { key: "CLOSED", label: "Rejected / Draft", stages: ["REJECTED", "CANCELLED", "DRAFT"],
+    hint: "Not going ahead, or never submitted." },
+];
+
+export function stageOf(row: DirectPurchaseRow): string {
+  return String(row.stage || (row.status || "").toUpperCase() || "UNKNOWN");
 }
+
+export function laneOf(row: DirectPurchaseRow): string {
+  const st = stageOf(row);
+  const lane = LANES.find(l => l.stages.includes(st));
+  return lane ? lane.key : "CLOSED";
+}
+
+/** Is this row overdue for its stage? Returns the reason, or "". */
+export function stageAlert(row: DirectPurchaseRow): string {
+  const st = stageOf(row);
+  const days = Number(row.days_in_stage || 0);
+  if (st === "PO_ISSUED" || st === "DELIVERED") {
+    const past = row.days_past_delivery_date;
+    if (past === null || past === undefined) return "No expected delivery date on the PO";
+    if (Number(past) > 0) return `${past} day${Number(past) === 1 ? "" : "s"} past the expected delivery date`;
+    return "";
+  }
+  const limit = STALE_DAYS[st];
+  if (limit && days > limit) return `${days} days in ${STAGE_LABEL[st] || st}`;
+  return "";
+}
+
+function stageBadge(row: DirectPurchaseRow) {
+  const st = stageOf(row);
+  const label = STAGE_LABEL[st] || st;
+  if (st === "RECEIVED") return <span className={BADGE_SUCCESS}>{label}</span>;
+  if (st === "REJECTED" || st === "CANCELLED") return <span className={BADGE_ERROR}>{label}</span>;
+  if (st === "APPROVED_NO_PO" || st === "IN_REVIEW") return <span className={BADGE_WARNING}>{label}</span>;
+  return <span className={BADGE_INFO}>{label}</span>;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 // ─── Inline Edit State ───────────────────────────────────────────────────────
 
@@ -123,6 +209,9 @@ export default function DirectPurchasesAdminPage() {
   // ── Filter ──
   const [cityFilter,   setCityFilter]   = useState("manila");
   const [statusFilter, setStatusFilter] = useState("");
+  // In Review is the landing lane: it is the only one where somebody is
+  // waiting on a decision from this screen.
+  const [lane, setLane] = useState("IN_REVIEW");
   const [verifiedFilter, setVerifiedFilter] = useState("");   // "" | "false" | "true"
 
   // ── Data ──
@@ -139,6 +228,11 @@ export default function DirectPurchasesAdminPage() {
 
   // ── Verify ──
   const [verifyBusy, setVerifyBusy] = useState("");
+  const [poBusy, setPoBusy] = useState("");
+  const [dateTarget, setDateTarget] = useState<DirectPurchaseRow | null>(null);
+  const [dateValue, setDateValue] = useState("");
+  const [dateReason, setDateReason] = useState("");
+  const [dateError, setDateError] = useState("");
 
   // ── Void ──
   const [voidTarget, setVoidTarget]   = useState<{ id: string; request_no: string } | null>(null);
@@ -176,10 +270,15 @@ export default function DirectPurchasesAdminPage() {
   const load = useCallback(async (city: string, status: string, dv: string) => {
     setError(""); setLoading(true);
     try {
+      // Everything, not one status, and not 200. The lane counts have to be
+      // true to be worth showing, and ordering is created_at DESC, so at 200
+      // the rows that most needed attention -- the oldest, up to 116 days --
+      // were past the end and could not be reached from this screen at all.
       const qs = new URLSearchParams({
-        city, status,
+        city,
+        ...(status ? { status } : {}),
         ...(dv ? { data_verified: dv } : {}),
-        limit: "200",
+        limit: "1000",
       }).toString();
       const data = await procurementJson<{ rows: DirectPurchaseRow[] }>(
         `/api/admin/procurement/direct-purchases?${qs}`,
@@ -317,6 +416,53 @@ export default function DirectPurchasesAdminPage() {
     }
   };
 
+  // ─── Delivered / expected-date handlers ──────────────────────────────────
+  // Token auth, no PIN: the back office touches these every day, and lesson 77
+  // is that a PIN on a daily action is how a feature reaches zero uses.
+  const handleDelivered = async (row: DirectPurchaseRow, undo: boolean) => {
+    if (!row.po_id) return;
+    setPoBusy(row.id);
+    try {
+      await procurementJson(
+        `/api/admin/procurement/pos/${row.po_id}/delivered`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ undo }),
+        },
+        requestedBy, pin,
+      );
+      void load(cityFilter, statusFilter, verifiedFilter);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPoBusy("");
+    }
+  };
+
+  const saveDeliveryDate = async () => {
+    if (!dateTarget?.po_id || !dateValue) return;
+    setPoBusy(dateTarget.id);
+    setDateError("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/pos/${dateTarget.po_id}/delivery-date`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ delivery_date: dateValue, reason: dateReason }),
+        },
+        requestedBy, pin,
+      );
+      setDateTarget(null);
+      void load(cityFilter, statusFilter, verifiedFilter);
+    } catch (e: unknown) {
+      setDateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPoBusy("");
+    }
+  };
+
   // ─── Void handler ────────────────────────────────────────────────────────
   const doVoidDirectPurchase = useCallback(async () => {
     if (!voidTarget || !voidReason.trim()) return;
@@ -357,6 +503,22 @@ export default function DirectPurchasesAdminPage() {
     : 0;
 
   const pendingCount = rows.filter((r) => !r.data_verified_at).length;
+
+  // Oldest first inside a lane. The whole complaint was that the screen does
+  // not say what to do next; created_at DESC answers "what is newest", which is
+  // the opposite of what a queue needs (pattern 5). Received and closed rows
+  // stay newest-first because nobody is working them.
+  const visibleRows = rows
+    .filter(r => laneOf(r) === lane)
+    .sort((a, b) => {
+      if (lane === "RECEIVED" || lane === "CLOSED") {
+        return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+      }
+      const av = lane === "PO_ISSUED" ? Number(a.days_past_delivery_date ?? -9999) : Number(a.days_in_stage || 0);
+      const bv = lane === "PO_ISSUED" ? Number(b.days_past_delivery_date ?? -9999) : Number(b.days_in_stage || 0);
+      return bv - av;
+    });
+
 
   return (
     <div className="space-y-5">
@@ -402,20 +564,6 @@ export default function DirectPurchasesAdminPage() {
             />
           </div>
           <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
-            <SelectDark
-              className={SELECT_CLASS}
-              value={statusFilter}
-              onChange={v => handleFilterChange(cityFilter, v, verifiedFilter)}
-              options={[
-                { value: "", label: "All" },
-                { value: "IN_REVIEW", label: "In Review" },
-                { value: "APPROVED", label: "Approved" },
-                { value: "REJECTED", label: "Rejected" },
-              ]}
-            />
-          </div>
-          <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Verification</label>
             <SelectDark
               className={SELECT_CLASS}
@@ -457,9 +605,37 @@ export default function DirectPurchasesAdminPage() {
         </div>
       )}
 
+      {/* Lane strip. The counts are the navigation (pattern 7: a number you can
+          read but not press is a dead end), and each lane states its own rule
+          so the flagging is inspectable rather than mysterious. */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        {LANES.map((l) => {
+          const inLane = rows.filter(r => laneOf(r) === l.key);
+          const flagged = inLane.filter(r => stageAlert(r)).length;
+          const active = lane === l.key;
+          return (
+            <button key={l.key} type="button" onClick={() => setLane(l.key)}
+              className={`rounded-xl border px-3 py-2 text-left transition ${
+                active ? "border-violet-400/50 bg-violet-500/15 text-white"
+                       : "border-white/10 bg-white/4 text-zinc-300 hover:bg-white/8"}`}>
+              <span className="text-xs font-semibold">{l.label}</span>
+              <span className="ml-2 font-mono text-sm">{inLane.length}</span>
+              {flagged > 0 && (
+                <span className="ml-2 rounded-lg bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                  {flagged} flagged
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <p className={`${T_CAPTION} mb-3`}>
+        {LANES.find(l => l.key === lane)?.hint}
+      </p>
+
       {/* List */}
       <div className="space-y-3">
-        {rows.map((row) => {
+        {visibleRows.map((row) => {
           const isExpanded = expandedId === row.id;
           const isEditing  = editingId  === row.id;
           const createdDt  = row.created_at
@@ -476,19 +652,45 @@ export default function DirectPurchasesAdminPage() {
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm font-semibold text-white">{row.request_no || row.parent_case_no}</span>
-                      {statusBadge(row.status)}
+                      {stageBadge(row)}
+                      {row.po_no && (
+                        <span className={BADGE_INFO} title="Purchase order raised for this request">
+                          {row.po_no}
+                        </span>
+                      )}
+                      {Number(row.po_count || 0) > 1 && (
+                        <span className={BADGE_WARNING}>{row.po_count} POs</span>
+                      )}
+                      {row.has_shortage && <span className={BADGE_WARNING}>Short delivery</span>}
                       {row.data_verified_at
                         ? <span className={BADGE_SUCCESS}><CheckCircle2 className="h-3 w-3" /> Verified</span>
                         : <span className={BADGE_WARNING}>Needs Review</span>
                       }
                       {row.new_vendor_flag && <span className={BADGE_WARNING}>New Vendor</span>}
                     </div>
+                    {stageAlert(row) && (
+                      <p className="text-[11px] font-medium text-amber-300">{stageAlert(row)}</p>
+                    )}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
                       <span>By <span className="text-zinc-300">{row.requested_by}</span></span>
                       {row.store_code && <span>Branch <span className="text-zinc-300">{row.store_code}</span></span>}
                       <span>Date <span className="text-zinc-300">{row.request_date || createdDt}</span></span>
                       <span>Vendor <span className="text-zinc-200 font-medium">{row.items[0]?.vendor_name || "—"}</span></span>
                       <span>Total <span className="font-semibold text-amber-300">PHP {Number(row.total_amount || 0).toFixed(2)}</span></span>
+                      {row.delivery_date && (
+                        <span>
+                          Expected <span className="text-zinc-200 font-medium">{row.delivery_date}</span>
+                          {row.delivery_date_revised_at && row.delivery_date_original !== row.delivery_date && (
+                            <span className="text-zinc-500"> (was {row.delivery_date_original})</span>
+                          )}
+                        </span>
+                      )}
+                      {row.delivered_confirmed_at && (
+                        <span className="text-sky-300">
+                          Delivered {String(row.delivered_confirmed_at).slice(0, 10)}
+                          {row.delivered_confirmed_by ? ` · ${row.delivered_confirmed_by}` : ""}
+                        </span>
+                      )}
                     </div>
                     {row.data_verified_at && (
                       <p className="text-[10px] text-emerald-500">
@@ -512,6 +714,33 @@ export default function DirectPurchasesAdminPage() {
                           ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                           : <CheckCircle2 className="h-3.5 w-3.5" />}
                         Mark Verified
+                      </button>
+                    )}
+                    {row.po_id && stageOf(row) !== "RECEIVED" && !isEditing && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); setDateTarget(row); setDateValue(row.delivery_date || ""); setDateReason(""); setDateError(""); }}
+                        className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+                        title="The supplier moved the date">
+                        <Pencil className="h-3.5 w-3.5" /> Expected date
+                      </button>
+                    )}
+                    {row.po_id && stageOf(row) === "PO_ISSUED" && !isEditing && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); void handleDelivered(row, false); }}
+                        disabled={poBusy === row.id}
+                        className={`${SMALL_BUTTON} flex items-center gap-1.5 border-sky-500/30 text-sky-300 hover:bg-sky-500/10`}
+                        title="Back office confirms the supplier delivered. The kitchen still confirms receipt.">
+                        {poBusy === row.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                        Mark Delivered
+                      </button>
+                    )}
+                    {row.po_id && stageOf(row) === "DELIVERED" && !isEditing && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); void handleDelivered(row, true); }}
+                        disabled={poBusy === row.id}
+                        className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+                        title="Undo the delivered mark">
+                        Undo Delivered
                       </button>
                     )}
                     {(row.status || "").toUpperCase() === "APPROVED" && !isEditing && (
@@ -705,6 +934,50 @@ export default function DirectPurchasesAdminPage() {
       </div>
 
       {/* ── Void confirmation modal ── */}
+      {/* Expected delivery date. Uses ModalScrim, not the fixed/flex/center
+          pattern the void dialog below still uses -- that one is on lesson
+          116's list of 66 files and cannot be typed into on a phone. */}
+      {dateTarget && (
+        <ModalScrim className="bg-black/70 backdrop-blur-sm">
+          <div className="mx-auto my-4 w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
+            <h3 className="text-base font-semibold text-white">Expected delivery date</h3>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              <span className="font-mono text-zinc-200">{dateTarget.po_no || dateTarget.request_no}</span>
+              {" — "}what the supplier now says. The first promised date is kept, so the
+              order still counts as late against it.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-400">New date</label>
+                <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)}
+                  className={INPUT_CLASS} />
+                {dateTarget.delivery_date && (
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    Currently {dateTarget.delivery_date}
+                    {dateTarget.delivery_date_original && dateTarget.delivery_date_original !== dateTarget.delivery_date
+                      ? ` · first promised ${dateTarget.delivery_date_original}` : ""}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-400">Reason (optional)</label>
+                <input type="text" value={dateReason} onChange={(e) => setDateReason(e.target.value)}
+                  placeholder="Supplier out of stock" className={INPUT_CLASS} />
+              </div>
+              {dateError && <p className="text-xs text-red-400">{dateError}</p>}
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setDateTarget(null)} className={SECONDARY_BUTTON}>Cancel</button>
+                <button type="button" onClick={() => void saveDeliveryDate()}
+                  disabled={!dateValue || poBusy === dateTarget.id}
+                  className={PRIMARY_BUTTON}>
+                  {poBusy === dateTarget.id ? "Saving…" : "Save date"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalScrim>
+      )}
+
       {voidTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
