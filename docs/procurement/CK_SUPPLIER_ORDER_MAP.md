@@ -504,6 +504,37 @@ go-live 締切を置いた理由そのものなので、ここで作成時刻を
 72時間は `STALE_DAYS.APPROVED_NO_PO = 3` と同じ値で、**アラート用に発明した数字ではない**
 （教訓123）。画面側の閾値が動いたらテストが落ちる。
 
+### ④ Store Procurement の5段階（2026-09-26 実装）
+
+**「データはあるが画面が使っていないだけ」ではなかった。** `PROC_STAGE_SQL` を
+使っていたのは Direct Purchase 用のクエリだけで、店舗側が呼ぶ
+`list_proc_requests` は **`proc_purchase_orders` を JOIN すらしていなかった**
+（段階判定は `po.receipt_confirmed_at` と `po.delivered_confirmed_at` を見る）。
+
+⚠️ **POの選び方は Direct Purchase 側と1文字も変えない。** 1リクエストに複数POが
+あるので、片方が「最新PO」もう片方が「最初のPO」を見ると、**同じ発注が画面ごとに
+違う段階になる**。テストが両方の `ORDER BY p.created_at DESC ... LIMIT 1` を
+突き合わせ、片方だけ動いたら落ちる。
+
+⚠️ **`list_proc_requests` の WHERE は非修飾カラム**（`city` / `status` /
+`request_date` / `receiving_status` / `requested_by` / `store_code`）。JOIN が
+このどれかを公開した瞬間に **全呼び出しが `column reference is ambiguous` で500**
+になる。**`compile()` は捕まえない**ので、最初に出るのは店舗の画面の500。
+lateral が公開する列とWHEREが使う列を突き合わせるテストを置いた。
+
+**画面側は段階の語彙を共有し、まとめ方だけ変える。** `STORE_STAGES`（5段階）と
+`LANES`（Direct Purchase の5レーン）は同じ `STAGE_LABEL` から引く。
+Back Office は **PO Issued と Delivered を分ける必要がある**（「仕入先が送っていない」
+と「届いているがCKが受領していない」は担当者が違う）が、Direct Purchase 側は
+「届いたか」しか問わないので Incoming に統合している。**語彙を2つ持つと、
+2画面が同じ発注について違うことを言い始める。**
+
+⚠️ **行のバッジは「ステータスが言っていないこと」だけ出す。** 行には既に
+DRAFT / IN REVIEW / APPROVED / RETURNED / REJECTED が出ている。段階を全部出すと
+同じ語が2つ並び、しかも KPI カードのラベルと衝突した（pre-commit が検出）。
+**`APPROVED` が隠しているもの**（PO未発行 / 発行済み / 届いた / 受領済み）だけを
+出す — それが④の要点そのもの。
+
 ### 閾値は48時間だけ
 
 Yusuke が言った数字。**都市別の変種も件数上限も作っていない**（教訓123:

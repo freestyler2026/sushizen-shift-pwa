@@ -265,6 +265,26 @@ ck("saving re-reads the list so the fixed name leaves the banner",
    bool(_save_fn) and "void load(cityFilter, statusFilter, verifiedFilter);" in _save_fn,
    "a warning that stays put makes the save look like it did nothing")
 
+# §4: the store list's stage
+_db_src = db
+ck("the store list returns the stage (doc \u00a74)",
+   "{PROC_STAGE_SQL}) AS stage" in _db_src[_db_src.index("def list_proc_requests("):
+                                           _db_src.index("\ndef ", _db_src.index("def list_proc_requests(") + 10)],
+   "Request/Approval/Receiving cannot say whether an approved order has a PO")
+_rule = ("FROM proc_purchase_orders p\n      WHERE p.request_id = r.id\n"
+         "      ORDER BY p.created_at DESC\n      LIMIT 1")
+ck("both screens pick the same purchase order",
+   _db_src.count(_rule) >= 2,
+   "a different PO per screen puts one order at two stages")
+_stage_lib = (FRONT / "src/lib/direct-purchase-stage.ts").read_text()
+ck("the store's five share the Direct Purchase stage vocabulary",
+   "STORE_STAGES" in _stage_lib and "export const LANES" in _stage_lib,
+   "two sets of stage names is how two screens start disagreeing")
+ck("PO Issued and Delivered are separate for the back office",
+   '"DELIVERED", stages: ["DELIVERED"]' in _stage_lib.replace("key: ", "")
+   or '{ key: "DELIVERED"' in _stage_lib,
+   "'the supplier has not sent it' and 'it is here' are different problems")
+
 _wk = (ROOT / "worker.py").read_text().split("\n")
 _def = next((i for i, l in enumerate(_wk)
              if l.startswith("def run_proc_stale_review_alerts")), None)
