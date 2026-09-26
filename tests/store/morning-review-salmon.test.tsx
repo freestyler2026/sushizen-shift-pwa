@@ -45,7 +45,7 @@ const OPTIONS = {
     { key: "no_cutting", label: "No salmon cutting", ends: true },
     { key: "submission_missing", label: "Submission missing", ends: false },
   ],
-  salmon_band: { min: 65, max: 70, par: 67.5, missing_days: 3 },
+  salmon_band: { min: 65, max: 70, par: 67.5, missing_days: 3, scrap_max: 12.5, skin_max: 25 },
 };
 
 const SUMMARY = {
@@ -71,7 +71,8 @@ const YIELD_ITEM = {
   id: 11, kind: "salmon_yield", source_id: "77", answer: null, answered_by: null,
   payload: { shift: "closing", reported_by: "Rowena", whole_g: 5000, main_g: 3120,
              main_pct: 62.4, scrap_pct: 9.8, skin_pct: 24.1, direction: "low",
-             band_min: 65, band_max: 70, has_photo: false },
+             breaches: ["main_low"], band_min: 65, band_max: 70,
+             scrap_max: 12.5, skin_max: 25, has_photo: false },
 };
 
 const MISSING_ITEM = {
@@ -107,18 +108,18 @@ describe("Morning Review — salmon yield", () => {
   it("shows the yield, the band, and the whole cut", async () => {
     serve([YIELD_ITEM]);
     render(<ReviewPage />);
-    expect(await screen.findByText(/62.4% low/)).toBeInTheDocument();
-    expect(screen.getByText(/3120g of 5000g/)).toBeInTheDocument();
+    expect(await screen.findByText(/main 62.4% low/)).toBeInTheDocument();
+    expect(screen.getByText(/main 3120g of 5000g \(62.4%\)/)).toBeInTheDocument();
     expect(screen.getByText(/scrap 9.8% · skin 24.1%/)).toBeInTheDocument();
     // Four branches file twice in a day, on four different shifts.
     expect(screen.getByText(/closing · Rowena/)).toBeInTheDocument();
-    expect(screen.getByText(/between 65% and 70%/)).toBeInTheDocument();
+    expect(screen.getByText(/Main portion 65–70% · scrap up to 12.5% · skin up to 25%/)).toBeInTheDocument();
   });
 
   it("offers Yusuke's six categories and six action plans", async () => {
     serve([YIELD_ITEM]);
     render(<ReviewPage />);
-    await screen.findByText(/62.4% low/);
+    await screen.findByText(/main 62.4% low/);
     for (const label of ["No photo confirmed", "Cutting issue (meat left on skin)",
                          "Weighing error", "Input error", "Quality / condition issue"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
@@ -133,7 +134,7 @@ describe("Morning Review — salmon yield", () => {
   it("sends both halves when the manager saves", async () => {
     const posts = serve([YIELD_ITEM]);
     render(<ReviewPage />);
-    await screen.findByText(/62.4% low/);
+    await screen.findByText(/main 62.4% low/);
     fireEvent.click(screen.getByText("Cutting issue (meat left on skin)"));
     fireEvent.click(screen.getByText("Re-training required"));
     fireEvent.click(screen.getByText("Save"));
@@ -152,9 +153,29 @@ describe("Morning Review — salmon yield", () => {
   it("cannot complete the morning while the item is unanswered", async () => {
     serve([YIELD_ITEM]);
     render(<ReviewPage />);
-    await screen.findByText(/62.4% low/);
+    await screen.findByText(/main 62.4% low/);
     const complete = screen.getByText(/Complete morning review/i).closest("button")!;
     expect(complete).toBeDisabled();
+  });
+
+  it("labels a cut by the par level it actually breached, not by its main portion", async () => {
+    // 68% main is inside the band. The problem is the skin, and the card that
+    // says "68% high" sends the manager to the wrong half of the fish.
+    serve([{ ...YIELD_ITEM, payload: { ...YIELD_ITEM.payload, main_pct: 68, main_g: 3400,
+             scrap_pct: 5.2, skin_pct: 27.4, direction: "", breaches: ["skin"] } }]);
+    render(<ReviewPage />);
+    expect(await screen.findByText(/skin 27.4% over/)).toBeInTheDocument();
+    expect(screen.queryByText(/main 68% high/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/main 68% low/)).not.toBeInTheDocument();
+  });
+
+  it("shows every par level a single cut breached", async () => {
+    serve([{ ...YIELD_ITEM, payload: { ...YIELD_ITEM.payload, main_pct: 60, scrap_pct: 14.1,
+             skin_pct: 26.0, direction: "low", breaches: ["main_low", "scrap", "skin"] } }]);
+    render(<ReviewPage />);
+    expect(await screen.findByText(/main 60% low/)).toBeInTheDocument();
+    expect(screen.getByText(/scrap 14.1% over/)).toBeInTheDocument();
+    expect(screen.getByText(/skin 26% over/)).toBeInTheDocument();
   });
 });
 

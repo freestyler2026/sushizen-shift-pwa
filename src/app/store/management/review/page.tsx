@@ -44,7 +44,7 @@ type Item = {
   id: number;
   kind: "quality" | "prep_time" | "salmon_yield" | "salmon_missing";
   source_id: string;
-  payload: Record<string, string | number | boolean | null>;
+  payload: Record<string, string | number | boolean | null | string[]>;
   answer: Answer | null;
   answered_by: string | null;
 };
@@ -80,7 +80,8 @@ type Review = {
     assessments: Opt[]; issue_types: Opt[]; root_causes: Opt[]; actions: Opt[];
     prep_causes: Opt[]; prep_actions: Opt[]; prep_threshold: number;
     salmon_issues: Opt[]; salmon_actions: Opt[]; salmon_missing_outcomes: Opt[];
-    salmon_band: { min: number; max: number; par: number; missing_days: number };
+    salmon_band: { min: number; max: number; par: number; missing_days: number;
+                   scrap_max: number; skin_max: number };
   };
 };
 
@@ -781,11 +782,12 @@ export default function MorningReviewPage() {
         <div className="mb-4">
           <p className={`${T_SECTION} mb-1 flex items-center gap-2`}>
             <Fish className="h-4 w-4 text-rose-300" />
-            Salmon yield — {salmon.length} outside the band
+            Salmon yield — {salmon.length} over par
           </p>
           <p className={`${T_CAPTION} mb-2`}>
-            Main portion should be between {review.options.salmon_band.min}% and{" "}
-            {review.options.salmon_band.max}% of the whole fish.
+            Main portion {review.options.salmon_band.min}–{review.options.salmon_band.max}% ·
+            scrap up to {review.options.salmon_band.scrap_max}% ·
+            skin up to {review.options.salmon_band.skin_max}%, as printed on the report form.
           </p>
           <div className="flex flex-col gap-2">
             {salmon.map((it) => {
@@ -793,21 +795,38 @@ export default function MorningReviewPage() {
               const d = cur(it.id);
               const isOpen = open === it.id;
               const pct = Number(it.payload.main_pct ?? 0);
-              const low = String(it.payload.direction) === "low";
+              // Which par levels this cut breached. A record can breach more
+              // than one, and one that is fine on the main portion but heavy
+              // on the skin must not be labelled by its main portion.
+              const breaches: string[] = Array.isArray(it.payload.breaches)
+                ? (it.payload.breaches as string[])
+                : [String(it.payload.direction) === "low" ? "main_low" : "main_high"];
               return (
                 <div key={it.id} className={`${GLASS_CARD} overflow-hidden`}>
                   <button
                     className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left hover:bg-white/4"
                     onClick={() => setOpen(isOpen ? null : it.id)}
                   >
-                    <span className={low ? BADGE_ERROR : BADGE_WARNING}>
-                      {pct}% {low ? "low" : "high"}
-                    </span>
+                    {breaches.includes("main_low") && (
+                      <span className={BADGE_ERROR}>main {pct}% low</span>
+                    )}
+                    {breaches.includes("main_high") && (
+                      <span className={BADGE_WARNING}>main {pct}% high</span>
+                    )}
+                    {breaches.includes("scrap") && (
+                      <span className={BADGE_WARNING}>
+                        scrap {Number(it.payload.scrap_pct ?? 0)}% over
+                      </span>
+                    )}
+                    {breaches.includes("skin") && (
+                      <span className={BADGE_WARNING}>
+                        skin {Number(it.payload.skin_pct ?? 0)}% over
+                      </span>
+                    )}
                     <span className={T_CAPTION}>
-                      {Number(it.payload.main_g ?? 0)}g of {Number(it.payload.whole_g ?? 0)}g
-                    </span>
-                    <span className={T_CAPTION}>
-                      scrap {Number(it.payload.scrap_pct ?? 0)}% · skin {Number(it.payload.skin_pct ?? 0)}%
+                      main {Number(it.payload.main_g ?? 0)}g of {Number(it.payload.whole_g ?? 0)}g ({pct}%)
+                      {" · "}scrap {Number(it.payload.scrap_pct ?? 0)}%
+                      {" · "}skin {Number(it.payload.skin_pct ?? 0)}%
                     </span>
                     {/* Four branches file more than one a day, on four
                         different shifts. Without it two cards for the same
