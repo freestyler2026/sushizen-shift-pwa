@@ -31849,14 +31849,17 @@ Raj Deeban Jegan は staff_master 1行・profile 1行・9月DTR 18行（OT 3.00h
 ### オーナー作業（PIN が要るか、判断が要るもの）
 1. **Discord ID の登録3名** — Mariano Espenida Jr.（23 open / 29 in 30d）・
    Aliana Manuel（1 open / **36 in 30d・最新 9/25**）・Yuri Yamada（3 open / 10 in 30d）。
-   `/admin/management/assignments`（画面のバナーからリンク）。
+   **Direct Purchase 画面のバナーに名前ごとの入力欄がある**ので、そこで登録できる
+   （他ページへ行く必要はない — `/admin/management/assignments` は ID 欄が
+   例外タイプ担当者にしか出ないので、この3名は登録できない）。
    **登録するまで、この3名の却下アラートは記録されるだけで誰にも届かない。**
    直近30日の却下20件のうち Aliana 分2件が該当。
 2. **却下アラートの端から端までが未検証** — 却下は承認PINが要るので私は実行できない。
    **最初の1件を却下したら、その行のバッジが `Creator told` になるか確認してください。**
    ならなければ `insert_probe` と `unreachable` を見れば原因が切り分けられる。
-3. `/admin/management/assignments` は **NavBar に載っていない**（今回リンクで回避したが、
-   メニューに足すかは判断事項）。
+3. `/admin/management/assignments` は **NavBar に載っていない**うえ、ID入力欄が
+   例外タイプ担当者にしか出ない。今回は Direct Purchase 側で完結させたので
+   実害は無いが、あのページ自体をどうするかは判断事項。
 
 ### 未着手のまま（既存）
 - 222件の backfill（PIN）: `GET → POST /api/admin/procurement/maintenance/po-receipt-drift`
