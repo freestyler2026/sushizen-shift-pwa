@@ -994,6 +994,9 @@ export default function StoreProcurementHomePage() {
   // "approved but no PO", "PO out but not delivered", "delivered but not
   // received" and "done" without asking anyone.
   const [stageFilter, setStageFilter] = useState<string | null>(null);
+  // Counted by the server over every request. Deriving them from `rows` made
+  // them counts of the newest 200, which is not what anyone reads them as.
+  const [serverStageCounts, setServerStageCounts] = useState<Record<string, number> | null>(null);
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
   const [lastCreatedRequestAt, setLastCreatedRequestAt] = useState("");
@@ -1194,6 +1197,8 @@ export default function StoreProcurementHomePage() {
         pin,
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      const sc = (data as { stage_counts?: Record<string, number> })?.stage_counts;
+      setServerStageCounts(sc && typeof sc === "object" ? sc : null);
     } catch (e: any) {
       setError(friendlyProcurementError(e));
     } finally {
@@ -1416,7 +1421,28 @@ export default function StoreProcurementHomePage() {
     return out;
   }, [activeRows, rejectedRows]);
 
+  // Server counts when they are there; the page's own rows only as a fallback
+  // for an older backend, and then the caption says the number is partial
+  // rather than letting it read as the truth.
   const stageCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    if (serverStageCounts) {
+      for (const st of STORE_STAGES) {
+        out[st.key] = st.stages.reduce((n, k) => n + (serverStageCounts[k] || 0), 0);
+      }
+      return out;
+    }
+    for (const r of activeRows) {
+      const k = storeStageOf(r as unknown as DirectPurchaseRow);
+      if (k) out[k] = (out[k] || 0) + 1;
+    }
+    return out;
+  }, [activeRows, serverStageCounts]);
+
+  // How many of a stage's orders this page actually holds. When the count is
+  // larger, the list is a window and the screen has to say so — otherwise
+  // "PO Issued 40" over eleven visible rows reads as a broken screen.
+  const visibleInStage = useMemo(() => {
     const out: Record<string, number> = {};
     for (const r of activeRows) {
       const k = storeStageOf(r as unknown as DirectPurchaseRow);
@@ -1798,6 +1824,22 @@ export default function StoreProcurementHomePage() {
               {stageFilter
                 ? STORE_STAGES.find(s2 => s2.key === stageFilter)?.hint
                 : "Where each order actually is. Rejected and cancelled are not stages — they are under the cards below."}
+              {/* The counts are for every order; the list below is the newest
+                  200. Saying so is the difference between a window and a
+                  screen that looks broken — and the order worth chasing is
+                  usually the old one that is not in the window. */}
+              {(() => {
+                const short = STORE_STAGES.filter(
+                  st => (stageCounts[st.key] || 0) > (visibleInStage[st.key] || 0));
+                if (!serverStageCounts || !short.length) return null;
+                return (
+                  <span className="text-amber-300">
+                    {" "}Counts are for every order; this list shows the newest 200, so{" "}
+                    {short.map(st => `${st.label} shows ${visibleInStage[st.key] || 0} of ${stageCounts[st.key]}`).join(", ")}
+                    . Narrow the dates to reach the older ones.
+                  </span>
+                );
+              })()}
             </p>
           </div>
 
