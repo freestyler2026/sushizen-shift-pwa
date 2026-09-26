@@ -31876,6 +31876,31 @@ has_shortage=TRUE` なので、**`has_shortage` の付いた行はスタンプ�
 - 実行後、カードに**バックアップ表名**が出る。戻すときはその表の id に対して
   `receipt_confirmed_at` を NULL に戻す。
 
+### 222件の掃除 — 実行済み（2026-09-26）
+
+オーナーが Hub のカードから実行。**実測: Overdue 395 → 173（−222）。**
+対象222件が全て外れた＝`has_shortage` 付きの67件との重なりはゼロだった。
+（実行直前の実数は389ではなく**395**。私の測定から約1時間で、当日納期の
+本物の延滞が6件増えていた。）
+
+残る173件は本物の延滞。ドリフトのカードは消えている＝候補0件。
+
+⚠️ **バックアップ表名を画面から消してしまった。** 結果行をカード内に置いていたが、
+カードは `candidates > 0` のときしか描画されないため、**成功した瞬間に
+カードごと消えて表名も消えた**。`!drift && driftMsg` のフォールバックも効かない
+（実行後の drift は null ではなく `{candidates: 0}`）。結果行をカードの外に出して修正済み。
+**表名は監査ログに残っている**（`procurement.po.receipt_reconcile` の
+`after_json.backup_table`）。取り出し方:
+
+```js
+// ログイン済みのブラウザのコンソールで
+const d = await (await fetch('/api/admin/procurement/audit-logs?limit=200',{credentials:'include'})).json();
+d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
+      .map(r=>({at:r.created_at, by:r.actor_name, ...(r.after_json||{})}));
+```
+
+**ドバイの229件は未実施。** 同じ操作・同じ安全性で、カードの「Switch to Dubai」から。
+
 ### オーナー作業（PIN が要るか、判断が要るもの）
 1. **Discord ID の登録3名** — Mariano Espenida Jr.（23 open / 29 in 30d）・
    Aliana Manuel（1 open / **36 in 30d・最新 9/25**）・Yuri Yamada（3 open / 10 in 30d）。
