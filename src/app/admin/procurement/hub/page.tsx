@@ -762,13 +762,22 @@ export default function ProcurementHubPage() {
                   {" "}— each city has its own backlog, and they are stamped
                   separately.
                 </p>
-                {driftMsg && (
-                  <p className="mt-2 text-xs text-white/80">{driftMsg}</p>
-                )}
+
               </div>
             )}
-            {!drift && driftMsg && (
-              <p className="mb-3 text-xs text-white/80">{driftMsg}</p>
+            {/* Outside the card on purpose. A successful run takes the count
+                to zero, which unmounts the card -- and the backup table name
+                is the only way to undo the write, so it cannot live in
+                something that disappears the moment the write succeeds. */}
+            {driftMsg && (
+              <div className="mb-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <p className="text-sm text-white/85">{driftMsg}</p>
+                <p className={`${T_CAPTION} mt-1`}>
+                  This line goes when the page reloads. The same name is kept
+                  permanently in the audit log under
+                  {" "}<span className="font-mono">procurement.po.receipt_reconcile</span>.
+                </p>
+              </div>
             )}
             {overdueRows.length === 0 && !overdueLoading ? (
               <div className="flex items-center gap-2 py-3 text-sm text-zinc-500">
