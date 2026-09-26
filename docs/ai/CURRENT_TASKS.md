@@ -1,5 +1,78 @@
 # CURRENT_TASKS.md
 
+## 2026-09-26 — CK→Supplier 発注（Yusuke の①〜⑤）／レーン・PO紐付け・納品日
+
+Yusuke の要望5件。**欲しい数字は全部すでに存在して値も正確**で、画面が取りに
+行っていなかった（教訓55）。唯一の例外が③で、これだけ本当に未実装だった。
+
+**全体像は `docs/procurement/CK_SUPPLIER_ORDER_MAP.md`（必読）**。
+`python3 scripts/verify-procurement-doc.py` がコードとの一致を検査する。
+
+### 調査で4回自分の数字を訂正した
+
+原因は1つ: **マニラのリクエストの49%（770/1568）が `direct_purchase`** なのに
+`/api/admin/procurement/requests` が `purchase_type` を返さない（現在も）。
+
+| 汚染値 | 実際 |
+|---|---|
+| 承認済みPO未発行 321件 | **97件**（stage基準）／生の列で107件 |
+| PO発行済み未受領 62件 | **58件**（stage基準）／生の列で65件 |
+| Overdue 389件が遅延 | **264件（68%）がノイズ** |
+
+生の列とstageの差（10件・7件）は**stageの方が正しい**:
+10件は `po=DRAFT recv=CONFIRMED`（POを出さずに物が届いた）、
+7件は `po=ISSUED recv=PENDING` だが**PO側に受領印がある**。
+
+### やったこと
+
+- `PROC_STAGE_SQL`（db.py）— stageの唯一の定義。**分岐順が仕様**で、RECEIVED を
+  DELIVERED より先に判定する（Delivered印は任意なので、順序を逆にすると
+  **受領済み441件が厨房の作業に戻る**）
+- Direct Purchase 一覧APIが pipeline 12列を返すようになった
+- 画面を5レーン化。`limit 200→1000`（**116日前の行が末尾で到達不能だった**）、
+  並びを古い順に
+- `revise_po_delivery_date` — 納品予定日を変更可能に。当初日を1回だけ確保
+- **仕入先確認コールの改定日が `po.delivery_date` に届くようになった**（それまで
+  記録はされていて誰も読んでいなかった）
+- `mark_po_delivered` — BOのDelivered印。任意・取り消し可・二重押し無害
+- `reconcile_po_receipt_stamps` — 222件のバックフィル（**dry_run既定・PIN必須・
+  退避テーブル作成後にUPDATE**）
+
+### 実測（デプロイ後・本番）
+
+| lane | 件数 | 最古 |
+|---|---:|---:|
+| In Review | 48 | 115日 |
+| Needs PO | 97（92 flagged） | 116日 |
+| Incoming | 58（47 flagged） | 112日 |
+| Received | 466 | — |
+| Rejected / Draft | 101 | — |
+
+検証: `npm run build` exit 0 / backend 12テスト・frontend 11テスト（変異テスト
+それぞれ7件・6件すべて検知）/ 本番で Mark Delivered → Undo を往復し
+`delivered_confirmed_at` が NULL に戻ることを列単位で確認（MAN-PR-202609-0257）。
+
+### 途中で作った不具合2件（どちらもデプロイ前後に自分で発見）
+
+1. **`r.submitted_at` は存在しない列**。`compile()` は通り、呼べば毎回500。
+   `list_overdue_deliveries_admin` の `r.request_status` と同型。列の全数照合で発見
+2. **`page.tsx` から名前付き export → `next build` だけが落ちた**（`tsc` は通る）。
+   **前回のコミットが何も配信されておらず**、私はブラウザキャッシュを疑って2回
+   リロードした。真因は deployment status が `failure`。**教訓124として
+   CLAUDE.md に追記**（既存の記録は CURRENT_TASKS 27,000行目で、読む場所に無かった）
+
+### 残っていること
+
+| 項目 | 状態 |
+|---|---|
+| 222件のバックフィル | **未実行。** `GET .../maintenance/po-receipt-drift` で件数確認 → `POST` + PIN + `confirm:true`。Overdue 389→167 の見込み |
+| ① アラート通知 | **未実装。** 今有効化すると48件が同時に鳴る。投入後の行だけを対象にすること |
+| ④ Store Procurement 側の5段階表示 | 未実装（stageはAPIが返す） |
+| ⑤ Daily Inventory の Incoming | 未実装。**在庫数に足さない**設計（単位が揃うのは41%のみ）。詳細は MAP §11 |
+| C2 の42件（兄弟POに受領印） | 未着手。複数仕入先の店舗発注のみ |
+| ドバイ | **未計測**（API上限で切り捨て）。PO発行済み未受領が667件でマニラと正反対 |
+| この画面の Void ダイアログ | 教訓116の66ファイルの1つ。新しい日付ダイアログのみ `ModalScrim` |
+
 ## 2026-09-25 — 承認済みが一目で分かるようにした / Offer Sent の次の一手
 
 オーナー指示「NikkaをApproveした。承認されたことが一目で分かるように、
