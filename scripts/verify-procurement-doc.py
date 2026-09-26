@@ -109,9 +109,31 @@ page = (FRONT / "src/app/admin/procurement/direct-purchases/page.tsx").read_text
 # reach every stage. What matters now is that nothing is unreachable.
 ck("the screen has lanes, not a 4-option status dropdown (doc §11)",
    "LANES" in page and 'value="IN_REVIEW", label' not in page)
-for stage in ("DRAFT", "REJECTED", "APPROVED_NO_PO", "PO_ISSUED", "RECEIVED"):
-    ck(f"a lane reaches {stage}", stage in page,
-       f"{stage} rows would be unreachable from the screen")
+
+# The lanes live in lib, not the page: a Next.js page may not export them
+# (lesson 124). Read them from there -- checking page.tsx for the stage names
+# passed for PO_ISSUED and RECEIVED purely because those two also appear in the
+# button guards, which is the wrong reason and would have kept passing after the
+# lanes were deleted.
+stage_lib = (FRONT / "src/lib/direct-purchase-stage.ts").read_text()
+lane_block = re.search(r"export const LANES: Lane\[\] = \[(.*?)\n\];", stage_lib, re.S)
+ck("LANES is defined in src/lib/direct-purchase-stage.ts", lane_block is not None,
+   "the lanes moved again — doc §11 names this file")
+if lane_block:
+    lanes_src = lane_block.group(1)
+    for stage in ("DRAFT", "SUBMITTED", "IN_REVIEW", "APPROVED_NO_PO",
+                  "PO_ISSUED", "DELIVERED", "RECEIVED", "REJECTED", "CANCELLED"):
+        ck(f"a lane reaches {stage}", f'"{stage}"' in lanes_src,
+           f"{stage} rows would be unreachable from the screen entirely")
+    ck("DELIVERED shares the Incoming lane (the kitchen still has not taken it)",
+       re.search(r'"PO_ISSUED",\s*"DELIVERED"', lanes_src) is not None)
+# Scoped to the functions, not the file: has_shortage is a legitimate field on
+# the row type (the screen shows a "Short delivery" badge). What must never
+# happen is the stage or the flag branching on it.
+_logic = re.search(r"export function stageOf\(.*$", stage_lib, re.S)
+ck("stage/lane/alert logic never branches on has_shortage",
+   _logic is not None and "has_shortage" not in _logic.group(0),
+   "67 received-and-short POs would come back as work for the kitchen")
 ck("the list no longer caps at 200 (the oldest rows were past the end)",
    'limit: "200"' not in page,
    "back to 200 — orders up to 116 days old become unreachable again")
