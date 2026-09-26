@@ -855,3 +855,78 @@ describe("/admin/backup — shortageColor unit tests (via UI)", () => {
     expect(screen.getAllByText("Soy Sauce").length).toBeGreaterThan(0);
   });
 });
+
+// ── Salmon photo upload ───────────────────────────────────────────────────────
+//
+// Every one of these failed silently for as long as the feature existed: the
+// request carried getAuthHeaders, whose Content-Type: application/json
+// overwrites the multipart boundary, so FastAPI saw no file and answered 422 —
+// and `await fetch` does not throw on 422, so the catch never ran and the
+// screen said the report was submitted. Not one of the 53 salmon records on
+// file has a photo. These two tests are the guard.
+
+describe("/admin/backup — salmon photos", () => {
+  beforeEach(() => {
+    mockAuth = adminAuth();
+    routerMock.push.mockClear();
+    mockFetch.mockReset();
+  });
+
+  async function submitWithPhoto(photoResponse: Partial<Response>) {
+    const calls: { url: string; opts?: RequestInit }[] = [];
+    mockFetch.mockImplementation((url: string, opts?: RequestInit) => {
+      calls.push({ url: String(url), opts });
+      if (String(url).includes("/backup/salmon-photo/")) {
+        return Promise.resolve({
+          ok: true, status: 200,
+          text: () => Promise.resolve("{}"),
+          json: () => Promise.resolve({ ok: true }),
+          ...photoResponse,
+        } as Response);
+      }
+      if (String(url).includes("/backup/reports") && opts?.method !== "POST") {
+        return Promise.resolve(fetchOk(EMPTY_REPORTS)) as ReturnType<typeof fetch>;
+      }
+      if (opts?.method === "POST") {
+        return Promise.resolve(fetchOk({ report_id: 12, status: "ok", salmon_yield_id: 900 })) as ReturnType<typeof fetch>;
+      }
+      return Promise.resolve(fetchOk({})) as ReturnType<typeof fetch>;
+    });
+
+    const { container } = render(
+      React.createElement((await import("@/app/admin/backup/page")).default)
+    );
+    await waitFor(() => screen.getByText("Backup Report"));
+
+    fireEvent.click(screen.getByLabelText(/Done today/i, { selector: "input" }));
+    const wholeKg = screen.getByPlaceholderText("e.g. 5.20");
+    const mainKg = screen.getByPlaceholderText("e.g. 3.60");
+    fireEvent.change(wholeKg, { target: { value: "5.00" } });
+    fireEvent.change(mainKg, { target: { value: "3.00" } });
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["x"], "salmon.jpg", { type: "image/jpeg" });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    fireEvent.click(screen.getByText("Submit Report"));
+    return calls;
+  }
+
+  it("sends the photo as multipart — no JSON Content-Type to overwrite the boundary", async () => {
+    const calls = await submitWithPhoto({});
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.includes("/backup/salmon-photo/900"))).toBe(true)
+    );
+    const photoCall = calls.find((c) => c.url.includes("/backup/salmon-photo/"))!;
+    const headers = (photoCall.opts?.headers ?? {}) as Record<string, string>;
+    expect(Object.keys(headers).map((k) => k.toLowerCase())).not.toContain("content-type");
+    expect(photoCall.opts?.body).toBeInstanceOf(FormData);
+  });
+
+  it("says so when the photo does not upload, instead of reporting a clean submit", async () => {
+    await submitWithPhoto({ ok: false, status: 422 });
+    await waitFor(() =>
+      expect(screen.getByText(/1 photo could not be uploaded/i)).toBeInTheDocument()
+    );
+  });
+});

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   ClipboardCheck, CheckCircle2, Clock, RefreshCw, Undo2, AlertTriangle, Camera,
+  Fish, CalendarX,
 } from "lucide-react";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, TEXTAREA_CLASS,
@@ -34,11 +35,14 @@ type Answer = {
   action_taken: string[];
   staff: string[];
   note: string;
+  /** salmon_missing only. */
+  outcome?: string | null;
+  followed_up?: string | null;
 };
 
 type Item = {
   id: number;
-  kind: "quality" | "prep_time";
+  kind: "quality" | "prep_time" | "salmon_yield" | "salmon_missing";
   source_id: string;
   payload: Record<string, string | number | boolean | null>;
   answer: Answer | null;
@@ -75,6 +79,8 @@ type Review = {
   options: {
     assessments: Opt[]; issue_types: Opt[]; root_causes: Opt[]; actions: Opt[];
     prep_causes: Opt[]; prep_actions: Opt[]; prep_threshold: number;
+    salmon_issues: Opt[]; salmon_actions: Opt[]; salmon_missing_outcomes: Opt[];
+    salmon_band: { min: number; max: number; par: number; missing_days: number };
   };
 };
 
@@ -272,6 +278,7 @@ export default function MorningReviewPage() {
 
   const blank = (): Answer => ({
     assessment: null, issue_type: [], root_cause: [], action_taken: [], staff: [], note: "",
+    outcome: null, followed_up: null,
   });
   const cur = (id: number): Answer => draft[id] ?? blank();
   const patch = (id: number, p: Partial<Answer>) =>
@@ -323,6 +330,8 @@ export default function MorningReviewPage() {
 
   const quality = useMemo(() => review?.items.filter((i) => i.kind === "quality") ?? [], [review]);
   const preps   = useMemo(() => review?.items.filter((i) => i.kind === "prep_time") ?? [], [review]);
+  const salmon  = useMemo(() => review?.items.filter((i) => i.kind === "salmon_yield") ?? [], [review]);
+  const noSalmon = useMemo(() => review?.items.filter((i) => i.kind === "salmon_missing") ?? [], [review]);
   const left    = useMemo(() => review?.items.filter((i) => !i.answer).length ?? 0, [review]);
   /** A completed review can now be opened -- that is the point of showing the
    *  ones somebody else finished -- so it has to stop offering the controls.
@@ -749,6 +758,200 @@ export default function MorningReviewPage() {
                                     onChange={(e) => patch(it.id, { note: e.target.value })} />
                           <button className={PRIMARY_BUTTON} disabled={busy === it.id || readOnly}
                                   onClick={() => void save(it, { ...d, kind: "prep_time" })}>
+                            Save
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Salmon yield ──
+          The band is 65-70 around a par of 67.5, not "under 70": under 70 is
+          30 of the 53 yields on file, and a screen that asks about 57% of
+          everything submitted stops being read. Over the band is an alert too
+          -- that is what a weighing or an input error looks like, and both are
+          on the list of causes below. */}
+      {salmon.length > 0 && (
+        <div className="mb-4">
+          <p className={`${T_SECTION} mb-1 flex items-center gap-2`}>
+            <Fish className="h-4 w-4 text-rose-300" />
+            Salmon yield — {salmon.length} outside the band
+          </p>
+          <p className={`${T_CAPTION} mb-2`}>
+            Main portion should be between {review.options.salmon_band.min}% and{" "}
+            {review.options.salmon_band.max}% of the whole fish.
+          </p>
+          <div className="flex flex-col gap-2">
+            {salmon.map((it) => {
+              const a = it.answer;
+              const d = cur(it.id);
+              const isOpen = open === it.id;
+              const pct = Number(it.payload.main_pct ?? 0);
+              const low = String(it.payload.direction) === "low";
+              return (
+                <div key={it.id} className={`${GLASS_CARD} overflow-hidden`}>
+                  <button
+                    className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left hover:bg-white/4"
+                    onClick={() => setOpen(isOpen ? null : it.id)}
+                  >
+                    <span className={low ? BADGE_ERROR : BADGE_WARNING}>
+                      {pct}% {low ? "low" : "high"}
+                    </span>
+                    <span className={T_CAPTION}>
+                      {Number(it.payload.main_g ?? 0)}g of {Number(it.payload.whole_g ?? 0)}g
+                    </span>
+                    <span className={T_CAPTION}>
+                      scrap {Number(it.payload.scrap_pct ?? 0)}% · skin {Number(it.payload.skin_pct ?? 0)}%
+                    </span>
+                    <span className={T_CAPTION}>{String(it.payload.reported_by ?? "")}</span>
+                    {a ? <span className={BADGE_INFO}>{a.issue_type.join(", ")}</span>
+                       : <span className={`${T_CAPTION} ml-auto text-violet-300`}>Answer</span>}
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-white/8 px-4 py-3">
+                      {/* The photo is the whole of the first question. Fetched
+                          per item, never carried in the list (lesson 29). */}
+                      {it.payload.has_photo ? (
+                        <img
+                          src={`/api/store/ops-review/item/${it.id}/photo`}
+                          alt="Salmon cutting"
+                          className="mb-3 max-h-80 w-full rounded-lg object-contain"
+                        />
+                      ) : (
+                        <p className={`${T_CAPTION} mb-3 flex items-center gap-1.5 text-amber-300`}>
+                          <Camera className="h-3.5 w-3.5" /> No photo on this record
+                        </p>
+                      )}
+                      {a ? (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className={T_BODY}>
+                            {a.issue_type.join(", ")} — {a.action_taken.join(", ")}
+                            {a.note ? ` — ${a.note}` : ""}
+                          </span>
+                          <button className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+                                  disabled={busy === it.id || readOnly} onClick={() => void save(it, null)}>
+                            <Undo2 className="h-3.5 w-3.5" /> Undo
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-3">
+                          <Chips label="Issue category" options={review.options.salmon_issues}
+                                 value={d.issue_type} single disabled={busy === it.id || readOnly}
+                                 onChange={(v) => patch(it.id, { issue_type: v })} />
+                          <Chips label="Action plan" options={review.options.salmon_actions}
+                                 value={d.action_taken} single disabled={busy === it.id || readOnly}
+                                 onChange={(v) => patch(it.id, { action_taken: v })} />
+                          <textarea className={TEXTAREA_CLASS} rows={2}
+                                    placeholder="Note (required only for Other)"
+                                    value={d.note}
+                                    onChange={(e) => patch(it.id, { note: e.target.value })} />
+                          <button className={PRIMARY_BUTTON} disabled={busy === it.id || readOnly}
+                                  onClick={() => void save(it, { ...d })}>
+                            Save
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Nothing submitted for three days ──
+          Asked once per gap, not once a day. "No salmon cutting" answers it and
+          keeps it quiet for a fortnight: a branch that has stopped cutting
+          should not be asked the same question ten times. */}
+      {noSalmon.length > 0 && (
+        <div className="mb-4">
+          <p className={`${T_SECTION} mb-2 flex items-center gap-2`}>
+            <CalendarX className="h-4 w-4 text-amber-300" />
+            Salmon yield — nothing submitted
+          </p>
+          <div className="flex flex-col gap-2">
+            {noSalmon.map((it) => {
+              const a = it.answer;
+              const d = cur(it.id);
+              const isOpen = open === it.id;
+              const missing = d.outcome === "submission_missing";
+              const chased = d.followed_up === "yes";
+              return (
+                <div key={it.id} className={`${GLASS_CARD} overflow-hidden`}>
+                  <button
+                    className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left hover:bg-white/4"
+                    onClick={() => setOpen(isOpen ? null : it.id)}
+                  >
+                    <span className={BADGE_WARNING}>
+                      {Number(it.payload.days_since ?? 0)} days
+                    </span>
+                    <span className={T_BODY}>
+                      Last yield {String(it.payload.last_date ?? "")}
+                      {it.payload.last_by ? ` by ${String(it.payload.last_by)}` : ""}
+                    </span>
+                    {/* A re-ask after a chase is a different thing to do than
+                        the first ask, and says so rather than repeating it. */}
+                    {it.payload.chased_on ? (
+                      <span className={BADGE_WARNING}>
+                        chased {String(it.payload.chased_on)} — still nothing
+                      </span>
+                    ) : null}
+                    {a ? <span className={BADGE_INFO}>
+                           {review.options.salmon_missing_outcomes
+                             .find((o) => o.key === a.outcome)?.label ?? a.outcome}
+                         </span>
+                       : <span className={`${T_CAPTION} ml-auto text-violet-300`}>Answer</span>}
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-white/8 px-4 py-3">
+                      {a ? (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className={T_BODY}>
+                            {review.options.salmon_missing_outcomes
+                              .find((o) => o.key === a.outcome)?.label ?? a.outcome}
+                            {a.followed_up === "yes" ? " — Kitchen team followed up on Discord" : ""}
+                            {a.note ? ` — ${a.note}` : ""}
+                          </span>
+                          <button className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+                                  disabled={busy === it.id || readOnly} onClick={() => void save(it, null)}>
+                            <Undo2 className="h-3.5 w-3.5" /> Undo
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-3">
+                          <Chips label="Which is it" options={review.options.salmon_missing_outcomes}
+                                 value={d.outcome ? [d.outcome] : []} single
+                                 disabled={busy === it.id || readOnly}
+                                 onChange={(v) => patch(it.id, { outcome: v[0] ?? null, followed_up: null })} />
+                          {missing && (
+                            <>
+                              <Chips label="Have you sent a follow-up message to the Kitchen team on Discord?"
+                                     options={[{ key: "yes", label: "Yes" }, { key: "no", label: "Not yet" }]}
+                                     value={d.followed_up ? [d.followed_up] : []} single
+                                     disabled={busy === it.id || readOnly}
+                                     onChange={(v) => patch(it.id, { followed_up: v[0] ?? null })} />
+                              {d.followed_up === "no" && (
+                                <p className={`${T_CAPTION} flex items-center gap-1.5 text-amber-300`}>
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  Send it first — chasing it is the whole of what this item asks for.
+                                </p>
+                              )}
+                            </>
+                          )}
+                          <textarea className={TEXTAREA_CLASS} rows={2}
+                                    placeholder="Note (optional)"
+                                    value={d.note}
+                                    onChange={(e) => patch(it.id, { note: e.target.value })} />
+                          <button className={PRIMARY_BUTTON}
+                                  disabled={busy === it.id || readOnly || !d.outcome || (missing && !chased)}
+                                  onClick={() => void save(it, { ...d })}>
                             Save
                           </button>
                         </div>

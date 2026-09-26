@@ -5,7 +5,7 @@ import { isoToday, isoDate } from "@/lib/date";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { prepareUpload } from "@/lib/image-compress";
-import { getAuth, getAuthHeaders, hasChannelAccess } from "@/lib/auth";
+import { getAuth, getAuthHeaders, getUploadHeaders, hasChannelAccess } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City } from "@/lib/branches";
 import { MANILA_STANDARDS, type StandardSpec } from "@/lib/backup-standards";
 import {
@@ -1271,25 +1271,35 @@ export default function BackupReportPage() {
         }
       );
 
-      // Upload salmon photos (up to 5) sequentially — non-critical if any fail
+      // Upload salmon photos (up to 5) sequentially. The report is already
+      // saved, so a failure here does not undo it — but it is not silent
+      // either. Every one of these failed for as long as the feature has
+      // existed: getAuthHeaders sets Content-Type: application/json, which
+      // overwrites the multipart boundary and leaves FastAPI with no file
+      // (lesson 23). Not one salmon record has a photo. Use getUploadHeaders,
+      // and read the response, because a 422 does not throw.
+      let photosFailed = 0;
       if (result.salmon_yield_id && salmonPhotos.some(Boolean)) {
         for (const photo of salmonPhotos) {
           if (!photo) continue;
           try {
             const fd = new FormData();
             fd.append("photo", await prepareUpload(photo));
-            await fetch(`/api/admin/backup/salmon-photo/${result.salmon_yield_id}?city=${city}`, {
+            const res = await fetch(`/api/admin/backup/salmon-photo/${result.salmon_yield_id}?city=${city}`, {
               method: "POST",
-              headers: { ...(getAuthHeaders(auth) ?? {}) },
+              headers: { ...(getUploadHeaders(auth) ?? {}) },
               body: fd,
             });
+            if (!res.ok) photosFailed += 1;
           } catch {
-            // Photo upload failure is non-critical — report was saved
+            photosFailed += 1;
           }
         }
       }
 
-      setSubmitSuccess(`Report #${result.report_id} submitted.`);
+      setSubmitSuccess(photosFailed
+        ? `Report #${result.report_id} submitted — ${photosFailed} photo${photosFailed > 1 ? "s" : ""} could not be uploaded. The report is saved; please add the photo again.`
+        : `Report #${result.report_id} submitted.`);
       setTemplateQty({});
       setFreeLines([]);
       setHeaderNotes("");
