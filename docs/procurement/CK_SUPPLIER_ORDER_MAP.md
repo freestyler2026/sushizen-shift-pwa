@@ -347,7 +347,23 @@ POST /api/admin/procurement/maintenance/po-receipt-drift               ← PIN +
 ### ⑤ 実装済み（2026-09-26）— `incoming_for_daily_inventory`
 
 `GET /api/admin/procurement/incoming-stock?city=manila&store=CK`
-Daily Inventory の発注モーダルの各行に `+10 SACK due 09-26` として出る。
+表示は2画面。描画は `src/components/IncomingNote.tsx` の1本だけ（2つ持つと必ずずれる）。
+
+| 画面 | 位置 | 誰のため |
+|---|---|---|
+| `/admin/inventory/ck-inventory` | **Incoming列**（Theoretical の隣） | **CK発注を決める人。ここが本命** |
+| `/admin/daily-inventory` の発注モーダル | Stock / Par の行内 | PAR/CUB/TAFT。現状この3店舗に未入荷発注は0件 |
+
+⚠️ **最初 Daily Inventory だけに置いたのは誤りだった。**
+`daily_inv_reports` の CENTRAL KITCHEN は **最新が 2026-07-08** で、CKは
+`ck_inventory_sessions`（最新 2026-09-25）に移行している。一方でこの画面を
+毎日使っている PARANAQUE / TAFT / CUBAO には**未入荷の仕入先発注が1件も無い**。
+**正しいが誰にも届かない数字は、作っていないのと同じ。**
+
+⚠️ **未修正の既存問題**: `daily-inventory-stock` は指定日に報告が無いと
+**最新の報告にフォールバック**するので、Store Procurement 画面が出すCKの在庫は
+**2026-07-08 の報告から読んでいる**。`ck_inventory_sessions` に向けるか、
+何日時点かを画面に出すかの判断が必要。
 
 **3つの設計判断は変えないこと:**
 

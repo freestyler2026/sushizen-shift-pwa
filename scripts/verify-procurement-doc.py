@@ -163,9 +163,22 @@ if _inc:
 _st = re.search(r"def incoming_stale_days\(.*?(?=\ndef )", db, re.S)
 ck("the 3-day threshold is read at call time, not at import",
    _st is not None and "os.environ.get" in _st.group(0))
-ck("the screen prints the ordered unit and marks a mismatch",
-   "unit_matches" in (FRONT / "src/components/admin/AdminDailyInventoryTab.tsx").read_text(),
-   "without the flag a third of the lines are silently in the wrong unit")
+_note = FRONT / "src/components/IncomingNote.tsx"
+ck("the renderer lives in one shared component (doc §11)", _note.exists(),
+   "two copies of the unit rule is the defect this work started from")
+if _note.exists():
+    nb = _note.read_text()
+    ck("it prints the ordered unit and marks a mismatch with the sheet's unit",
+       "unit_matches" in nb and "sheet_unit" in nb,
+       "without the flag a third of the lines are silently in the wrong unit")
+for scr, why in (
+    ("src/app/admin/inventory/ck-inventory/page.tsx",
+     "the CK stock view is where a CK order quantity is decided"),
+    ("src/components/admin/AdminDailyInventoryTab.tsx",
+     "the Daily Inventory order dialog serves PAR/CUB/TAFT"),
+):
+    ck(f"IncomingNote is wired into {scr.split('/')[-2]}",
+       "IncomingNote" in (FRONT / scr).read_text(), why)
 
 print()
 if fails:
