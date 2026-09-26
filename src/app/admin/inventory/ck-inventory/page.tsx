@@ -10,6 +10,7 @@ import type { City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 import { useUnsavedGuard } from "@/lib/unsavedGuard";
 import { usePersistedDraft } from "@/lib/draftStore";
+import { IncomingNote, incomingFor, type IncomingPayload } from "@/components/IncomingNote";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,6 +96,28 @@ export default function CkInventoryPage() {
   const [allowed, setAllowed] = useState(false);
   const [staffName, setStaffName] = useState("");
   const [city, setCity] = useState<City>("dubai");
+  // Ordered and not yet received, so a count can be read next to what is
+  // already on its way. CK is the only store that orders to this sheet: of the
+  // open supplier orders, 18 are CK and 11 WH, and none are PAR/CUB/TAFT.
+  const [incoming, setIncoming] = useState<IncomingPayload | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetch(
+          `/api/admin/procurement/incoming-stock?city=${city}&store=CK`,
+          { credentials: "include", cache: "no-store" });
+        if (!alive) return;
+        // A 403 is normal for somebody without procurement access: the column
+        // is then simply empty rather than the page failing.
+        setIncoming(r.ok ? ((await r.json()) as IncomingPayload) : null);
+      } catch {
+        if (alive) setIncoming(null);
+      }
+    })();
+    return () => { alive = false; };
+  }, [city]);
 
   const [tab, setTab] = useState<Tab>("stock");
 
@@ -450,6 +473,22 @@ export default function CkInventoryPage() {
             </div>
           )}
 
+          {/* What the Incoming column could NOT account for. The per-row note
+              can only speak about rows it matched; lines whose name is not on
+              this sheet, and orders too far past their delivery date to still
+              be arriving, are invisible without this. The sister screen
+              (AdminDailyInventoryTab) has carried it since the column shipped
+              — this is the screen CK actually counts on, and it did not. */}
+          {incoming && (incoming.not_on_sheet.length > 0 || incoming.stale_excluded > 0) && (
+            <p className="mb-2 text-[11px] text-sky-300/80">
+              {incoming.line_count} line(s) on their way
+              {incoming.not_on_sheet.length > 0
+                && ` · ${incoming.not_on_sheet.length} not counted on this sheet (${incoming.not_on_sheet.map((l) => l.item_name).join(", ")})`}
+              {incoming.stale_excluded > 0
+                && ` · ${incoming.stale_excluded} order(s) more than ${incoming.stale_days} days past their delivery date are not counted — those need closing, not re-ordering`}
+            </p>
+          )}
+
           <div className="overflow-x-auto rounded-2xl border border-neutral-800">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-neutral-800 bg-neutral-900/60 text-xs uppercase tracking-wide text-neutral-500">
@@ -460,6 +499,7 @@ export default function CkInventoryPage() {
                   <th className="px-4 py-2.5 text-right">Last Count</th>
                   <th className="px-4 py-2.5 text-right">Adjustments</th>
                   <th className="px-4 py-2.5 text-right">Theoretical</th>
+                  <th className="px-4 py-2.5">Incoming</th>
                   <th className="px-4 py-2.5">Last Count Date</th>
                   <th className="px-4 py-2.5">Status</th>
                 </tr>
@@ -490,6 +530,9 @@ export default function CkInventoryPage() {
                       <td className={["px-4 py-2.5 text-right font-mono text-sm font-semibold", stockColor(row.theoretical_qty)].join(" ")}>
                         {fmt3(row.theoretical_qty)}
                         <span className="ml-1 text-xs font-normal text-neutral-500">{row.unit}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <IncomingNote lines={incomingFor(incoming, row.name)} />
                       </td>
                       <td className="px-4 py-2.5 text-xs text-neutral-500">
                         {row.last_count_date ? String(row.last_count_date).slice(0, 10) : "Never"}

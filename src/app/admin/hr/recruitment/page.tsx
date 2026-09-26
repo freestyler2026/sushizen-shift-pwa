@@ -6,9 +6,10 @@ import { reasonLabel, isNoShow, LAPSE_REASONS, LAPSE_ONLY } from "@/lib/hr-outco
 import { cvStateOf, openedSinceAsk } from "@/lib/cv-request";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight } from "lucide-react";
+import { X, Plus, ChevronRight, ChevronLeft, RefreshCw, Star, Calendar, ClipboardList, FileText, Undo2, Link2, ArrowRight, Check } from "lucide-react";
 import ModalScrim from "@/components/ModalScrim";
 import { getAuth, refreshAuthFromApi, getAuthHeaders, getUploadHeaders, clearAuth, hasRouteAccess } from "@/lib/auth";
+import FormFunnel from "@/components/hr/FormFunnel";
 import { prepareIfImage } from "@/lib/image-compress";
 import { API_BASE } from "@/lib/api";
 import {
@@ -49,6 +50,10 @@ type KanbanStatus =
   | "screened"
   | "scheduled"
   | "interviewed"
+  /** Somebody has asked for this offer to be approved. The decision used to
+   *  happen in Discord, so the reason a person was hired lived in a chat log
+   *  nothing else could reach. */
+  | "approval"
   | "offer_sent"
   | "hired"
   | "rejected";
@@ -98,6 +103,16 @@ type Applicant = {
    *  boundary. */
   offer_recorded?: boolean;
   offer_sent_at?: string | null;
+  /** The approval request on this card. No file and no amount travels here —
+   *  only who asked, what was decided, and whether a letter exists
+   *  (lesson 29). */
+  approval_requested_by?: string;
+  approval_requested_at?: string | null;
+  approval_decision?: string;
+  approval_decided_by?: string;
+  has_offer_letter?: boolean;
+  offer_letter_filename?: string;
+  comment_count?: number;
   booking_invited_at?: string | null;
   booking_token_expires_at?: string | null;
   booking_sent_at?: string | null;
@@ -160,7 +175,82 @@ const EXPERIENCE_LABEL: Record<string, string> = {
  *  63 of 152 were past it, 45 of them sitting at "interviewed". */
 const STALE_DAYS = 14;
 
+/** How long a "hold -- decide later" may stand before the board asks for the
+ *  decision it promised.
+ *
+ *  Chosen here, and the number is on the screen next to the count it produces
+ *  (lesson 9). Measured 2026-09-25 across the 12 people carrying a hold: 6 were
+ *  past 3 days, 3 past a week, the oldest 11 days. A week-long line lets a
+ *  quarter of them sit a full week untouched first, which is the thing being
+ *  complained about; a same-day line asks for a decision from somebody who has
+ *  just deliberately postponed one. */
+const CONSIDER_DAYS = 3;
+
 type Lane = "active" | "decide" | "closed";
+
+/** Why a card owes a decision. One value per card, first match wins, and the
+ *  same value drives the lane, the card and the sentence -- so the three cannot
+ *  say different things about one person (lesson 62). */
+type DecideReason = "review_hire" | "review_reject" | "consider_due" | "idle";
+
+/** What was recorded, in the words of the thing that recorded it. */
+const DECIDE_REASON_LABEL: Record<DecideReason, string> = {
+  review_hire: "Review says hire",
+  review_reject: "Review says reject",
+  consider_due: "Held to decide later",
+  idle: "Nothing happening",
+};
+
+/** The one thing to do next. Named for the button that does it, so the board
+ *  and the panel it opens say the same words (lesson 73). */
+function nextActionFor(reason: DecideReason, waited: number): string {
+  const days = `${waited} ${waited === 1 ? "day" : "days"}`;
+  switch (reason) {
+    case "review_hire":
+      return "Send the offer for approval.";
+    case "review_reject":
+      return "Close them, or overturn the review.";
+    case "consider_due":
+      return `Held ${days} ago. Decide, or close it.`;
+    case "idle":
+      return `${days} with nothing happening. Move it on, or close it.`;
+  }
+}
+
+/** What this card owes, or null when it owes nothing yet.
+ *
+ *  The old rule was the idle count alone, which made the one screen named
+ *  "Needs a decision" the emptiest thing on the board: measured 2026-09-25 it
+ *  held 0 people, while 22 cards sat in Working on carrying a decision somebody
+ *  had already written down and nobody had acted on -- 12 held to decide later,
+ *  and 10 with a full scored review saying reject.
+ *
+ *  Those 10 are the reason this exists. `submit_evaluation` (app/db_hr.py)
+ *  writes the recommendation and moves nothing, so a review saying reject leaves
+ *  the person at 'interviewed' indefinitely, and the card said less about them
+ *  than about somebody nobody had opened.
+ */
+function decideReasonOf(a: Applicant): DecideReason | null {
+  const idle = a.days_since_move ?? a.days_in_pipeline ?? 0;
+  // A recorded review, read only at the stage where it is still the latest
+  // thing that happened. Past 'interviewed' somebody has acted on it already
+  // and the recommendation is history, not an open question -- one person is
+  // sitting at offer_sent with an old "consider" on file today.
+  if (a.status === "interviewed") {
+    // Two spellings of the same verdict: "reject" from the scored review form,
+    // "no_hire" from the three-tap outcome panel. The second normally arrives
+    // with status='rejected' and never reaches here, but the board must not be
+    // the place that decides they mean different things.
+    if (a.latest_recommendation === "reject"
+      || a.latest_recommendation === "no_hire") return "review_reject";
+    if (a.latest_recommendation === "hire") return "review_hire";
+    if (a.latest_recommendation === "consider" && idle > CONSIDER_DAYS) {
+      return "consider_due";
+    }
+  }
+  if (idle > STALE_DAYS) return "idle";
+  return null;
+}
 
 /** Which of the three screens a person belongs on.
  *
@@ -170,8 +260,7 @@ type Lane = "active" | "decide" | "closed";
  */
 function laneOf(a: Applicant): Lane {
   if (a.status === "hired" || a.status === "rejected") return "closed";
-  const idle = a.days_since_move ?? a.days_in_pipeline ?? 0;
-  return idle > STALE_DAYS ? "decide" : "active";
+  return decideReasonOf(a) ? "decide" : "active";
 }
 
 const LANE_LABEL: Record<Lane, string> = {
@@ -200,9 +289,39 @@ function isImageName(name: string): boolean {
  *  The board's one-tap button only ever moves forward, and until now the only
  *  route back was a dropdown two clicks inside a panel nobody had opened. */
 function getPrevStatus(status: KanbanStatus): KanbanStatus | null {
-  const order: KanbanStatus[] = ["new", "screened", "scheduled", "interviewed", "offer_sent"];
+  const order: KanbanStatus[] = ["new", "screened", "scheduled", "interviewed", "approval", "offer_sent"];
   const i = order.indexOf(status);
   return i > 0 ? order[i - 1] : null;
+}
+
+/** What a failed call actually said.
+ *
+ *  Read as text first: a 413 from the platform comes back as text/plain, and
+ *  calling res.json() on it throws and takes the real reason with it
+ *  (lesson 24).
+ */
+async function errorDetail(res: Response): Promise<string> {
+  try {
+    const raw = await res.text();
+    try {
+      const data = JSON.parse(raw);
+      // FastAPI sends 422 as detail: [{loc, msg, type}, ...]. String() on an
+      // array of objects renders "[object Object]", which tells nobody
+      // anything -- so read the messages out.
+      if (Array.isArray(data?.detail)) {
+        const msgs = data.detail
+          .map((d: { msg?: string }) => d?.msg)
+          .filter(Boolean);
+        if (msgs.length) return msgs.join("; ");
+      }
+      if (data?.detail) return String(data.detail);
+    } catch {
+      if (raw.trim()) return raw.trim().slice(0, 300);
+    }
+  } catch {
+    /* the body could not be read at all */
+  }
+  return `HTTP ${res.status}`;
 }
 
 /** Readable size for a resume. A filename on its own does not say whether the
@@ -361,6 +480,7 @@ const KANBAN_COLUMNS: { id: KanbanStatus; label: string; color: string }[] = [
   { id: "screened",    label: "Screened",           color: "border-blue-600" },
   { id: "scheduled",   label: "Interview Sched.",   color: "border-amber-600" },
   { id: "interviewed", label: "Interviewed",        color: "border-violet-600" },
+  { id: "approval",    label: "Awaiting approval",  color: "border-sky-500" },
   { id: "offer_sent",  label: "Offer Sent",         color: "border-emerald-600" },
   { id: "hired",       label: "Hired ✓",       color: "border-green-500" },
   { id: "rejected",    label: "Rejected",           color: "border-red-800" },
@@ -527,6 +647,8 @@ function KanbanCard({
   onCloseStale,
   onAskForCv,
   onRecordOffer,
+  onDecideApproval,
+  canApprove,
   nextStatus,
 }: {
   applicant: Applicant;
@@ -537,11 +659,55 @@ function KanbanCard({
   onCloseStale: (a: Applicant) => void;
   onAskForCv: (a: Applicant) => void;
   onRecordOffer: (a: Applicant) => void;
+  onDecideApproval: (a: Applicant) => void;
+  canApprove: boolean;
   nextStatus: KanbanStatus | null;
 }) {
+  // Still in the running after the interview. Until now a card that had been
+  // assessed looked exactly like one nobody had looked at, so the Interviewed
+  // column could not show who was kept.
+  //
+  // It stops at the interview stages on purpose. Past them the question has
+  // been answered, and the chip starts contradicting the card: an approved
+  // candidate with an offer out was wearing "Hold — decide later", and an
+  // approved one was indistinguishable from one nobody had approved.
+  const atInterviewStage = applicant.status === "interviewed"
+    || applicant.status === "approval";
+  const rec = atInterviewStage ? applicant.latest_recommendation : undefined;
+  const kept = rec === "hire" || rec === "consider";
+  /** A review that says no, and nobody has closed them. The quietest card on
+   *  the board until now: no colour, no chip, nothing -- measured 2026-09-25,
+   *  10 people were sitting at 'interviewed' with a scored review saying
+   *  reject, and their cards said less than one nobody had opened. */
+  const declined = rec === "reject" || rec === "no_hire";
+  // Approval is the fact the later columns need, and it was on the card for
+  // exactly one column before this. It now travels with the person.
+  const approved = applicant.approval_decision === "approved";
+  const waited = applicant.days_since_move ?? applicant.days_in_pipeline ?? 0;
+  /** Days left on a hold before the board starts asking, or null when this is
+   *  not a running hold.
+   *
+   *  Never negative here by construction: a hold past the line is on the decide
+   *  screen, not on this board (`grouped` is built from lanes.active only), so
+   *  anything this renders is a clock still running. */
+  const holdLeft = applicant.status === "interviewed"
+      && applicant.latest_recommendation === "consider"
+      && waited <= CONSIDER_DAYS
+    ? CONSIDER_DAYS - waited
+    : null;
   return (
     <div
-      className={`${GLASS_CARD} p-3 cursor-pointer hover:border-violet-500/30 transition-all duration-150`}
+      className={`${GLASS_CARD} p-3 cursor-pointer hover:border-violet-500/30 transition-all duration-150 ${
+        approved
+          ? "border-sky-500/50 bg-sky-500/5"
+          : declined
+            ? "border-rose-500/40 bg-rose-500/5"
+            : kept
+              ? rec === "hire"
+                ? "border-emerald-500/50 bg-emerald-500/5"
+                : "border-amber-500/50 bg-amber-500/5"
+              : ""
+      }`}
       onClick={onSelect}
     >
       {/* Position badge */}
@@ -575,8 +741,134 @@ function KanbanCard({
         <div className="mt-1.5">{scoreDisplay(applicant.latest_score)}</div>
       )}
 
-      {/* Decision point: say what happened rather than just moving the card */}
-      {needsOutcome(applicant.status) ? (
+      {/* Approved, and it stays visible for the rest of the person's time on
+          the board. Three of the four cards in Offer Sent had been approved and
+          not one of them said so. */}
+      {approved && (
+        <div className="mt-1.5">
+          <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/50 bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold text-sky-300">
+            <Check className="h-2.5 w-2.5" />
+            Approved{applicant.approval_decided_by ? ` · ${applicant.approval_decided_by}` : ""}
+          </span>
+        </div>
+      )}
+
+      {/* What the interviewer decided. Named for the button they pressed, so
+          the card and the outcome panel say the same words -- including the
+          one that says no, which used to show nothing at all. */}
+      {(kept || declined) && (
+        <div className="mt-1.5">
+          <span
+            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+              declined
+                ? "border-rose-500/50 bg-rose-500/15 text-rose-300"
+                : rec === "hire"
+                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                  : "border-amber-500/50 bg-amber-500/15 text-amber-300"
+            }`}
+            title={
+              declined
+                ? "The interview review says reject. Recording that review does not close anybody, so this card is still open."
+                : rec === "hire"
+                  ? "The interview review says hire."
+                  : "The interview was held to decide later."
+            }
+          >
+            {declined
+              ? "Reject — still open"
+              : rec === "hire"
+                ? "Move to offer"
+                : "Hold — decide later"}
+          </span>
+        </div>
+      )}
+
+      {/* A hold is a promise to come back, so the card carries the clock on it.
+          Only here, and only while it is still running: the moment it passes
+          the line the card leaves for the decide screen, which is where the
+          overdue ones are counted. Without this the hold looked the same on day
+          one and day three and there was no warning before the backlog. */}
+      {holdLeft !== null && (
+        <p className="mt-1.5 text-[10px] font-medium text-amber-300">
+          {holdLeft === 0
+            ? "Decide today, or it moves to Needs a decision"
+            : `Decide within ${holdLeft} ${holdLeft === 1 ? "day" : "days"}`}
+        </p>
+      )}
+
+      {/* Waiting on a person, so the card says who and offers the decision
+          rather than a button that moves it along without one. */}
+      {applicant.status === "approval" ? (
+        <div className="mt-2 space-y-1.5">
+          <p className="text-[10px] text-sky-300">
+            {applicant.approval_requested_by
+              ? `${applicant.approval_requested_by} asked for approval`
+              : "Waiting for approval"}
+            {applicant.approval_requested_at
+              ? ` · ${shortDate(applicant.approval_requested_at)}`
+              : ""}
+          </p>
+          <div className="flex flex-wrap gap-1 text-[10px]">
+            {applicant.resume_screening_id ? (
+              <a
+                href={resumeHref(applicant.resume_screening_id)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="rounded-full border border-white/15 px-2 py-0.5 text-zinc-300 hover:bg-white/10 transition-colors"
+              >
+                CV
+              </a>
+            ) : (
+              <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-amber-300">
+                no CV
+              </span>
+            )}
+            {applicant.has_offer_letter ? (
+              <a
+                href={`/api/admin/hr/applicants/${applicant.id}/offer-approval/letter`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="rounded-full border border-white/15 px-2 py-0.5 text-zinc-300 hover:bg-white/10 transition-colors"
+              >
+                Offer letter
+              </a>
+            ) : (
+              <span className="rounded-full border border-white/10 px-2 py-0.5 text-zinc-500">
+                no letter
+              </span>
+            )}
+            {applicant.comment_count ? (
+              <span className="rounded-full border border-white/15 px-2 py-0.5 text-zinc-300">
+                {applicant.comment_count} comment{applicant.comment_count === 1 ? "" : "s"}
+              </span>
+            ) : null}
+            {/* A card can arrive here from the Calendar, which has no salary
+                field. Saying so beats an Approve button that refuses. */}
+            {!applicant.offer_recorded && (
+              <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-amber-300">
+                no salary recorded
+              </span>
+            )}
+          </div>
+          {canApprove ? (
+            <button
+              className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1 border-sky-500/40 text-sky-200`}
+              onClick={(e) => { e.stopPropagation(); onDecideApproval(applicant); }}
+            >
+              <ClipboardList className="h-3 w-3" />
+              Approve or send back
+            </button>
+          ) : (
+            /* Saying whose move it is beats a button that does nothing when
+               pressed, and beats no explanation at all. */
+            <p className="text-[10px] text-zinc-500">
+              Someone with approval rights decides this one.
+            </p>
+          )}
+        </div>
+      ) : needsOutcome(applicant.status) ? (
         <div className="mt-2">
           <button
             className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
@@ -682,36 +974,70 @@ function KanbanCard({
                 card moves to Hired it leaves the board, and payroll meets the
                 figure again at the staff profile with nothing to check it
                 against. So the gap is said on the card, not left to be found. */}
-            {applicant.status === "offer_sent" && (
-              applicant.offer_recorded ? (
-                <button
-                  className="mb-1.5 w-full rounded-lg px-2 py-1 text-left text-[10px] font-medium text-emerald-400 hover:bg-white/5 transition-colors"
-                  title="The offer letter's terms are on file. Payroll fills the staff profile from them. Open it to change what was agreed."
-                  onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
-                >
-                  ✓ offer on file{applicant.offer_sent_at ? ` ${shortDate(applicant.offer_sent_at)}` : ""} · change
-                </button>
-              ) : (
-                <button
-                  className={`${SMALL_BUTTON} mb-1.5 w-full text-center justify-center flex items-center gap-1 border-amber-500/40 text-amber-300`}
-                  title="Nothing about the pay has been recorded for this offer. Enter what the letter says and payroll fills the staff profile from it, so the salary is typed once."
-                  onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
-                >
-                  <ClipboardList className="h-3 w-3" />
-                  Record the offer
-                </button>
-              )
+            {/* Offer Sent holds two different jobs and the card used to show
+                them at the same weight, with "Hired" the more finished-looking
+                of the two even when the pay had never been written down. The
+                one that has to happen first is the one that looks like the
+                button now; the other waits on the candidate and says so. */}
+            {applicant.status === "offer_sent" ? (
+              <>
+                <p className="mb-1.5 text-[10px] leading-snug text-zinc-500">
+                  {applicant.offer_recorded
+                    ? "Next: when they accept, move them to Hired."
+                    : "Next: write down what the letter offers. Payroll fills the staff profile from it."}
+                </p>
+                {applicant.offer_recorded ? (
+                  <>
+                    <button
+                      className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
+                      onClick={(e) => { e.stopPropagation(); onQuickStatus(applicant.id, nextStatus); }}
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                      {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
+                    </button>
+                    <button
+                      className="mt-1 w-full rounded-lg px-2 py-1 text-left text-[10px] font-medium text-emerald-400 hover:bg-white/5 transition-colors"
+                      title="The offer letter's terms are on file. Payroll fills the staff profile from them. Open it to change what was agreed."
+                      onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
+                    >
+                      ✓ offer on file{applicant.offer_sent_at ? ` ${shortDate(applicant.offer_sent_at)}` : ""} · change
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1 border-amber-500/60 bg-amber-500/10 text-amber-200`}
+                      title="Nothing about the pay has been recorded for this offer. Enter what the letter says and payroll fills the staff profile from it, so the salary is typed once."
+                      onClick={(e) => { e.stopPropagation(); onRecordOffer(applicant); }}
+                    >
+                      <ClipboardList className="h-3 w-3" />
+                      Record the offer
+                    </button>
+                    {/* Still reachable — somebody may accept before the
+                        paperwork — but it no longer looks like the thing to
+                        press, because hiring with no agreed figure on file is
+                        how payroll ends up guessing it. */}
+                    <button
+                      className="mt-1 w-full rounded-lg px-2 py-1 text-center text-[10px] text-zinc-500 hover:bg-white/5 hover:text-zinc-300 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); onQuickStatus(applicant.id, nextStatus); }}
+                    >
+                      Accepted already? Move to {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
+                    </button>
+                  </>
+                )}
+              </>
+            ) : (
+              <button
+                className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickStatus(applicant.id, nextStatus);
+                }}
+              >
+                <ChevronRight className="h-3 w-3" />
+                {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
+              </button>
             )}
-            <button
-              className={`${SMALL_BUTTON} w-full text-center justify-center flex items-center gap-1`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onQuickStatus(applicant.id, nextStatus);
-              }}
-            >
-              <ChevronRight className="h-3 w-3" />
-              {KANBAN_COLUMNS.find((c) => c.id === nextStatus)?.label}
-            </button>
             {/* No CV, so there is nothing to screen on. The form requires one,
                 but that only covers people who applied themselves: measured
                 2026-09-15, every one of the 132 from Facebook and 9 from
@@ -1959,7 +2285,13 @@ function DetailPanel({
                   className={`${SELECT_CLASS} mt-2`}
                   value={localStatus}
                   onChange={v => void handleStatusChange(v as KanbanStatus)}
-                  options={ALL_STATUSES.map(s => ({ value: s, label: KANBAN_COLUMNS.find(c => c.id === s)?.label || s }))}
+                  /* Not "Awaiting approval" and not "Offer Sent": reaching
+                   either is a decision somebody has to be entitled to make
+                   and has to leave a record of, so the server refuses them
+                   here. Offering them would be a menu of errors. */
+                options={ALL_STATUSES
+                  .filter(s => s !== "approval" && s !== "offer_sent")
+                  .map(s => ({ value: s, label: KANBAN_COLUMNS.find(c => c.id === s)?.label || s }))}
                 />
                 {/* A named way back. The dropdown could already do this, but it
                     reads as "set the stage", not as "I pressed the wrong
@@ -2314,6 +2646,113 @@ function DetailPanel({
             </div>
           </div>
         )}
+
+        {/* Outside the tabs on purpose. This is what replaces the Discord
+            thread, and a conversation filed behind a tab is one nobody reads
+            and therefore one nobody writes to. */}
+        <CommentThread applicantId={applicant.id} />
+      </div>
+    </div>
+  );
+}
+
+/** The conversation about one applicant.
+ *
+ *  It exists because the questions were going to Discord — "are you ok to
+ *  hire this one for TAFT" — and the answer then lived somewhere the CV, the
+ *  interview notes and the offer could not reach. The approval request and
+ *  the decision write into the same thread, so the record reads in order.
+ */
+function CommentThread({ applicantId }: { applicantId: string }) {
+  const [rows, setRows] = useState<
+    { id: string; author: string; body: string; kind: string; created_at: string }[]
+  >([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    const auth = getAuth();
+    if (!auth) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicantId}/comments`,
+        { headers: getAuthHeaders(auth) },
+      );
+      if (!res.ok) return;
+      const data = await res.json() as { comments?: typeof rows };
+      setRows(data.comments || []);
+    } catch {
+      /* the thread failing must not take the panel with it */
+    } finally {
+      setLoaded(true);
+    }
+  }, [applicantId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body) return;
+    const auth = getAuth();
+    if (!auth) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${applicantId}/comments`,
+        { method: "POST", headers: getAuthHeaders(auth), body: JSON.stringify({ body }) },
+      );
+      if (!res.ok) { setError(await errorDetail(res)); return; }
+      setDraft("");
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const kindLabel = (k: string) =>
+    k === "approval_request" ? "asked for approval"
+      : k === "approved" ? "approved"
+      : k === "sent_back" ? "sent it back"
+      : "";
+
+  return (
+    <div className="mt-5 border-t border-white/10 pt-4">
+      <p className={T_LABEL}>Comments</p>
+      {loaded && rows.length === 0 && (
+        <p className={`${T_CAPTION} mt-1`}>
+          Nothing yet. Anything asked or agreed about this person belongs here,
+          where the CV and the interview notes are.
+        </p>
+      )}
+      <div className="mt-2 space-y-2">
+        {rows.map((c) => (
+          <div key={c.id} className="rounded-lg border border-white/8 bg-white/3 px-3 py-2">
+            <p className={T_CAPTION}>
+              <span className="text-zinc-300">{c.author || "—"}</span>
+              {kindLabel(c.kind) ? ` ${kindLabel(c.kind)}` : ""}
+              {c.created_at ? ` · ${shortDate(c.created_at)}` : ""}
+            </p>
+            <p className={`${T_BODY} mt-0.5 whitespace-pre-wrap`}>{c.body}</p>
+          </div>
+        ))}
+      </div>
+      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      <div className="mt-2 flex gap-2">
+        <input
+          className={`${INPUT_CLASS} flex-1`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
+          placeholder="Add a comment…"
+        />
+        <button className={SMALL_BUTTON} disabled={busy || !draft.trim()} onClick={() => void send()}>
+          {busy ? "…" : "Post"}
+        </button>
       </div>
     </div>
   );
@@ -2778,7 +3217,7 @@ const OUTCOME_BUTTONS: {
   {
     key: "proceed",
     label: "Proceed to offer",
-    hint: "Moves them to Offer Sent",
+    hint: "Asks for the offer to be approved — you enter the salary next",
     cls: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25",
   },
   {
@@ -2811,6 +3250,266 @@ const OUTCOME_BUTTONS: {
  *  Interviewer and date are not asked for -- the signed-in user and today are
  *  already known, and a field that is asked for is a field that gets skipped.
  */
+// ─── Offer approval ──────────────────────────────────────────────────────────
+//
+// The exchange this replaces was two Discord messages: "are you ok to hire
+// this one for TAFT" and "we can proceed". Everything needed to answer it was
+// already in the OS; only the answer was somewhere else.
+
+/** Ask for the offer to be approved.
+ *
+ *  The salary is on this form rather than behind the Offer tab, because the
+ *  person asking should not have to know the tab exists — and because an
+ *  offer cannot be approved without one. hr_applicant_offers held 0 rows
+ *  against 24 hires; the figures only ever existed in a Discord attachment.
+ */
+function OfferApprovalRequestModal({
+  applicant,
+  salaryVisible,
+  onSubmit,
+  onClose,
+  saving,
+}: {
+  applicant: Applicant;
+  salaryVisible: boolean;
+  onSubmit: (data: {
+    basic_monthly: string; start_date: string; note: string; letter: File | null;
+  }) => Promise<string | null>;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const [basic, setBasic] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [note, setNote] = useState("");
+  const [letter, setLetter] = useState<File | null>(null);
+  const [error, setError] = useState("");
+
+  // Enabled only when a salary will actually be on the offer. Letting
+  // somebody who may not see the money press Send gave them a 400 they could
+  // do nothing about; the offer has to be recorded by someone who may.
+  const ready = salaryVisible && Number(basic) > 0;
+
+  return (
+    <ModalScrim className="bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-4`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className={T_SECTION}>{applicant.full_name}</p>
+            <p className={T_CAPTION}>
+              {applicant.position_applied}
+              {applicant.assigned_branch ? ` · ${applicant.assigned_branch}` : ""}
+            </p>
+          </div>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className={T_BODY}>
+          This asks for the offer to be approved. Nothing goes to the applicant.
+        </p>
+
+        {salaryVisible ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className={T_LABEL}>Basic salary *</p>
+              <input
+                type="number"
+                min={0}
+                className={`${INPUT_CLASS} mt-1`}
+                value={basic}
+                onChange={(e) => setBasic(e.target.value)}
+              />
+              <p className={`${T_CAPTION} mt-1`}>
+                What the letter says. Payroll fills the staff profile from it,
+                so it is typed once.
+              </p>
+            </div>
+            <div>
+              <p className={T_LABEL}>Start date</p>
+              <input
+                type="date"
+                className={`${INPUT_CLASS} mt-1`}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            The money on this offer is not yours to set, so somebody who may see
+            it has to record the salary before this can be approved.
+          </p>
+        )}
+
+        <div>
+          <p className={T_LABEL}>
+            Draft offer letter <span className="opacity-60">(optional)</span>
+          </p>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,image/*"
+            className={`${INPUT_CLASS} mt-1 file:mr-2 file:rounded file:border-0 file:bg-white/10 file:px-2 file:py-1 file:text-xs file:text-zinc-200`}
+            onChange={(e) => setLetter(e.target.files?.[0] ?? null)}
+          />
+        </div>
+
+        <div>
+          <p className={T_LABEL}>
+            Anything the approver should know{" "}
+            <span className="opacity-60">(optional)</span>
+          </p>
+          <textarea
+            className={`${TEXTAREA_CLASS} mt-1`}
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Experience in several restaurants, available immediately…"
+          />
+        </div>
+
+        {error && <p className="text-xs text-red-400">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <button className={SMALL_BUTTON} onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button
+            className={PRIMARY_BUTTON}
+            disabled={!ready || saving}
+            onClick={async () => {
+              setError("");
+              const err = await onSubmit({
+                basic_monthly: basic, start_date: startDate, note, letter,
+              });
+              if (err) setError(err);
+              else onClose();
+            }}
+          >
+            {saving ? "Sending…" : "Send for approval"}
+          </button>
+        </div>
+      </div>
+    </ModalScrim>
+  );
+}
+
+/** Approve it, or send it back. Two buttons and an optional line — the whole
+ *  point is that it is not heavier than typing an answer in Discord. */
+function OfferDecisionModal({
+  applicant,
+  onSubmit,
+  onClose,
+  saving,
+}: {
+  applicant: Applicant;
+  onSubmit: (data: { decision: string; note: string }) => Promise<string | null>;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+
+  const send = async (decision: string) => {
+    setError("");
+    const err = await onSubmit({ decision, note });
+    if (err) setError(err);
+    else onClose();
+  };
+
+  return (
+    <ModalScrim className="bg-black/60">
+      <div className={`${GLASS_CARD} w-full max-w-lg mx-auto my-4 p-6 space-y-4`}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className={T_SECTION}>{applicant.full_name}</p>
+            <p className={T_CAPTION}>
+              {applicant.position_applied}
+              {applicant.assigned_branch ? ` · ${applicant.assigned_branch}` : ""}
+            </p>
+          </div>
+          <button
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 text-xs">
+          {applicant.resume_screening_id && (
+            <a
+              href={resumeHref(applicant.resume_screening_id)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-zinc-200 hover:bg-white/10 transition-colors"
+            >
+              Read the CV
+            </a>
+          )}
+          {applicant.has_offer_letter && (
+            <a
+              href={`/api/admin/hr/applicants/${applicant.id}/offer-approval/letter`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-zinc-200 hover:bg-white/10 transition-colors"
+            >
+              Read the offer letter
+            </a>
+          )}
+        </div>
+        {applicant.approval_requested_by && (
+          <p className={T_CAPTION}>
+            {applicant.approval_requested_by} asked
+            {applicant.approval_requested_at
+              ? ` on ${shortDate(applicant.approval_requested_at)}`
+              : ""}. Open the card for the interview notes and the comments.
+          </p>
+        )}
+
+        <div>
+          <p className={T_LABEL}>
+            Comment <span className="opacity-60">(optional)</span>
+          </p>
+          <textarea
+            className={`${TEXTAREA_CLASS} mt-1`}
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="We can proceed with hiring this candidate."
+          />
+        </div>
+
+        {error && <p className="text-xs text-red-400">{error}</p>}
+
+        <div className="grid gap-2">
+          <button
+            className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-3 text-left text-emerald-300 hover:bg-emerald-500/25 transition-colors disabled:opacity-40"
+            disabled={saving}
+            onClick={() => void send("approved")}
+          >
+            <span className="block text-sm font-semibold">Approve</span>
+            <span className="block text-xs opacity-70">Moves them to Offer Sent</span>
+          </button>
+          <button
+            className="rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-3 text-left text-amber-300 hover:bg-amber-500/25 transition-colors disabled:opacity-40"
+            disabled={saving}
+            onClick={() => void send("sent_back")}
+          >
+            <span className="block text-sm font-semibold">Send back</span>
+            <span className="block text-xs opacity-70">
+              Returns to Interviewed with your comment on the card
+            </span>
+          </button>
+        </div>
+      </div>
+    </ModalScrim>
+  );
+}
+
 function InterviewOutcomeModal({
   applicant,
   reasons,
@@ -3736,47 +4435,100 @@ function DecisionList({
   decided,
   onSelect,
   onRecordOutcome,
+  onDecideApproval,
+  canApprove,
 }: {
   rows: Applicant[];
   decided: Record<string, string>;
   onSelect: (a: Applicant) => void;
   onRecordOutcome: (a: Applicant) => void;
+  onDecideApproval: (a: Applicant) => void;
+  canApprove: boolean;
 }) {
+  const [only, setOnly] = useState<DecideReason | null>(null);
+
   if (!rows.length) {
     return (
       <div className="p-8 text-center">
-        <p className="text-sm text-zinc-400">Nothing has been waiting more than {STALE_DAYS} days.</p>
+        <p className="text-sm text-zinc-400">
+          Nothing is waiting on a decision.
+        </p>
+        <p className="mt-1 text-xs text-zinc-500">
+          A card arrives here when an interview review is recorded and nothing
+          acts on it, when a hold passes {CONSIDER_DAYS} days, or when {STALE_DAYS} days
+          pass with nothing happening at all.
+        </p>
       </div>
     );
   }
   const open = rows.filter((a) => !decided[a.id]);
-  const byStatus = open.reduce<Record<string, number>>((acc, a) => {
-    acc[a.status] = (acc[a.status] || 0) + 1; return acc;
+  // Counted by what is owed rather than by which column they sit in. The
+  // column was the old grouping and it could not tell a decision nobody acted
+  // on from a card nobody had opened -- both read "Interviewed".
+  const byReason = open.reduce<Record<string, number>>((acc, a) => {
+    const r = decideReasonOf(a);
+    if (r) acc[r] = (acc[r] || 0) + 1;
+    return acc;
   }, {});
   // People we never replied to at all. Worth its own number: it is the one
   // thing on this screen that is our doing rather than the candidate's.
   const silent = open.filter((a) => a.never_moved).length;
+  // The chips are the filter, not a caption. A readable number that cannot be
+  // pressed is the thing that made "Active Notices: 21" useless (lesson 7).
+  const shown = only
+    ? rows.filter((a) => decideReasonOf(a) === only || decided[a.id])
+    : rows;
+  const REASON_ORDER: DecideReason[] = [
+    "review_hire", "review_reject", "consider_due", "idle",
+  ];
 
   return (
     <div className="p-3">
-      <div className="mb-3 flex flex-wrap items-center gap-1.5">
-        {Object.entries(byStatus).map(([k, n]) => (
-          <span key={k} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-300">
-            {KANBAN_COLUMNS.find((c) => c.id === k)?.label ?? k}
-            <span className="ml-1.5 tabular-nums text-zinc-500">{n}</span>
-          </span>
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        {REASON_ORDER.filter((r) => byReason[r]).map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setOnly(only === r ? null : r)}
+            className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+              only === r
+                ? "border-violet-500/50 bg-violet-500/20 text-violet-100"
+                : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+            }`}
+          >
+            {DECIDE_REASON_LABEL[r]}
+            <span className="ml-1.5 tabular-nums text-zinc-500">{byReason[r]}</span>
+          </button>
         ))}
         {silent > 0 && (
           <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200">
             {silent} never had a reply from us
           </span>
         )}
+        {only && (
+          <button
+            type="button"
+            onClick={() => setOnly(null)}
+            className="text-xs text-zinc-500 underline hover:text-zinc-300"
+          >
+            show all
+          </button>
+        )}
       </div>
+      {/* The rule that put these here, where the counts it produced are. An
+          unexplained threshold is not believed (lesson 9). */}
+      <p className="mb-3 text-xs text-zinc-500">
+        A review recorded and not acted on · a hold older than {CONSIDER_DAYS} days ·
+        {" "}{STALE_DAYS} days with nothing happening
+      </p>
 
       <div className="flex flex-col gap-1.5">
-        {rows.map((a) => {
+        {shown.map((a) => {
           const waited = a.days_since_move ?? a.days_in_pipeline ?? 0;
           const done = decided[a.id];
+          // Null only on a row kept on screen because it was decided a moment
+          // ago -- it no longer owes anything, and saying so is the point.
+          const reason = decideReasonOf(a);
           return (
             <div
               key={a.id}
@@ -3795,19 +4547,43 @@ function DecisionList({
               <button
                 type="button"
                 onClick={() => onSelect(a)}
-                className="min-w-0 flex-1 text-left"
+                className="min-w-[11rem] flex-1 text-left"
               >
                 <p className="truncate text-sm font-medium text-zinc-100">{a.full_name}</p>
+                {/* What to do, rather than what state it is in. "last moved 7
+                    days ago" repeated the number already in the left column and
+                    left the reader to work out the action for themselves.
+                    It wraps rather than truncating: on a 700px window the chips
+                    squeeze this column and the sentence came out as "Close th…",
+                    which is the one line on the row that has to be read whole.
+                    A name survives truncation; an instruction does not. */}
+                <p className="text-xs text-zinc-400">
+                  {reason ? nextActionFor(reason, waited) : "Decided just now."}
+                </p>
                 <p className="truncate text-xs text-zinc-500">
                   {a.position_applied || "—"}
-                  {a.never_moved
-                    ? " · applied and never heard back from us"
-                    : ` · last moved ${waited} days ago`}
+                  {a.never_moved && " · applied and never heard back from us"}
                   {(a.prior_applications ?? 0) > 0 && (
                     ` · applied before (${a.prior_last_applied ?? "earlier"})`
                   )}
                 </p>
               </button>
+
+              {/* Why it is here, next to the person. The column it sits in is
+                  the same word for all 22 of them and so says nothing. */}
+              {reason && (
+                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${
+                  reason === "review_reject"
+                    ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
+                    : reason === "review_hire"
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                      : reason === "consider_due"
+                        ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                        : "border-white/10 bg-white/5 text-zinc-400"
+                }`}>
+                  {DECIDE_REASON_LABEL[reason]}
+                </span>
+              )}
 
               <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-zinc-400">
                 {KANBAN_COLUMNS.find((c) => c.id === a.status)?.label ?? a.status}
@@ -3838,6 +4614,25 @@ function DecisionList({
                 <span className="shrink-0 text-xs font-medium text-emerald-300">
                   ✓ {done}
                 </span>
+              ) : a.status === "approval" ? (
+                /* The offer is waiting on an approver, and this lane is where
+                   the ones that have waited longest end up. Sending them
+                   through the interview-outcome panel would offer only
+                   "reject" and "lapse" — so the approvals most in need of a
+                   yes were the only ones that could not be given one. */
+                canApprove ? (
+                  <button
+                    type="button"
+                    onClick={() => onDecideApproval(a)}
+                    className="shrink-0 rounded-lg border border-sky-500/40 bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-500/25 transition-colors"
+                  >
+                    Approve or send back
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-xs text-zinc-500">
+                    waiting on an approver
+                  </span>
+                )
               ) : (
                 <button
                   type="button"
@@ -3943,6 +4738,7 @@ function ClosedList({
 
 const ALLOWED_ROLES = ["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"];
 
+
 export default function HRRecruitmentPage() {
   const router = useRouter();
   const [accessReady, setAccessReady] = useState(false);
@@ -3962,6 +4758,17 @@ export default function HRRecruitmentPage() {
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [savingBulk, setSavingBulk] = useState(false);
   const [outcomeFor, setOutcomeFor] = useState<Applicant | null>(null);
+  const [approvalFor, setApprovalFor] = useState<Applicant | null>(null);
+  const [decideFor, setDecideFor] = useState<Applicant | null>(null);
+  const [savingApproval, setSavingApproval] = useState(false);
+  /** Resolved from the token, not guessed from the role name: a custom role
+   *  can hold the permission and would never match a hardcoded list
+   *  (lesson 25). */
+  const [canApprove, setCanApprove] = useState(false);
+  /** Whether this person may put a number on an offer. The same two ways in
+   *  the server allows: anyone who may read pay, and the HR people who write
+   *  the letters. The server decides; this only keeps the form honest. */
+  const [canSetOfferSalary, setCanSetOfferSalary] = useState(true);
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
   const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews" | "calendar">("pipeline");
@@ -4025,6 +4832,17 @@ export default function HRRecruitmentPage() {
         return;
       }
       authRef.current = auth;
+      {
+        const role = String(auth?.role || "").toUpperCase();
+        const held = (auth as { permissions?: string[] } | null)?.permissions || [];
+        setCanApprove(
+          role === "HQ" || role === "ADMIN" ||
+          held.includes("*") || held.includes("hr.approve_offer"));
+        setCanSetOfferSalary(
+          role === "HQ" || held.includes("*") ||
+          held.includes("payroll.view_salary") ||
+          held.includes("hr.view_offer_salary"));
+      }
       setAccessReady(true);
     });
   }, [router]);
@@ -4173,16 +4991,6 @@ export default function HRRecruitmentPage() {
 
   // Extract a human-readable detail from a failed JSON response (backend
   // returns {"detail": "..."} on validation errors).
-  const errorDetail = async (res: Response): Promise<string> => {
-    try {
-      const data = await res.json();
-      if (data?.detail) return String(data.detail);
-    } catch {
-      /* not JSON */
-    }
-    return `HTTP ${res.status}`;
-  };
-
   // Both Add modals share the same contract: return null on success (modal
   // closes), or an error string to show inside the still-open modal.
   const handleAddApplicant = async (
@@ -4297,6 +5105,15 @@ export default function HRRecruitmentPage() {
   ): Promise<string | null> => {
     const auth = authRef.current;
     if (!auth || !outcomeFor) return "Not signed in.";
+    // Proceeding does not send an offer any more, it asks for one to be
+    // approved -- and that needs a salary, which this form does not collect.
+    // Submitting here would come back as a 400 the person cannot act on.
+    if (data.outcome === "proceed") {
+      const who = outcomeFor;
+      setOutcomeFor(null);
+      setApprovalFor(who);
+      return null;
+    }
     setSavingOutcome(true);
     try {
       const res = await fetch(
@@ -4318,6 +5135,102 @@ export default function HRRecruitmentPage() {
       return e instanceof Error ? e.message : String(e);
     } finally {
       setSavingOutcome(false);
+    }
+  };
+
+  const handleRequestApproval = async (
+    data: { basic_monthly: string; start_date: string; note: string; letter: File | null }
+  ): Promise<string | null> => {
+    const auth = authRef.current;
+    if (!auth || !approvalFor) return "Not signed in.";
+    setSavingApproval(true);
+    try {
+      // The letter first: if it fails the request has not happened yet, so
+      // nobody is looking at an approval with a missing attachment.
+      if (data.letter) {
+        // A phone photo of a printed letter is 4-8MB and the platform's body
+        // limit is ~4.3MB, which comes back as a text/plain 413. Because the
+        // letter uploads first, that failure would stop the approval request
+        // from happening at all (lesson 24). The CV upload already does this.
+        const small = await prepareIfImage(data.letter);
+        const fd = new FormData();
+        fd.append("letter", small);
+        const up = await fetch(
+          `${API_BASE}/api/admin/hr/applicants/${approvalFor.id}/offer-approval/letter`,
+          { method: "POST", headers: getUploadHeaders(auth), body: fd },
+        );
+        if (up.status === 401) { redirectToLogin(); return "Your session has expired."; }
+        if (!up.ok) return await errorDetail(up);
+      }
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${approvalFor.id}/offer-approval/request`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(auth),
+          body: JSON.stringify({
+            note: data.note,
+            ...(data.basic_monthly ? { basic_monthly: Number(data.basic_monthly) } : {}),
+            ...(data.start_date ? { start_date: data.start_date } : {}),
+          }),
+        },
+      );
+      if (res.status === 401) { redirectToLogin(); return "Your session has expired."; }
+      if (!res.ok) return await errorDetail(res);
+      const out = await res.json() as { notified?: string[]; unreachable?: string[] };
+      // Who it actually reached. An approver with no Discord id will never
+      // learn they were asked, and saying nothing would leave the requester
+      // believing a message went out (lesson 21).
+      const reached = (out.notified || []).join(", ");
+      const missed = (out.unreachable || []).join(", ");
+      setSelectedApplicant((cur) =>
+        cur && cur.id === approvalFor.id ? { ...cur, status: "approval" } : cur);
+      setJustDecided((m) => ({
+        ...m,
+        [approvalFor.id]: reached
+          ? `Sent for approval — told ${reached}`
+          : `Sent for approval — nobody could be notified${missed ? ` (${missed} have no Discord ID on file)` : ""}`,
+      }));
+      void loadData();
+      return null;
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      setSavingApproval(false);
+    }
+  };
+
+  const handleDecideApproval = async (
+    data: { decision: string; note: string }
+  ): Promise<string | null> => {
+    const auth = authRef.current;
+    if (!auth || !decideFor) return "Not signed in.";
+    setSavingApproval(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/hr/applicants/${decideFor.id}/offer-approval/decide`,
+        { method: "POST", headers: getAuthHeaders(auth), body: JSON.stringify(data) },
+      );
+      if (res.status === 401) { redirectToLogin(); return "Your session has expired."; }
+      if (!res.ok) return await errorDetail(res);
+      setJustDecided((m) => ({
+        ...m,
+        [decideFor.id]: data.decision === "approved" ? "Approved" : "Sent back",
+      }));
+      // The panel behind the modal is showing this person. Left alone it
+      // keeps the old status and the old approval line until somebody closes
+      // and reopens it, which reads as the decision not having landed.
+      setSelectedApplicant((cur) =>
+        cur && cur.id === decideFor.id
+          ? { ...cur,
+              status: data.decision === "approved" ? "offer_sent" : "interviewed",
+              approval_decision: data.decision }
+          : cur);
+      void loadData();
+      return null;
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      setSavingApproval(false);
     }
   };
 
@@ -4785,6 +5698,10 @@ export default function HRRecruitmentPage() {
         />
       ) : (
         <>
+          {/* Who applied and who tried and could not are the same question
+              asked twice, so they belong on the same screen. */}
+          <FormFunnel />
+
           {/* Three screens rather than one board of 152 cards. The counts are on
               the tabs because the number of people waiting on a decision is the
               reason to open that screen, and it has to be readable without
@@ -4820,7 +5737,10 @@ export default function HRRecruitmentPage() {
               {lane === "active"
                 ? `Moved within the last ${STALE_DAYS} days`
                 : lane === "decide"
-                ? `Nothing has happened for over ${STALE_DAYS} days`
+                /* The lane no longer means "old". It means somebody owes an
+                   answer, and the rule has to be on the screen that counts by
+                   it -- the number changed meaning the day this shipped. */
+                ? `A review nobody acted on, a hold past ${CONSIDER_DAYS} days, or ${STALE_DAYS} days of silence`
                 : "Hired and rejected — kept so the source figures and repeat applications still work"}
             </p>
           </div>
@@ -4863,6 +5783,8 @@ export default function HRRecruitmentPage() {
                 decided={justDecided}
                 onSelect={setSelectedApplicant}
                 onRecordOutcome={setOutcomeFor}
+                onDecideApproval={setDecideFor}
+                canApprove={canApprove}
               />
             ) : lane === "closed" ? (
               <ClosedList
@@ -4929,6 +5851,8 @@ export default function HRRecruitmentPage() {
                                 setDetailTab("offer");
                                 setSelectedApplicant(a);
                               }}
+                              onDecideApproval={setDecideFor}
+                              canApprove={canApprove}
                               nextStatus={getNextStatus(applicant.status)}
                             />
                           ))
@@ -5032,6 +5956,25 @@ export default function HRRecruitmentPage() {
           </div>
         </ModalScrim>
       )}
+      {approvalFor && (
+        <OfferApprovalRequestModal
+          applicant={approvalFor}
+          salaryVisible={canSetOfferSalary}
+          saving={savingApproval}
+          onSubmit={handleRequestApproval}
+          onClose={() => setApprovalFor(null)}
+        />
+      )}
+
+      {decideFor && (
+        <OfferDecisionModal
+          applicant={decideFor}
+          saving={savingApproval}
+          onSubmit={handleDecideApproval}
+          onClose={() => setDecideFor(null)}
+        />
+      )}
+
       {outcomeFor && (
         <InterviewOutcomeModal
           applicant={outcomeFor}

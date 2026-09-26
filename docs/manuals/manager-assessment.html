@@ -57,6 +57,10 @@
   .dot { width:.55rem; height:.55rem; border-radius:50%; background:var(--shu); }
   .doc[data-keys="off"] .dot { background:var(--line); }
   .doc[data-keys="off"] .key { display:none !important; }
+  /* 並び順の注記は採点キーと一緒に消えなければならない。キーを隠した版は
+     そのまま応募者に配るものなので、「正解は先頭にある」と書いた箱が残ると
+     答えを配ることになる。 */
+  .note-order { display:block; color:inherit; font-family:inherit; font-size:.9rem; line-height:1.7; }
 
   h1 {
     font-family:"Noto Serif JP",serif; font-weight:700;
@@ -136,6 +140,18 @@
 </div>
 
 <h1>店長適性検査</h1>
+
+<div class="key note-order" style="border:1px solid #c33;background:#fff5f5;padding:12px 14px;margin:12px 0;border-radius:6px">
+<strong>この資料の選択肢の並びは、受検者が見る並びではありません。</strong>
+ここでは朱書きの採点キーを読めるよう、<strong>正解・最高得点の肢を先頭に置いています</strong>。
+状況判断20問・英語10問のすべてで1番目、二者択一では★（危険な側）が一度も1番目に来ません。
+そのまま出題すると<strong>全部1番目を選ぶだけで</strong>原因帰属83%・単一選択満点・フラグ0になります
+（2026-09-25 実測）。
+そこで<strong>実際の出題は受検者ごとに選択肢を並べ替えています</strong>。
+同じ人は再読み込みしても同じ並び、人が変われば並びも変わります。
+回答は<strong>この資料の位置で保存</strong>されるので、採点とフラグはこの並びのまま読めます。
+尺度（第2部のあてはまる／あてはまらない）と記述式は並べ替えません。
+</div>
 <p class="sub">
   マニラ／日本人店長・管理責任者。飲食経験の有無に関わらず答えられる設問で構成しています。
   <strong>採点キーは応募者に見せません。</strong>上のボタンで隠すと、そのまま応募者に配れる版になります。

@@ -42,7 +42,28 @@ type PayrollCycle = {
   status: string;
   closed_at: string | null;
   created_at: string;
+  // The days this cycle actually pays for. Dubai runs 26th-to-25th, so the
+  // month in the name is a label. Null means the calendar month.
+  period_start: string | null;
+  period_end: string | null;
+  // September 2026 pays the hourly staff for a different span, because
+  // August ended on the 25th for monthly staff and the 31st for hourly.
+  // Null means they share the window above.
+  hourly_period_start: string | null;
+  hourly_period_end: string | null;
 };
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** The first and last day a cycle pays for; the calendar month when unset. */
+function cycleWindow(c: PayrollCycle, hourly = false): [string, string] {
+  if (hourly && c.hourly_period_start && c.hourly_period_end) {
+    return [c.hourly_period_start, c.hourly_period_end];
+  }
+  if (c.period_start && c.period_end) return [c.period_start, c.period_end];
+  const lastDay = new Date(c.year, c.month, 0).getDate();
+  return [`${c.year}-${pad2(c.month)}-01`, `${c.year}-${pad2(c.month)}-${pad2(lastDay)}`];
+}
 
 type CalcResult = {
   ok: boolean;
@@ -64,11 +85,6 @@ type CalcResult = {
 };
 
 type StaffGroup = "all" | "parttime";
-
-const PARTTIME_NAMES = [
-  "Krishna Tamang", "Dipak Dahal", "Bijien Mijar", "Padam Bahadur K C",
-  "Kelvin Gurung", "Raman Miya", "Pukar K C", "Mahima Pansilu Dadallage",
-];
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -163,10 +179,11 @@ export default function DubaiPayrollPage() {
   async function handleGetOrCreateCycle() {
     setCreatingCycle(true); setCycleErr("");
     try {
-      const r = await apiFetch(
-        `${PAY_API}/cycles?city=dubai&year=${now.getFullYear()}&month=${now.getMonth() + 1}`,
-        { method: "POST" },
-      );
+      // No year/month: the server knows Dubai's cycle runs 26th-to-25th, so
+      // on the 26th it opens the NEXT month's cycle. Sending the browser's
+      // calendar month re-opened the cycle that had just stopped paying —
+      // and those six days are exactly when the new cycle must be created.
+      const r = await apiFetch(`${PAY_API}/cycles?city=dubai`, { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
       await loadCycles();
     } catch (e) { setCycleErr(String(e)); }
@@ -191,10 +208,12 @@ export default function DubaiPayrollPage() {
     const df = rangeFrom[cycle.id] || null;
     const dt = rangeTo[cycle.id] || null;
     const group = staffGroup[cycle.id] ?? "all";
-    const staffNamesPayload = group === "parttime" ? PARTTIME_NAMES : null;
     const body: Record<string, unknown> = { cycle_id: cycle.id, year: cycle.year, month: cycle.month };
     if (useRange && df && dt) { body.date_from = df; body.date_to = dt; }
-    if (staffNamesPayload) body.staff_names = staffNamesPayload;
+    // Who is paid by the hour is a property of the salary config. Sending a
+    // list from here meant maintaining it here, and the list had two people
+    // who had left and was missing one who had joined.
+    if (group === "parttime") body.staff_group = "parttime";
     try {
       const r = await apiFetch(`${API}/auto-adjustments`, {
         method: "POST",
@@ -365,6 +384,29 @@ export default function DubaiPayrollPage() {
                           {c.status}
                         </span>
                         <span className="ml-2 text-xs text-slate-500">ID #{c.id}</span>
+                        {/* The month is only a name. Say which days are paid,
+                            or nobody can check the figures against the DTR.
+                            Cycles opened before 2026-09-24 recorded no period,
+                            and the cycles closed by then were not all one span
+                            (August paid the monthly staff to 08-25 and the
+                            hourly staff to 08-31), so say "not recorded"
+                            rather than assert a range that was never true. */}
+                        <div className="mt-1 text-xs text-slate-400">
+                          {c.period_start && c.period_end ? (
+                            <>
+                              Pays for {c.period_start} &ndash; {c.period_end}
+                              {c.hourly_period_start && c.hourly_period_end && (
+                                <span className="ml-2 text-amber-300">
+                                  &middot; hourly staff {c.hourly_period_start} &ndash; {c.hourly_period_end}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-slate-500">
+                              Period not recorded &mdash; check the DTR dates before using these figures
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {/* Clear Auto-Calc — two-step confirm */}
@@ -405,12 +447,12 @@ export default function DubaiPayrollPage() {
                         <button
                           onClick={() => {
                             setShowRangeId(prev => prev === c.id ? null : c.id);
-                            // default dates: first/last of cycle month
+                            // Default to the days the cycle pays for, not the
+                            // calendar month — for Dubai they are not the same.
                             if (showRangeId !== c.id) {
-                              const pad = (n: number) => String(n).padStart(2, "0");
-                              const lastDay = new Date(c.year, c.month, 0).getDate();
-                              setRangeFrom(prev => ({ ...prev, [c.id]: prev[c.id] ?? `${c.year}-${pad(c.month)}-01` }));
-                              setRangeTo(prev => ({ ...prev, [c.id]: prev[c.id] ?? `${c.year}-${pad(c.month)}-${pad(lastDay)}` }));
+                              const [wFrom, wTo] = cycleWindow(c);
+                              setRangeFrom(prev => ({ ...prev, [c.id]: prev[c.id] ?? wFrom }));
+                              setRangeTo(prev => ({ ...prev, [c.id]: prev[c.id] ?? wTo }));
                             }
                           }}
                           className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-900/20 px-3 py-1.5 text-xs text-sky-300 hover:bg-sky-900/40 disabled:opacity-40 transition-colors"
@@ -458,8 +500,12 @@ export default function DubaiPayrollPage() {
                           </button>
                         </div>
                         <p className="text-xs text-slate-500">
-                          Catch-up example — Regular: <span className="text-slate-300 font-mono">2026-06-26 → 2026-08-25</span> ·
-                          Part-time penalty catch-up: <span className="text-slate-300 font-mono">2026-07-01 → 2026-08-31</span>
+                          Leave the dates empty to recalculate the days this cycle pays for
+                          {c.period_start && c.period_end
+                            ? <> (<span className="text-slate-300 font-mono">{c.period_start} → {c.period_end}</span>)</>
+                            : null}.
+                          A narrower range replaces only the days inside it and leaves the rest
+                          of the cycle alone.
                         </p>
                       </div>
                     )}

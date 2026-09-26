@@ -71,6 +71,288 @@ function Field({
   );
 }
 
+type VendorOption = {
+  name: string;
+  invoice_count: number;
+  last_invoice_date: string | null;
+  is_internal: boolean;
+};
+
+type ItemOption = {
+  description: string;
+  unit: string;
+  last_unit_price: number | null;
+  last_seen: string | null;
+  times_seen: number;
+};
+
+/** Case- and space-insensitive, which is exactly as far as the folding on the
+ *  server goes. Anything looser would claim two products are the same. */
+function foldKey(v: string): string {
+  return (v || "").trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+/** The vendor field, with the list of vendors this city actually buys from.
+ *
+ *  Still a text input: a genuinely new supplier has to be enterable, and the
+ *  first invoice from one arrives before anybody adds it to a master. What
+ *  changed is that the 61 known spellings are one tap away, and a name that
+ *  matches none of them now says so instead of quietly becoming the 62nd. */
+function VendorPicker({
+  value,
+  onChange,
+  options,
+  loading,
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: VendorOption[];
+  loading: boolean;
+  error: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState<string | null>(null);
+  const [active, setActive] = useState(-1);
+  const box = useRef<HTMLDivElement | null>(null);
+  const listId = "vendor-picker-list";
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+
+  const typed = query ?? value;
+  // The whole list until they type. Seeding the filter with the name already in
+  // the field narrowed it to that one vendor, so opening the picker showed the
+  // reviewer only the answer they already had.
+  const needle = query === null ? "" : foldKey(query);
+  const shown = needle
+    ? options.filter((o) => foldKey(o.name).includes(needle))
+    : options;
+  const known = options.some((o) => foldKey(o.name) === foldKey(value));
+
+  const commit = (name: string) => {
+    onChange(name);
+    setQuery(null);
+    setActive(-1);
+    setOpen(false);
+  };
+
+  // Typing a vendor and then reaching for the mouse to pick it is the wrong
+  // shape for the highest-volume data entry screen here, and a custom combobox
+  // with no roles is silent to a screen reader (lesson 53, same mistake as
+  // SelectDark).
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!open) { setOpen(true); return; }
+      if (shown.length === 0) return;
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      setActive((i) => (i + step + shown.length) % shown.length);
+      return;
+    }
+    if (e.key === "Enter" && open && active >= 0 && active < shown.length) {
+      e.preventDefault();
+      commit(shown[active].name);
+      return;
+    }
+    if (e.key === "Escape" && open) {
+      // Swallowed, so it closes the list rather than the whole invoice.
+      e.preventDefault();
+      e.stopPropagation();
+      setQuery(null);
+      setActive(-1);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div ref={box} className="relative">
+      <label htmlFor="vendor-picker-input" className="block text-white/50 text-[11px] mb-1">
+        Vendor Name
+        {error && (
+          <span className="ml-2 text-red-300">
+            could not load the vendor list — what you type will be saved as-is
+          </span>
+        )}
+        {!loading && !error && value.trim() !== "" && !known && (
+          <span className="ml-2 text-amber-300">not a vendor we have invoiced before</span>
+        )}
+      </label>
+      <input
+        id="vendor-picker-input"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={open && active >= 0 ? `vendor-opt-${active}` : undefined}
+        value={typed}
+        onFocus={() => setOpen(true)}
+        onKeyDown={onKey}
+        onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); setActive(-1); setOpen(true); }}
+        placeholder={loading ? "Loading vendors…" : "Type, or pick from the list"}
+        className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500/50"
+      />
+      {open && (
+        <div
+          id={listId}
+          role="listbox"
+          aria-label="Vendors this city buys from"
+          className="absolute z-30 left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-white/15 bg-[#151528] shadow-xl"
+        >
+          {shown.length === 0 && (
+            <p className="px-3 py-2 text-[11px] text-white/40 italic">
+              {loading
+                ? "Loading…"
+                : error
+                  ? "The vendor list could not be loaded. Type the name as it is printed."
+                  : "No vendor matches — what you typed will be saved as-is."}
+            </p>
+          )}
+          {shown.map((o, i) => (
+            <button
+              key={o.name}
+              id={`vendor-opt-${i}`}
+              role="option"
+              aria-selected={foldKey(o.name) === foldKey(value)}
+              type="button"
+              onMouseEnter={() => setActive(i)}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => commit(o.name)}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-white/10 ${
+                i === active ? "bg-white/10" : ""
+              } ${foldKey(o.name) === foldKey(value) ? "bg-amber-500/10" : ""}`}
+            >
+              <span className="flex-1 truncate text-[12px] text-white">{o.name}</span>
+              {o.is_internal && (
+                <span className="shrink-0 rounded border border-sky-400/30 bg-sky-500/15 px-1 text-[9px] text-sky-300">
+                  ours
+                </span>
+              )}
+              <span className="shrink-0 font-mono text-[10px] text-white/35 tabular-nums">
+                {o.invoice_count > 0 ? `${o.invoice_count} inv` : "new"}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The list of what this vendor has invoiced before.
+ *
+ *  It stays open after a pick. An invoice has a dozen lines, and a picker that
+ *  closes on every one turns that into a dozen open/close cycles — which is
+ *  how a picker ends up unused and everyone goes back to typing. */
+function ItemPicker({
+  items,
+  loading,
+  error,
+  vendor,
+  truncated,
+  city,
+  replacing,
+  onPick,
+  onClose,
+}: {
+  items: ItemOption[];
+  loading: boolean;
+  error: string;
+  vendor: string;
+  truncated: boolean;
+  city: string;
+  replacing: number | null;
+  onPick: (item: ItemOption) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const needle = foldKey(query);
+  const shown = needle ? items.filter((it) => foldKey(it.description).includes(needle)) : items;
+
+  return (
+    <div className="mb-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-2">
+      <div className="mb-2 flex items-center gap-2">
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={vendor ? `Search ${vendor}'s items…` : "Pick a vendor first"}
+          className="flex-1 rounded-lg bg-white/5 border border-white/10 px-2.5 py-1 text-xs text-white focus:outline-none focus:border-amber-500/50"
+        />
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 text-[11px] text-white/45 hover:text-white/80"
+        >
+          Done
+        </button>
+      </div>
+      {replacing !== null && (
+        <p className="mb-1.5 px-1 text-[10px] text-amber-300/80">
+          Picking will replace line {replacing + 1}.
+        </p>
+      )}
+      {!vendor.trim() && (
+        <p className="px-1 py-2 text-[11px] italic text-white/40">
+          Set the vendor above and this fills with what they have invoiced before.
+        </p>
+      )}
+      {vendor.trim() && loading && (
+        <p className="px-1 py-2 text-[11px] italic text-white/40">Loading…</p>
+      )}
+      {vendor.trim() && !loading && error && (
+        <p className="px-1 py-2 text-[11px] text-red-300">{error}</p>
+      )}
+      {vendor.trim() && !loading && !error && items.length === 0 && (
+        <p className="px-1 py-2 text-[11px] italic text-white/40">
+          No past lines for this vendor — their first invoice has to be typed.
+        </p>
+      )}
+      {shown.length > 0 && (
+        <div className="max-h-56 overflow-y-auto rounded-lg border border-white/10">
+          {shown.map((it) => (
+            <button
+              key={it.description}
+              type="button"
+              onClick={() => onPick(it)}
+              className="flex w-full items-start gap-2 border-b border-white/5 px-2 py-1.5 text-left last:border-b-0 hover:bg-white/10"
+            >
+              <span className="flex-1 text-[11px] leading-snug text-white">{it.description}</span>
+              <span className="shrink-0 text-right text-[10px] leading-snug text-white/40">
+                <span className="block font-mono">{it.unit || "—"}</span>
+                {/* The last price is shown, never filled in: across these
+                    invoices the same item has been read at 2.00 and at 130.00,
+                    so this is a memory jog, not a number to trust. */}
+                {it.last_unit_price != null && (
+                  <span className="block font-mono tabular-nums">
+                    last {money(city, it.last_unit_price)}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 w-10 text-right font-mono text-[10px] tabular-nums text-white/25">
+                {it.times_seen}x
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      {vendor.trim() && !loading && items.length > 0 && shown.length === 0 && (
+        <p className="px-1 py-2 text-[11px] italic text-white/40">
+          Nothing matches “{query}” — add it as a row and type it.
+          {/* Never let a cut-off list read as "this vendor never sold us that". */}
+          {truncated && " This vendor has more items than the list holds, so it may still be one of theirs."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpdated }: Props) {
   const [vendorName, setVendorName] = useState(invoice.vendor_name || "");
   const [invoiceNumber, setInvoiceNumber] = useState(invoice.invoice_number || "");
@@ -100,6 +382,25 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
   const [storeOptions, setStoreOptions] = useState<string[]>([]);
   const [notes, setNotes] = useState(invoice.notes || "");
   const [lineItems, setLineItems] = useState<LineItem[]>(invoice.line_items || []);
+  /** The vendor list and this vendor's past lines. The reviewer was retyping
+      both from the photo, which is where 108 spellings of 66 Dubai companies
+      came from. */
+  const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(true);
+  const [vendorsError, setVendorsError] = useState("");
+  const [itemOptions, setItemOptions] = useState<ItemOption[]>([]);
+  const [itemsTruncated, setItemsTruncated] = useState(false);
+  /** The vendor the item list is for, which lags the field by a moment. The
+      fetch used to depend on the field itself: five keystrokes in the vendor
+      box with the picker open fired five requests (measured on production —
+      "SAWHNEYa", "SAWHNEYab", … each one a scan), and correcting a 45-letter
+      letterhead would fire forty-five. */
+  const [itemVendor, setItemVendor] = useState(invoice.vendor_name || "");
+  const [itemsLoading, setItemsLoading] = useState(false);
+  const [itemsError, setItemsError] = useState("");
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
+  /** null = the pick appends a row; a number = it replaces that row. */
+  const [replacingLine, setReplacingLine] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState("");
@@ -232,6 +533,78 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
 
   useEffect(() => {
     let dead = false;
+    fetch(`/api/admin/drive-invoices/vendors?city=${encodeURIComponent(invoice.city || "")}`, {
+      headers: authHeaders,
+      cache: "no-store",
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d: { vendors?: VendorOption[] }) => {
+        if (dead) return;
+        setVendorOptions(d.vendors ?? []);
+        setVendorsError("");
+      })
+      // An empty list is not the same thing as a list we could not fetch. Left
+      // as [], a 403 made EVERY invoice say "not a vendor we have invoiced
+      // before", including the canonical ones — and a warning that is wrong
+      // every time stops being read (lesson 39, on the one warning this added).
+      .catch((e) => {
+        if (dead) return;
+        setVendorOptions([]);
+        setVendorsError(String(e));
+      })
+      .finally(() => { if (!dead) setVendorsLoading(false); });
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice.city]);
+
+  useEffect(() => {
+    // Tracks the field whether the picker is open or not. Gating this on
+    // itemPickerOpen froze it while the panel was shut, so changing the vendor
+    // and then opening the picker showed the PREVIOUS vendor's items under a
+    // heading naming the new one — long enough to pick a Sawhney item into an
+    // MIY invoice. Opening on an untouched vendor still asks straight away:
+    // itemVendor already equals it and React skips the identical set.
+    const t = setTimeout(() => setItemVendor(vendorName), 400);
+    return () => clearTimeout(t);
+  }, [vendorName]);
+
+  /** Fetched when the picker is first opened, not when the modal opens: most
+      invoices are approved without touching the lines at all. */
+  useEffect(() => {
+    if (!itemPickerOpen || !itemVendor.trim()) return;
+    let dead = false;
+    setItemsLoading(true);
+    setItemsError("");
+    fetch(
+      `/api/admin/drive-invoices/vendor-items?city=${encodeURIComponent(invoice.city || "")}` +
+        `&vendor=${encodeURIComponent(itemVendor.trim())}`,
+      { headers: authHeaders, cache: "no-store" },
+    )
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d: { items?: ItemOption[]; truncated?: boolean }) => {
+        if (dead) return;
+        setItemOptions(d.items ?? []);
+        setItemsTruncated(Boolean(d.truncated));
+      })
+      .catch((e) => {
+        if (dead) return;
+        setItemOptions([]);
+        setItemsTruncated(false);
+        setItemsError(`Could not load this vendor's items (${String(e)}).`);
+      })
+      .finally(() => { if (!dead) setItemsLoading(false); });
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemPickerOpen, itemVendor, invoice.city]);
+
+  useEffect(() => {
+    let dead = false;
     fetch(`/api/admin/drive-invoices/stores?city=${encodeURIComponent(invoice.city || "")}`, {
       headers: authHeaders,
       cache: "no-store",
@@ -339,6 +712,25 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
         return next;
       })
     );
+  };
+
+  /** Description and unit come from the pick; the price does not. The same
+      item has been read at 2.00 and at 130.00 on these invoices, so a filled-in
+      price would be a number nobody chose sitting in a field that looks read.
+      The picker prints the last one next to the item instead. */
+  const pickItem = (it: ItemOption) => {
+    setLineItems((prev) => {
+      if (replacingLine !== null && replacingLine < prev.length) {
+        return prev.map((li, idx) =>
+          idx === replacingLine ? { ...li, description: it.description, unit: it.unit || li.unit } : li,
+        );
+      }
+      return [
+        ...prev,
+        { description: it.description, qty: null, unit: it.unit || "", unit_price: null, amount: null },
+      ];
+    });
+    setReplacingLine(null);
   };
 
   const removeLineItem = (i: number) => {
@@ -633,7 +1025,13 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
             {/* Core fields */}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <Field label="Vendor Name" value={vendorName} onChange={setVendorName} />
+                <VendorPicker
+                  value={vendorName}
+                  onChange={setVendorName}
+                  options={vendorOptions}
+                  loading={vendorsLoading}
+                  error={vendorsError}
+                />
               </div>
               {/* Branch was printed once in small type under the file name. It
                   is one of the five things being checked here, so it gets a
@@ -842,12 +1240,28 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                   Line Items ({lineItems.length})
                 </button>
                 {showLines && (
-                  <button
-                    onClick={addLineItem}
-                    className="text-xs text-amber-400/70 hover:text-amber-400"
-                  >
-                    + Add row
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setReplacingLine(null);
+                        // Flushed here, not in an effect: a pending debounce
+                        // would otherwise let the effect fire once against the
+                        // vendor the invoice arrived with. React batches these,
+                        // so the fetch sees the current name.
+                        setItemVendor(vendorName);
+                        setItemPickerOpen((v) => !v);
+                      }}
+                      className={`text-xs ${itemPickerOpen ? "text-amber-400" : "text-amber-400/70 hover:text-amber-400"}`}
+                    >
+                      {itemPickerOpen ? "▾ Pick item" : "▸ Pick item"}
+                    </button>
+                    <button
+                      onClick={addLineItem}
+                      className="text-xs text-white/40 hover:text-white/70"
+                    >
+                      + Blank row
+                    </button>
+                  </div>
                 )}
               </div>
               {!showLines && (
@@ -855,8 +1269,24 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                   Detailed line items are verified at Receiving → PO Match.
                 </p>
               )}
-              {showLines && lineItems.length === 0 && (
-                <p className="text-white/30 text-xs italic">No line items were read from this invoice.</p>
+              {showLines && itemPickerOpen && (
+                <ItemPicker
+                  items={itemOptions}
+                  loading={itemsLoading}
+                  error={itemsError}
+                  vendor={itemVendor}
+                  truncated={itemsTruncated}
+                  city={invoice.city || ""}
+                  replacing={replacingLine}
+                  onPick={pickItem}
+                  onClose={() => { setItemPickerOpen(false); setReplacingLine(null); }}
+                />
+              )}
+              {showLines && lineItems.length === 0 && !itemPickerOpen && (
+                <p className="text-white/30 text-xs italic">
+                  No line items were read from this invoice — use <span className="text-amber-400/70">Pick item</span> to
+                  build them from what this vendor has invoiced before.
+                </p>
               )}
               {showLines && lineItems.length > 0 && (
                 <div className="rounded-lg overflow-x-auto border border-white/10">
@@ -875,11 +1305,29 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
                       {lineItems.map((item, i) => (
                         <tr key={i} className="border-t border-white/5">
                           <td className="px-2 py-1">
-                            <input
-                              value={item.description}
-                              onChange={(e) => updateLineItem(i, "description", e.target.value)}
-                              className="w-full bg-transparent text-white focus:outline-none"
-                            />
+                            <div className="flex items-center gap-1">
+                              <input
+                                value={item.description}
+                                onChange={(e) => updateLineItem(i, "description", e.target.value)}
+                                className="w-full bg-transparent text-white focus:outline-none"
+                              />
+                              {/* A line the OCR read as noise is replaced from
+                                  the vendor's own history rather than retyped. */}
+                              <button
+                                type="button"
+                                title="Replace from this vendor's items"
+                                onClick={() => {
+                                  setReplacingLine(i);
+                                  setItemVendor(vendorName);
+                                  setItemPickerOpen(true);
+                                }}
+                                className={`shrink-0 px-1 text-[11px] ${
+                                  replacingLine === i ? "text-amber-400" : "text-white/25 hover:text-amber-400"
+                                }`}
+                              >
+                                ⌄
+                              </button>
+                            </div>
                           </td>
                           <td className="px-2 py-1">
                             <input

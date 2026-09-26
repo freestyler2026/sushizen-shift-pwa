@@ -55,6 +55,10 @@ type Row = {
   has_resume?: boolean;
   attended: boolean | null;
   recorded: boolean;
+  /** What was recorded, not just that something was. 'hire' and 'consider'
+   *  keep the person in the running; 'no_hire' and 'not_assessed' close them.
+   *  Empty when nothing has been recorded yet. */
+  recommendation?: string;
   /** Set locally after HR cancels, so the row stays visible saying what happened. */
   cancelled?: boolean;
   /** Only on the outstanding list: how long this has waited for a result. */
@@ -126,8 +130,22 @@ function Line({
   setReason: (v: string) => void;
 }) {
     const byPhone = !row.contact_via || row.contact_via === "call";
+    // Still in the running. A grey "Recorded" badge said the same thing about
+    // the person we are hiring and the person we turned down, so the one
+    // screen that shows the day's interviews could not show who is left.
+    const keep = row.recommendation === "hire" || row.recommendation === "consider";
+    const keepLabel = row.recommendation === "hire" ? "Move to offer" : "Hold — decide later";
     return (
-      <div id={`iv-${row.id}`} className={`${GLASS_CARD} overflow-hidden`}>
+      <div
+        id={`iv-${row.id}`}
+        className={`${GLASS_CARD} overflow-hidden ${
+          keep
+            ? row.recommendation === "hire"
+              ? "border-emerald-500/50 bg-emerald-500/5"
+              : "border-amber-500/50 bg-amber-500/5"
+            : ""
+        }`}
+      >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
           <span className="text-lg font-bold tabular-nums text-violet-200">
             {timeOf(row.starts_at)}
@@ -177,7 +195,21 @@ function Line({
               Add to my calendar
             </span>
           </button>
-          {row.recorded && <span className={BADGE_SUCCESS}>Recorded</span>}
+          {row.recorded && (
+            keep ? (
+              <span
+                className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                  row.recommendation === "hire"
+                    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                    : "border-amber-500/50 bg-amber-500/15 text-amber-300"
+                }`}
+              >
+                {keepLabel}
+              </span>
+            ) : (
+              <span className={BADGE_SUCCESS}>Recorded</span>
+            )
+          )}
           {row.cancelled && <span className={BADGE_WARNING}>Cancelled</span>}
           {!row.cancelled && (
             <>

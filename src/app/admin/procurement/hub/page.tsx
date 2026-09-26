@@ -8,6 +8,7 @@ import {
   GLASS_CARD,
   PRIMARY_BUTTON,
   SECONDARY_BUTTON,
+  SMALL_BUTTON,
   INPUT_CLASS,
   SELECT_CLASS,
   T_PAGE_TITLE,
@@ -243,6 +244,14 @@ function classifyRow(row: HubRow): StatusGroup {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+type DriftInfo = {
+  candidates: number;
+  oldest_confirmed_at: string | null;
+  newest_confirmed_at: string | null;
+  updated?: number;
+  backup_table?: string;
+};
+
 export default function ProcurementHubPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
@@ -289,6 +298,11 @@ export default function ProcurementHubPage() {
   const [overdueLoading, setOverdueLoading] = useState(false);
   const [overduePanelOpen, setOverduePanelOpen] = useState(true);
   const [overdueExpanded, setOverdueExpanded] = useState<string | null>(null);
+  // POs whose receiving was confirmed but which were never stamped, so they sit
+  // on this list as late when the goods arrived months ago.
+  const [drift, setDrift] = useState<DriftInfo | null>(null);
+  const [driftBusy, setDriftBusy] = useState(false);
+  const [driftMsg, setDriftMsg] = useState("");
   const [ackingPoId, setAckingPoId] = useState("");
   // Local ack status overrides — applied immediately on success so UI updates without reload
   const [ackOverride, setAckOverride] = useState<Record<string, string>>({});
@@ -399,7 +413,10 @@ export default function ProcurementHubPage() {
     const activeCity = cityOverride ?? city;
     setOverdueLoading(true);
     try {
-      const qs = new URLSearchParams({ city: activeCity, limit: "200" });
+      // 500 is the server's own ceiling (list_overdue_deliveries_admin caps it).
+      // At 200 the badge read "200 OVERDUE" while Manila actually had 389, so
+      // the number people judge this panel by was short by a third.
+      const qs = new URLSearchParams({ city: activeCity, limit: "500" });
       const res = await fetch(`/api/admin/procurement/overdue-deliveries?${qs}`, {
         headers: getAuthHeaders() as Record<string, string>,
         cache: "no-store",
@@ -412,6 +429,46 @@ export default function ProcurementHubPage() {
       setOverdueLoading(false);
     }
   }, [city]);
+
+  // Read-only and needs no PIN: the size of the problem has to be knowable
+  // without performing it.
+  const loadDrift = useCallback(async (cityOverride?: string) => {
+    const activeCity = cityOverride ?? city;
+    try {
+      const res = await fetch(
+        `/api/admin/procurement/maintenance/po-receipt-drift?city=${encodeURIComponent(activeCity)}`,
+        { headers: getAuthHeaders() as Record<string, string>, cache: "no-store" },
+      );
+      if (!res.ok) { setDrift(null); return; }
+      const d = await res.json();
+      setDrift(typeof d?.candidates === "number" ? d : null);
+    } catch { setDrift(null); }
+  }, [city]);
+
+  const runDrift = useCallback(async () => {
+    setDriftBusy(true); setDriftMsg("");
+    try {
+      const d = await procurementJson<DriftInfo & { ok?: boolean }>(
+        "/api/admin/procurement/maintenance/po-receipt-drift",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approver_name: requestedBy, pin, city, confirm: true }),
+        },
+        requestedBy, pin,
+      );
+      // Name the backup table on screen. It is the only way back, and a
+      // recovery that depends on somebody having kept the response is not a
+      // recovery (lesson 22).
+      setDriftMsg(
+        `Stamped ${d?.updated ?? 0} PO(s). Undo: set receipt_confirmed_at back to NULL `
+        + `for the ids in ${d?.backup_table || "the backup table named in the response"}.`,
+      );
+      await Promise.all([loadOverdue(), loadDrift()]);
+    } catch (e) {
+      setDriftMsg(e instanceof Error ? e.message : String(e));
+    } finally { setDriftBusy(false); }
+  }, [requestedBy, pin, city, loadOverdue, loadDrift]);
 
   const sendAck = useCallback(async (poId: string, ackStatus: "following_up" | "no_impact" | "resolved") => {
     setAckingPoId(poId);
@@ -461,7 +518,7 @@ export default function ProcurementHubPage() {
       );
       setAllowed(can);
       if (can) {
-        await Promise.all([load(), loadOverdue(resolvedCity)]);
+        await Promise.all([load(), loadOverdue(resolvedCity), loadDrift(resolvedCity)]);
       }
     }
     void init();
@@ -472,6 +529,7 @@ export default function ProcurementHubPage() {
     if (allowed) {
       void load();
       void loadOverdue();
+      void loadDrift();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
@@ -539,6 +597,41 @@ export default function ProcurementHubPage() {
         </span>
       </div>
 
+      {/* Session + city. Above the list on purpose: these three decide
+          what everything below shows, and under a 500-row panel they were
+          past the content they govern. */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
+            <SelectDark
+              value={city}
+              onChange={v => setCity(String(v).toLowerCase())}
+              className={SELECT_CLASS}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void load()} disabled={loading}
+              className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* ── Overdue Delivery Exceptions Panel ── */}
       <div className={`overflow-hidden rounded-2xl border ${overdueRows.length > 0 ? "border-red-700/50 bg-red-950/8" : "border-white/8 bg-white/3"}`}>
         <div
@@ -577,7 +670,7 @@ export default function ProcurementHubPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); void loadOverdue(); }}
+              onClick={(e) => { e.stopPropagation(); void loadOverdue(); void loadDrift(); }}
               className="rounded-lg p-1 text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
               title="Refresh"
             >
@@ -591,6 +684,101 @@ export default function ProcurementHubPage() {
 
         {overduePanelOpen && (
           <div className="border-t border-white/8 px-5 pb-4 pt-3">
+            {/* Some of these arrived months ago. Receiving confirmation only
+                started stamping the linked PO on 2026-07-24; every receiving
+                confirmed before that left its PO unstamped, and this list keys
+                off exactly that column. Until now the endpoints existed and
+                nothing called them, so the only way to see the number was to
+                ask the database. */}
+            {drift && drift.candidates > 0 && (
+              <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-200">
+                  {drift.candidates} of these were already received
+                  {" "}— {city === "dubai" ? "Dubai" : "Manila"}
+                </p>
+                <p className="mt-1 text-xs text-amber-200/80">
+                  Their receiving was confirmed{drift.oldest_confirmed_at && drift.newest_confirmed_at ? (
+                    <> between {String(drift.oldest_confirmed_at).slice(0, 10)} and{" "}
+                      {String(drift.newest_confirmed_at).slice(0, 10)}</>
+                  ) : null}, but the purchase order was never stamped, so this
+                  list still calls them late. Stamping copies the date from the
+                  receiving that already confirmed them — nothing is invented,
+                  and a PO no confirmed receiving names is left alone.
+                </p>
+                <p className="mt-1 text-xs text-amber-200/60">
+                  The rows are backed up to their own table first, and the
+                  backup&apos;s name is shown here afterwards. Re-running is safe.
+                </p>
+                <div className="mt-2 flex flex-wrap items-end gap-2">
+                  {/* The shared Name/PIN fields live BELOW this panel, under up
+                      to 500 overdue rows, so pointing at them was both wrong
+                      and unreachable. The approval happens where the problem
+                      is shown (lesson 125). Same state, so filling either fills
+                      both. */}
+                  <div>
+                    <label className={`${T_LABEL} mb-1 block`}>Name</label>
+                    <input
+                      value={requestedBy}
+                      onChange={(e) => setRequestedBy(e.target.value)}
+                      placeholder="Name"
+                      className={`${INPUT_CLASS} w-44`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} mb-1 block`}>PIN</label>
+                    <input
+                      type="password"
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value)}
+                      placeholder="••••••••"
+                      className={`${INPUT_CLASS} w-36`}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && requestedBy.trim() && pin.trim() && !driftBusy) {
+                          void runDrift();
+                        }
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className={SMALL_BUTTON}
+                    disabled={driftBusy || !requestedBy.trim() || !pin.trim()}
+                    onClick={() => void runDrift()}
+                  >
+                    {driftBusy
+                      ? "Stamping…"
+                      : `Stamp ${drift.candidates} PO(s) — ${city === "dubai" ? "Dubai" : "Manila"}`}
+                  </button>
+                </div>
+                <p className={`${T_CAPTION} mt-2`}>
+                  Acting on {city === "dubai" ? "Dubai" : "Manila"}.{" "}
+                  <button
+                    type="button"
+                    className="underline decoration-dotted hover:text-white"
+                    onClick={() => setCity(city === "dubai" ? "manila" : "dubai")}
+                  >
+                    Switch to {city === "dubai" ? "Manila" : "Dubai"}
+                  </button>
+                  {" "}— each city has its own backlog, and they are stamped
+                  separately.
+                </p>
+
+              </div>
+            )}
+            {/* Outside the card on purpose. A successful run takes the count
+                to zero, which unmounts the card -- and the backup table name
+                is the only way to undo the write, so it cannot live in
+                something that disappears the moment the write succeeds. */}
+            {driftMsg && (
+              <div className="mb-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <p className="text-sm text-white/85">{driftMsg}</p>
+                <p className={`${T_CAPTION} mt-1`}>
+                  This line goes when the page reloads. The same name is kept
+                  permanently in the audit log under
+                  {" "}<span className="font-mono">procurement.po.receipt_reconcile</span>.
+                </p>
+              </div>
+            )}
             {overdueRows.length === 0 && !overdueLoading ? (
               <div className="flex items-center gap-2 py-3 text-sm text-zinc-500">
                 <span className="text-emerald-400">✓</span>
@@ -743,38 +931,6 @@ export default function ProcurementHubPage() {
         )}
       </div>
 
-      {/* Session + city */}
-      <div className={`${GLASS_CARD} p-4`}>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>Name</label>
-            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
-            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
-            <SelectDark
-              value={city}
-              onChange={v => setCity(String(v).toLowerCase())}
-              className={SELECT_CLASS}
-              options={[
-                { value: "manila", label: "Manila" },
-                { value: "dubai", label: "Dubai" },
-              ]}
-            />
-          </div>
-          <div className="flex items-end">
-            <button type="button" onClick={() => void load()} disabled={loading}
-              className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              {loading ? "Loading…" : "Refresh"}
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Filters */}
       <div className={`${GLASS_CARD} p-4`}>

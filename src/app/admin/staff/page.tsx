@@ -337,6 +337,11 @@ export default function AdminStaffPage() {
   // afterwards, so a hire date typed wrongly had nowhere to be corrected.
   const [detailsFor, setDetailsFor] = useState<string | null>(null);
   const [detailsDraft, setDetailsDraft] = useState<Partial<StaffRow>>({});
+  // What the panel was opened with. The save sends only what differs from
+  // this, because the API treats a field it is sent as authoritative and ""
+  // as "clear it" -- so posting every field meant any value the panel had
+  // failed to load was erased by a save of something else entirely.
+  const [detailsOriginal, setDetailsOriginal] = useState<Partial<StaffRow>>({});
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsSavedName, setDetailsSavedName] = useState<string | null>(null);
   const [detailsError, setDetailsError] = useState("");
@@ -351,7 +356,7 @@ export default function AdminStaffPage() {
     setDetailsFor(dn);
     setDetailsError("");
     setDetailsSavedName(null);
-    setDetailsDraft({
+    const opened: Partial<StaffRow> = {
       hire_date: r.hire_date || "",
       position: r.position || "",
       company: r.company || "",
@@ -360,7 +365,9 @@ export default function AdminStaffPage() {
       whatsapp_phone: r.whatsapp_phone || "",
       max_days_per_week: Number(r.max_days_per_week ?? 6),
       max_consecutive_days: Number(r.max_consecutive_days ?? 6),
-    });
+    };
+    setDetailsDraft(opened);
+    setDetailsOriginal(opened);
   }
 
   async function saveDetails(r: StaffRow) {
@@ -368,21 +375,31 @@ export default function AdminStaffPage() {
     setDetailsSaving(true);
     setDetailsError("");
     try {
+      // Only what the person actually changed. A field left out is left
+      // alone; a field sent as "" is cleared. Sending all of them made every
+      // save a rewrite of the whole record from whatever the panel happened
+      // to be holding -- which is how a stored hire date was wiped by an edit
+      // to a phone number. The Employment Details screen already does this.
+      const body: Record<string, unknown> = { city: r.city || city, staff_name: dn };
+      const TEXT_FIELDS = ["hire_date", "position", "company", "date_of_birth",
+                           "marital_status", "whatsapp_phone"] as const;
+      for (const k of TEXT_FIELDS) {
+        const now = String(detailsDraft[k] ?? "");
+        if (now !== String(detailsOriginal[k] ?? "")) body[k] = now;
+      }
+      for (const k of ["max_days_per_week", "max_consecutive_days"] as const) {
+        const now = Number(detailsDraft[k] ?? 6);
+        if (now !== Number(detailsOriginal[k] ?? 6)) body[k] = now;
+      }
+      if (Object.keys(body).length <= 2) {      // nothing but city and name
+        setDetailsSavedName(dn);
+        setDetailsFor(null);
+        return;
+      }
       const res = await fetch("/api/admin/staff/details", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          city: r.city || city,
-          staff_name: dn,
-          hire_date: detailsDraft.hire_date ?? "",
-          position: detailsDraft.position ?? "",
-          company: detailsDraft.company ?? "",
-          date_of_birth: detailsDraft.date_of_birth ?? "",
-          marital_status: detailsDraft.marital_status ?? "",
-          whatsapp_phone: detailsDraft.whatsapp_phone ?? "",
-          max_days_per_week: Number(detailsDraft.max_days_per_week ?? 6),
-          max_consecutive_days: Number(detailsDraft.max_consecutive_days ?? 6),
-        }),
+        body: JSON.stringify(body),
       });
       const text = await res.text();
       if (!res.ok) {

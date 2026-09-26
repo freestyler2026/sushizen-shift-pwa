@@ -166,6 +166,7 @@ td.muted { color:var(--muted); font-size:12px; }
   <div class="sidebar-label" data-en="Admin Operations" data-ja="管理業務">Admin Operations</div>
   <div class="nav-item" onclick="show('approval-inbox')"><span class="nav-icon">✅</span><span data-en="Approval Inbox" data-ja="承認受信箱">Approval Inbox</span></div>
   <div class="nav-item" onclick="show('ck-orders')"><span class="nav-icon">🏭</span><span data-en="CK Orders" data-ja="CKオーダー">CK Orders</span></div>
+  <div class="nav-item" onclick="show('direct-purchases')"><span class="nav-icon">🧾</span><span data-en="Direct Purchases" data-ja="直接購入">Direct Purchases</span></div>
   <div class="nav-item" onclick="show('pos-invoices')"><span class="nav-icon">📄</span><span data-en="POs & Invoices" data-ja="PO・インボイス">POs &amp; Invoices</span></div>
   <div class="nav-item" onclick="show('invoice-inbox')"><span class="nav-icon">📥</span><span data-en="Invoice Inbox (Drive)" data-ja="インボイス受信箱（Drive）">Invoice Inbox (Drive)</span></div>
   <div class="nav-item" onclick="show('payments')"><span class="nav-icon">💳</span><span data-en="Payments" data-ja="支払い管理">Payments</span></div>
@@ -758,6 +759,15 @@ td.muted { color:var(--muted); font-size:12px; }
     </table></div>
     <p style="color:var(--muted);font-size:12px;margin-top:8px">Requires <code>DISCORD_CK_ORDERS_ALERT_WEBHOOK_URL</code> to be set in Heroku config vars.</p>
   </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Delivery Exceptions — when the list says late but the goods arrived" data-ja="Delivery Exceptions — 届いているのに「延滞」と出ているとき">Delivery Exceptions — when the list says late but the goods arrived</div>
+    <div class="section-path">/admin/procurement/hub</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Confirming a receiving only started stamping the linked purchase order on 24 July 2026. Every receiving confirmed before that left its order unstamped, and this list decides what is late from exactly that stamp — so orders received months ago kept being reported as late. When any are left, an amber card at the top of the panel says how many, for which city, and offers to stamp them." data-ja="受領の確定が発注書に日付を書くようになったのは2026年7月24日からです。それ以前に確定した受領は発注書が未記入のまま残り、この一覧はその記入だけを見て延滞を判定するため、何ヶ月も前に届いた発注が延滞として出続けていました。残っている場合、パネル上部の琥珀色のカードに件数と都市が出て、記入できます。">Receiving only started stamping the linked order on 24 July 2026, and this list decides what is late from that stamp — so orders received months ago kept showing as late. An amber card at the top of the panel says how many are affected, for which city, and offers to stamp them.</p>
+    <div class="tip" style="margin-top:8px"><span class="tip-icon">⚠️</span><span data-en="Check the city on the card before pressing. Manila and Dubai each have their own backlog and they are stamped separately, and the page opens on whichever city your own account belongs to. The card, the button and the line under it all name the city." data-ja="押す前にカードの都市を確認してください。マニラとドバイはそれぞれ別の対象で、別々に実行します。ページは自分のアカウントの都市で開くので、見出し・ボタン・下の説明文の3箇所に出ている都市名を見てください。">Check the city on the card before pressing — Manila and Dubai are separate backlogs, and the page opens on whichever city your account belongs to.</span></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Stamping copies the date from the receiving that already confirmed the order. Nothing is invented: an order that no confirmed receiving names is left alone, and running it twice changes nothing the second time. The rows are copied to a backup table first, and its name appears under the card after the run — that name is what an undo needs. It is also kept in the audit log under procurement.po.receipt_reconcile, so it survives a page reload." data-ja="記入する日付は、その発注を既に確定している受領記録からのコピーです。確定受領が無い発注には触りません。2回実行しても2回目は何も変わりません。実行前に対象行をバックアップ表へ退避し、その表名が実行後にカードの下に出ます。取り消すにはその表名が要ります。監査ログ（procurement.po.receipt_reconcile）にも残るので、画面を再読み込みしても失われません。">Stamping copies the date from the receiving that already confirmed the order — nothing is invented, and re-running changes nothing. The rows are backed up first and the backup's name appears under the card, and is also kept in the audit log.</p>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Manila was done on 26 September 2026: 222 orders stamped, and the overdue list went from 395 to 173. The 173 that remain are genuinely late. Dubai has 229 of the same and has not been done." data-ja="マニラは2026年9月26日に実行済み — 222件を記入し、延滞一覧は395件から173件になりました。残る173件は本物の延滞です。ドバイには同じものが229件あり、未実行です。">Manila was done on 26 September 2026: 222 stamped, overdue went 395 to 173. Dubai has 229 of the same, not yet done.</p>
+  </div>
 </div>
 
 <div class="section" id="sec-place-order">
@@ -1057,6 +1067,84 @@ td.muted { color:var(--muted); font-size:12px; }
   </div>
 </div>
 
+<!-- ═══════════ DIRECT PURCHASES ═══════════ -->
+<div class="section" id="sec-direct-purchases">
+  <div class="section-hero">
+    <div class="hero-icon">🧾</div>
+    <div>
+      <div class="section-title" data-en="Direct Purchases" data-ja="直接購入">Direct Purchases</div>
+      <div class="section-path">/admin/procurement/direct-purchases</div>
+      <div class="section-desc" data-en="The Central Kitchen's own orders to suppliers. Five lanes show what each order is waiting for, so order quantities can be decided without asking anyone." data-ja="CKからサプライヤーへの発注。各オーダーが何を待っているかを5つのレーンで表示し、誰かに確認しなくても発注数量を決められるようにするための画面です。">The Central Kitchen's orders to suppliers, split into five lanes by what each one is waiting for.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="The five lanes" data-ja="5つのレーン">The five lanes</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="The screen opens on In Review, because that is the only lane where someone is waiting on a decision here. Each lane shows its count, and how many rows in it are flagged. Inside a working lane the oldest order is at the top." data-ja="開いたときは In Review が選ばれています。ここで判断を待っているのはこのレーンだけだからです。各レーンには件数と、そのうち何件がフラグ付きかが出ます。作業対象のレーンでは最も古いオーダーが一番上に来ます。">Opens on In Review — the only lane waiting on a decision here. Each lane shows its count and how many are flagged. Oldest first inside a working lane.</p>
+    <div class="table-wrap"><table>
+      <tr>
+        <th data-en="Lane" data-ja="レーン">Lane</th>
+        <th data-en="Means" data-ja="意味">Means</th>
+        <th data-en="Flagged when" data-ja="フラグの条件">Flagged when</th>
+      </tr>
+        <tr><td><b>In Review</b></td>
+          <td data-en="Submitted and waiting for approval." data-ja="申請済みで承認待ち。">Submitted, waiting for approval.</td>
+          <td data-en="More than 2 days old" data-ja="2日以上経過">More than 2 days old</td></tr>
+        <tr><td><b>Needs PO</b></td>
+          <td data-en="Approved, but no purchase order has been raised yet. Nothing has been ordered from the supplier." data-ja="承認済みだが、まだPOが発行されていない。サプライヤーには何も発注されていない状態。">Approved, but no PO raised — nothing ordered from the supplier yet.</td>
+          <td data-en="More than 3 days since approval" data-ja="承認から3日以上">More than 3 days since approval</td></tr>
+        <tr><td><b>Incoming</b></td>
+          <td data-en="Ordered from the supplier and not yet received by the kitchen. Includes orders the back office has marked Delivered." data-ja="サプライヤーに発注済みで、まだCKが受領していない。Back Office が Delivered を付けたものも含む。">Ordered, not yet received by the kitchen. Includes ones marked Delivered.</td>
+          <td data-en="The expected delivery date has passed — not by age. A PO placed 30 days ago for a delivery due next week is not late." data-ja="納品予定日を過ぎたとき。経過日数では判定しません。30日前に出したPOでも、予定が来週なら遅れではありません。">The expected delivery date has passed (not by age)</td></tr>
+        <tr><td><b>Received</b></td>
+          <td data-en="The kitchen confirmed receipt. Closed." data-ja="CKが受領を確定済み。完了。">Kitchen confirmed receipt. Closed.</td>
+          <td data-en="Never flagged" data-ja="フラグは付きません">Never</td></tr>
+        <tr><td><b>Rejected / Draft</b></td>
+          <td data-en="Not going ahead, or never submitted." data-ja="進めないもの、または未申請のもの。">Not going ahead, or never submitted.</td>
+          <td data-en="Never flagged" data-ja="フラグは付きません">Never</td></tr>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Has a PO been issued for this order?" data-ja="このオーダーにPOは出ているか？">Has a PO been issued for this order?</div>
+    <p style="color:var(--muted);font-size:12px" data-en="The PO number now appears on the order row itself, so there is no need to open the PO page to find out. An order in the Needs PO lane has no PO. If a row shows more than one PO, a badge says how many." data-ja="PO番号がオーダーの行に表示されるので、PO画面を開いて調べる必要はありません。Needs PO レーンにあるものはPOが無いということです。POが複数ある場合はその件数がバッジで出ます。">The PO number appears on the order row. An order in Needs PO has no PO. More than one PO shows as a badge.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="When the supplier moves the delivery date" data-ja="サプライヤーが納品日を変えてきたとき">When the supplier moves the delivery date</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Press Expected date on the order and enter the new date. Until this was added the date could not be changed after the PO was created, so the order stayed on the overdue list and the kitchen was asked to update the receiving status instead — which was never the problem." data-ja="オーダーの「Expected date」を押して新しい日付を入れます。これができるようになる前は、PO作成後に日付を変更する方法が無かったため、オーダーが延滞リストに残り続け、代わりにCKへ受領ステータスの更新を依頼することになっていました（原因はそこではありませんでした）。">Press "Expected date" and enter the new one. Before this existed the date could not be changed after PO creation, so the order stayed overdue and the kitchen was asked to update receiving instead.</p>
+    <div class="tip" style="margin-top:8px"><span class="tip-icon">⚠️</span><span data-en="The first promised date is kept. The order still counts as late against the original, so a supplier that keeps moving dates still shows up in their scorecard. The row displays both (&quot;Expected 27 Sep (was 24 Sep)&quot;)." data-ja="最初に約束された日付は残ります。延滞の判定は当初の日付に対しても行われるので、日付を動かし続けるサプライヤーは評価に反映されます。行には両方表示されます（「Expected 27 Sep (was 24 Sep)」）。">The first promised date is kept — the order still counts as late against it, so a supplier that keeps moving dates still shows in their scorecard.</span></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Logging a supplier confirmation call with a new expected date does the same thing — the date on the order moves with it." data-ja="仕入先確認コールに新しい予定日を記録した場合も同じで、オーダーの日付が一緒に動きます。">Logging a supplier confirmation call with a new date does the same thing.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Mark Delivered — optional" data-ja="Mark Delivered — 任意">Mark Delivered — optional</div>
+    <p style="color:var(--muted);font-size:12px" data-en="Back office presses Mark Delivered when the supplier's delivery has arrived but the kitchen has not yet confirmed receipt. It is reversible (Undo Delivered) and pressing it twice changes nothing. It is optional: an order whose receiving is confirmed is complete whether or not anyone pressed it, so skipping it never leaves an order stuck." data-ja="サプライヤーの納品が届いたが、まだCKが受領確定していない状態で Back Office が押します。取り消せます（Undo Delivered）。2回押しても変わりません。任意の操作です — 受領が確定したオーダーは、これを押したかどうかに関係なく完了扱いになるので、押さなくても詰まることはありません。">Back office marks it when the delivery has arrived but the kitchen has not confirmed receipt. Reversible, idempotent, and optional — skipping it never leaves an order stuck.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="Alerts to the person who raised the order" data-ja="発注した本人へのアラート">Alerts to the person who raised the order</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Two alerts go to the creator of the order, not to the approver. One when their order is still in review after 48 hours, checked each morning. One the moment their order is rejected, carrying the reason the reviewer typed. The rule and the cut-off date are printed on the screen above the list, so there is no need to remember them." data-ja="アラートは承認者ではなく発注した本人に届きます。1つは、自分のオーダーが48時間経っても In Review のままのとき（毎朝チェック）。もう1つは却下された瞬間で、審査した人が書いた理由が本文に入ります。ルールと開始日は一覧の上に表示されるので、覚えておく必要はありません。">Two alerts go to the order's creator, not the approver: one when it is still in review after 48 hours (checked each morning), one the moment it is rejected, carrying the reason. The rule and cut-off date are printed above the list.</p>
+    <div class="tip" style="margin-top:8px"><span class="tip-icon">⚠️</span><span data-en="Orders raised before the alerts were switched on are not alerted. The orders already sitting in In Review are between 38 and 115 days old, so alerting them would have sent 50 messages at once about work nobody is going to do today. They are still on the In Review lane, where they are a backlog to clear." data-ja="アラート開始前に作られたオーダーには通知が行きません。すでに In Review にあるものは38〜115日前のもので、通知すれば「今日やらない仕事」について50通が一度に飛ぶことになります。それらは In Review レーンに残っていて、片付けるリストとして扱います。">Orders raised before the alerts were switched on are not alerted — the ones already in review are 38 to 115 days old, and alerting them would have sent 50 messages at once. They stay on the In Review lane as a backlog.</span></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Each order row says which happened: Creator told, or Alert not delivered. They are separate on purpose — an alert can be recorded without reaching anybody, and calling that Alerted would claim the person knows when they do not." data-ja="各オーダーの行に結果が出ます — Creator told（本人に届いた）か Alert not delivered（届いていない）。区別しているのは、アラートが記録されても誰にも届かないことがあるためで、それを Alerted と書くと「本人は知っている」という嘘になります。">Each row says Creator told or Alert not delivered — separate on purpose, because an alert can be recorded without reaching anybody.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="If an alert says it was not delivered" data-ja="アラートが届いていないと出たら">If an alert says it was not delivered</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Alerts are sent as a Discord direct message, and three of the five people who raise orders on this screen have no Discord ID registered. Their alerts are written down but reach nobody. The banner above the list names them with a box for each: paste the ID and press Save, and the name disappears from the banner. If it does not disappear, the save did not work." data-ja="アラートは Discord のDMで送ります。この画面で発注する5人のうち3人は Discord ID が未登録で、その人たちのアラートは記録はされますが誰にも届きません。一覧の上のバナーに名前と入力欄が出るので、IDを貼って Save を押してください。保存されるとその名前がバナーから消えます。消えなければ保存できていません。">Alerts are sent as a Discord DM, and three of the five people who raise orders here have no Discord ID registered — their alerts are recorded but reach nobody. The banner names them with a box to paste an ID into.</p>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The ID is all digits, not an @name. In Discord, turn on Developer Mode, right-click the person and choose Copy User ID. An @name is refused rather than saved, because a stored @name looks registered and then silently fails to deliver." data-ja="IDは数字だけで、@名ではありません。Discord で Developer Mode をオンにし、本人を右クリックして Copy User ID を選びます。@名は保存されず拒否されます — 保存してしまうと「登録済み」に見えて、実際には届かないままになるからです。">The ID is all digits, not an @name — in Discord turn on Developer Mode, right-click the person and Copy User ID. An @name is refused rather than saved.</p>
+    <p style="color:var(--muted);font-size:12px" data-en="Alert not delivered has two causes and the fixes differ. No Discord ID registered is fixed by registering one. A delivery that Discord refused usually means the person has blocked direct messages from the bot, and they have to allow them on their side. Hover the badge to see which one it was." data-ja="Alert not delivered の原因は2つあり、直し方が違います。Discord ID が未登録なら登録すれば直ります。Discord に拒否された場合はBotからのDMをブロックしている可能性が高く、本人の側で許可してもらう必要があります。どちらかはバッジにカーソルを合わせると出ます。">Two causes, different fixes: no Discord ID (register one), or Discord refused the message (the person has blocked DMs from the bot and must allow them). Hover the badge to see which.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="One thing this screen does not do yet" data-ja="この画面がまだできないこと">One thing this screen does not do yet</div>
+    <ul style="color:var(--muted);font-size:12px;padding-left:18px;line-height:1.7">
+      <li data-en="Nobody is told that an order is waiting on them. Both alerts go to the person who raised the order, which is what was asked for — but the approver sitting on a request for 48 hours is not notified, so an order stalls until its creator chases it." data-ja="「あなたが止めています」という通知はまだありません。どちらのアラートも発注した本人に届く仕様で、それが依頼された内容です — ただし48時間放置している承認者には通知が行かないので、作成者が催促するまでオーダーは止まったままになります。">No alert goes to the approver. Both go to the creator, as asked — so an order stalls until its creator chases it.</li>
+    </ul>
+  </div>
+</div>
+</div>
+
 <!-- ═══════════ CK ORDERS ═══════════ -->
 <div class="section" id="sec-ck-orders">
   <div class="section-hero">
@@ -1201,6 +1289,20 @@ td.muted { color:var(--muted); font-size:12px; }
         <span class="lc-path">/admin/procurement/invoices</span>
       </div>
     </div>
+  </div>
+
+  <!-- PICKING THE VENDOR AND THE LINES -->
+  <div class="card">
+    <div class="card-title" data-en="Picking the vendor and the lines instead of typing them" data-ja="仕入先と明細は「選ぶ」— 打たない">Picking the vendor and the lines instead of typing them</div>
+    <p data-en="Where OCR read nothing there is nothing to correct, only something to type — and that was most of the work on these invoices. The review panel now offers the 62 vendors this city actually buys from, and, once a vendor is set, that vendor's own past lines." data-ja="OCRが何も読めなかった欄は「直す」のではなく「打つ」作業になり、それがこの確認作業の大半でした。レビュー画面に、その都市が実際に取引している62社の一覧と、仕入先を決めたあとはその仕入先の過去の明細が出るようにしました。">Where OCR read nothing there was nothing to correct, only something to type. The panel now offers the vendors this city buys from, and that vendor's own past lines.</p>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Vendor Name — click the field" data-ja="Vendor Name — 欄をクリック"></strong><p data-en="The list opens on every vendor, most-invoiced first, with the invoice count beside each. Our own kitchens and warehouse are marked <em>ours</em>. Type to narrow it. Typing a name that is on no invoice is still allowed — a new supplier's first invoice arrives before anyone adds them anywhere — but the label then says <strong>not a vendor we have invoiced before</strong>, so a misread letterhead is not filed as a new company by accident." data-ja="全社が出ます。請求書の多い順で、件数が横に付きます。自社のキッチンと倉庫には <em>ours</em> と表示。打てば絞り込めます。一覧に無い名前を打つこともできます（新規仕入先の1枚目は誰も登録する前に届くため）。ただしその場合はラベルに <strong>not a vendor we have invoiced before</strong> と出るので、letterheadの読み違いが新会社として登録されることはありません。">Every vendor, most-invoiced first, with counts. Our own kitchens are marked <em>ours</em>. A name on no invoice is still allowed, but the label says <strong>not a vendor we have invoiced before</strong>.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Line Items → Pick item" data-ja="Line Items → Pick item"></strong><p data-en="Opens that vendor's past lines, most-used first, searchable. The panel stays open after a pick, because an invoice has a dozen lines. Each existing row also has a small ⌄ beside the description which replaces just that line — for the ones OCR turned into noise." data-ja="その仕入先の過去の明細が、使用回数の多い順で出ます。検索可。1件選んでもパネルは開いたままです（1枚の請求書に明細が十数行あるため）。既存の各行の説明の横にある小さな ⌄ を押すと、その行だけを差し替えられます。OCRが文字化けさせた行はこれで直します。">That vendor's past lines, most-used first, searchable. The panel stays open after a pick. The ⌄ beside a description replaces just that line.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Keyboard" data-ja="キーボード操作"></strong><p data-en="In the vendor field, ↓ and ↑ move through the list, Enter takes the highlighted one, Escape closes the list without closing the invoice. You do not have to reach for the mouse." data-ja="仕入先欄では ↓↑ で移動、Enter で確定、Escape でリストだけ閉じます（請求書は閉じません）。マウスに持ち替える必要はありません。">↓ ↑ move, Enter takes, Escape closes the list without closing the invoice.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="The price is shown, not filled in" data-ja="単価は「表示」で、入力はされない"></strong><p data-en="A pick fills the description and the unit. It does not fill the price: on these same invoices one item has been read at 2.00 and at 130.00, so a price put there automatically would be a number nobody chose sitting in a field that looks checked. The last one is printed beside the item as a reminder — read the paper." data-ja="選ぶと説明と単位が入ります。単価は入りません。同じ品目がこれらの請求書で 2.00 とも 130.00 とも読み取られており、自動で入れると「誰も選んでいない数字が、確認済みに見える欄に入る」ことになるためです。直近の単価は品目の横に表示されるだけです。紙を読んでください。">A pick fills the description and unit, never the price — the same item has been read at 2.00 and at 130.00 here. The last price is printed beside the item as a reminder only.</p></div></li>
+    </ol>
+    <p style="color:var(--muted);font-size:12px;margin-top:10px" data-en="Spellings are folded on capitals and spaces only. “CORN STARCH 24 X 400 GM” and “Corn Starch 24X400G Misc” stay two entries — they differ by more than typography, and merging them would be a guess about which product it is." data-ja="表記ゆれは大文字小文字と空白だけを吸収します。「CORN STARCH 24 X 400 GM」と「Corn Starch 24X400G Misc」は別の行のままです。差が表記だけではないので、まとめるとどちらの品目かを推測することになります。">Spellings fold on capitals and spaces only. Entries differing by more than typography stay separate — merging them would be a guess about which product it is.</p>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="The name shown for an item is the spelling printed <strong>most often</strong>, not the most recent one — only 505 of 2,669 Dubai invoices have been reviewed, so the newest reading is usually one nobody has checked. Documents already marked <em>rejected</em> or <em>not a supplier invoice</em> are left out of the list entirely: the reading of a delivery note should not become the name of a product. If the list is ever cut short the panel says so, so &ldquo;nothing matches&rdquo; never quietly means &ldquo;this vendor never sold us that&rdquo;." data-ja="品目名として出るのは<strong>最も多く印字された綴り</strong>で、最新の綴りではありません。ドバイ2,669件のうちレビュー済みは505件しかないので、最新の読み取りはたいてい誰も確認していないものです。<em>rejected</em> と <em>not a supplier invoice</em> の書類はリストから完全に除外します（納品書の読み取りが品名になってはいけないため）。リストが打ち切られた場合はその旨を表示するので、「該当なし」が「その仕入先は売っていない」を意味することはありません。">The name shown is the spelling printed <strong>most often</strong>, not the newest — most readings have not been checked by anyone. Rejected and not-an-invoice documents are left out entirely.</p>
   </div>
 
   <!-- ATTACHING THE PHOTOGRAPH -->

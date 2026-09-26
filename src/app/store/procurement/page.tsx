@@ -40,6 +40,7 @@ import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/au
 import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { isActiveRequest, isCkDispatchVisible, isRejectedRequest, selectDisplayedRequests } from "@/lib/procurementStatus";
+import { STORE_STAGES, STAGE_LABEL, OUTSIDE_THE_FIVE, SERVER_FETCHED_STAGES, storeStageOf, stageOf, stageAddsInformation, type DirectPurchaseRow } from "@/lib/direct-purchase-stage";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, parseIsoTimeMs, useRelativeAgeNow } from "@/lib/timeAgo";
 import {
   GLASS_CARD,
@@ -989,6 +990,15 @@ export default function StoreProcurementHomePage() {
   const [rows, setRows] = useState<RequestRow[]>([]);
   // KPI card filter: null = show all, else a status bucket (DRAFT/IN_REVIEW/APPROVED/RETURNED).
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  // Yusuke's (4): the five stages, so the screen answers "not approved yet",
+  // "approved but no PO", "PO out but not delivered", "delivered but not
+  // received" and "done" without asking anyone.
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
+  // Counted by the server over every request. Deriving them from `rows` made
+  // them counts of the newest 200, which is not what anyone reads them as.
+  const [serverStageCounts, setServerStageCounts] = useState<Record<string, number> | null>(null);
+  // Read inside load() without adding it to every call site's signature.
+  const stageFilterRef = useRef<string | null>(null);
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
   const [lastCreatedRequestAt, setLastCreatedRequestAt] = useState("");
@@ -1180,8 +1190,24 @@ export default function StoreProcurementHomePage() {
     try {
       const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
       const activeStore = (storeCodeOverride !== undefined ? storeCodeOverride : storeCode).trim();
-      const qs = new URLSearchParams({ city: activeCity, limit: "200" });
+      // open_first: unreceived work ahead of the finished pile. Without it the
+      // newest 200 were almost all closed orders — Manila's window held 0
+      // In Review out of 169 and 9 Drafts out of 230, so the stage chips
+      // pointed at rows the list did not contain. Measured 2026-09-26:
+      // In Review 0 -> 45, Draft 9 -> 55, Needs PO 22 -> 42.
+      const qs = new URLSearchParams({ city: activeCity, limit: "200", open_first: "true" });
       if (activeStore) qs.set("store_code", activeStore);
+      // Request and Approval map exactly onto statuses, so when one of those
+      // chips is picked the server can return those rows instead of whatever
+      // the window happened to hold. Dubai has 261 drafts, all older than the
+      // window, so that chip led to an empty list however it was sorted.
+      const stageStatuses: Record<string, string> = {
+        REQUEST: "DRAFT,SUBMITTED",
+        APPROVAL: "IN_REVIEW",
+      };
+      if (stageFilterRef.current && stageStatuses[stageFilterRef.current]) {
+        qs.set("status", stageStatuses[stageFilterRef.current]);
+      }
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs.toString()}`,
         { method: "GET" },
@@ -1189,6 +1215,8 @@ export default function StoreProcurementHomePage() {
         pin,
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      const sc = (data as { stage_counts?: Record<string, number> })?.stage_counts;
+      setServerStageCounts(sc && typeof sc === "object" ? sc : null);
     } catch (e: any) {
       setError(friendlyProcurementError(e));
     } finally {
@@ -1411,11 +1439,42 @@ export default function StoreProcurementHomePage() {
     return out;
   }, [activeRows, rejectedRows]);
 
+  // Server counts when they are there; the page's own rows only as a fallback
+  // for an older backend, and then the caption says the number is partial
+  // rather than letting it read as the truth.
+  const stageCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    if (serverStageCounts) {
+      for (const st of STORE_STAGES) {
+        out[st.key] = st.stages.reduce((n, k) => n + (serverStageCounts[k] || 0), 0);
+      }
+      return out;
+    }
+    for (const r of activeRows) {
+      const k = storeStageOf(r as unknown as DirectPurchaseRow);
+      if (k) out[k] = (out[k] || 0) + 1;
+    }
+    return out;
+  }, [activeRows, serverStageCounts]);
+
+  // How many of a stage's orders this page actually holds. When the count is
+  // larger, the list is a window and the screen has to say so — otherwise
+  // "PO Issued 40" over eleven visible rows reads as a broken screen.
+  const visibleInStage = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const r of activeRows) {
+      const k = storeStageOf(r as unknown as DirectPurchaseRow);
+      if (k) out[k] = (out[k] || 0) + 1;
+    }
+    return out;
+  }, [activeRows]);
+
   // Rows shown in the Requests list, narrowed by the selected KPI card (if any).
-  const displayedRows = useMemo(
-    () => selectDisplayedRequests(activeRows, rejectedRows, statusFilter),
-    [activeRows, rejectedRows, statusFilter],
-  );
+  const displayedRows = useMemo(() => {
+    const base = selectDisplayedRequests(activeRows, rejectedRows, statusFilter);
+    if (!stageFilter) return base;
+    return base.filter(r => storeStageOf(r as unknown as DirectPurchaseRow) === stageFilter);
+  }, [activeRows, rejectedRows, statusFilter, stageFilter]);
 
   const STATUS_FILTER_LABEL: Record<string, string> = {
     DRAFT: "Draft", IN_REVIEW: "In Review", APPROVED: "Approved", RETURNED: "Returned", REJECTED: "Rejected",
@@ -1753,6 +1812,95 @@ export default function StoreProcurementHomePage() {
             <PlusCircle className="h-4 w-4" />
             {storeCode ? "New Request" : "Select Branch First"}
           </Link>
+
+          {/* The five stages (Yusuke's (4)). Above the status cards because
+              this is the question people were asking CK and Yamada-san by
+              message: where is this order actually stuck. */}
+          <div className="rounded-2xl border border-white/8 bg-white/4 p-3">
+            <div className="flex flex-wrap gap-2">
+              {STORE_STAGES.map((st, i) => {
+                const n = stageCounts[st.key] || 0;
+                const on = stageFilter === st.key;
+                return (
+                  <button
+                    key={st.key}
+                    type="button"
+                    title={st.hint}
+                    onClick={() => {
+                      const next = on ? null : st.key;
+                      stageFilterRef.current = next;
+                      setStageFilter(next);
+                      // Request and Approval are fetched by status, so the
+                      // chip has to re-ask the server rather than filter a
+                      // window that never held those rows.
+                      void loadMyRequests();
+                    }}
+                    className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all ${
+                      on ? "border-violet-400/50 bg-violet-500/15 text-violet-100"
+                         : "border-white/10 bg-white/5 text-zinc-300 hover:border-white/20"}`}
+                  >
+                    <span className="text-[10px] text-zinc-500">{i + 1}</span>
+                    <span>{st.label}</span>
+                    <span className={`font-mono ${n > 0 ? "text-white" : "text-zinc-600"}`}>{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className={`${T_CAPTION} mt-2`}>
+              {stageFilter
+                ? STORE_STAGES.find(s2 => s2.key === stageFilter)?.hint
+                : "Where each order actually is. Rejected and cancelled are not stages — they are under the cards below."}
+              {/* The counts are for every order; the list below is the newest
+                  200. Saying so is the difference between a window and a
+                  screen that looks broken — and the order worth chasing is
+                  usually the old one that is not in the window. */}
+              {(() => {
+                const short = STORE_STAGES.filter(
+                  st => (stageCounts[st.key] || 0) > (visibleInStage[st.key] || 0));
+                if (!serverStageCounts || !short.length) return null;
+                // Chips that fetch their own rows are not short of anything —
+                // saying "Request shows 0 of 261" about a chip that loads all
+                // 261 when pressed is the screen calling itself broken.
+                const windowed = short.filter(st => !SERVER_FETCHED_STAGES.has(st.key));
+                if (!windowed.length) return null;
+                return (
+                  <span className="text-amber-300">
+                    {" "}Counts are for every order; this list holds the newest 200, so{" "}
+                    {windowed.map(st => `${st.label} shows ${visibleInStage[st.key] || 0} of ${stageCounts[st.key]}`).join(", ")}
+                    . Narrow the dates to reach the older ones.
+                  </span>
+                );
+              })()}
+              {/* Orders that belong to none of the five. 121 of them on
+                  2026-09-26 — returned, in production, purchased. Leaving them
+                  uncounted makes the five look like the whole picture. */}
+              {(() => {
+                if (!serverStageCounts) return null;
+                const inFive = new Set(STORE_STAGES.flatMap(st => st.stages));
+                const rest = Object.entries(serverStageCounts)
+                  .filter(([k, n]) => !inFive.has(k) && n > 0)
+                  .sort((a, b) => b[1] - a[1]);
+                if (!rest.length) return null;
+                const total = rest.reduce((n, [, v]) => n + v, 0);
+                // Grouped by reason. Listing the stages and then listing the
+                // reasons separately left the reader to pair them up, and two
+                // stages sharing a reason printed it twice.
+                const byReason = new Map<string, string[]>();
+                for (const [k, n] of rest) {
+                  const why = OUTSIDE_THE_FIVE[k] || "not part of the supplier flow";
+                  byReason.set(why, [...(byReason.get(why) || []), `${STAGE_LABEL[k] || k} ${n}`]);
+                }
+                return (
+                  <span className="text-zinc-400">
+                    {" "}{total} order(s) are not in these five —{" "}
+                    {[...byReason.entries()]
+                      .map(([why, names]) => `${names.join(" and ")}: ${why}`)
+                      .join("; ")}.
+                  </span>
+                );
+              })()}
+            </p>
+          </div>
 
           {/* KPI cards */}
           <div className="grid grid-cols-2 gap-3">
@@ -2650,13 +2798,55 @@ export default function StoreProcurementHomePage() {
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 flex-1">
-                          <p className="break-words text-sm font-semibold leading-tight text-white flex items-center gap-2">
+                          <p className="break-words text-sm font-semibold leading-tight text-white flex flex-wrap items-center gap-2">
                             <span className="font-mono">{row.request_no}</span>
                             {row.id === lastCreatedRequestId && <span className={BADGE_SUCCESS}>New</span>}
+                            {/* Only where the stage says something the status
+                                badge below does not. DRAFT/IN REVIEW/REJECTED
+                                are already on the row; what was missing is
+                                what "APPROVED" hides — whether a PO exists,
+                                whether it arrived, whether the kitchen took
+                                it in. Two chips saying the same word is how a
+                                screen teaches people to stop reading it. */}
+                            {(() => {
+                              const dp = row as unknown as DirectPurchaseRow;
+                              const st = stageOf(dp);
+                              if (!stageAddsInformation(st)) return null;
+                              const days = Number(dp.days_in_stage || 0);
+                              return (
+                                <span className={BADGE_INFO} title={`${days} day(s) at this stage`}>
+                                  {STAGE_LABEL[st] || st}
+                                  {days > 0 && <span className="ml-1 opacity-70">{days}d</span>}
+                                </span>
+                              );
+                            })()}
+                            {Number((row as unknown as DirectPurchaseRow).po_count || 0) > 1 && (
+                              <span className={BADGE_WARNING}>
+                                {(row as unknown as DirectPurchaseRow).po_count} POs
+                              </span>
+                            )}
                           </p>
                           <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-zinc-500">
                             <span>{row.store_code || "-"}</span>
                             <span>{row.request_date || "-"}</span>
+                            {/* "PO issued, not delivered" is only actionable
+                                with the date attached: due Friday is a plan,
+                                due three weeks ago is a phone call. Overdue is
+                                judged against the expected date, not the age,
+                                so a PO raised long ago for a future delivery
+                                is not late. */}
+                            {(() => {
+                              const dp = row as unknown as DirectPurchaseRow;
+                              const due = dp.delivery_date;
+                              const st = stageOf(dp);
+                              if (!due || !["PO_ISSUED", "DELIVERED"].includes(st)) return null;
+                              const late = new Date(`${due}T23:59:59`) < new Date();
+                              return (
+                                <span className={late ? "text-amber-400" : "text-zinc-400"}>
+                                  Expected {due}{late ? " · overdue" : ""}
+                                </span>
+                              );
+                            })()}
                             <span className={`font-semibold ${isHighValue(row) ? "text-amber-400" : "text-zinc-400"}`}>
                               {Number(row.total_amount || 0).toFixed(2)} {currencyCode}
                             </span>

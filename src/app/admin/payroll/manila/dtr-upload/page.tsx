@@ -1,5 +1,6 @@
 "use client";
 
+import RecomputeSummary, { type RecomputeResult } from "@/components/payroll/RecomputeSummary";
 import {
   AlertCircle, CheckCircle2, ChevronLeft, ClipboardList,
   Download, FileSpreadsheet, Filter, Info, Loader2, Pencil, RefreshCw, Upload, X, Zap,
@@ -105,6 +106,7 @@ type SyncApiResult = {
   total_bayzat_rows?: number;
   would_sync?: number;
   synced?: number;
+  recompute?: RecomputeResult | null;
   new_staff?: { staff_name: string; bayzat_employee_id: string; would_create?: boolean }[];
   new_staff_created?: number;
   unmatched?: { employee_id?: string; staff_name?: string; name_raw?: string; work_date: string; reason?: string }[];
@@ -712,6 +714,12 @@ export default function DtrUploadPage() {
                         )}
                       </div>
                     )}
+
+                    {/* What this did to pay. A sync that corrects the DTR and
+                        leaves pay untouched is the failure this replaced, so
+                        the answer belongs on the same screen as the sync — not
+                        behind a Recompute button somebody has to remember. */}
+                    <RecomputeSummary result={syncResult.preview_only ? null : syncResult.recompute} />
 
                     {/* Unmatched staff list */}
                     {(syncResult.unmatched?.length ?? 0) > 0 && (

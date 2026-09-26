@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import ModalScrim from "@/components/ModalScrim";
+import {
+  LANES, STAGE_LABEL, laneOf, stageAlert, stageOf, stageTone,
+  type DirectPurchaseRow, type DirectPurchaseItem,
+} from "@/lib/direct-purchase-stage";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
   defaultProcurementName,
@@ -43,50 +48,15 @@ import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type DirectPurchaseItem = {
-  id: string;
-  item_name: string;
-  category: string;
-  qty: number;
-  unit: string;
-  unit_price: number;
-  line_total: number;
-  vendor_name: string;
-};
-
-type DirectPurchaseRow = {
-  id: string;
-  request_no: string;
-  parent_case_no: string;
-  city: string;
-  requested_by: string;
-  store_code: string;
-  request_date: string;
-  total_amount: number;
-  status: string;
-  receipt_url: string;
-  new_vendor_flag: boolean;
-  data_verified_at: string | null;
-  data_verified_by: string;
-  created_at: string;
-  items: DirectPurchaseItem[];
-};
-
 type CatalogItem = { item_name: string; unit: string; benchmark_unit_price: number; category: string };
 type VendorEntry  = { name: string; isRegistered: boolean };
 
 const UNITS = ["kg", "g", "L", "mL", "pc", "box", "bag", "bottle", "pack", "tray", "can"];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function statusBadge(status: string) {
-  const s = (status || "").toUpperCase();
-  if (s === "APPROVED")   return <span className={BADGE_SUCCESS}>{s}</span>;
-  if (s === "REJECTED")   return <span className={BADGE_ERROR}>{s}</span>;
-  if (s === "CANCELLED")  return <span className={BADGE_ERROR}>CANCELLED</span>;
-  if (s === "IN_REVIEW")  return <span className={BADGE_WARNING}>IN REVIEW</span>;
-  if (s === "SUBMITTED")  return <span className={BADGE_INFO}>SUBMITTED</span>;
-  return <span className={BADGE_INFO}>{s || "DRAFT"}</span>;
+function stageBadge(row: DirectPurchaseRow) {
+  const label = STAGE_LABEL[stageOf(row)] || stageOf(row);
+  const cls = { success: BADGE_SUCCESS, error: BADGE_ERROR, warn: BADGE_WARNING, info: BADGE_INFO }[stageTone(row)];
+  return <span className={cls}>{label}</span>;
 }
 
 // ─── Inline Edit State ───────────────────────────────────────────────────────
@@ -111,6 +81,28 @@ function buildEditState(row: DirectPurchaseRow): EditState {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+type AlertLogRow = {
+  request_id: string;
+  request_no: string;
+  alert_kind: string;
+  recipient_name: string;
+  delivery: string;
+  created_at: string;
+};
+
+type AlertPayload = {
+  threshold_hours: number;
+  go_live_at: string | null;
+  log: AlertLogRow[];
+  pending_count: number;
+  unreachable: {
+    staff_name: string;
+    alertable_requests: number;
+    open_requests: number;
+    last_30_days: number;
+  }[];
+};
+
 export default function DirectPurchasesAdminPage() {
   const auth = getAuth();
 
@@ -123,10 +115,23 @@ export default function DirectPurchasesAdminPage() {
   // ── Filter ──
   const [cityFilter,   setCityFilter]   = useState("manila");
   const [statusFilter, setStatusFilter] = useState("");
+  // In Review is the landing lane: it is the only one where somebody is
+  // waiting on a decision from this screen.
+  const [lane, setLane] = useState("IN_REVIEW");
   const [verifiedFilter, setVerifiedFilter] = useState("");   // "" | "false" | "true"
 
   // ── Data ──
   const [rows, setRows]       = useState<DirectPurchaseRow[]>([]);
+  // What the two creator alerts have done, and who they cannot reach.
+  const [alerts, setAlerts] = useState<AlertPayload | null>(null);
+  // Registering the missing IDs happens here, not on another page. The page
+  // that owns this table only shows a field for people who own a store
+  // exception type — Mariano and Aliana do not, so it could not have fixed
+  // them, and sending anybody there would have been the third wrong route in
+  // a row (lesson 21).
+  const [idEdit, setIdEdit] = useState<Record<string, string>>({});
+  const [idBusy, setIdBusy] = useState("");
+  const [idMsg,  setIdMsg]  = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
 
@@ -139,6 +144,11 @@ export default function DirectPurchasesAdminPage() {
 
   // ── Verify ──
   const [verifyBusy, setVerifyBusy] = useState("");
+  const [poBusy, setPoBusy] = useState("");
+  const [dateTarget, setDateTarget] = useState<DirectPurchaseRow | null>(null);
+  const [dateValue, setDateValue] = useState("");
+  const [dateReason, setDateReason] = useState("");
+  const [dateError, setDateError] = useState("");
 
   // ── Void ──
   const [voidTarget, setVoidTarget]   = useState<{ id: string; request_no: string } | null>(null);
@@ -172,14 +182,54 @@ export default function DirectPurchasesAdminPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const saveDiscordId = useCallback(async (name: string) => {
+    const value = (idEdit[name] ?? "").trim();
+    setIdBusy(name); setIdMsg("");
+    try {
+      const res = await fetch("/api/admin/management/channel-discord", {
+        method: "PUT",
+        headers: { ...(await procurementTokenHeaders(requestedBy, pin)), "Content-Type": "application/json" },
+        body: JSON.stringify({ staff_name: name, discord_user_id: value }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        // This screen is gated on procurement.request.write; saving a Discord
+        // id is gated on the management back-office channel. Somebody can see
+        // this banner and be refused here, and "Permission required:
+        // channel.admin.management_back_office" tells them a key name rather
+        // than what to do about it (lesson 125 — the audience has to be able
+        // to act, or be told who can).
+        throw new Error(
+          "Your account cannot register Discord IDs — that is a Management "
+          + "Back Office permission. Ask an admin to add it, or send them this "
+          + "name and ID to save.",
+        );
+      }
+      if (!res.ok) throw new Error(String(j?.detail || `Could not save (${res.status})`));
+      setIdMsg(`Saved for ${name}. Their next alert will be delivered.`);
+      setIdEdit(prev => { const n = { ...prev }; delete n[name]; return n; });
+      // Re-read so the banner drops the name it just fixed; without this the
+      // warning stays on screen and the save looks like it did nothing.
+      void load(cityFilter, statusFilter, verifiedFilter);
+    } catch (e) {
+      setIdMsg(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally { setIdBusy(""); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idEdit, requestedBy, pin, cityFilter, statusFilter, verifiedFilter]);
+
   // ─── Load list ───────────────────────────────────────────────────────────
   const load = useCallback(async (city: string, status: string, dv: string) => {
     setError(""); setLoading(true);
     try {
+      // Everything, not one status, and not 200. The lane counts have to be
+      // true to be worth showing, and ordering is created_at DESC, so at 200
+      // the rows that most needed attention -- the oldest, up to 116 days --
+      // were past the end and could not be reached from this screen at all.
       const qs = new URLSearchParams({
-        city, status,
+        city,
+        ...(status ? { status } : {}),
         ...(dv ? { data_verified: dv } : {}),
-        limit: "200",
+        limit: "1000",
       }).toString();
       const data = await procurementJson<{ rows: DirectPurchaseRow[] }>(
         `/api/admin/procurement/direct-purchases?${qs}`,
@@ -187,6 +237,15 @@ export default function DirectPurchasesAdminPage() {
         requestedBy, pin,
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      // Non-fatal on purpose: if this call is refused the banner is simply
+      // absent, rather than the whole screen failing over a caption.
+      try {
+        const a = await procurementJson<AlertPayload>(
+          `/api/admin/procurement/request-alerts?city=${encodeURIComponent(city)}`,
+          { method: "GET" }, requestedBy, pin,
+        );
+        setAlerts(a && Array.isArray(a.log) ? a : null);
+      } catch { setAlerts(null); }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -317,6 +376,53 @@ export default function DirectPurchasesAdminPage() {
     }
   };
 
+  // ─── Delivered / expected-date handlers ──────────────────────────────────
+  // Token auth, no PIN: the back office touches these every day, and lesson 77
+  // is that a PIN on a daily action is how a feature reaches zero uses.
+  const handleDelivered = async (row: DirectPurchaseRow, undo: boolean) => {
+    if (!row.po_id) return;
+    setPoBusy(row.id);
+    try {
+      await procurementJson(
+        `/api/admin/procurement/pos/${row.po_id}/delivered`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ undo }),
+        },
+        requestedBy, pin,
+      );
+      void load(cityFilter, statusFilter, verifiedFilter);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPoBusy("");
+    }
+  };
+
+  const saveDeliveryDate = async () => {
+    if (!dateTarget?.po_id || !dateValue) return;
+    setPoBusy(dateTarget.id);
+    setDateError("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/pos/${dateTarget.po_id}/delivery-date`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ delivery_date: dateValue, reason: dateReason }),
+        },
+        requestedBy, pin,
+      );
+      setDateTarget(null);
+      void load(cityFilter, statusFilter, verifiedFilter);
+    } catch (e: unknown) {
+      setDateError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPoBusy("");
+    }
+  };
+
   // ─── Void handler ────────────────────────────────────────────────────────
   const doVoidDirectPurchase = useCallback(async () => {
     if (!voidTarget || !voidReason.trim()) return;
@@ -357,6 +463,22 @@ export default function DirectPurchasesAdminPage() {
     : 0;
 
   const pendingCount = rows.filter((r) => !r.data_verified_at).length;
+
+  // Oldest first inside a lane. The whole complaint was that the screen does
+  // not say what to do next; created_at DESC answers "what is newest", which is
+  // the opposite of what a queue needs (pattern 5). Received and closed rows
+  // stay newest-first because nobody is working them.
+  const visibleRows = rows
+    .filter(r => laneOf(r) === lane)
+    .sort((a, b) => {
+      if (lane === "RECEIVED" || lane === "CLOSED") {
+        return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+      }
+      const av = lane === "PO_ISSUED" ? Number(a.days_past_delivery_date ?? -9999) : Number(a.days_in_stage || 0);
+      const bv = lane === "PO_ISSUED" ? Number(b.days_past_delivery_date ?? -9999) : Number(b.days_in_stage || 0);
+      return bv - av;
+    });
+
 
   return (
     <div className="space-y-5">
@@ -402,20 +524,6 @@ export default function DirectPurchasesAdminPage() {
             />
           </div>
           <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
-            <SelectDark
-              className={SELECT_CLASS}
-              value={statusFilter}
-              onChange={v => handleFilterChange(cityFilter, v, verifiedFilter)}
-              options={[
-                { value: "", label: "All" },
-                { value: "IN_REVIEW", label: "In Review" },
-                { value: "APPROVED", label: "Approved" },
-                { value: "REJECTED", label: "Rejected" },
-              ]}
-            />
-          </div>
-          <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Verification</label>
             <SelectDark
               className={SELECT_CLASS}
@@ -457,9 +565,133 @@ export default function DirectPurchasesAdminPage() {
         </div>
       )}
 
+      {/* Lane strip. The counts are the navigation (pattern 7: a number you can
+          read but not press is a dead end), and each lane states its own rule
+          so the flagging is inspectable rather than mysterious. */}
+      <div className="mb-3 flex flex-wrap gap-2">
+        {LANES.map((l) => {
+          const inLane = rows.filter(r => laneOf(r) === l.key);
+          const flagged = inLane.filter(r => stageAlert(r)).length;
+          const working = l.key !== "RECEIVED" && l.key !== "CLOSED";
+          const oldest = working && inLane.length
+            ? Math.max(...inLane.map(r => Number(
+                l.key === "PO_ISSUED" ? (r.days_past_delivery_date ?? 0) : (r.days_in_stage || 0))))
+            : 0;
+          const active = lane === l.key;
+          return (
+            <button key={l.key} type="button" onClick={() => setLane(l.key)}
+              className={`rounded-xl border px-3 py-2 text-left transition ${
+                active ? "border-violet-400/50 bg-violet-500/15 text-white"
+                       : "border-white/10 bg-white/4 text-zinc-300 hover:bg-white/8"}`}>
+              <span className="text-xs font-semibold">{l.label}</span>
+              <span className="ml-2 font-mono text-sm">{inLane.length}</span>
+              {/* "N flagged" only when it is a strict subset. Every row in
+                  In Review and nearly every row in Needs PO is past its
+                  threshold right now, and a badge that reads "48 flagged" next
+                  to a count of 48 says nothing -- the same way a queue where
+                  83% is noise stops being read. The oldest age is informative
+                  either way, so that is what the chip carries. */}
+              {flagged > 0 && flagged < inLane.length && (
+                <span className="ml-2 rounded-lg bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                  {flagged} flagged
+                </span>
+              )}
+              {working && inLane.length > 0 && oldest > 0 && (
+                <span className="ml-2 rounded-lg bg-white/8 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
+                  oldest {oldest}d
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <p className={`${T_CAPTION} mb-3`}>
+        {LANES.find(l => l.key === lane)?.hint}
+        {(() => {
+          const inLane = rows.filter(r => laneOf(r) === lane);
+          const flagged = inLane.filter(r => stageAlert(r)).length;
+          if (!inLane.length || flagged < inLane.length) return null;
+          // Saying "all of them" is the difference between a queue somebody
+          // works today and a backlog somebody schedules. Without it the
+          // screen looks like a daily list that is permanently on fire.
+          return (
+            <span className="text-amber-300">
+              {" "}All {inLane.length} are past that — this is a backlog to clear, not today&apos;s work.
+            </span>
+          );
+        })()}
+      </p>
+
+      {/* Alerts. The rule is on the screen because a rule nobody can see is a
+          rule nobody trusts, and the unreachable list is here because three of
+          the five creators on this screen have no Discord ID registered — an
+          alert addressed to them is written down and delivered nowhere. */}
+      {alerts && (
+        <div className="mb-3 rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
+          <p className={T_CAPTION}>
+            <span className="text-white/80">Alerts to the creator:</span>{" "}
+            still in review after {alerts.threshold_hours}h (checked each morning),
+            and immediately on rejection.
+            {alerts.go_live_at && (
+              <> Requests raised before{" "}
+                {new Date(alerts.go_live_at).toLocaleDateString("en-GB",
+                  { day: "2-digit", month: "short", year: "numeric" })}{" "}
+                are not alerted — the rows already sitting in review predate this
+                and are a backlog, not news.</>
+            )}
+            {alerts.pending_count > 0 && (
+              <span className="text-amber-300">
+                {" "}{alerts.pending_count} will be alerted on the next pass.
+              </span>
+            )}
+          </p>
+          {alerts.unreachable.length > 0 && (
+            <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3">
+              <p className={`${T_CAPTION} text-amber-200`}>
+                No Discord ID registered — these alerts are recorded but reach
+                nobody. Paste an ID and save; it is fixed from here.
+              </p>
+              <div className="mt-2 flex flex-col gap-2">
+                {alerts.unreachable.map(u => {
+                  // Both counts, because the two alerts have different
+                  // populations: stale review only touches open requests,
+                  // rejection touches whoever is raising them now.
+                  const parts: string[] = [];
+                  if (u.open_requests) parts.push(`${u.open_requests} open`);
+                  if (u.last_30_days) parts.push(`${u.last_30_days} in 30d`);
+                  return (
+                    <div key={u.staff_name} className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="min-w-[180px] text-white/85">{u.staff_name}</span>
+                      <span className="min-w-[120px] text-xs text-white/45">{parts.join(", ")}</span>
+                      <input
+                        value={idEdit[u.staff_name] ?? ""}
+                        onChange={(e) => setIdEdit({ ...idEdit, [u.staff_name]: e.target.value })}
+                        placeholder="Discord user ID (numbers only)"
+                        className={`${INPUT_CLASS} min-w-[220px] flex-1`}
+                      />
+                      <button type="button" className={SMALL_BUTTON}
+                        disabled={idBusy === u.staff_name || !(idEdit[u.staff_name] ?? "").trim()}
+                        onClick={() => void saveDiscordId(u.staff_name)}>
+                        {idBusy === u.staff_name ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {idMsg && <p className="mt-2 text-sm text-white/75">{idMsg}</p>}
+              <p className={`${T_CAPTION} mt-2 text-white/45`}>
+                In Discord: turn on Developer Mode, right-click the person and
+                choose Copy User ID. It is all digits — an @name will be refused
+                rather than stored and silently failing to deliver.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* List */}
       <div className="space-y-3">
-        {rows.map((row) => {
+        {visibleRows.map((row) => {
           const isExpanded = expandedId === row.id;
           const isEditing  = editingId  === row.id;
           const createdDt  = row.created_at
@@ -476,19 +708,59 @@ export default function DirectPurchasesAdminPage() {
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm font-semibold text-white">{row.request_no || row.parent_case_no}</span>
-                      {statusBadge(row.status)}
+                      {stageBadge(row)}
+                      {row.po_no && (
+                        <span className={BADGE_INFO} title="Purchase order raised for this request">
+                          {row.po_no}
+                        </span>
+                      )}
+                      {(() => {
+                        // "Alerted" alone would read as "the creator knows".
+                        // When delivery failed, that is the opposite of true,
+                        // so the badge says which happened.
+                        const a = (alerts?.log || []).find(x => x.request_id === row.id);
+                        if (!a) return null;
+                        const landed = a.delivery === "discord";
+                        return (
+                          <span className={landed ? BADGE_INFO : BADGE_WARNING}
+                            title={`${a.alert_kind === "rejected" ? "Rejection" : "Stale review"} alert to ${a.recipient_name || "nobody"} — ${a.delivery}`}>
+                            {landed ? "Creator told" : "Alert not delivered"}
+                          </span>
+                        );
+                      })()}
+                      {Number(row.po_count || 0) > 1 && (
+                        <span className={BADGE_WARNING}>{row.po_count} POs</span>
+                      )}
+                      {row.has_shortage && <span className={BADGE_WARNING}>Short delivery</span>}
                       {row.data_verified_at
                         ? <span className={BADGE_SUCCESS}><CheckCircle2 className="h-3 w-3" /> Verified</span>
                         : <span className={BADGE_WARNING}>Needs Review</span>
                       }
                       {row.new_vendor_flag && <span className={BADGE_WARNING}>New Vendor</span>}
                     </div>
+                    {stageAlert(row) && (
+                      <p className="text-[11px] font-medium text-amber-300">{stageAlert(row)}</p>
+                    )}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
                       <span>By <span className="text-zinc-300">{row.requested_by}</span></span>
                       {row.store_code && <span>Branch <span className="text-zinc-300">{row.store_code}</span></span>}
                       <span>Date <span className="text-zinc-300">{row.request_date || createdDt}</span></span>
                       <span>Vendor <span className="text-zinc-200 font-medium">{row.items[0]?.vendor_name || "—"}</span></span>
                       <span>Total <span className="font-semibold text-amber-300">PHP {Number(row.total_amount || 0).toFixed(2)}</span></span>
+                      {row.delivery_date && (
+                        <span>
+                          Expected <span className="text-zinc-200 font-medium">{row.delivery_date}</span>
+                          {row.delivery_date_revised_at && row.delivery_date_original !== row.delivery_date && (
+                            <span className="text-zinc-500"> (was {row.delivery_date_original})</span>
+                          )}
+                        </span>
+                      )}
+                      {row.delivered_confirmed_at && (
+                        <span className="text-sky-300">
+                          Delivered {String(row.delivered_confirmed_at).slice(0, 10)}
+                          {row.delivered_confirmed_by ? ` · ${row.delivered_confirmed_by}` : ""}
+                        </span>
+                      )}
                     </div>
                     {row.data_verified_at && (
                       <p className="text-[10px] text-emerald-500">
@@ -512,6 +784,33 @@ export default function DirectPurchasesAdminPage() {
                           ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                           : <CheckCircle2 className="h-3.5 w-3.5" />}
                         Mark Verified
+                      </button>
+                    )}
+                    {row.po_id && stageOf(row) !== "RECEIVED" && !isEditing && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); setDateTarget(row); setDateValue(row.delivery_date || ""); setDateReason(""); setDateError(""); }}
+                        className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+                        title="The supplier moved the date">
+                        <Pencil className="h-3.5 w-3.5" /> Expected date
+                      </button>
+                    )}
+                    {row.po_id && stageOf(row) === "PO_ISSUED" && !isEditing && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); void handleDelivered(row, false); }}
+                        disabled={poBusy === row.id}
+                        className={`${SMALL_BUTTON} flex items-center gap-1.5 border-sky-500/30 text-sky-300 hover:bg-sky-500/10`}
+                        title="Back office confirms the supplier delivered. The kitchen still confirms receipt.">
+                        {poBusy === row.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                        Mark Delivered
+                      </button>
+                    )}
+                    {row.po_id && stageOf(row) === "DELIVERED" && !isEditing && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); void handleDelivered(row, true); }}
+                        disabled={poBusy === row.id}
+                        className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+                        title="Undo the delivered mark">
+                        Undo Delivered
                       </button>
                     )}
                     {(row.status || "").toUpperCase() === "APPROVED" && !isEditing && (
@@ -705,6 +1004,50 @@ export default function DirectPurchasesAdminPage() {
       </div>
 
       {/* ── Void confirmation modal ── */}
+      {/* Expected delivery date. Uses ModalScrim, not the fixed/flex/center
+          pattern the void dialog below still uses -- that one is on lesson
+          116's list of 66 files and cannot be typed into on a phone. */}
+      {dateTarget && (
+        <ModalScrim className="bg-black/70 backdrop-blur-sm">
+          <div className="mx-auto my-4 w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
+            <h3 className="text-base font-semibold text-white">Expected delivery date</h3>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              <span className="font-mono text-zinc-200">{dateTarget.po_no || dateTarget.request_no}</span>
+              {" — "}what the supplier now says. The first promised date is kept, so the
+              order still counts as late against it.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-400">New date</label>
+                <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)}
+                  className={INPUT_CLASS} />
+                {dateTarget.delivery_date && (
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    Currently {dateTarget.delivery_date}
+                    {dateTarget.delivery_date_original && dateTarget.delivery_date_original !== dateTarget.delivery_date
+                      ? ` · first promised ${dateTarget.delivery_date_original}` : ""}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-400">Reason (optional)</label>
+                <input type="text" value={dateReason} onChange={(e) => setDateReason(e.target.value)}
+                  placeholder="Supplier out of stock" className={INPUT_CLASS} />
+              </div>
+              {dateError && <p className="text-xs text-red-400">{dateError}</p>}
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setDateTarget(null)} className={SECONDARY_BUTTON}>Cancel</button>
+                <button type="button" onClick={() => void saveDeliveryDate()}
+                  disabled={!dateValue || poBusy === dateTarget.id}
+                  className={PRIMARY_BUTTON}>
+                  {poBusy === dateTarget.id ? "Saving…" : "Save date"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalScrim>
+      )}
+
       {voidTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl">
