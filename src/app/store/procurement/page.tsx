@@ -997,6 +997,8 @@ export default function StoreProcurementHomePage() {
   // Counted by the server over every request. Deriving them from `rows` made
   // them counts of the newest 200, which is not what anyone reads them as.
   const [serverStageCounts, setServerStageCounts] = useState<Record<string, number> | null>(null);
+  // Read inside load() without adding it to every call site's signature.
+  const stageFilterRef = useRef<string | null>(null);
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
   const [lastCreatedRequestAt, setLastCreatedRequestAt] = useState("");
@@ -1188,8 +1190,24 @@ export default function StoreProcurementHomePage() {
     try {
       const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
       const activeStore = (storeCodeOverride !== undefined ? storeCodeOverride : storeCode).trim();
-      const qs = new URLSearchParams({ city: activeCity, limit: "200" });
+      // open_first: unreceived work ahead of the finished pile. Without it the
+      // newest 200 were almost all closed orders — Manila's window held 0
+      // In Review out of 169 and 9 Drafts out of 230, so the stage chips
+      // pointed at rows the list did not contain. Measured 2026-09-26:
+      // In Review 0 -> 45, Draft 9 -> 55, Needs PO 22 -> 42.
+      const qs = new URLSearchParams({ city: activeCity, limit: "200", open_first: "true" });
       if (activeStore) qs.set("store_code", activeStore);
+      // Request and Approval map exactly onto statuses, so when one of those
+      // chips is picked the server can return those rows instead of whatever
+      // the window happened to hold. Dubai has 261 drafts, all older than the
+      // window, so that chip led to an empty list however it was sorted.
+      const stageStatuses: Record<string, string> = {
+        REQUEST: "DRAFT,SUBMITTED",
+        APPROVAL: "IN_REVIEW",
+      };
+      if (stageFilterRef.current && stageStatuses[stageFilterRef.current]) {
+        qs.set("status", stageStatuses[stageFilterRef.current]);
+      }
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs.toString()}`,
         { method: "GET" },
@@ -1808,7 +1826,15 @@ export default function StoreProcurementHomePage() {
                     key={st.key}
                     type="button"
                     title={st.hint}
-                    onClick={() => setStageFilter(on ? null : st.key)}
+                    onClick={() => {
+                      const next = on ? null : st.key;
+                      stageFilterRef.current = next;
+                      setStageFilter(next);
+                      // Request and Approval are fetched by status, so the
+                      // chip has to re-ask the server rather than filter a
+                      // window that never held those rows.
+                      void loadMyRequests();
+                    }}
                     className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all ${
                       on ? "border-violet-400/50 bg-violet-500/15 text-violet-100"
                          : "border-white/10 bg-white/5 text-zinc-300 hover:border-white/20"}`}
