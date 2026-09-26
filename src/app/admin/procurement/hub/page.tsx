@@ -597,6 +597,41 @@ export default function ProcurementHubPage() {
         </span>
       </div>
 
+      {/* Session + city. Above the list on purpose: these three decide
+          what everything below shows, and under a 500-row panel they were
+          past the content they govern. */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
+            <SelectDark
+              value={city}
+              onChange={v => setCity(String(v).toLowerCase())}
+              className={SELECT_CLASS}
+              options={[
+                { value: "manila", label: "Manila" },
+                { value: "dubai", label: "Dubai" },
+              ]}
+            />
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void load()} disabled={loading}
+              className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* ── Overdue Delivery Exceptions Panel ── */}
       <div className={`overflow-hidden rounded-2xl border ${overdueRows.length > 0 ? "border-red-700/50 bg-red-950/8" : "border-white/8 bg-white/3"}`}>
         <div
@@ -887,38 +922,6 @@ export default function ProcurementHubPage() {
         )}
       </div>
 
-      {/* Session + city */}
-      <div className={`${GLASS_CARD} p-4`}>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>Name</label>
-            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
-            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
-            <SelectDark
-              value={city}
-              onChange={v => setCity(String(v).toLowerCase())}
-              className={SELECT_CLASS}
-              options={[
-                { value: "manila", label: "Manila" },
-                { value: "dubai", label: "Dubai" },
-              ]}
-            />
-          </div>
-          <div className="flex items-end">
-            <button type="button" onClick={() => void load()} disabled={loading}
-              className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              {loading ? "Loading…" : "Refresh"}
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Filters */}
       <div className={`${GLASS_CARD} p-4`}>
