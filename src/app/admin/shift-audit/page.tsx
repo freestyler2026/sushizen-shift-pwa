@@ -485,6 +485,17 @@ export default function ShiftAuditPage() {
                 <input
                   value={staffQuery}
                   onChange={(e) => setStaffQuery(e.target.value)}
+                  // Enter is handled here rather than left to the form's
+                  // implicit submission, which did not fire in production:
+                  // typing a name and pressing Enter left the list unchanged
+                  // and the page looking broken. Whatever swallows it, the
+                  // key does not need a form to work.
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      setStaffFilter(staffQuery.trim());
+                    }
+                  }}
                   placeholder="Staff name — part of it is enough"
                   aria-label="Filter by staff name"
                   className="w-64 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-violet-400/60"
