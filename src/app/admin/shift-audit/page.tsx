@@ -139,8 +139,15 @@ export default function ShiftAuditPage() {
 
   // Cell changes tab
   const [cells, setCells] = useState<CellChangeRow[]>([]);
+  const [cellTotal, setCellTotal] = useState(0);
+  const [cellSources, setCellSources] = useState<{ source: string; count: number }[]>([]);
   const [cellLoading, setCellLoading] = useState(false);
   const [cellError, setCellError] = useState<string | null>(null);
+  // What to narrow by. `staffQuery` is what is typed; `staffFilter` is what has
+  // been asked for — separated so the list is not refetched on every keystroke.
+  const [staffQuery, setStaffQuery] = useState("");
+  const [staffFilter, setStaffFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
 
   const canAccess = auth?.role === "ADMIN" || auth?.role === "HQ";
 
@@ -186,11 +193,18 @@ export default function ShiftAuditPage() {
       const today = new Date();
       const from = new Date(today); from.setDate(from.getDate() - weeks * 7);
       const to = new Date(today); to.setDate(to.getDate() + 28);
-      const res = await apiGet<{ ok: boolean; items: CellChangeRow[] }>(
+      const res = await apiGet<{
+        ok: boolean; items: CellChangeRow[]; total: number; truncated: boolean;
+        sources: { source: string; count: number }[];
+      }>(
         `/api/admin/shifts/cell_changes?city=${city}` +
-        `&date_from=${isoDate(from)}&date_to=${isoDate(to)}&limit=400`
+        `&date_from=${isoDate(from)}&date_to=${isoDate(to)}&limit=400` +
+        `&staff_name=${encodeURIComponent(staffFilter)}` +
+        `&source=${encodeURIComponent(sourceFilter)}`
       );
       setCells(res.items ?? []);
+      setCellTotal(res.total ?? (res.items?.length ?? 0));
+      setCellSources(res.sources ?? []);
     } catch (e: unknown) {
       setCellError(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
@@ -208,7 +222,12 @@ export default function ShiftAuditPage() {
     if (tab === "current") void loadCurrent();
     else if (tab === "log") void loadLog();
     else void loadCells();
-  }, [city, weeks, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [city, weeks, tab, staffFilter, sourceFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A city change makes the old source filter meaningless — Manila's sources are
+  // not Dubai's, and leaving it set returns an empty list that looks like "no
+  // changes" rather than "that source does not exist here".
+  useEffect(() => { setSourceFilter(""); }, [city]);
 
   // Group current history by week_start
   const byWeek: Record<string, HistoryRow[]> = {};
@@ -454,21 +473,79 @@ export default function ShiftAuditPage() {
               changes the week view announces; a publish records its own diff privately, which is
               why most rows here are not shown to anybody.
             </div>
+
+            {/* Narrowing it down. Without these the newest 400 of several
+                thousand is all anyone ever sees, and the one question this tab
+                answers — what did this cell say before — cannot be asked. */}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <form
+                onSubmit={(e) => { e.preventDefault(); setStaffFilter(staffQuery.trim()); }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  value={staffQuery}
+                  onChange={(e) => setStaffQuery(e.target.value)}
+                  placeholder="Staff name — part of it is enough"
+                  aria-label="Filter by staff name"
+                  className="w-64 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-violet-400/60"
+                />
+                <button type="submit" className={`${SMALL_BUTTON} whitespace-nowrap`}>Find</button>
+                {staffFilter && (
+                  <button
+                    type="button"
+                    onClick={() => { setStaffQuery(""); setStaffFilter(""); }}
+                    className={`${SMALL_BUTTON} whitespace-nowrap`}
+                  >
+                    Clear “{staffFilter}”
+                  </button>
+                )}
+              </form>
+              <SelectDark
+                value={sourceFilter}
+                onChange={(v) => setSourceFilter(v)}
+                aria-label="Filter by how the change was made"
+                className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none"
+                options={[
+                  { value: "", label: "Any way it was made" },
+                  ...cellSources.map((s) => ({
+                    value: s.source,
+                    label: `${s.source} (${s.count})`,
+                  })),
+                ]}
+              />
+            </div>
             {!cellLoading && cells.length === 0 && !cellError && (
               <div className={`${GLASS_CARD} p-10 text-center`}>
-                <p className="text-white/30">No cell changes recorded in this window.</p>
+                <p className="text-white/30">
+                  {staffFilter || sourceFilter
+                    ? "Nothing matches those filters in this window."
+                    : "No cell changes recorded in this window."}
+                </p>
                 <p className="mt-2 text-xs text-white/20">
-                  Try a longer period, or the other city.
+                  {staffFilter || sourceFilter
+                    ? "Clear a filter, or try a longer period."
+                    : "Try a longer period, or the other city."}
                 </p>
               </div>
             )}
             {cellLoading && <div className={`${GLASS_CARD} p-10 text-center text-white/30`}>Loading…</div>}
             {!cellLoading && cells.length > 0 && (
               <div className={`${GLASS_CARD} overflow-hidden`}>
-                <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
-                  <span className={T_LABEL}>{cells.length} change{cells.length > 1 ? "s" : ""}</span>
-                  <span className="text-xs text-white/30">newest first</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-4 py-3">
+                  <span className={T_LABEL}>
+                    {cellTotal > cells.length
+                      ? `${cells.length} of ${cellTotal.toLocaleString()} changes`
+                      : `${cellTotal.toLocaleString()} change${cellTotal === 1 ? "" : "s"}`}
+                  </span>
+                  <span className="text-xs text-white/30">most recently changed first</span>
                 </div>
+                {cellTotal > cells.length && (
+                  <div className="border-b border-amber-500/25 bg-amber-500/8 px-4 py-2.5 text-xs text-amber-300/90">
+                    Showing the {cells.length} most recent of {cellTotal.toLocaleString()}.
+                    Narrow by staff name or by how the change was made to see the rest —
+                    the older ones are not reachable by scrolling.
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
