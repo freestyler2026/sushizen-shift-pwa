@@ -473,6 +473,22 @@ export default function CkInventoryPage() {
             </div>
           )}
 
+          {/* What the Incoming column could NOT account for. The per-row note
+              can only speak about rows it matched; lines whose name is not on
+              this sheet, and orders too far past their delivery date to still
+              be arriving, are invisible without this. The sister screen
+              (AdminDailyInventoryTab) has carried it since the column shipped
+              — this is the screen CK actually counts on, and it did not. */}
+          {incoming && (incoming.not_on_sheet.length > 0 || incoming.stale_excluded > 0) && (
+            <p className="mb-2 text-[11px] text-sky-300/80">
+              {incoming.line_count} line(s) on their way
+              {incoming.not_on_sheet.length > 0
+                && ` · ${incoming.not_on_sheet.length} not counted on this sheet (${incoming.not_on_sheet.map((l) => l.item_name).join(", ")})`}
+              {incoming.stale_excluded > 0
+                && ` · ${incoming.stale_excluded} order(s) more than ${incoming.stale_days} days past their delivery date are not counted — those need closing, not re-ordering`}
+            </p>
+          )}
+
           <div className="overflow-x-auto rounded-2xl border border-neutral-800">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-neutral-800 bg-neutral-900/60 text-xs uppercase tracking-wide text-neutral-500">
