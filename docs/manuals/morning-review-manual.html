@@ -179,7 +179,7 @@
 <div class="wrap">
 
 <header class="top">
-  <span class="meta">Deployed 6 September 2026</span>
+  <span class="meta">Deployed 6 September 2026 &middot; salmon yield added 26 September</span>
   <h1>
     <span class="en">The morning review</span>
     <span class="ja">朝のレビュー</span>
@@ -456,6 +456,79 @@
 </section>
 
 <section>
+  <span class="eyebrow"><span class="en">Salmon yield</span><span class="ja">サーモンの歩留まり</span></span>
+  <h2>
+    <span class="en">Two questions about the fish</span>
+    <span class="ja">サーモンについての2つの問い</span>
+  </h2>
+  <p class="en">
+    A yield outside the band arrives here, and so does a branch that has stopped
+    submitting. Both have to be answered before the morning can be closed.
+  </p>
+  <p class="ja">
+    基準外の歩留まりと、提出が止まった支店。この2つがここに届きます。
+    <strong>どちらも答えるまで、その朝を完了にできません。</strong>
+  </p>
+
+  <div class="screen"><b>Salmon yield &mdash; 1 outside the band</b>
+  Main portion should be between 65% and 70% of the whole fish.
+
+  [ 62.4% low ]  3120g of 5000g   scrap 9.8% &middot; skin 24.1%   Rowena
+
+<b>Issue category</b>   No photo confirmed / Cutting issue (meat left on skin) /
+                 Weighing error / Input error / Quality &middot; condition issue / Other
+<b>Action plan</b>      No issue &mdash; yield is correct / Correct the data /
+                 Re-training required / Manager feedback given /
+                 Supplier &middot; quality issue / Other</div>
+
+  <ul class="plain">
+    <li class="en"><strong>The band is 65&ndash;70%, not &ldquo;below 70&rdquo;.</strong> Under 70 is 30 of the 53 yields on file since 1 August &mdash; asking about 57% of every submission is how the old alert died. Above 70 is an alert too, because that is what a weighing or an input error looks like.</li>
+    <li class="en"><strong>Both answers are required.</strong> Choosing Other on either one needs a note saying what happened.</li>
+    <li class="en"><strong>Roughly one a week per branch.</strong> Replayed over 20 August to 25 September: 24 items across five branches.</li>
+    <li class="ja"><strong>基準は65〜70%で、「70%未満」ではありません。</strong>8月1日以降の53件のうち30件が70%未満です。提出の57%について質問する仕組みは読まれなくなります（前の警告はそれで死にました）。70%超も警告です。計量ミス・入力ミスはそう見えるからです。</li>
+    <li class="ja"><strong>2つとも必須です。</strong>どちらかで Other を選んだ場合はコメントが要ります。</li>
+    <li class="ja"><strong>1支店あたり週1件程度です。</strong>8月20日〜9月25日で再現したところ、5支店合計24件でした。</li>
+  </ul>
+
+  <div class="screen"><b>Salmon yield &mdash; nothing submitted</b>
+  [ 5 days ]  Last yield 2026-09-20 by Rowena
+
+<b>Which is it</b>   [ No salmon cutting ]  [ Submission missing ]
+                                            &darr;
+<b>Have you sent a follow-up message to the Kitchen team on Discord?</b>
+                 [ Yes ]  [ Not yet ]   &larr; Not yet cannot be saved</div>
+
+  <ul class="plain">
+    <li class="en"><strong>Three days of silence raises it once</strong> &mdash; not once a day. While it sits unanswered nothing new is raised: the question is already on your screen.</li>
+    <li class="en"><strong>&ldquo;No salmon cutting&rdquo; closes it and keeps it quiet for a fortnight.</strong> A branch that has stopped cutting should not be asked the same thing ten times.</li>
+    <li class="en"><strong>&ldquo;Submission missing&rdquo; only saves once the follow-up has been sent.</strong> Chasing it is the whole of what this item asks for. Seven days later it comes back saying you chased it and it still has not come.</li>
+    <li class="ja"><strong>3日間の提出なしで1回だけ出ます。</strong>毎日ではありません。未回答の間は新しく出しません&mdash;同じ問いが既に画面にあるからです。</li>
+    <li class="ja"><strong>「No salmon cutting」で閉じ、2週間は出ません。</strong>やめた支店に同じ問いを10回するのは意味がありません。</li>
+    <li class="ja"><strong>「Submission missing」は、フォローを送ってからでないと保存できません。</strong>この項目が求めているのは催促そのものです。7日後、「催促したがまだ来ていない」として再度出ます。</li>
+  </ul>
+
+  <div class="warn">
+    <h3><span class="en">No salmon record has a photo</span><span class="ja">写真が1枚も保存されていません</span></h3>
+    <p class="en">
+      All 53 records on file have none. The upload from the Backup Report has
+      been failing silently since the feature was built &mdash; the report saved,
+      the photo did not, and nothing said so. That is fixed, and a failed upload
+      now says so on the screen. Records written before the fix will keep
+      showing &ldquo;No photo on this record&rdquo;, which is what
+      <em>No photo confirmed</em> is there for.
+    </p>
+    <p class="ja">
+      53件すべてに写真がありません。Backup Report からのアップロードが、
+      この機能ができてからずっと無言で失敗していました&mdash;レポートは保存され、
+      写真だけが保存されず、画面は何も言いませんでした。修正済みで、
+      失敗した場合は画面に出るようにしました。修正前の記録は
+      「No photo on this record」のままです。
+      <em>No photo confirmed</em> はそのための選択肢です。
+    </p>
+  </div>
+</section>
+
+<section>
   <span class="eyebrow"><span class="en">Honest limits</span><span class="ja">できていないこと</span></span>
   <h2>
     <span class="en">What this does not do</span>
@@ -501,16 +574,19 @@
   </div>
 
   <div class="warn">
-    <h3><span class="en">Dubai has no duty roster</span><span class="ja">ドバイは当番表が未設定です</span></h3>
+    <h3><span class="en">Dubai is addressed from the city roster</span><span class="ja">ドバイは都市の当番表から宛先が決まります</span></h3>
     <p class="en">
-      Dubai reviews are being generated but are addressed to nobody, so they do
-      not appear on anyone&rsquo;s screen and no badge lights up. Manila is set up.
-      Until a roster exists for Dubai, this is a Manila routine.
+      This used to say Dubai reviews were addressed to nobody. They are not:
+      all 54 of them carry an assignee, taken from the city-wide roster row
+      because no Dubai branch has one of its own. Whoever is on for the city
+      that day gets every branch. If that should be split by branch, the
+      roster is where to do it.
     </p>
     <p class="ja">
-      ドバイのレビューは生成されていますが<strong>宛先がありません。</strong>
-      誰の画面にも出ず、バッジも点きません。マニラは設定済みです。
-      当番表ができるまで、これはマニラの運用になります。
+      以前ここには「ドバイのレビューは宛先がない」と書いていました。<strong>違います。</strong>
+      54件すべてに担当者が入っています。支店ごとの当番が無いため、
+      都市全体の当番行から取っています。その日の担当者が全支店を受け持ちます。
+      支店ごとに分けるなら、当番表で設定します。
     </p>
   </div>
 </section>
@@ -548,14 +624,17 @@
 <footer>
   <p class="en">
     Sushi ZEN Workforce OS &middot; Store Operation Management Channel &middot;
-    Describes the system as deployed on 6 September 2026. Figures are measured
-    from production: 546 channel items and 70,345 product scores over ninety
-    days, prep times over the last fourteen.
+    Describes the system as deployed on 6 September 2026, with the salmon yield
+    items added on 26 September. Figures are measured from production: 546
+    channel items and 70,345 product scores over ninety days, prep times over
+    the last fourteen, and 53 salmon yields since 1 August replayed over 20
+    August to 25 September.
   </p>
   <p class="ja">
     Sushi ZEN Workforce OS・Store Operation Management Channel・
-    2026年9月6日時点。数字はすべて本番の実測（90日で チャンネル546件・
-    採点70,345件、Prep Time は直近14日）。
+    2026年9月6日時点、サーモンの歩留まりは9月26日追加。
+    数字はすべて本番の実測（90日で チャンネル546件・採点70,345件、
+    Prep Time は直近14日、サーモンは8月1日以降の53件を8月20日〜9月25日で再現）。
   </p>
 </footer>
 
