@@ -43,7 +43,7 @@ Store Procurement チャンネル
 
 Daily Inventory チャンネル
   /admin/daily-inventory                 81行  ← 実体は components/admin/AdminDailyInventoryTab
-                                               ⑤ の対象。incoming の概念は**どこにも無い**
+                                               ⑤ の対象。incoming は 2026-09-26 に実装（§11）
 ```
 
 ---
@@ -338,15 +338,41 @@ POST /api/admin/procurement/maintenance/po-receipt-drift               ← PIN +
 |---|---|
 | ① 48時間アラートの通知 | **未実装。** レーンと閾値表示のみ。通知は投入後の行だけを対象にすること（今やると123件同時に鳴る） |
 | ④ Store Procurement 側の5段階表示 | **未実装。** stage は API が返すので、あちらの画面が読むだけ |
-| ⑤ Daily Inventory の Incoming | **未実装。** 設計は下記 |
+| ⑤ Daily Inventory の Incoming | **実装済み**（2026-09-26）→ 下記 |
 | C2 の42件（兄弟POに受領印） | **未着手。** 複数仕入先の店舗発注のみ。Direct Purchase は1仕入先＝1POなので該当しない |
 | Overdue の `overdue_ack_status` | 389件すべて `pending`。掃除後に運用を決める |
 | ドバイ | **未計測**（API上限で切り捨て）。PO発行済み未受領が667件でマニラと正反対 |
 | この画面の Void ダイアログ | 教訓116の66ファイルの1つ。スマホで入力できない。新しい日付ダイアログのみ `ModalScrim` |
 
-### ⑤ の設計（実装前に読むこと）
+### ⑤ 実装済み（2026-09-26）— `incoming_for_daily_inventory`
 
-**在庫数に incoming を足してはいけない。** 実測（PO発行済み・未受領の226明細）:
+`GET /api/admin/procurement/incoming-stock?city=manila&store=CK`
+Daily Inventory の発注モーダルの各行に `+10 SACK due 09-26` として出る。
+
+**3つの設計判断は変えないこと:**
+
+1. **stage を自前で判定しない。** `PROC_STAGE_SQL` を読む。`receipt_confirmed_at` だけで
+   判定すると **222件**（§5 C1）を「入荷予定」として出す — 6月に届いた肉が今来ると言う
+2. **期限を3日以上過ぎた注文は数えない。** 根拠が2つ独立に一致する:
+   受領済み449件のリードタイムが p50=1日 / **p99=3日**、かつ現在の58件は
+   **「3日以内が14件 → 4〜14日が0件 → 15日以上が44件」**と間に空白がある。
+   44件は未クローズの記録で、在庫ではない。`PROC_INCOMING_STALE_DAYS` で変更可（デプロイ不要）
+3. **数量を合計しない。** 名前一致は89%だが**単位が一致するのは65%**。
+   `SUGAR` は SACK 発注／棚卸し kg、`Pork Belly` は KG 発注／棚卸し Block。
+   行ごとに発注単位を出し、不一致は ⚠ と棚卸し側の単位を表示する
+
+⚠️ **品目名のJOINは必ず1名1行に落とす。** `daily_inv_report_items` は
+**538行に対し名前は413種**（104件が旧シードの廃止行と重複）で、単位も食い違う
+（SACK / Sack / Bag）。素のJOINだと `+10 SACK` が3行に増え、**30袋届くと読める** —
+防ごうとしていた発注不足そのものになる。`DISTINCT ON` + `is_active DESC`。
+
+⚠️ **WH は Daily Inventory の支店に対応が無い**ので何も返さない（CKの数字を借りない）。
+
+本番実測（CK, 2026-09-26）: 37明細 / 30品目 / シート外4件 / 期限超過による除外4件。
+
+---
+
+（以下は判断の根拠。実測値）**在庫数に incoming を足してはいけない。** 全58件・226明細:
 
 | | 件数 | 割合 |
 |---|---:|---:|

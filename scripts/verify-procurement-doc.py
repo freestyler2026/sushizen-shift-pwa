@@ -145,6 +145,28 @@ if m6:
     ck("it does not create a purchase order (doc §0-1: a human does it later)",
        "create_proc_purchase_order" not in m6.group(0))
 
+print("== §11 the incoming figure (implemented 2026-09-26) ==")
+_inc = re.search(r"def incoming_for_daily_inventory\(.*?(?=\ndef )", db, re.S)
+ck("incoming_for_daily_inventory exists", _inc is not None,
+   "the doc's §11 describes a function that is gone")
+if _inc:
+    ib = _inc.group(0)
+    ck("it reads the shared stage, not its own rule (doc §11-1)",
+       "{PROC_STAGE_SQL}" in ib,
+       "deciding the stage locally shows the 222 pre-07-24 POs as arriving stock")
+    ck("it bounds staleness (doc §11-2)", "days_past <= %s" in ib)
+    ck("it reports what it held back", "stale_excluded" in ib and "not_on_sheet" in ib)
+    ck("it never sums a quantity across units (doc §11-3)", "SUM(" not in ib.upper())
+    ck("the sheet-name join is reduced to one row per name",
+       "DISTINCT ON (LOWER(BTRIM(item_name)))" in ib,
+       "538 master rows carry 413 names; a plain join triples the quantity")
+_st = re.search(r"def incoming_stale_days\(.*?(?=\ndef )", db, re.S)
+ck("the 3-day threshold is read at call time, not at import",
+   _st is not None and "os.environ.get" in _st.group(0))
+ck("the screen prints the ordered unit and marks a mismatch",
+   "unit_matches" in (FRONT / "src/components/admin/AdminDailyInventoryTab.tsx").read_text(),
+   "without the flag a third of the lines are silently in the wrong unit")
+
 print()
 if fails:
     print(f"{len(fails)} claim(s) in the doc no longer match the code:")
