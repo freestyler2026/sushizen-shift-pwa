@@ -470,8 +470,16 @@
     </div>
   </div>
   <div class="card">
+    <div class="card-title" data-en="Incoming — what is already on its way" data-ja="Incoming — すでに発注済みで未入荷のもの">Incoming — what is already on its way</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The Incoming column sits next to Theoretical and shows orders already placed with suppliers that have not been received yet, so a quantity can be decided without opening Procurement to check. It is shown, never added: the figure is in the unit the order was placed in, which is often not the unit this sheet counts." data-ja="Incoming 列は Theoretical の隣にあり、すでに仕入先へ発注済みでまだ入荷していない数量を出します。Procurement を開いて確認しなくても発注数量を決められるようにするためです。在庫には足しません — 数量は発注時の単位で、このシートが数えている単位とは違うことが多いためです。">Sits next to Theoretical: orders already placed and not yet received, so a quantity can be decided without opening Procurement. Shown, never added to stock.</p>
+    <div class="tip" style="margin-top:8px"><span class="tip-icon">⚠️</span><span data-en="A ⚠ next to a figure means this sheet counts that item in a different unit from the one it was ordered in — convert before using it. Of the lines measured when this was built, only about 4 in 10 could be compared unit-for-unit, so this is the normal case, not an exception." data-ja="数量の横の ⚠ は、その品目をこのシートが数えている単位と、発注した単位が違うという意味です。換算してから使ってください。実装時の実測では単位まで比較できた明細は約4割で、これは例外ではなく通常のケースです。">A ⚠ means this sheet counts that item in a different unit from the one it was ordered in — convert before using it. Only about 4 lines in 10 match unit-for-unit.</span></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="A line above the list names what the column could not account for: items on their way that this sheet does not count at all (so an empty row is not read as nothing coming), and orders more than 3 days past their delivery date, which are excluded with a count — those need closing in Procurement, not re-ordering." data-ja="リストの上の行に、この列が扱えなかったものが出ます — 入荷予定だがこのシートで数えていない品目の名前（行が空なのを「入荷なし」と読まないため）と、納品予定日を3日以上過ぎた注文の件数（入荷予定に含めていません。再発注ではなく Procurement 側でのクローズが必要です）。">A line above the list names what the column could not account for: items not counted on this sheet, and orders more than 3 days past their delivery date (excluded — those need closing in Procurement).</p>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="If the column is empty for everything, the account being used has no Procurement access. The page still works; only this column is blank." data-ja="全行で空欄の場合は、使っているアカウントに Procurement の権限がありません。ページは通常どおり使えて、この列だけが空になります。">If the column is blank for every row, the account has no Procurement access — the page still works, only this column is empty.</p>
+  </div>
+
+  <div class="card">
     <div class="card-title" data-en="Connected Pages" data-ja="連携ページ">Connected Pages</div>
-    <div class="chip-row"><span class="chip blue">CK Production (deductions reduce theoretical stock)</span><span class="chip amber">Items Master (item list source)</span></div>
+    <div class="chip-row"><span class="chip blue">CK Production (deductions reduce theoretical stock)</span><span class="chip amber">Items Master (item list source)</span><span class="chip">Procurement (Incoming column)</span></div>
   </div>
 </div>
 
