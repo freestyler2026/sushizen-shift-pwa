@@ -19,6 +19,7 @@
 
 ```
 タスクが...
+├─ **給与・勤怠・控除・休暇**            → **docs/payroll/PAYROLL_SYSTEM_MAP.md（必読・他を読む前に）**
 ├─ フロントページ・コンポーネント変更    → docs/ai/FRONTEND_MAP.md
 ├─ バックエンドAPIエンドポイント追加     → docs/ai/BACKEND_MAP.md
 ├─ DBテーブル・クエリ変更              → docs/ai/DATABASE_SCHEMA.md
@@ -29,6 +30,7 @@
 
 | ファイル | 用途 |
 |---|---|
+| `docs/payroll/PAYROLL_SYSTEM_MAP.md` | **給与に触る前に必読。** 2都市の違い・お金を生む9つの処理・休暇と欠勤の区別・検算手順。`python3 scripts/verify-payroll-doc.py` がコードとの一致を検査する |
 | `docs/ai/CURRENT_TASKS.md` | **毎セッション必読** — 現在の状態・pending tasks |
 | `docs/ai/FRONTEND_MAP.md` | 全ページ・コンポーネント一覧 |
 | `docs/ai/BACKEND_MAP.md` | APIエンドポイント・サービス一覧 |
