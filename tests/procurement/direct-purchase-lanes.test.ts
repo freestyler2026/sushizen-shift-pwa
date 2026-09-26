@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   LANES, STALE_DAYS, laneOf, stageAlert, stageOf,
   type DirectPurchaseRow,
-} from "@/app/admin/procurement/direct-purchases/page";
+} from "@/lib/direct-purchase-stage";
 
 /**
  * Which lane a CK->Supplier order lands in, and when it gets called out.
@@ -11,6 +11,10 @@ import {
  * whole change exists to fix is the same fact recorded twice and drifting
  * (receiving_status and receipt_confirmed_at disagree on 263 live orders), so a
  * second copy of the lane rules in a test file would be the same mistake.
+ *
+ * They live in src/lib rather than in the page because a Next.js page may only
+ * export a fixed set of fields; exporting them from page.tsx builds clean under
+ * tsc and then fails next build.
  *
  * The stage itself is decided in SQL (PROC_STAGE_SQL) and covered by the
  * backend's tests/test_procurement_pipeline.py; what is checked here is what

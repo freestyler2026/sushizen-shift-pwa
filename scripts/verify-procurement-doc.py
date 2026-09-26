@@ -41,23 +41,31 @@ m2 = re.search(r"def list_direct_proc_purchases\(.*?(?=\ndef )", db, re.S)
 ck("list_direct_proc_purchases exists", m2 is not None)
 if m2:
     body = m2.group(0)
-    ck("direct-purchase list does NOT return po_status (this is why ② is invisible)",
-       "po_status" not in body,
-       "it now returns po_status — doc §7 is stale")
-    ck("direct-purchase list does NOT return receiving_status",
-       "receiving_status" not in body,
-       "it now returns receiving_status — doc §7 is stale")
+    # Flipped on 2026-09-26: the whole point of the change was to return these.
+    # The guard now protects the fix rather than the defect.
+    for col in ("po_status", "receiving_status", "stage", "days_in_stage",
+                "delivery_date", "delivered_confirmed_at", "po_count"):
+        ck(f"direct-purchase list returns {col} (doc §7 / §11)", col in body,
+           f"{col} was dropped — the screen goes back to not knowing whether a PO exists")
+    ck("the stage comes from the shared PROC_STAGE_SQL, not a copy",
+       "PROC_STAGE_SQL" in body,
+       "the stage was inlined or duplicated — doc §11 says one definition")
 
 print("== §4 delivery_date is still write-once ==")
-ck("no UPDATE path appends delivery_date for POs",
-   'set_parts.append("delivery_date' not in db)
-upd = re.findall(r"UPDATE\s+proc_purchase_orders(.{0,600}?)(?:WHERE|RETURNING)", db, re.S | re.I)
-ck("no UPDATE proc_purchase_orders statement sets delivery_date",
-   not any(re.search(r"\bdelivery_date\s*=", u) for u in upd),
-   "delivery_date became updatable — doc §4 and the ③ plan must be rewritten")
-ck("update_proc_purchase_order_delivery takes no delivery_date argument",
-   re.search(r"def update_proc_purchase_order_delivery\((.*?)\) ->", db, re.S) is not None
-   and "delivery_date" not in re.search(r"def update_proc_purchase_order_delivery\((.*?)\) ->", db, re.S).group(1))
+# Flipped on 2026-09-26: delivery_date is now writable, but only through the two
+# paths doc §11 names, and both must capture the first promise. A third writer,
+# or one that skips the COALESCE, silently erases a supplier's slip.
+writers = re.findall(
+    r"SET delivery_date_original = COALESCE\(delivery_date_original, delivery_date\)", db)
+ck("exactly 2 writers of a PO delivery date, both preserving the original (doc §11)",
+   len(writers) == 2,
+   f"found {len(writers)} — a third writer, or one that dropped the COALESCE")
+ck("the manual edit exists", re.search(r"^def revise_po_delivery_date\(", db, re.M) is not None)
+ck("the supplier call carries its date onto the PO",
+   "if exp_date:" in db and "delivery_date_revision_reason" in db)
+ck("update_proc_purchase_order_delivery still does NOT touch delivery_date",
+   "delivery_date" not in re.search(r"def update_proc_purchase_order_delivery\((.*?)\) ->", db, re.S).group(1),
+   "that function is about email/receipt, not dates; a date argument there makes a third writer")
 
 print("== §4 the supplier-confirmation revised date exists but the overdue query ignores it ==")
 ck("supplier_confirmation_calls carries expected_delivery_date",
@@ -67,9 +75,12 @@ ck("list_overdue_deliveries_admin exists", m3 is not None)
 if m3:
     q = m3.group(0)
     ck("overdue query keys off po.delivery_date", "po.delivery_date" in q)
-    ck("overdue query does NOT consult supplier_confirmation_calls (doc §4)",
-       "supplier_confirmation" not in q,
-       "it now reads the revised date — doc §4 and the ③ plan are stale")
+        # Still true, and now harmless: the revised date is written onto
+    # po.delivery_date at the moment the call is logged, so this query follows it
+    # without reading the call log. If that write is ever removed this assertion
+    # stops being harmless, which is why the writer count above is checked too.
+    ck("overdue query reads po.delivery_date only (the call log writes through to it)",
+       "supplier_confirmation" not in q)
     ck("overdue query has the has_shortage second arm (doc §5 C4)",
        re.search(r"has_shortage\s*=\s*TRUE", q) is not None)
 
@@ -94,9 +105,16 @@ if m5:
 print("== §3 the Direct Purchase screen's status filter ==")
 FRONT = pathlib.Path(os.environ.get("FRONTEND_ROOT", "/Users/jaynishimura/Desktop/sushizen-shift-pwa"))
 page = (FRONT / "src/app/admin/procurement/direct-purchases/page.tsx").read_text()
-ck("the screen still offers no DRAFT filter option (doc §3 warning)",
-   not re.search(r'value="DRAFT"', page),
-   "a DRAFT option now exists — doc §3 is stale")
+# Flipped on 2026-09-26: the status dropdown is gone, replaced by lanes that
+# reach every stage. What matters now is that nothing is unreachable.
+ck("the screen has lanes, not a 4-option status dropdown (doc §11)",
+   "LANES" in page and 'value="IN_REVIEW", label' not in page)
+for stage in ("DRAFT", "REJECTED", "APPROVED_NO_PO", "PO_ISSUED", "RECEIVED"):
+    ck(f"a lane reaches {stage}", stage in page,
+       f"{stage} rows would be unreachable from the screen")
+ck("the list no longer caps at 200 (the oldest rows were past the end)",
+   'limit: "200"' not in page,
+   "back to 200 — orders up to 116 days old become unreachable again")
 
 print("== §0-1 the direct-purchase create endpoint still does not make a PO ==")
 m6 = re.search(r"async def api_admin_direct_purchase_create\(.*?(?=\n@app\.)", main, re.S)

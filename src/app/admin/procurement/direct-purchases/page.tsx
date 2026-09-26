@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ModalScrim from "@/components/ModalScrim";
+import {
+  LANES, STAGE_LABEL, laneOf, stageAlert, stageOf, stageTone,
+  type DirectPurchaseRow, type DirectPurchaseItem,
+} from "@/lib/direct-purchase-stage";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
   defaultProcurementName,
@@ -44,136 +48,16 @@ import SelectDark from "@/components/SelectDark";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type DirectPurchaseItem = {
-  id: string;
-  item_name: string;
-  category: string;
-  qty: number;
-  unit: string;
-  unit_price: number;
-  line_total: number;
-  vendor_name: string;
-};
-
-export type DirectPurchaseRow = {
-  id: string;
-  request_no: string;
-  parent_case_no: string;
-  city: string;
-  requested_by: string;
-  store_code: string;
-  request_date: string;
-  total_amount: number;
-  status: string;
-  receipt_url: string;
-  new_vendor_flag: boolean;
-  data_verified_at: string | null;
-  data_verified_by: string;
-  created_at: string;
-  items: DirectPurchaseItem[];
-  // The pipeline. All of this was already stored and already accurate; this
-  // screen just never asked for it, which is why "has a PO been issued for
-  // this order?" had to be answered by copying an ID into the PO page.
-  po_status?: string | null;
-  receiving_status?: string | null;
-  po_no?: string | null;
-  po_id?: string | null;
-  po_count?: number;
-  delivery_date?: string | null;
-  delivery_date_original?: string | null;
-  delivery_date_revised_at?: string | null;
-  delivery_date_revised_by?: string | null;
-  delivery_date_revision_reason?: string | null;
-  receipt_confirmed_at?: string | null;
-  delivered_confirmed_at?: string | null;
-  delivered_confirmed_by?: string | null;
-  has_shortage?: boolean | null;
-  stage?: string | null;
-  days_in_stage?: number | null;
-  days_past_delivery_date?: number | null;
-};
-
 type CatalogItem = { item_name: string; unit: string; benchmark_unit_price: number; category: string };
 type VendorEntry  = { name: string; isRegistered: boolean };
 
 const UNITS = ["kg", "g", "L", "mL", "pc", "box", "bag", "bottle", "pack", "tray", "can"];
 
-// How long a stage may sit before the row is called out. Shown on screen
-// (pattern 9: a threshold nobody can see is a threshold nobody trusts) and
-// deliberately different per stage: review is meant to happen next day, while
-// a PO that has not been raised a week after approval is a different problem.
-export const STALE_DAYS: Record<string, number> = {
-  IN_REVIEW: 2,
-  APPROVED_NO_PO: 3,
-  PO_ISSUED: 0, // judged against its own delivery date, not a fixed age
-};
-
-// The five stages the kitchen asked for, plus the one Yusuke named separately
-// ("approved but no PO yet") and the terminal states. Order is the pipeline
-// order, so the lane strip reads left to right the way the work flows.
-const STAGE_LABEL: Record<string, string> = {
-  DRAFT: "Draft",
-  SUBMITTED: "Submitted",
-  IN_REVIEW: "In Review",
-  APPROVED_NO_PO: "Approved · no PO",
-  PO_ISSUED: "PO issued · awaiting delivery",
-  DELIVERED: "Delivered · awaiting kitchen",
-  RECEIVED: "Received",
-  REJECTED: "Rejected",
-  CANCELLED: "Cancelled",
-};
-
-type Lane = { key: string; label: string; stages: string[]; hint: string };
-
-// In Review first and selected by default: it is the only lane where someone
-// is waiting on this screen. The rest are reachable but not in the way.
-export const LANES: Lane[] = [
-  { key: "IN_REVIEW", label: "In Review", stages: ["IN_REVIEW", "SUBMITTED"],
-    hint: "Waiting for approval. Flagged after 2 days." },
-  { key: "APPROVED_NO_PO", label: "Needs PO", stages: ["APPROVED_NO_PO"],
-    hint: "Approved, but no purchase order has been raised yet. Flagged after 3 days." },
-  { key: "PO_ISSUED", label: "Incoming", stages: ["PO_ISSUED", "DELIVERED"],
-    hint: "Ordered and not yet received by the kitchen. Flagged once the expected delivery date has passed." },
-  { key: "RECEIVED", label: "Received", stages: ["RECEIVED"], hint: "Closed — the kitchen confirmed receipt." },
-  { key: "CLOSED", label: "Rejected / Draft", stages: ["REJECTED", "CANCELLED", "DRAFT"],
-    hint: "Not going ahead, or never submitted." },
-];
-
-export function stageOf(row: DirectPurchaseRow): string {
-  return String(row.stage || (row.status || "").toUpperCase() || "UNKNOWN");
-}
-
-export function laneOf(row: DirectPurchaseRow): string {
-  const st = stageOf(row);
-  const lane = LANES.find(l => l.stages.includes(st));
-  return lane ? lane.key : "CLOSED";
-}
-
-/** Is this row overdue for its stage? Returns the reason, or "". */
-export function stageAlert(row: DirectPurchaseRow): string {
-  const st = stageOf(row);
-  const days = Number(row.days_in_stage || 0);
-  if (st === "PO_ISSUED" || st === "DELIVERED") {
-    const past = row.days_past_delivery_date;
-    if (past === null || past === undefined) return "No expected delivery date on the PO";
-    if (Number(past) > 0) return `${past} day${Number(past) === 1 ? "" : "s"} past the expected delivery date`;
-    return "";
-  }
-  const limit = STALE_DAYS[st];
-  if (limit && days > limit) return `${days} days in ${STAGE_LABEL[st] || st}`;
-  return "";
-}
-
 function stageBadge(row: DirectPurchaseRow) {
-  const st = stageOf(row);
-  const label = STAGE_LABEL[st] || st;
-  if (st === "RECEIVED") return <span className={BADGE_SUCCESS}>{label}</span>;
-  if (st === "REJECTED" || st === "CANCELLED") return <span className={BADGE_ERROR}>{label}</span>;
-  if (st === "APPROVED_NO_PO" || st === "IN_REVIEW") return <span className={BADGE_WARNING}>{label}</span>;
-  return <span className={BADGE_INFO}>{label}</span>;
+  const label = STAGE_LABEL[stageOf(row)] || stageOf(row);
+  const cls = { success: BADGE_SUCCESS, error: BADGE_ERROR, warn: BADGE_WARNING, info: BADGE_INFO }[stageTone(row)];
+  return <span className={cls}>{label}</span>;
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 // ─── Inline Edit State ───────────────────────────────────────────────────────
 

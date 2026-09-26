@@ -14,7 +14,7 @@
 |---|---|---|
 | 1 | Direct Purchase は「買った後の記録」だから PO は出ない | **出る。** 619件の承認済みのうち512件に PO がある。作成APIは PO を作らないが、**人が後から PO 画面で作る**のが正規の運用 |
 | 2 | 全リクエストが同じ種類 | **5種類**（`standard` / `direct_purchase` / `cash_purchase` / `ec_purchase` / `prepaid`）。マニラは**49%が direct_purchase**（770/1568） |
-| 3 | `/api/admin/procurement/requests` を見れば種類が分かる | **`purchase_type` が SELECT に無い。** この API を見ている限り両者は区別できない（私もできなかった） |
+| 3 | `/api/admin/procurement/requests` を見れば種類が分かる | **`purchase_type` が SELECT に無い（現在も）。** この API を見ている限り両者は区別できない（私もできなかった）。**direct-purchases 側は 2026-09-26 に pipeline を返すようになった** → §11 |
 | 4 | 「承認済みだがPO無し」は321件 | **107件。** 321は direct_purchase を混ぜた汚染値 |
 | 5 | 「PO発行済み未受領」は62件 | **60件**（direct_purchase 側）。standard 側は**2件**。都市で正反対 → §6 |
 | 6 | Overdue 389件は本当に遅れている | **68%（264件）がノイズ。** 内訳は §5。本物は13件＋短納品67件 |
@@ -120,9 +120,11 @@ DRAFT（219件）・IN_PRODUCTION（33件）には**画面から到達できな�
 
 ## §4 ③ の正体 — 半分実装されている
 
-`proc_purchase_orders.delivery_date` は **INSERT でしか書かれない**（db.py:15306, 15603）。
-UPDATE は9箇所あるが、**どれも delivery_date に触らない**（全数確認済み）。
-つまり**作成後に納品予定日を変更する経路はコード上どこにも存在しない。**
+⚠️ **2026-09-26 に解消した。以下は「なぜ機能していなかったか」の記録** → 現状は §11。
+
+（〜2026-09-26）`proc_purchase_orders.delivery_date` は **INSERT でしか書かれなかった**（db.py:15306, 15603）。
+UPDATE は9箇所あったが、**どれも delivery_date に触らなかった**（全数確認済み）。
+つまり**作成後に納品予定日を変更する経路がコード上どこにも存在しなかった。**
 
 ところが**別の場所に納品日の改定を記録する仕組みが既にある**:
 
@@ -142,7 +144,7 @@ AND store_today(r.city) > COALESCE(po.delivery_date::date, r.request_date::date 
 ```
 
 → 仕入先が日付を変えても Overdue のまま。**Yusuke の③の症状はこれ。**
-つまり③は「新機能」ではなく、**既にある改定日を `delivery_date` に反映させること**。
+つまり③は「新機能」ではなく、**既にある改定日を `delivery_date` に反映させること**だった（2026-09-26 実施）。
 
 ---
 
@@ -195,14 +197,20 @@ WHERE (po.receipt_confirmed_at IS NULL OR po.has_shortage = TRUE)
 
 ## §7 API が返さないもの（①②④⑤が動かない直接の理由）
 
-### `/api/admin/procurement/direct-purchases` の返す列
+### `/api/admin/procurement/direct-purchases`（2026-09-26 に拡張）
+**（〜2026-09-26）返していたのは以下だけ:**
 ```
 id, request_no, parent_case_no, city, requested_by, store_code, request_date,
 total_amount, status, purchase_type, receipt_url, new_vendor_flag,
 data_verified_at, data_verified_by, created_at, updated_at, items
 ```
-**po_status が無い。receiving_status が無い。納品予定日が無い。**
-→ Direct Purchase 画面は**原理的に**PO 発行状況を表示できない。②は画面の問題ではなく API の問題。
+**po_status が無く、receiving_status が無く、納品予定日が無かった。**
+→ Direct Purchase 画面は**原理的に**PO 発行状況を表示できなかった。②は画面の問題ではなく API の問題だった。
+
+**現在は上記に加えて**: `po_status` `receiving_status` `po_no` `po_id` `po_count`
+`delivery_date` `delivery_date_original` `delivery_date_revised_at/by/reason`
+`receipt_confirmed_at` `delivered_confirmed_at/by` `has_shortage`
+`stage` `days_in_stage` `days_past_delivery_date`。
 
 ### `/api/admin/procurement/requests` の返す列
 `po_status` `receiving_status` `invoice_status` `payment_status` `po_match_status` ほか**全部返す**。
@@ -265,3 +273,92 @@ grep -n 'set_parts.append("delivery_date' app/db.py    # 空であること
 | Overdue 一覧（delivery_date のみ参照） | `app/db.py:62249` |
 | 仕入先確認コール（改定日を持つ） | `app/db.py:62509` |
 | バッジ集計（standard の PO 未発行を数えていない） | `app/db.py:13016` |
+
+---
+
+## §11 2026-09-26 に変えたこと / まだ変えていないこと
+
+### stage — 1か所で定義した状態
+
+`PROC_STAGE_SQL`（`app/db.py`、`list_direct_proc_purchases` の直前）が唯一の定義。
+一覧・レーン件数・将来のアラートが同じ式を読む。**Python に写さない** — 写した瞬間に
+`receiving_status` と `receipt_confirmed_at` が263件で食い違ったのと同じことが起きる。
+
+```
+DRAFT → SUBMITTED → IN_REVIEW → APPROVED_NO_PO → PO_ISSUED → DELIVERED → RECEIVED
+                                      （+ REJECTED / CANCELLED）
+```
+
+**分岐の順序そのものが仕様。** RECEIVED を DELIVERED より先に判定する:
+Delivered の印は任意なので、押されていないことを「止まっている」と読むと
+**受領済み441件が厨房の作業に戻る。** `tests/test_procurement_pipeline.py` が順序を固定している。
+
+マニラ direct_purchase 770件の実測（2026-09-26）:
+
+| stage | 件数 |
+|---|---:|
+| RECEIVED | 466 |
+| APPROVED_NO_PO | **97** ← ②の実際の待ち行列 |
+| REJECTED | 83 |
+| PO_ISSUED | **58** ← ④⑤の実際の母数（= Incoming） |
+| IN_REVIEW | 48 |
+| DRAFT | 11 |
+| CANCELLED | 7 |
+
+⚠️ **生の列で数えると 107 / 65 になる。** 差は stage の方が正しい:
+- 10件は `po=DRAFT recv=CONFIRMED` — **PO を出さずに物が届いた**。PO を催促しても意味がない
+- 7件は `po=ISSUED recv=PENDING` だが **PO に受領印がある**。stage は PO 単位の事実に従う
+
+### 納品予定日を書く経路は2つだけ
+
+| 経路 | 関数 |
+|---|---|
+| BO が手で直す | `revise_po_delivery_date`（`POST /api/admin/procurement/pos/{po_id}/delivery-date`） |
+| 仕入先に電話して聞いた日を記録 | `log_supplier_confirmation_call`（`expected_delivery_date` を渡したとき） |
+
+**どちらも `delivery_date` 自体を動かす。** 別の列に書くと Overdue が追従しないため。
+**当初の約束日は `COALESCE(delivery_date_original, delivery_date)` で1回だけ確保**する
+（上書きすると仕入先の遅延が消えて評価が甘くなる）。
+**3つ目の書き手が現れたらテストが落ちる**（`test_only_two_places_write_a_po_delivery_date`）。
+
+### 掃除（未実行 — オーナーの操作待ち）
+
+```
+GET  /api/admin/procurement/maintenance/po-receipt-drift?city=manila   ← 件数だけ。PIN不要
+POST /api/admin/procurement/maintenance/po-receipt-drift               ← PIN + confirm:true
+```
+本番実測 **222件**、`newest_confirmed_at = 2026-07-24 05:20`（＝全件が押印コード導入前）。
+書き込み時は `_po_receipt_reconcile_bk_YYYYMMDD_HHMMSS` に退避してから UPDATE する。
+**stage は動かない** — 222件は既に `receiving_status` 経由で RECEIVED と判定されているため。
+動くのは Overdue 一覧（389 → 167 の見込み）。
+
+### まだ変えていないこと
+
+| 項目 | 状態 |
+|---|---|
+| ① 48時間アラートの通知 | **未実装。** レーンと閾値表示のみ。通知は投入後の行だけを対象にすること（今やると123件同時に鳴る） |
+| ④ Store Procurement 側の5段階表示 | **未実装。** stage は API が返すので、あちらの画面が読むだけ |
+| ⑤ Daily Inventory の Incoming | **未実装。** 設計は下記 |
+| C2 の42件（兄弟POに受領印） | **未着手。** 複数仕入先の店舗発注のみ。Direct Purchase は1仕入先＝1POなので該当しない |
+| Overdue の `overdue_ack_status` | 389件すべて `pending`。掃除後に運用を決める |
+| ドバイ | **未計測**（API上限で切り捨て）。PO発行済み未受領が667件でマニラと正反対 |
+| この画面の Void ダイアログ | 教訓116の66ファイルの1つ。スマホで入力できない。新しい日付ダイアログのみ `ModalScrim` |
+
+### ⑤ の設計（実装前に読むこと）
+
+**在庫数に incoming を足してはいけない。** 実測（PO発行済み・未受領の226明細）:
+
+| | 件数 | 割合 |
+|---|---:|---:|
+| Daily Inventory の品目マスタ（538件・名寄せ後413名）と名前が一致 | 143 | 63% |
+| うち**単位も比較できる** | **93** | **41%** |
+| 単位が違う | 50 | — |
+| 名前が一致しない（包材・調味料など） | 83 | 37% |
+
+不一致の実例: `SUGAR` 発注1 SACK / 在庫 kg、`Pork Belly BLSO` 発注20 KG / 在庫 Block、
+`Sushi 1Roll Tray` 発注4 box / 在庫 PKT。**教訓98の25倍ずれと同じ形。**
+
+→ **Incoming は別セルに「数量＋発注単位＋予定日」で出す。足し算はしない。**
+突合キーは既存の `/api/admin/procurement/requests/daily-inventory-stock` と同じ
+**`item_name.lower()`**（2つ目の対応表を作らない）。
+**一致しなかった明細数を画面に出す**（教訓97: 落とした件数を黙って捨てない）。

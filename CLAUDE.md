@@ -1670,6 +1670,25 @@ npx tsc --noEmit
 
 ---
 
+124. **`page.tsx` から名前付き export をすると `next build` だけが落ちる — `tsc --noEmit` は通る** → 2026-09-26、Direct Purchase のレーン判定をテストから実物で読みたくて `export function stageOf(...)` を page.tsx に書いた。`tsc --noEmit` は exit 0、`vitest` も全通、eslint もエラー0。**Vercel のビルドだけが失敗し、古いバンドルが配信され続けた。**
+    ```
+    Type error: Page "src/app/.../page.tsx" does not match the required types of a Next.js Page.
+      "stageOf" is not a valid Page export field.
+    ```
+    - **これは 2026-09-24（`1dd94c9d`）に記録済みの型だった。** ただし書かれていたのは
+      `docs/ai/CURRENT_TASKS.md` の27,000行目付近で、私が作業前に読む教訓一覧はこのファイル。
+      **記録した場所が読まれる場所でなければ、記録は再発を止めない。**
+    - **症状が「デプロイしたのに変わらない」なので、コードを疑わない。** 私は
+      ブラウザのキャッシュとService Workerを消して2回リロードした。実際は
+      `gh api .../deployments/<id>/statuses` が **`failure`** を返していた。
+      **画面が古いときは、まずデプロイの state を見る**（GitHubのdeployment行は
+      ビルド成功を意味しない — 作成された時点で記録される）。
+    - 直し方は共有ロジックを `src/lib/` に出すこと。**テストが実物を読める形は保たれる**
+      （教訓62 — テストに同じ規則を写したら、それ自体が直そうとしている不具合になる）。
+    - **`npx tsc --noEmit` と `npm run lint` は `next build` の代わりにならない。**
+      ページのファイルに何かを増やしたら `npm run build` を通す。約2分かかるが、
+      通さないと「デプロイ済み」が嘘になる。
+
 ## git index.lock クリーンアップ
 
 ```bash
