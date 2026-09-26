@@ -2771,6 +2771,24 @@ export default function StoreProcurementHomePage() {
                           <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-zinc-500">
                             <span>{row.store_code || "-"}</span>
                             <span>{row.request_date || "-"}</span>
+                            {/* "PO issued, not delivered" is only actionable
+                                with the date attached: due Friday is a plan,
+                                due three weeks ago is a phone call. Overdue is
+                                judged against the expected date, not the age,
+                                so a PO raised long ago for a future delivery
+                                is not late. */}
+                            {(() => {
+                              const dp = row as unknown as DirectPurchaseRow;
+                              const due = dp.delivery_date;
+                              const st = stageOf(dp);
+                              if (!due || !["PO_ISSUED", "DELIVERED"].includes(st)) return null;
+                              const late = new Date(`${due}T23:59:59`) < new Date();
+                              return (
+                                <span className={late ? "text-amber-400" : "text-zinc-400"}>
+                                  Expected {due}{late ? " · overdue" : ""}
+                                </span>
+                              );
+                            })()}
                             <span className={`font-semibold ${isHighValue(row) ? "text-amber-400" : "text-zinc-400"}`}>
                               {Number(row.total_amount || 0).toFixed(2)} {currencyCode}
                             </span>
