@@ -180,6 +180,80 @@ for scr, why in (
     ck(f"IncomingNote is wired into {scr.split('/')[-2]}",
        "IncomingNote" in (FRONT / scr).read_text(), why)
 
+# ── §12: the creator alerts ───────────────────────────────────────────────────
+_al = ROOT / "app/procurement_alerts.py"
+ck("the alert module exists (doc §12)", _al.exists())
+if _al.exists():
+    al = _al.read_text()
+    ck("the sweep will not look behind its go-live stamp",
+       "r.created_at >= %s::timestamptz" in al,
+       "without it, switching on fires 50 DMs for a June-August backlog")
+    ck("one stalled request is alerted once, not every morning",
+       "NOT EXISTS" in al and "proc_request_alerts a" in al)
+    ck("the threshold is Yusuke's 48h, read at call time",
+       'PROC_ALERT_STALE_HOURS", "48"' in al and "def stale_hours" in al)
+    ck("an alert with nowhere to go is recorded, not dropped",
+       'DELIVERY_NO_ID = "no_discord_id"' in al and "_record(request_id=request_id" in al,
+       "3 of the 5 creators have no Discord id")
+    ck("a refused DM is kept separate from a missing id",
+       'DELIVERY_FAILED = "discord_failed"' in al,
+       "one recipient is already blocked; the two need different fixes")
+    ck("all three Discord directories are consulted",
+       all(t in al for t in ("management_channel_discord",
+                             "discord_alert_recipients", "bo_assignments")),
+       "reading only the nearest one is how an alert goes nowhere")
+    ck("the INSERT can be proved without writing a row",
+       "def probe_record_insert" in al and "conn.rollback()" in al,
+       "every real write path is PIN-gated, inside a try/except")
+
+# The duplicate-route trap: alert on every reachable rejection path, none on the
+# unreachable copy. Counted here as well as in the test suite, because the doc
+# states it as a fact about main.py.
+_reject = [i + 1 for i, l in enumerate(main.split("\n"))
+           if "update_proc_request_status(" in l and 'status="REJECTED"' in l]
+_routes = {}
+for i, l in enumerate(main.split("\n")):
+    m = re.search(r'@app\.(get|post|patch|put|delete)\(\s*[\'"]([^\'"]+)[\'"]', l)
+    if m:
+        _routes.setdefault((m.group(1), m.group(2)), []).append(i + 1)
+_lines = main.split("\n")
+_live_ok, _dead_clean = True, True
+for ln in _reject:
+    best = None
+    for key, regs in _routes.items():
+        for r in regs:
+            if r <= ln and (best is None or r > best[0]):
+                best = (r, key)
+    if not best:
+        continue
+    reg, key = best
+    has = "notify_request_rejected" in "\n".join(_lines[ln - 1: ln + 20])
+    if reg == min(_routes[key]):
+        _live_ok = _live_ok and has
+    else:
+        _dead_clean = _dead_clean and not has
+ck("every reachable rejection path alerts the creator", bool(_reject) and _live_ok,
+   "a silent rejection path is the state this work set out to end")
+ck("the unreachable duplicate is left alone", _dead_clean,
+   "patching dead code looks like cover while a live path stays silent")
+
+_dp = (FRONT / "src/app/admin/procurement/direct-purchases/page.tsx").read_text()
+ck("the screen states the rule and names who cannot be reached",
+   "request-alerts" in _dp and "No Discord ID registered for" in _dp,
+   "a rule nobody can see is a rule nobody believes")
+ck("the register link points at the page that writes the right table",
+   "/admin/management/assignments" in _dp,
+   "the page in the NavBar writes the store attendance-alert list instead")
+
+_wk = (ROOT / "worker.py").read_text().split("\n")
+_def = next((i for i, l in enumerate(_wk)
+             if l.startswith("def run_proc_stale_review_alerts")), None)
+_guard = next((i for i, l in enumerate(_wk) if l.startswith('if __name__')), None)
+ck("the sweep is defined above the main() call (lesson 102)",
+   _def is not None and _guard is not None and _def < _guard)
+ck("the sweep is actually called",
+   any("run_proc_stale_review_alerts(now)" in l for l in _wk))
+
 print()
 if fails:
     print(f"{len(fails)} claim(s) in the doc no longer match the code:")

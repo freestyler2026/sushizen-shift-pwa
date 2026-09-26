@@ -616,8 +616,11 @@ export default function DirectPurchasesAdminPage() {
                   return `${u.staff_name}${parts.length ? ` (${parts.join(", ")})` : ""}`;
                 })
                 .join(", ")}
-              {" "}— their alerts are recorded but not delivered. Register them in
-              Store Operations → Management Channel → Discord IDs.
+              {" "}— their alerts are recorded but not delivered.{" "}
+              <a href="/admin/management/assignments"
+                 className="underline decoration-dotted hover:text-amber-200">
+                Register a Discord ID
+              </a>.
             </p>
           )}
         </div>

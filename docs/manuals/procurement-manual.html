@@ -1114,12 +1114,25 @@ td.muted { color:var(--muted); font-size:12px; }
   </div>
 
   <div class="card">
-    <div class="card-title" data-en="Two things this screen does not do yet" data-ja="この画面がまだできないこと">Two things this screen does not do yet</div>
+    <div class="card-title" data-en="Alerts to the person who raised the order" data-ja="発注した本人へのアラート">Alerts to the person who raised the order</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Two alerts go to the creator of the order, not to the approver. One when their order is still in review after 48 hours, checked each morning. One the moment their order is rejected, carrying the reason the reviewer typed. The rule and the cut-off date are printed on the screen above the list, so there is no need to remember them." data-ja="アラートは承認者ではなく発注した本人に届きます。1つは、自分のオーダーが48時間経っても In Review のままのとき（毎朝チェック）。もう1つは却下された瞬間で、審査した人が書いた理由が本文に入ります。ルールと開始日は一覧の上に表示されるので、覚えておく必要はありません。">Two alerts go to the order's creator, not the approver: one when it is still in review after 48 hours (checked each morning), one the moment it is rejected, carrying the reason. The rule and cut-off date are printed above the list.</p>
+    <div class="tip" style="margin-top:8px"><span class="tip-icon">⚠️</span><span data-en="Orders raised before the alerts were switched on are not alerted. The orders already sitting in In Review are between 38 and 115 days old, so alerting them would have sent 50 messages at once about work nobody is going to do today. They are still on the In Review lane, where they are a backlog to clear." data-ja="アラート開始前に作られたオーダーには通知が行きません。すでに In Review にあるものは38〜115日前のもので、通知すれば「今日やらない仕事」について50通が一度に飛ぶことになります。それらは In Review レーンに残っていて、片付けるリストとして扱います。">Orders raised before the alerts were switched on are not alerted — the ones already in review are 38 to 115 days old, and alerting them would have sent 50 messages at once. They stay on the In Review lane as a backlog.</span></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Each order row says which happened: Creator told, or Alert not delivered. They are separate on purpose — an alert can be recorded without reaching anybody, and calling that Alerted would claim the person knows when they do not." data-ja="各オーダーの行に結果が出ます — Creator told（本人に届いた）か Alert not delivered（届いていない）。区別しているのは、アラートが記録されても誰にも届かないことがあるためで、それを Alerted と書くと「本人は知っている」という嘘になります。">Each row says Creator told or Alert not delivered — separate on purpose, because an alert can be recorded without reaching anybody.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="If an alert says it was not delivered" data-ja="アラートが届いていないと出たら">If an alert says it was not delivered</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="Alerts are sent as a Discord direct message, and three of the five people who raise orders on this screen have no Discord ID registered. Their alerts are written down but reach nobody. The banner above the list names them, with a link to register an ID. Until that is done, those orders have to be followed on this screen rather than by notification." data-ja="アラートは Discord のDMで送ります。この画面で発注する5人のうち3人は Discord ID が未登録で、その人たちのアラートは記録はされますが誰にも届きません。一覧の上のバナーに名前と登録リンクが出ます。登録するまでは、そのオーダーは通知ではなくこの画面で追う必要があります。">Alerts are sent as a Discord DM, and three of the five people who raise orders here have no Discord ID registered — their alerts are recorded but reach nobody. The banner above the list names them with a link to register one.</p>
+    <p style="color:var(--muted);font-size:12px" data-en="Alert not delivered has two causes and the fixes differ. No Discord ID registered is fixed by registering one. A delivery that Discord refused usually means the person has blocked direct messages from the bot, and they have to allow them on their side. Hover the badge to see which one it was." data-ja="Alert not delivered の原因は2つあり、直し方が違います。Discord ID が未登録なら登録すれば直ります。Discord に拒否された場合はBotからのDMをブロックしている可能性が高く、本人の側で許可してもらう必要があります。どちらかはバッジにカーソルを合わせると出ます。">Two causes, different fixes: no Discord ID (register one), or Discord refused the message (the person has blocked DMs from the bot and must allow them). Hover the badge to see which.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="One thing this screen does not do yet" data-ja="この画面がまだできないこと">One thing this screen does not do yet</div>
     <ul style="color:var(--muted);font-size:12px;padding-left:18px;line-height:1.7">
-      <li data-en="It does not send alerts. The lanes and the flags are on the screen only — nobody is notified after 48 hours yet." data-ja="アラートは送りません。レーンとフラグは画面上だけで、48時間後に誰かに通知が行くわけではありません。">No alerts are sent. Lanes and flags are on-screen only.</li>
-      <li data-en="Daily Inventory does not yet show incoming quantities. Until it does, the Incoming lane on this screen is where to look before deciding an order quantity." data-ja="Daily Inventory にはまだ入荷予定数量が出ません。それまでは、発注数量を決める前にこの画面の Incoming レーンを見てください。">Daily Inventory does not show incoming quantities yet — use the Incoming lane here before deciding an order quantity.</li>
+      <li data-en="Nobody is told that an order is waiting on them. Both alerts go to the person who raised the order, which is what was asked for — but the approver sitting on a request for 48 hours is not notified, so an order stalls until its creator chases it." data-ja="「あなたが止めています」という通知はまだありません。どちらのアラートも発注した本人に届く仕様で、それが依頼された内容です — ただし48時間放置している承認者には通知が行かないので、作成者が催促するまでオーダーは止まったままになります。">No alert goes to the approver. Both go to the creator, as asked — so an order stalls until its creator chases it.</li>
     </ul>
   </div>
+</div>
 </div>
 
 <!-- ═══════════ CK ORDERS ═══════════ -->

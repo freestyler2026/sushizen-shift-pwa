@@ -404,3 +404,98 @@ POST /api/admin/procurement/maintenance/po-receipt-drift               ← PIN +
 突合キーは既存の `/api/admin/procurement/requests/daily-inventory-stock` と同じ
 **`item_name.lower()`**（2つ目の対応表を作らない）。
 **一致しなかった明細数を画面に出す**（教訓97: 落とした件数を黙って捨てない）。
+
+---
+
+## §12 ①のアラート — 発注者への通知（2026-09-26 実装）
+
+Yusuke の要望はこの2行。
+- **In Review のまま48時間経過 → Order作成者へ Alert**
+- **Rejected → Order作成者へ Alert**
+
+**書く前に測った4つが設計を決めた。** どれか1つを忘れると、この機能は
+「通知したつもりで誰にも届いていない」に戻る。
+
+### 1. Direct Purchase の作成者5人のうち、Discord DM が届くのは2人だけ
+
+| 作成者 | 発注数 | 未処理 | 直近30日 | 却下(30日) | Discord ID |
+|---|---:|---:|---:|---:|---|
+| Mariano Espenida Jr. | 532 | 23 | 29 | 0 | **無し** |
+| Yusuke Uejima | 154 | 25 | — | **18** | あり |
+| Aliana Manuel | 52 | 1 | **36** | **2** | **無し** |
+| Yuri Yamada | 30 | 3 | 10 | 0 | **無し** |
+| Yukihiro Nishimura | 2 | 2 | — | 0 | あり |
+
+**staff_name → Discord ID の表は1つではなく3つある**（`management_channel_discord` /
+`discord_alert_recipients` / `bo_assignments`）。近い方だけ読むと宛先が消える。
+`discord_id_for_staff()` が3つを1本のクエリで読む。
+
+→ **アラートは「記録してから送る」。** 送り先が無い分は捨てず
+`delivery='no_discord_id'` として残し、**画面に名前で出す。**
+
+⚠️ **登録先は文章で案内せずリンクにした。** 正しい表（`management_channel_discord`）を
+書く画面は `/admin/management/assignments` だが、**NavBar に載っていない** —
+「〜へ行ってください」と書いても辿れない（教訓21）。一方メニューにある
+**Discord Alerts** が書くのは `discord_alert_recipients` で、**店舗別の遅刻アラート
+名簿**なので、そこに足すと頼まれていない勤怠通知まで届き始める。
+**リンクにすれば、載っていない問題は消えて副作用も出ない。**
+`discord_failed`（Discord が拒否）と分けてある — 片方は ID の登録、
+もう片方は原因調査で、**直し方が違うものを同じ言葉にしない**。
+（実際 `discord_alert_recipients` の1名は既に `blocked`。）
+
+### 2. IN_REVIEW には38日間1件も入っていない。今そこにある50件は全て閾値超過
+
+最古115日・最新38日。**締切なしで有効化すると50通が1分で飛ぶ** — しかも
+届くのは2人だけで、内容は今日やる仕事ではない。**新しいアラートの受け手に
+「これは無視してよい」と教える最短の方法。**
+
+→ **go-live スタンプより後に作られた行だけを見る。** スタンプは
+`proc_alert_settings` にテーブル初回作成時に書かれる（設定忘れが起きない）。
+既存50件は **Direct Purchase 画面のレーン表示に残る** — あれは通知ではなく
+「片付けるリスト」。
+
+### 3. 実際に鳴るのは Rejected の方。直近30日で20件（Yusuke 18 / Aliana 2）
+
+**却下は掃引ではなくエンドポイントから鳴らす。** 1件の却下は1つの事象なので
+閾値も重複排除も不要で、**理由をその場で本人に渡せる**。
+却下理由が空欄なら「No reason was given.」と書く — 空行を送ると
+作成者は誰に聞けばいいか分からない。
+
+### 4. REJECTED を書く経路は3つあり、そのうち1つは到達不能
+
+`app/main.py` は調達ブロックを**2回登録**しており、FastAPI は**最初の登録を採用**する
+（インストール済みの FastAPI で実測確認）。
+
+| 行 | エンドポイント | 状態 | アラート |
+|---:|---|---|---|
+| 26146 | `POST /api/admin/procurement/approvals/act` | 生きている | **入れた** |
+| 27698 | `POST /api/admin/procurement/cases/{id}/reject` | 生きている（最初の登録） | **入れた** |
+| 34098 | 同上の2つ目の登録 | **到達不能** | **入れない** |
+
+⚠️ **到達不能な方に入れてはいけない。** 入れると「対応済み」に見えて、
+生きている経路が黙ったままになる。
+`tests/test_procurement_alerts.py::test_every_reachable_rejection_path_alerts_the_creator`
+が全ての REJECTED 書き込みを走査し、**生きている側に全部あり・死んでいる側に
+1つも無い**ことを検査する。4つ目の経路を誰かが足したら落ちる。
+
+### 閾値は48時間だけ
+
+Yusuke が言った数字。**都市別の変種も件数上限も作っていない**（教訓123:
+頼まれていない既定値は、他人が発見する羽目になる仕様）。
+`PROC_ALERT_STALE_HOURS` でデプロイ不要に変更可。
+
+### 検証できたこと・できていないこと
+
+`GET /api/admin/procurement/request-alerts` は**読むだけで何も送らない**ので、
+ルールを実際に人に向けて撃つ前に確かめられる。本番実測（2026-09-26）:
+`threshold_hours=48` / `pending_count=0`（＝締切が効いている）/
+`unreachable` に3名 / `insert_probe.ok=true`。
+
+⚠️ **`insert_probe` は本物の INSERT を実行して ROLLBACK する。** アラートを書く
+経路は**全て承認PINの後ろ**にあるので、この文が本番で初めて走るのは
+「誰かが最初に却下した瞬間」で、しかも `try/except` の中なので
+**列名を間違えていても黙って失敗する**。それを防ぐための常設の自己検査。
+
+⚠️ **却下アラートの端から端までは未検証。** 却下は PIN が要るので私は実行できない。
+検証済みなのは、読み取り側・INSERT文・Discord ID 解決（3表）・単体22件。
+**最初の1件が却下されたら、画面のバッジが "Creator told" になるか見ること。**
