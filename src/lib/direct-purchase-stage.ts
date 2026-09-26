@@ -114,6 +114,38 @@ export const LANES: Lane[] = [
     hint: "Not going ahead, or never submitted." },
 ];
 
+/**
+ * The Store Procurement channel's five, which are Yusuke's (4) verbatim:
+ * Request -> Approval -> PO Issued -> Delivered -> Received.
+ *
+ * Deliberately NOT the same grouping as LANES above, and deliberately from the
+ * same stage vocabulary. The back office needs PO Issued and Delivered apart —
+ * "the supplier has not sent it" and "it is here but the kitchen has not
+ * received it" are different people's problems — while the Direct Purchase
+ * screen merges them into Incoming, because there the question is only
+ * "has it arrived". One set of stages, two readings of it; a second set of
+ * stage names is how two screens start disagreeing about the same order.
+ */
+export const STORE_STAGES: Lane[] = [
+  { key: "REQUEST", label: "Request", stages: ["DRAFT", "SUBMITTED"],
+    hint: "Raised, not yet submitted for approval." },
+  { key: "APPROVAL", label: "Approval", stages: ["IN_REVIEW"],
+    hint: "Waiting for approval." },
+  { key: "PO_ISSUED", label: "PO Issued", stages: ["APPROVED_NO_PO", "PO_ISSUED"],
+    hint: "Approved. Shows whether the purchase order has been raised yet." },
+  { key: "DELIVERED", label: "Delivered", stages: ["DELIVERED"],
+    hint: "Back office has confirmed delivery; the kitchen has not received it yet." },
+  { key: "RECEIVED", label: "Received", stages: ["RECEIVED"],
+    hint: "The kitchen confirmed receipt." },
+];
+
+/** Which of the five a row belongs to, or "" for rejected/cancelled. */
+export function storeStageOf(row: DirectPurchaseRow): string {
+  const st = stageOf(row);
+  const lane = STORE_STAGES.find(l => l.stages.includes(st));
+  return lane ? lane.key : "";
+}
+
 export function stageOf(row: DirectPurchaseRow): string {
   return String(row.stage || (row.status || "").toUpperCase() || "UNKNOWN");
 }
