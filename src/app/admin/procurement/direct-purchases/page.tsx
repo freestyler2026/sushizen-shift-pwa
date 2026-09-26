@@ -124,6 +124,14 @@ export default function DirectPurchasesAdminPage() {
   const [rows, setRows]       = useState<DirectPurchaseRow[]>([]);
   // What the two creator alerts have done, and who they cannot reach.
   const [alerts, setAlerts] = useState<AlertPayload | null>(null);
+  // Registering the missing IDs happens here, not on another page. The page
+  // that owns this table only shows a field for people who own a store
+  // exception type — Mariano and Aliana do not, so it could not have fixed
+  // them, and sending anybody there would have been the third wrong route in
+  // a row (lesson 21).
+  const [idEdit, setIdEdit] = useState<Record<string, string>>({});
+  const [idBusy, setIdBusy] = useState("");
+  const [idMsg,  setIdMsg]  = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
 
@@ -173,6 +181,28 @@ export default function DirectPurchasesAdminPage() {
     void init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const saveDiscordId = useCallback(async (name: string) => {
+    const value = (idEdit[name] ?? "").trim();
+    setIdBusy(name); setIdMsg("");
+    try {
+      const res = await fetch("/api/admin/management/channel-discord", {
+        method: "PUT",
+        headers: { ...(await procurementTokenHeaders(requestedBy, pin)), "Content-Type": "application/json" },
+        body: JSON.stringify({ staff_name: name, discord_user_id: value }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String(j?.detail || `Could not save (${res.status})`));
+      setIdMsg(`Saved for ${name}. Their next alert will be delivered.`);
+      setIdEdit(prev => { const n = { ...prev }; delete n[name]; return n; });
+      // Re-read so the banner drops the name it just fixed; without this the
+      // warning stays on screen and the save looks like it did nothing.
+      void load(cityFilter, statusFilter, verifiedFilter);
+    } catch (e) {
+      setIdMsg(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally { setIdBusy(""); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idEdit, requestedBy, pin, cityFilter, statusFilter, verifiedFilter]);
 
   // ─── Load list ───────────────────────────────────────────────────────────
   const load = useCallback(async (city: string, status: string, dv: string) => {
@@ -603,25 +633,45 @@ export default function DirectPurchasesAdminPage() {
             )}
           </p>
           {alerts.unreachable.length > 0 && (
-            <p className={`${T_CAPTION} mt-2 text-amber-300`}>
-              No Discord ID registered for{" "}
-              {alerts.unreachable
-                .map(u => {
-                  // Both numbers, because the two alerts have different
+            <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3">
+              <p className={`${T_CAPTION} text-amber-200`}>
+                No Discord ID registered — these alerts are recorded but reach
+                nobody. Paste an ID and save; it is fixed from here.
+              </p>
+              <div className="mt-2 flex flex-col gap-2">
+                {alerts.unreachable.map(u => {
+                  // Both counts, because the two alerts have different
                   // populations: stale review only touches open requests,
                   // rejection touches whoever is raising them now.
-                  const parts = [];
+                  const parts: string[] = [];
                   if (u.open_requests) parts.push(`${u.open_requests} open`);
                   if (u.last_30_days) parts.push(`${u.last_30_days} in 30d`);
-                  return `${u.staff_name}${parts.length ? ` (${parts.join(", ")})` : ""}`;
-                })
-                .join(", ")}
-              {" "}— their alerts are recorded but not delivered.{" "}
-              <a href="/admin/management/assignments"
-                 className="underline decoration-dotted hover:text-amber-200">
-                Register a Discord ID
-              </a>.
-            </p>
+                  return (
+                    <div key={u.staff_name} className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="min-w-[180px] text-white/85">{u.staff_name}</span>
+                      <span className="min-w-[120px] text-xs text-white/45">{parts.join(", ")}</span>
+                      <input
+                        value={idEdit[u.staff_name] ?? ""}
+                        onChange={(e) => setIdEdit({ ...idEdit, [u.staff_name]: e.target.value })}
+                        placeholder="Discord user ID (numbers only)"
+                        className={`${INPUT_CLASS} min-w-[220px] flex-1`}
+                      />
+                      <button type="button" className={SMALL_BUTTON}
+                        disabled={idBusy === u.staff_name || !(idEdit[u.staff_name] ?? "").trim()}
+                        onClick={() => void saveDiscordId(u.staff_name)}>
+                        {idBusy === u.staff_name ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {idMsg && <p className="mt-2 text-sm text-white/75">{idMsg}</p>}
+              <p className={`${T_CAPTION} mt-2 text-white/45`}>
+                In Discord: turn on Developer Mode, right-click the person and
+                choose Copy User ID. It is all digits — an @name will be refused
+                rather than stored and silently failing to deliver.
+              </p>
+            </div>
           )}
         </div>
       )}

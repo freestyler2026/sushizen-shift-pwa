@@ -31823,3 +31823,42 @@ Raj Deeban Jegan は staff_master 1行・profile 1行・9月DTR 18行（OT 3.00h
 - 期間7の再計算を試みた one-off dyno が23分動き続けていた（停止済み・期間7は無傷）。
   その間に web dyno が1回クラッシュ。再起動で復旧、起動ログはクリーン。
 - `Padam Bahadur K C 2026-09-01` — 退勤打刻漏れで実働0と読まれ、遅刻70分の控除 AED 11.46 が付く。
+
+---
+
+## 2026-09-26 — ①のアラート（発注者への通知）実装
+
+### 入れたもの
+- `app/procurement_alerts.py`（新規）— 48h 停滞アラート（毎朝の掃引）と却下アラート
+  （却下エンドポイントから即時）。**記録してから送る**設計で、送り先が無い分は
+  `delivery='no_discord_id'` として残す。
+- 却下アラートを**生きている2経路**に入れた（`approvals/act` 26146 / `cases/{id}/reject` 27698）。
+  **34098 の3つ目は到達不能なので入れていない**（FastAPI は最初の登録を採用。実測確認済み）。
+- `worker.py` に `run_proc_stale_review_alerts`（UTC 00 = マニラ 08:10、`main()` 呼び出しより上）。
+- `GET /api/admin/procurement/request-alerts` — ログ／次に鳴る対象／届かない作成者／
+  `insert_probe`（本物の INSERT を実行して ROLLBACK）。**読むだけで何も送らない。**
+- Direct Purchase 画面にルール表示・届かない作成者の名前＋登録リンク・行ごとの
+  `Creator told` / `Alert not delivered`。
+- `tests/test_procurement_alerts.py` 22件（12ミューテーション全て捕捉）、
+  doc §12 ＋ verifier 20チェック（3ミューテーション捕捉）、Procurement manual 更新。
+
+### 本番実測（2026-09-26）
+`threshold_hours=48` / `go_live_at=2026-09-26T12:41:44Z` / `pending_count=0`（締切が効いている）
+/ `insert_probe.ok=true`（2回呼んで log_count 0 のまま＝ロールバック確認）。
+
+### オーナー作業（PIN が要るか、判断が要るもの）
+1. **Discord ID の登録3名** — Mariano Espenida Jr.（23 open / 29 in 30d）・
+   Aliana Manuel（1 open / **36 in 30d・最新 9/25**）・Yuri Yamada（3 open / 10 in 30d）。
+   `/admin/management/assignments`（画面のバナーからリンク）。
+   **登録するまで、この3名の却下アラートは記録されるだけで誰にも届かない。**
+   直近30日の却下20件のうち Aliana 分2件が該当。
+2. **却下アラートの端から端までが未検証** — 却下は承認PINが要るので私は実行できない。
+   **最初の1件を却下したら、その行のバッジが `Creator told` になるか確認してください。**
+   ならなければ `insert_probe` と `unreachable` を見れば原因が切り分けられる。
+3. `/admin/management/assignments` は **NavBar に載っていない**（今回リンクで回避したが、
+   メニューに足すかは判断事項）。
+
+### 未着手のまま（既存）
+- 222件の backfill（PIN）: `GET → POST /api/admin/procurement/maintenance/po-receipt-drift`
+- ④ Store Procurement の5段階表示（stage は API が返している）
+- 承認者側への通知（今回の依頼は「作成者へ」なので作っていない）

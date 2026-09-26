@@ -239,11 +239,17 @@ ck("the unreachable duplicate is left alone", _dead_clean,
 
 _dp = (FRONT / "src/app/admin/procurement/direct-purchases/page.tsx").read_text()
 ck("the screen states the rule and names who cannot be reached",
-   "request-alerts" in _dp and "No Discord ID registered for" in _dp,
+   "request-alerts" in _dp and "No Discord ID registered" in _dp,
    "a rule nobody can see is a rule nobody believes")
-ck("the register link points at the page that writes the right table",
-   "/admin/management/assignments" in _dp,
-   "the page in the NavBar writes the store attendance-alert list instead")
+ck("a missing Discord id is fixed on this screen, not by a link elsewhere",
+   "/api/admin/management/channel-discord" in _dp and "saveDiscordId" in _dp,
+   "the page that writes the right table only offers a field to exception "
+   "owners, so it cannot register these creators at all")
+ck("saving re-reads the list so the fixed name leaves the banner",
+   "saveDiscordId" in _dp
+   and "void load(cityFilter, statusFilter, verifiedFilter);" in
+       _dp[_dp.index("const saveDiscordId"): _dp.index("const saveDiscordId") + 1600],
+   "a warning that stays put makes the save look like it did nothing")
 
 _wk = (ROOT / "worker.py").read_text().split("\n")
 _def = next((i for i, l in enumerate(_wk)
