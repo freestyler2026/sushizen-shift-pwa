@@ -156,10 +156,13 @@ export const STORE_STAGES: Lane[] = [
 export const OUTSIDE_THE_FIVE: Record<string, string> = {
   REJECTED: "under the cards below",
   CANCELLED: "under the cards below",
-  RETURNED: "under the cards below — waiting on the requester, not on a stage",
-  IN_PRODUCTION: "the kitchen is making it; not a supplier order",
-  PURCHASED: "bought directly; no delivery to track",
+  RETURNED: "under the cards below, waiting on the requester",
+  IN_PRODUCTION: "the kitchen is making it, not a supplier order",
+  PURCHASED: "bought directly, no delivery to track",
 };
+
+/** Stage keys whose chip fetches from the server rather than filtering the page. */
+export const SERVER_FETCHED_STAGES = new Set(["REQUEST", "APPROVAL"]);
 
 /**
  * Stage words the Store Procurement row already prints as its status chip

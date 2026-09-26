@@ -40,7 +40,7 @@ import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/au
 import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { isActiveRequest, isCkDispatchVisible, isRejectedRequest, selectDisplayedRequests } from "@/lib/procurementStatus";
-import { STORE_STAGES, STAGE_LABEL, OUTSIDE_THE_FIVE, storeStageOf, stageOf, stageAddsInformation, type DirectPurchaseRow } from "@/lib/direct-purchase-stage";
+import { STORE_STAGES, STAGE_LABEL, OUTSIDE_THE_FIVE, SERVER_FETCHED_STAGES, storeStageOf, stageOf, stageAddsInformation, type DirectPurchaseRow } from "@/lib/direct-purchase-stage";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, parseIsoTimeMs, useRelativeAgeNow } from "@/lib/timeAgo";
 import {
   GLASS_CARD,
@@ -1858,10 +1858,15 @@ export default function StoreProcurementHomePage() {
                 const short = STORE_STAGES.filter(
                   st => (stageCounts[st.key] || 0) > (visibleInStage[st.key] || 0));
                 if (!serverStageCounts || !short.length) return null;
+                // Chips that fetch their own rows are not short of anything —
+                // saying "Request shows 0 of 261" about a chip that loads all
+                // 261 when pressed is the screen calling itself broken.
+                const windowed = short.filter(st => !SERVER_FETCHED_STAGES.has(st.key));
+                if (!windowed.length) return null;
                 return (
                   <span className="text-amber-300">
-                    {" "}Counts are for every order; this list shows the newest 200, so{" "}
-                    {short.map(st => `${st.label} shows ${visibleInStage[st.key] || 0} of ${stageCounts[st.key]}`).join(", ")}
+                    {" "}Counts are for every order; this list holds the newest 200, so{" "}
+                    {windowed.map(st => `${st.label} shows ${visibleInStage[st.key] || 0} of ${stageCounts[st.key]}`).join(", ")}
                     . Narrow the dates to reach the older ones.
                   </span>
                 );
@@ -1877,12 +1882,20 @@ export default function StoreProcurementHomePage() {
                   .sort((a, b) => b[1] - a[1]);
                 if (!rest.length) return null;
                 const total = rest.reduce((n, [, v]) => n + v, 0);
+                // Grouped by reason. Listing the stages and then listing the
+                // reasons separately left the reader to pair them up, and two
+                // stages sharing a reason printed it twice.
+                const byReason = new Map<string, string[]>();
+                for (const [k, n] of rest) {
+                  const why = OUTSIDE_THE_FIVE[k] || "not part of the supplier flow";
+                  byReason.set(why, [...(byReason.get(why) || []), `${STAGE_LABEL[k] || k} ${n}`]);
+                }
                 return (
                   <span className="text-zinc-400">
-                    {" "}{total} order(s) are not in these five:{" "}
-                    {rest.map(([k, n]) => `${STAGE_LABEL[k] || k} ${n}`).join(", ")}
-                    {rest.some(([k]) => OUTSIDE_THE_FIVE[k])
-                      && ` — ${[...new Set(rest.map(([k]) => OUTSIDE_THE_FIVE[k]).filter(Boolean))].join("; ")}.`}
+                    {" "}{total} order(s) are not in these five —{" "}
+                    {[...byReason.entries()]
+                      .map(([why, names]) => `${names.join(" and ")}: ${why}`)
+                      .join("; ")}.
                   </span>
                 );
               })()}

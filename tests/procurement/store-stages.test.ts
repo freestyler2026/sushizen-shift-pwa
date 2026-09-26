@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  LANES, STAGE_LABEL, STORE_STAGES, OUTSIDE_THE_FIVE, storeStageOf, stageOf, stageAddsInformation,
+  LANES, STAGE_LABEL, STORE_STAGES, OUTSIDE_THE_FIVE, SERVER_FETCHED_STAGES, storeStageOf, stageOf, stageAddsInformation,
   type DirectPurchaseRow,
 } from "@/lib/direct-purchase-stage";
 
@@ -102,6 +102,23 @@ describe("the row badge only says what the status badge does not", () => {
     for (const st of ["APPROVED_NO_PO", "PO_ISSUED", "DELIVERED", "RECEIVED",
                       "IN_PRODUCTION", "PURCHASED", "CANCELLED"]) {
       expect(stageAddsInformation(st), `${st} would render blank`).toBe(true);
+    }
+  });
+});
+
+describe("the strip's caption", () => {
+  it("does not report a server-fetched chip as short of rows", () => {
+    // "Request shows 0 of 261" about a chip that loads all 261 when pressed
+    // is the screen calling itself broken.
+    expect(SERVER_FETCHED_STAGES.has("REQUEST")).toBe(true);
+    expect(SERVER_FETCHED_STAGES.has("APPROVAL")).toBe(true);
+    expect(SERVER_FETCHED_STAGES.has("PO_ISSUED")).toBe(false);
+  });
+
+  it("gives every outside stage its own reason", () => {
+    for (const k of Object.keys(OUTSIDE_THE_FIVE)) {
+      expect(OUTSIDE_THE_FIVE[k].length).toBeGreaterThan(0);
+      expect(OUTSIDE_THE_FIVE[k]).not.toContain(";");  // joined text must stay readable
     }
   });
 });
