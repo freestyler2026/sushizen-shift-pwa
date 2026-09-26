@@ -192,6 +192,19 @@ export default function DirectPurchasesAdminPage() {
         body: JSON.stringify({ staff_name: name, discord_user_id: value }),
       });
       const j = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        // This screen is gated on procurement.request.write; saving a Discord
+        // id is gated on the management back-office channel. Somebody can see
+        // this banner and be refused here, and "Permission required:
+        // channel.admin.management_back_office" tells them a key name rather
+        // than what to do about it (lesson 125 — the audience has to be able
+        // to act, or be told who can).
+        throw new Error(
+          "Your account cannot register Discord IDs — that is a Management "
+          + "Back Office permission. Ask an admin to add it, or send them this "
+          + "name and ID to save.",
+        );
+      }
       if (!res.ok) throw new Error(String(j?.detail || `Could not save (${res.status})`));
       setIdMsg(`Saved for ${name}. Their next alert will be delivered.`);
       setIdEdit(prev => { const n = { ...prev }; delete n[name]; return n; });
