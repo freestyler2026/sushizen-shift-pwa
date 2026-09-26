@@ -659,6 +659,7 @@ export default function ProcurementHubPage() {
               <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
                 <p className="text-sm font-semibold text-amber-200">
                   {drift.candidates} of these were already received
+                  {" "}— {city === "dubai" ? "Dubai" : "Manila"}
                 </p>
                 <p className="mt-1 text-xs text-amber-200/80">
                   Their receiving was confirmed{drift.oldest_confirmed_at && drift.newest_confirmed_at ? (
@@ -673,21 +674,51 @@ export default function ProcurementHubPage() {
                   The rows are backed up to their own table first, and the
                   backup&apos;s name is shown here afterwards. Re-running is safe.
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-end gap-2">
+                  {/* The shared Name/PIN fields live BELOW this panel, under up
+                      to 500 overdue rows, so pointing at them was both wrong
+                      and unreachable. The approval happens where the problem
+                      is shown (lesson 125). Same state, so filling either fills
+                      both. */}
+                  <div>
+                    <label className={`${T_LABEL} mb-1 block`}>Name</label>
+                    <input
+                      value={requestedBy}
+                      onChange={(e) => setRequestedBy(e.target.value)}
+                      placeholder="Name"
+                      className={`${INPUT_CLASS} w-44`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`${T_LABEL} mb-1 block`}>PIN</label>
+                    <input
+                      type="password"
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value)}
+                      placeholder="••••••••"
+                      className={`${INPUT_CLASS} w-36`}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && requestedBy.trim() && pin.trim() && !driftBusy) {
+                          void runDrift();
+                        }
+                      }}
+                    />
+                  </div>
                   <button
                     type="button"
                     className={SMALL_BUTTON}
                     disabled={driftBusy || !requestedBy.trim() || !pin.trim()}
                     onClick={() => void runDrift()}
                   >
-                    {driftBusy ? "Stamping…" : `Stamp ${drift.candidates} PO(s)`}
+                    {driftBusy
+                      ? "Stamping…"
+                      : `Stamp ${drift.candidates} PO(s) — ${city === "dubai" ? "Dubai" : "Manila"}`}
                   </button>
-                  {(!requestedBy.trim() || !pin.trim()) && (
-                    <span className="text-xs text-amber-200/70">
-                      Enter your name and PIN above first.
-                    </span>
-                  )}
                 </div>
+                <p className={`${T_CAPTION} mt-2`}>
+                  Acting on {city === "dubai" ? "Dubai" : "Manila"}. Change the
+                  city in the filter card below the list to switch.
+                </p>
                 {driftMsg && (
                   <p className="mt-2 text-xs text-white/80">{driftMsg}</p>
                 )}
