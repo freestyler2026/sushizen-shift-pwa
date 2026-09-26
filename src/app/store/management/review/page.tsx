@@ -809,7 +809,13 @@ export default function MorningReviewPage() {
                     <span className={T_CAPTION}>
                       scrap {Number(it.payload.scrap_pct ?? 0)}% · skin {Number(it.payload.skin_pct ?? 0)}%
                     </span>
-                    <span className={T_CAPTION}>{String(it.payload.reported_by ?? "")}</span>
+                    {/* Four branches file more than one a day, on four
+                        different shifts. Without it two cards for the same
+                        day differ only by their numbers. */}
+                    <span className={T_CAPTION}>
+                      {String(it.payload.shift ?? "")}
+                      {it.payload.reported_by ? ` · ${String(it.payload.reported_by)}` : ""}
+                    </span>
                     {a ? <span className={BADGE_INFO}>{a.issue_type.join(", ")}</span>
                        : <span className={`${T_CAPTION} ml-auto text-violet-300`}>Answer</span>}
                   </button>
