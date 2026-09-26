@@ -202,6 +202,17 @@ if _al.exists():
        all(t in al for t in ("management_channel_discord",
                              "discord_alert_recipients", "bo_assignments")),
        "reading only the nearest one is how an alert goes nowhere")
+    ck("the no-PO alert exists (doc \u00a72)",
+       "def stale_no_po" in al and "NO_PO_KIND" in al)
+    ck("its clock starts at approval, not creation",
+       "r.final_decision_at >= %s::timestamptz" in al
+       and "r.final_decision_at <= NOW()" in al,
+       "created_at would fire on the 92 rows approved before alerts existed")
+    ck("it judges 'no PO' by the column the screen reads",
+       "UPPER(COALESCE(r.po_status, '')) <> 'ISSUED'" in al,
+       "another column would let the alert and the lane colour disagree")
+    ck("its threshold is the lane's, not a new number",
+       'PROC_ALERT_NO_PO_HOURS", "72"' in al)
     ck("the INSERT can be proved without writing a row",
        "def probe_record_insert" in al and "conn.rollback()" in al,
        "every real write path is PIN-gated, inside a try/except")
@@ -245,10 +256,13 @@ ck("a missing Discord id is fixed on this screen, not by a link elsewhere",
    "/api/admin/management/channel-discord" in _dp and "saveDiscordId" in _dp,
    "the page that writes the right table only offers a field to exception "
    "owners, so it cannot register these creators at all")
+_save_fn = ""
+if "const saveDiscordId" in _dp:
+    _s = _dp.index("const saveDiscordId")
+    _e = _dp.find("}, [", _s)
+    _save_fn = _dp[_s: _e if _e > _s else len(_dp)]
 ck("saving re-reads the list so the fixed name leaves the banner",
-   "saveDiscordId" in _dp
-   and "void load(cityFilter, statusFilter, verifiedFilter);" in
-       _dp[_dp.index("const saveDiscordId"): _dp.index("const saveDiscordId") + 1600],
+   bool(_save_fn) and "void load(cityFilter, statusFilter, verifiedFilter);" in _save_fn,
    "a warning that stays put makes the save look like it did nothing")
 
 _wk = (ROOT / "worker.py").read_text().split("\n")
