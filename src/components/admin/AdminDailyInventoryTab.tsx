@@ -257,6 +257,17 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   // on the delivery note -- where somebody types a figure in by hand and two
   // branches end up charged differently for the same tin.
   const [unpricedLines, setUnpricedLines] = useState<{ item_name: string; unit: string }[]>([]);
+  // 「値段が無い」と「値段はあるが単位が違う」を同じ見た目にしない。後者は
+  // カタログに金額が入っているので「登録してください」は嘘になる（教訓97）。
+  const [unitMismatch, setUnitMismatch] = useState<
+    { item_name: string; inventory_unit: string; catalog_unit: string }[]
+  >([]);
+  // パック表記から単価を割り出した行。黙って計算するとどこから来た金額か
+  // 分からないので、割り出したことと元の値を出す。
+  const [pricedFromPack, setPricedFromPack] = useState<
+    { item_name: string; inventory_unit: string; catalog_unit: string; package_spec: string;
+      catalog_price: number; derived_price: number }[]
+  >([]);
 
   const incomingStore = BRANCH_TO_STORE[(detail.branch || "").toUpperCase()] || "";
   useEffect(() => {
@@ -388,6 +399,9 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
       const json = await res.json() as {
         ok?: boolean; created?: GeneratedPR[]; detail?: unknown;
         unpriced?: { item_name: string; unit: string }[];
+        price_unit_mismatch?: { item_name: string; inventory_unit: string; catalog_unit: string }[];
+        price_from_pack?: { item_name: string; inventory_unit: string; catalog_unit: string;
+                            package_spec: string; catalog_price: number; derived_price: number }[];
       };
       if (!res.ok) {
         const msg = typeof json.detail === "string" ? json.detail : "Failed to generate order";
@@ -395,6 +409,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
       }
       setGeneratedPRs((json.created as GeneratedPR[]) || []);
       setUnpricedLines(Array.isArray(json.unpriced) ? json.unpriced : []);
+      setUnitMismatch(Array.isArray(json.price_unit_mismatch) ? json.price_unit_mismatch : []);
+      setPricedFromPack(Array.isArray(json.price_from_pack) ? json.price_from_pack : []);
     } catch (err) {
       setOrderError(err instanceof Error ? err.message : "Unknown error");
     } finally { setOrderBusy(false); }
@@ -621,6 +637,45 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                       Report these rather than typing a price on the delivery note — a figure
                       entered there applies to one branch only.
                     </p>
+                  </div>
+                )}
+                {unitMismatch.length > 0 && (
+                  <div className="rounded-xl border border-orange-500/40 bg-orange-950/25 px-4 py-3">
+                    <p className="text-xs font-semibold text-orange-200">
+                      {unitMismatch.length} line{unitMismatch.length !== 1 ? "s are" : " is"} priced
+                      by a different unit in the catalogue, so no price was taken.
+                    </p>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {unitMismatch.map((m) => (
+                        <li key={`${m.item_name}-${m.inventory_unit}`} className="text-[11px] text-orange-300/90">
+                          {m.item_name} — counted in <strong>{m.inventory_unit}</strong>, catalogue
+                          sells it by <strong>{m.catalog_unit || "—"}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1.5 text-[11px] text-orange-300/70">
+                      Do not register a second catalogue row. Either count it in the unit the
+                      catalogue uses, or fill that row&rsquo;s <strong>package spec</strong> with what
+                      one pack holds (&ldquo;25kg&rdquo;, &ldquo;500g&rdquo;) — the price is then worked out
+                      from it. A price copied across units is wrong by the size of the pack.
+                    </p>
+                  </div>
+                )}
+                {pricedFromPack.length > 0 && (
+                  <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 px-4 py-3">
+                    <p className="text-xs font-semibold text-sky-200">
+                      {pricedFromPack.length} line{pricedFromPack.length !== 1 ? "s were" : " was"} priced
+                      from the pack, not straight from the catalogue:
+                    </p>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {pricedFromPack.map((m) => (
+                        <li key={`${m.item_name}-${m.inventory_unit}`} className="text-[11px] text-sky-300/90">
+                          {m.item_name} — ₱{m.catalog_price.toFixed(2)} per {m.catalog_unit} of {m.package_spec}
+                          {" → "}
+                          <strong>₱{m.derived_price.toFixed(2)} per {m.inventory_unit}</strong>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
                 {generatedPRs.map((pr) => (
