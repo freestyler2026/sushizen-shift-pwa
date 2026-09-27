@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import SelectDark from "@/components/SelectDark";
-import StoreStockView from "@/components/admin/StoreStockView";
+import StoreStockView, { STOCK_BRANCHES } from "@/components/admin/StoreStockView";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { IncomingNote, incomingFor as incomingLinesFor, type IncomingPayload } from "@/components/IncomingNote";
 import {
@@ -2641,7 +2641,7 @@ export default function AdminDailyInventoryTab() {
                   <Settings2 className="h-3.5 w-3.5" />Manage Items
                 </button>
               )}
-              {view === "form" && (
+              {view === "form" && STOCK_BRANCHES.includes(branch) && (
                 <button type="button" onClick={() => { setView("stock"); setError(""); }}
                   className={`${SECONDARY_BUTTON} touch-manipulation py-2 text-sm`}>Stock</button>
               )}

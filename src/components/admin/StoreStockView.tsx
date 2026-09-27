@@ -31,6 +31,11 @@ type StockView = {
 
 const n = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/\.?0+$/, ""));
 
+/** 在庫を出せる支店 = 日次カウントを出している支店。
+ *  ドバイの店舗は Daily Inventory を1件も出していない（30日で0件）ので、
+ *  数える元が無い。ボタン自体を出さないために、一覧をここに1つ置く。 */
+export const STOCK_BRANCHES = ["TAFT", "CUBAO", "PARANAQUE"];
+
 /** 店舗の在庫。数えた数 ＋ そのあと着いた数。
  *
  *  新しく数えてもらうものは何も無い。店舗は Daily Inventory で毎日この数字を
@@ -56,6 +61,7 @@ export default function StoreStockView({
   const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
+    if (!STOCK_BRANCHES.includes(branch)) { setData(null); setError(""); return; }
     setLoading(true); setError("");
     try {
       const res = await fetcher(`/api/daily-inventory/stock?branch=${encodeURIComponent(branch)}`);
@@ -102,7 +108,17 @@ export default function StoreStockView({
         </div>
       </div>
 
-      {error && (
+      {!STOCK_BRANCHES.includes(branch) && (
+        /* 内部のエラー文をそのまま出さない。読んだ人が次に何をすればいいか
+           分からない画面は、行き止まりと同じ（設計思想の型10）。 */
+        <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300">
+          Stock here is read from the daily count, and {branch} does not file one —
+          only Taft, Cubao and Paranaque do. Nothing is missing; there is simply
+          nothing to read for this branch.
+        </div>
+      )}
+
+      {error && STOCK_BRANCHES.includes(branch) && (
         <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/8 px-4 py-3 text-sm text-red-300">
           Could not read it ({error}). This is not the same as the shelves being empty.
         </div>
