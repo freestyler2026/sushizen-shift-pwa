@@ -97,6 +97,10 @@ export const STAGE_LABEL: Record<string, string> = {
   // They were missing here, which made 121 orders belong to no group at all
   // -- and the test that was supposed to catch that compared this list
   // against itself instead of against the data.
+  // Bought, and the receipt was never recorded. Not RECEIVED: saying so would
+  // need a receipt date nobody has. 165 Manila direct purchases from June to
+  // August are in this state, confirmed as real purchases on 2026-09-28.
+  PURCHASED_NO_RECEIPT: "Purchased · receipt not recorded",
   RETURNED: "Returned to requester",
   IN_PRODUCTION: "In production (CK)",
   PURCHASED: "Purchased",
@@ -121,6 +125,10 @@ export const LANES: Lane[] = [
     hint: "Closed — the kitchen confirmed receipt." },
   { key: "CLOSED", label: "Rejected / Draft", stages: ["REJECTED", "CANCELLED", "DRAFT"],
     hint: "Not going ahead, or never submitted." },
+  // Its own lane, not folded into the one above: these were bought. Putting
+  // them under "Rejected / Draft" would say the purchase never happened.
+  { key: "NO_RECEIPT", label: "No receipt recorded", stages: ["PURCHASED_NO_RECEIPT"],
+    hint: "Purchased, but nobody recorded the receipt here. Closed — kept so the order is still findable." },
 ];
 
 /**
@@ -154,6 +162,7 @@ export const STORE_STAGES: Lane[] = [
  * says how many orders it affects rather than quietly dropping them.
  */
 export const OUTSIDE_THE_FIVE: Record<string, string> = {
+  PURCHASED_NO_RECEIPT: "bought, with no receipt recorded here — closed, and outside the five",
   REJECTED: "under the cards below",
   CANCELLED: "under the cards below",
   RETURNED: "under the cards below, waiting on the requester",
