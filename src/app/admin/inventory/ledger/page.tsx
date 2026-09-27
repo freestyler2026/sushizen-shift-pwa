@@ -19,6 +19,18 @@ type BalanceRow = {
   business_date: string;
 };
 
+type LedgerHealth = {
+  rows_in: number;
+  rows_out: number;
+  rows_in_7d: number;
+  last_in_at: string | null;
+  items: number;
+  negative_items: number;
+  negative_pct: number;
+  test_rows: number;
+  receiving_posting_enabled: boolean;
+};
+
 type LedgerRow = {
   id: string;
   item_name: string;
@@ -87,6 +99,18 @@ export default function InventoryLedgerPage() {
     };
   }, [auth]);
 
+  const [health, setHealth] = useState<LedgerHealth | null>(null);
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let dead = false;
+    inventoryGet<LedgerHealth>(`/api/admin/inventory/ledger/health?city=${encodeURIComponent(city)}`)
+      .then((h) => { if (!dead) setHealth(h); })
+      // 読めなかったことを「健全」と同じ見た目にしない。注記を出さないだけ。
+      .catch(() => { if (!dead) setHealth(null); });
+    return () => { dead = true; };
+  }, [ready, allowed, city]);
+
   useEffect(() => {
     if (!ready || !allowed) return;
     let cancelled = false;
@@ -139,6 +163,36 @@ export default function InventoryLedgerPage() {
           </div>
           <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${ledgerRows.length} ledger rows`}</div>
         </div>
+
+        {/* この注記は固定文ではなく、台帳を測った数字から書いている。
+            受領の投入を有効にした日に、注記の方が自動で変わる。 */}
+        {health && health.rows_in_7d === 0 && (
+          <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+            <p className="text-sm font-medium text-amber-200">
+              Stock only leaves this ledger.{" "}
+              {health.rows_in === 0
+                ? "Nothing has ever been added to it."
+                : `Nothing has been added since ${new Date(health.last_in_at as string).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-200/80">
+              Sales and disposal take stock off ({health.rows_out.toLocaleString()} rows); deliveries
+              are not posted{health.receiving_posting_enabled ? " yet" : ""}, so the balances below
+              only ever fall —{" "}
+              <strong>{health.negative_items.toLocaleString()} of {health.items.toLocaleString()} items
+              ({health.negative_pct}%) are negative</strong>. Read them as how much has been taken
+              off since counting stopped, not as what is on the shelf.
+              {health.test_rows > 0 && (
+                <> {health.test_rows.toLocaleString()} rows were written by test runs and are still
+                mixed in.</>
+              )}
+            </p>
+            <p className="mt-1 text-xs text-amber-200/80">
+              For what is actually on the shelf at a Manila store, use{" "}
+              <strong>Daily Inventory → Stock</strong>: it reads the count the store files every day
+              and adds the deliveries that arrived after it.
+            </p>
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SelectDark

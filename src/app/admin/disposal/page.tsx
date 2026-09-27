@@ -36,12 +36,17 @@ interface SearchItem {
   category: string;
   name: string;
   default_unit: string;
+  // 1レシピがいくつ作るか。1 なら「1個 = 1レシピ」なので、数えた単位の
+  // 綴りが違っても意味が変わらない。材料は null。
+  output_qty?: number | null;
 }
 
 interface DisposalLine {
   _key: string;
   item_type: ItemType;
   item_id: number | null;
+  item_unit?: string;
+  item_output_qty?: number | null;
   item_name_snapshot: string;
   item_category: string;
   quantity: string;
@@ -70,6 +75,25 @@ const SHIFT_LABELS: Record<Shift, string> = {
 
 // Common units for restaurant items
 const UNIT_OPTIONS = ["pcs", "g", "kg", "ml", "L", "bag", "box", "pack", "rolls", "bottle", "sheet", "portion", "tray", "can"];
+
+/** その品について、台帳が受け取れる単位。
+ *
+ *  サーバ側 `_disposal_recipe_batches` と同じ規則を、選択肢の形にしたもの。
+ *  ここが狭い分には黙って壊れない（サーバが受け取れるものを出し損ねるだけ）が、
+ *  広いとサーバに弾かれて提出後に "not posted" が出る。
+ *
+ *  2026-09-27 に一度「品を選んだら単位も固定」にしたが、それだと過去90日の
+ *  入力141行のうち71行しか同じ単位で打てなかった。酢飯をグラムで数えるのは
+ *  正しいが、寿司ボックスを set でしか打てないのは現場の数え方ではない。
+ */
+function unitsFor(itemUnit: string, outputQty: number | null | undefined): string[] {
+  const u = (itemUnit || "pcs").trim();
+  const k = u.toLowerCase();
+  if (k === "g" || k === "kg") return ["g", "kg"];
+  if (k === "ml" || k === "l") return ["ml", "L"];
+  // 1レシピ = 1個 の品は、pcs でも set でも同じ1個を指す。
+  return outputQty === 1 ? Array.from(new Set([u, "pcs"])) : [u];
+}
 
 interface DisposalReport {
   id: number;
@@ -421,6 +445,13 @@ function DisposalLineCard({
             onChange={(e) => onUpdate({ item_name_snapshot: e.target.value })}
             placeholder="Type item name…" />
         )}
+        {!line.item_id && line.item_name_snapshot.trim() !== "" && (
+          /* 90日の明細の 59.7% がこれ。記録には残るが在庫は動かない。
+             残るのと引かれるのは別のことなので、そう書く。 */
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] text-amber-300/90 bg-amber-500/10">
+            not in stock list
+          </span>
+        )}
         {line.item_category && (
           <span className="text-xs text-zinc-500 shrink-0">{normaliseCategory(line.item_category)}</span>
         )}
@@ -437,7 +468,30 @@ function DisposalLineCard({
           value={line.quantity}
           onChange={(e) => onUpdate({ quantity: e.target.value })}
           placeholder="Qty" />
-        <UnitSelector value={line.unit} onChange={(v) => onUpdate({ unit: v })} />
+        {line.item_id ? (
+          /* 選べるのは、その品について台帳が換算できる単位だけ。14種類から
+             自由に選べたので、1レシピ3,145gの酢飯が pcs で打たれ、AVOCADO が
+             kg で打たれて1000倍ずれた。かといって1つに固定すると、寿司ボックスを
+             box と数えている人が打てなくなる（実測: 90日141行中71行しか
+             元の単位で入らない）。既定はその品の単位。 */
+          (() => {
+            const opts = unitsFor(line.item_unit || line.unit, line.item_output_qty);
+            return opts.length <= 1 ? (
+              <span className="w-24 shrink-0 rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-center text-sm text-zinc-300">
+                {line.unit || "pcs"}
+              </span>
+            ) : (
+              <SelectDark
+                className="w-24 shrink-0 appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+                value={line.unit}
+                onChange={(v) => onUpdate({ unit: v })}
+                options={opts.map((u) => ({ value: u, label: u }))}
+              />
+            );
+          })()
+        ) : (
+          <UnitSelector value={line.unit} onChange={(v) => onUpdate({ unit: v })} />
+        )}
         <SelectDark
           className="flex-1 appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
           value={line.disposal_reason}
@@ -725,6 +779,10 @@ export default function DisposalPage() {
   const [headerNotes, setHeaderNotes] = useState("");
   const [lines, setLines] = useState<DisposalLine[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
+  // 保存はされたが在庫を動かせなかった行。
+  const [notPosted, setNotPosted] = useState<
+    { item_name: string; quantity: number; unit: string; reason: string }[]
+  >([]);
   // 「ログブックを確認したが1件も無かった」の宣言。
   // ⚠️ **下書きには保存しない。** 宣言はその日ログブックを見た人の行為で、
   //    前の下書きから復元されると「既にチェックが入った画面」になる —
@@ -828,14 +886,17 @@ export default function DisposalPage() {
     }
     if (!reportedBy.trim()) { setSubmitError("Please enter the reporter name."); return; }
 
-    setSubmitting(true); setSubmitError(""); setSubmitSuccess("");
+    setSubmitting(true); setSubmitError(""); setSubmitSuccess(""); setNotPosted([]);
     try {
       const result = await apiFetch<{
         report_id: number;
         status: string;
         no_disposal?: boolean;
         superseded_nil?: number;
-        ledger?: { ok?: boolean; ledger_posted?: number; errors?: string[] };
+        ledger?: {
+          ok?: boolean; ledger_posted?: number; errors?: string[];
+          not_posted?: { item_name: string; quantity: number; unit: string; reason: string }[];
+        };
       }>(
         "/api/admin/disposal/report",
         {
@@ -885,6 +946,10 @@ export default function DisposalPage() {
         : result.ledger?.ok === false
           ? " — Ledger sync failed (report saved)."
           : "";
+      // 台帳に届かなかった行を、提出した本人にその場で名前で返す。
+      // 件数だけだと「0件で正常」と「書けなかった」が同じ見た目になる。
+      // 報告そのものは保存されているので、これは失敗ではなく但し書き。
+      setNotPosted(result.ledger?.not_posted ?? []);
       if (result.no_disposal) {
         setSubmitSuccess(
           result.status === "already_submitted"
@@ -1124,6 +1189,8 @@ export default function DisposalPage() {
                   line.item_name_snapshot = item.name;
                   line.item_category = item.category;
                   line.unit = item.default_unit || "pcs";
+                  line.item_unit = item.default_unit || "pcs";
+                  line.item_output_qty = item.output_qty ?? null;
                   setLines((prev) => [...prev, line]);
                 }}
               />
@@ -1178,10 +1245,27 @@ export default function DisposalPage() {
             <span className="text-xs text-zinc-500 hidden sm:block">{itemCount} items</span>
           )}
         </div>
-        {(submitError || submitSuccess) && (
+        {(submitError || submitSuccess || notPosted.length > 0) && (
           <div className="mx-auto max-w-5xl mt-1">
             {submitError && <p className="text-sm text-red-400">{submitError}</p>}
             {submitSuccess && <p className="text-sm text-emerald-400">{submitSuccess}</p>}
+            {notPosted.length > 0 && (
+              /* 提出は成功している。在庫が動かなかった行だけを、理由つきで
+                 その場に出す。琥珀色で、赤ではない — 記録は残っている。 */
+              <div className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/8 px-3 py-2">
+                <p className="text-xs font-medium text-amber-200">
+                  Recorded, but stock was not reduced for {notPosted.length} line
+                  {notPosted.length !== 1 ? "s" : ""}:
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {notPosted.map((n, i) => (
+                    <li key={i} className="text-xs text-amber-200/80">
+                      {n.item_name} — {n.quantity} {n.unit || "(no unit)"}: {n.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>

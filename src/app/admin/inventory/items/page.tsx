@@ -15,6 +15,9 @@ type InventoryItemRow = {
   category_name: string;
   item_type: string;
   storage_unit: string;
+  ingredient_unit?: string;
+  // 1 storage_unit = N ingredient_unit。受領を台帳に足すのに要る唯一の橋。
+  storage_to_ingredient?: number;
   cost: number;
   status: string;
   tags?: string[];
@@ -69,6 +72,8 @@ export default function InventoryItemsPage() {
   const [editName, setEditName] = useState("");
   const [editCategoryName, setEditCategoryName] = useState("");
   const [editUnit, setEditUnit] = useState("");
+  const [editRecipeUnit, setEditRecipeUnit] = useState("");
+  const [editPackSize, setEditPackSize] = useState("");
   const [editCost, setEditCost] = useState("");
   const [editType, setEditType] = useState("ITEM");
   const [editSaving, setEditSaving] = useState(false);
@@ -293,6 +298,10 @@ export default function InventoryItemsPage() {
     setEditName(item.name);
     setEditCategoryName(item.category_name || "");
     setEditUnit(item.storage_unit || "");
+    setEditRecipeUnit(item.ingredient_unit || "");
+    // 1 は「未設定」と区別できない既定値なので、空欄で出す。
+    setEditPackSize(item.storage_to_ingredient && item.storage_to_ingredient !== 1
+      ? String(item.storage_to_ingredient) : "");
     setEditCost(String(item.cost ?? ""));
     setEditType(item.item_type || "ITEM");
     setEditError("");
@@ -307,6 +316,9 @@ export default function InventoryItemsPage() {
         name: editName.trim(),
         category_name: editCategoryName.trim(),
         storage_unit: editUnit.trim(),
+        ingredient_unit: editRecipeUnit.trim() || editUnit.trim(),
+        // 空欄は 1（＝橋を架けない）。0 や負の値は送らない。
+        storage_to_ingredient: Math.max(parseFloat(editPackSize) || 1, 0.000001),
         cost: parseFloat(editCost) || 0,
         item_type: editType,
         city,
@@ -727,13 +739,43 @@ export default function InventoryItemsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-200">Unit</label>
+                <label className="mb-1 block text-xs text-neutral-200">Purchase unit</label>
                 <input
                   value={editUnit}
                   onChange={(e) => setEditUnit(e.target.value)}
-                  placeholder="e.g. kg, pcs"
+                  placeholder="e.g. PKT, Tray, kg"
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
                 />
+              </div>
+              {/* 仕入の単位とレシピの単位が違う品は、橋がないと在庫に足せない。
+                  この欄は2026-09-27まで画面に無く、作成時に 1 が固定で入って
+                  いたので、20kg入りの米袋が「1」として扱われていた。 */}
+              <div>
+                <label className="mb-1 block text-xs text-neutral-200">Recipe unit</label>
+                <input
+                  value={editRecipeUnit}
+                  onChange={(e) => setEditRecipeUnit(e.target.value)}
+                  placeholder="same as purchase unit if blank"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs text-neutral-200">
+                  1 {editUnit.trim() || "purchase unit"} = ? {editRecipeUnit.trim() || editUnit.trim() || "recipe unit"}
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={editPackSize}
+                  onChange={(e) => setEditPackSize(e.target.value)}
+                  placeholder="leave blank if they are the same thing"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                />
+                <p className="mt-1 text-[11px] text-neutral-500">
+                  Only needed when a delivery is counted in one unit and the recipe in another —
+                  1 PKT = 1000 g, 1 Tray = 30 pc. Left blank, a delivery in the purchase unit
+                  is not added to stock at all rather than added as the wrong number.
+                </p>
               </div>
               <div>
                 <label className="mb-1 block text-xs text-neutral-200">Cost</label>

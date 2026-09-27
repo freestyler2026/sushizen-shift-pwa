@@ -99,6 +99,17 @@ interface CatalogPick {
   on_par: boolean;
 }
 
+// order_type でこのピッカーの対象から外れた行。`CatalogPick` と別の型にしてある —
+// 選べないものが選べるものと同じ形で流れてくると、いつか取り違える。
+interface ExcludedPick {
+  item_name: string;
+  unit: string;
+  unit_price: number;
+  order_type: string;
+  supplier_name: string;
+  on_par: boolean;
+}
+
 interface ImportResult {
   ok: boolean;
   parsed_total: number;
@@ -237,6 +248,12 @@ export default function CkParLevelsPage() {
   // would be a lie there, and telling someone to go and register an item they
   // already registered is worse than saying nothing.
   const [catalogExcluded, setCatalogExcluded] = useState(0);
+  // 対象外の行そのもの。件数だけでは「探している品がその中にいるか」が
+  // 分からないので、カタログを人が開いて確かめるしかなかった。2026-09-28、
+  // Yusuke から「Onigiri Film がプルダウンに出ない」と報告。実際には
+  // カタログに有効な行があり（PKT ₱355）、order_type が 'WH' だった。
+  // 検索した語で言い当てられるようにする（教訓21・97）。
+  const [catalogExcludedItems, setCatalogExcludedItems] = useState<ExcludedPick[]>([]);
   // Supplier-facing rows that are switched off in the catalogue. Kept apart
   // from `catalog` so nothing can pick one by accident, and so the counts that
   // describe what is on offer keep meaning what they say.
@@ -621,6 +638,7 @@ export default function CkParLevelsPage() {
     setCatalogErr("");
     setCatalog([]);
     setCatalogOff([]);
+    setCatalogExcludedItems([]);
     try {
       const auth = getAuth();
       const res = await fetch(
@@ -632,6 +650,7 @@ export default function CkParLevelsPage() {
       setCatalog(Array.isArray(data.items) ? data.items : []);
       setCatalogOff(Array.isArray(data.inactive_items) ? data.inactive_items : []);
       setCatalogExcluded(Number(data.excluded_by_type) || 0);
+      setCatalogExcludedItems(Array.isArray(data.excluded_items) ? data.excluded_items : []);
       catalogCity.current = city;
       setCatalogState("ready");
     } catch (e: any) {
@@ -703,6 +722,17 @@ export default function CkParLevelsPage() {
     if (!q) return [] as CatalogPick[];
     return catalogOff
       .filter((c) => c.item_name.toLowerCase().includes(q) || c.supplier_name.toLowerCase().includes(q))
+      .sort((a, b) => a.item_name.localeCompare(b.item_name))
+      .slice(0, 8);
+  })();
+
+  // 対象外の行のうち、いま打った語に当たったもの。件数の注意書きは残すが、
+  // 当たったときはその品の名前・単位・値段・order_type を出す。
+  const pickerExcludedResults = (() => {
+    const q = pickerQ.trim().toLowerCase();
+    if (!q) return [] as ExcludedPick[];
+    return catalogExcludedItems
+      .filter((c) => c.item_name.toLowerCase().includes(q))
       .sort((a, b) => a.item_name.localeCompare(b.item_name))
       .slice(0, 8);
   })();
@@ -2142,7 +2172,50 @@ export default function CkParLevelsPage() {
                                 </a>
                               </div>
                             )}
-                            {pickerResults.length === 0 && pickerOffResults.length === 0 && (
+                            {pickerExcludedResults.length > 0 && (
+                              <div className="bg-black/20 px-2.5 py-2">
+                                <p className="text-[11px] font-medium text-sky-300/90">
+                                  {pickerExcludedResults.length === 1 ? "This one is" : `These ${pickerExcludedResults.length} are`} in
+                                  the catalogue already, but not as something a supplier sells —
+                                  so {pickerExcludedResults.length === 1 ? "it cannot" : "they cannot"} go
+                                  on this order:
+                                </p>
+                                <div className="mt-1.5 divide-y divide-white/5">
+                                  {pickerExcludedResults.map((c) => (
+                                    <div
+                                      key={`ex-${c.item_name}__${c.order_type}`}
+                                      className="flex items-center gap-2 py-1.5 text-xs text-zinc-400"
+                                    >
+                                      <span className="flex-1 truncate text-zinc-300">{c.item_name}</span>
+                                      <span className="w-28 truncate text-right text-sky-300/80">
+                                        {c.order_type || "no order type"}
+                                      </span>
+                                      <span className="w-24 text-right tabular-nums">
+                                        {c.unit_price > 0 ? fmtNum(c.unit_price, 2) : "no price"}
+                                      </span>
+                                      <span className="w-14 text-right text-zinc-500">{c.unit || "—"}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <p className="mt-1.5 text-[11px] text-zinc-400">
+                                  Do not register these again. A <strong>WH</strong> or <strong>CK</strong> row
+                                  is an internal transfer — the store orders it from the Warehouse or the
+                                  Central Kitchen, not from a supplier. If the Central Kitchen now buys it
+                                  from outside, change that row&rsquo;s order type on the Catalog page instead
+                                  of making a second copy.
+                                </p>
+                                <a
+                                  href="/admin/procurement/catalog"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-1.5 inline-block rounded-lg border border-sky-500/30 bg-sky-500/15 px-2.5 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-500/25"
+                                >
+                                  Open the Procurement catalogue →
+                                </a>
+                              </div>
+                            )}
+                            {pickerResults.length === 0 && pickerOffResults.length === 0
+                              && pickerExcludedResults.length === 0 && (
                               <div className="px-3 py-4 text-xs text-zinc-400">
                                 <p className="text-zinc-300">
                                   Nothing in the catalogue matches “{pickerQ.trim()}”.

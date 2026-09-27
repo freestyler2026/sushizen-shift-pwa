@@ -73,9 +73,25 @@ describe("InventoryTabs", () => {
       expect(screen.getByText("Full Inventory Count")).toBeInTheDocument();
     });
 
-    it("shows Transfer Orders tab", () => {
+    it("does not offer the three features that have never been used", () => {
+      // 2026-09-27 に本番の全行を数えた結果: inv_transfer_orders /
+      // inv_transfers / inv_quantity_adjustments / inv_cost_adjustments は
+      // 開設以来 1行も無い。押しても何も起きない選択肢を並べると、
+      // 画面全体が信用されなくなる。**ルートは消していない**ので、
+      // 使い始めるときはここに戻すだけでよい。
       render(<InventoryTabs />);
-      expect(screen.getByText("Transfer Orders")).toBeInTheDocument();
+      expect(screen.queryByText("Transfer Orders")).toBeNull();
+      expect(screen.queryByText("Quantity Adjustments")).toBeNull();
+      expect(screen.queryByText("Cost Adjustments")).toBeNull();
+    });
+
+    it("keeps the features someone has actually reached for", () => {
+      // 行数だけ見ると止まって見えるが、Full Inventory Count は 2026-09-08 に
+      // TAFT で7回試されている（23分・同じ人・全部0品目）。外すと、その人が
+      // 次に困る。**「使われていない」と「使おうとして進めなかった」は別。**
+      render(<InventoryTabs />);
+      expect(screen.getByText("Full Inventory Count")).toBeInTheDocument();
+      expect(screen.getByText("CK Production")).toBeInTheDocument();
     });
 
     it("shows CK Production tab", () => {
@@ -115,8 +131,6 @@ describe("InventoryTabs", () => {
       expect(screen.getByText("Ingredients / Products")).toBeInTheDocument();
       expect(screen.getByText("Count Templates")).toBeInTheDocument();
       expect(screen.getByText("Quick Spot Check")).toBeInTheDocument();
-      expect(screen.getByText("Quantity Adjustments")).toBeInTheDocument();
-      expect(screen.getByText("Cost Adjustments")).toBeInTheDocument();
       expect(screen.getByText("POS Sync")).toBeInTheDocument();
       expect(screen.getByText("Ledger")).toBeInTheDocument();
     });
@@ -210,10 +224,10 @@ describe("InventoryTabs", () => {
       expect(link.getAttribute("href")).toBe("/admin/inventory");
     });
 
-    it("Transfer Orders links to /admin/inventory/transfer-orders", () => {
+    it("Full Inventory Count links to /admin/inventory/counts", () => {
       render(<InventoryTabs />);
-      const link = screen.getByText("Transfer Orders").closest("a")!;
-      expect(link.getAttribute("href")).toBe("/admin/inventory/transfer-orders");
+      const link = screen.getByText("Full Inventory Count").closest("a")!;
+      expect(link.getAttribute("href")).toBe("/admin/inventory/counts");
     });
   });
 });
