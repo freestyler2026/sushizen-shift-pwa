@@ -59,6 +59,7 @@ export default function StoreStockView({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [showBelow, setShowBelow] = useState(false);
 
   const load = useCallback(async () => {
     if (!STOCK_BRANCHES.includes(branch)) { setData(null); setError(""); return; }
@@ -80,10 +81,17 @@ export default function StoreStockView({
   useEffect(() => { void load(); }, [load]);
 
   const counted = (data?.items ?? []).filter((i) => !i.not_counted);
+  // 在庫ゼロは**事実**で、閾値ではない。1店あたり11〜16品で、開いた瞬間に
+  // 対応する数が分かる。
+  const out = counted.filter((i) => (i.on_hand ?? 0) === 0);
+  // 「par割れ」は毎日 45〜69% の品が該当する（実測 TAFT 76/167・CUBAO 116/167）。
+  // しかも min と par は**両方ある312品の52%で min > par** と矛盾している
+  // （Coke Mismo は min 10 に対し par 1）。だから par 割れは行動の一覧ではなく、
+  // 発注量を考えるときの参考として畳んでおく。先頭に出すと本物が埋まる。
   const below = counted
-    .filter((i) => i.par_level > 0 && (i.on_hand ?? 0) < i.par_level)
+    .filter((i) => (i.on_hand ?? 0) > 0 && i.par_level > 0 && (i.on_hand ?? 0) < i.par_level)
     .sort((a, b) => (a.pct_of_par ?? 999) - (b.pct_of_par ?? 999));
-  const rest = counted.filter((i) => !below.includes(i));
+  const rest = counted.filter((i) => !below.includes(i) && !out.includes(i));
   const notCounted = (data?.items ?? []).filter((i) => i.not_counted);
 
   const countedAt = data?.counted_at
@@ -149,9 +157,43 @@ export default function StoreStockView({
 
           <div className={`${GLASS_CARD} mb-3 p-4`}>
             <div className="mb-2 flex items-center justify-between">
+              <h2 className={T_CARD_TITLE}>Out of stock</h2>
+              <span className="text-xs text-zinc-500">{out.length} of {counted.length} counted</span>
+            </div>
+            {out.length === 0 ? (
+              <p className="text-sm italic text-zinc-500">Nothing counted is at zero.</p>
+            ) : (
+              <ul className="divide-y divide-white/5">
+                {out.map((i) => (
+                  <li key={i.item_code} className="flex items-baseline justify-between gap-3 py-1.5">
+                    <span className="text-sm text-zinc-200">{i.item_name}</span>
+                    <span className="shrink-0 text-xs text-zinc-500">
+                      {i.par_level > 0 ? `par ${n(i.par_level)} ${i.unit}` : i.unit}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <button type="button" onClick={() => setShowBelow((v) => !v)}
+            className="mb-3 w-full rounded-xl border border-white/10 bg-white/4 px-4 py-2 text-xs text-zinc-400 hover:bg-white/8">
+            {showBelow ? "Hide" : `Show ${below.length} items below par`}
+          </button>
+
+          {showBelow && (
+          <div className={`${GLASS_CARD} mb-3 p-4`}>
+            <div className="mb-2 flex items-center justify-between">
               <h2 className={T_CARD_TITLE}>Below par</h2>
               <span className="text-xs text-zinc-500">{below.length} of {counted.length} counted</span>
             </div>
+            {/* par は毎日半分近くの品が下回るうえ、min と食い違っている品が多い。
+                件数だけ見て慌てないよう、画面にそう書く。 */}
+            <p className="mb-2 text-[11px] leading-relaxed text-zinc-500">
+              Roughly half the items with a par sit below it on any given day, so this is a
+              picture for deciding order quantities — not a list of problems. Where an item
+              also has a minimum level, the two often disagree, so treat the par as a guide.
+            </p>
             {below.length === 0 ? (
               <p className="text-sm italic text-zinc-500">Nothing counted is below par.</p>
             ) : (
@@ -161,9 +203,9 @@ export default function StoreStockView({
                     <tr className="text-xs text-zinc-500">
                       <th className="py-1 text-left font-normal">Item</th>
                       <th className="py-1 text-right font-normal w-20">Counted</th>
-                      <th className="py-1 text-right font-normal w-20">+ In</th>
+                      <th className="hidden py-1 text-right font-normal w-20 sm:table-cell">+ In</th>
                       <th className="py-1 text-right font-normal w-24">On hand</th>
-                      <th className="py-1 text-right font-normal w-16">Par</th>
+                      <th className="hidden py-1 text-right font-normal w-16 sm:table-cell">Par</th>
                       <th className="py-1 text-right font-normal w-16">%</th>
                     </tr>
                   </thead>
@@ -173,11 +215,11 @@ export default function StoreStockView({
                         <td className="py-1.5 text-zinc-200">{i.item_name}
                           <span className="ml-1 text-[11px] text-zinc-600">{i.unit}</span></td>
                         <td className="py-1.5 text-right tabular-nums text-zinc-400">{n(i.counted_qty ?? 0)}</td>
-                        <td className={`py-1.5 text-right tabular-nums ${i.received_since > 0 ? "text-emerald-300" : "text-zinc-700"}`}>
+                        <td className={`hidden py-1.5 text-right tabular-nums sm:table-cell ${i.received_since > 0 ? "text-emerald-300" : "text-zinc-700"}`}>
                           {i.received_since > 0 ? n(i.received_since) : "—"}
                         </td>
                         <td className="py-1.5 text-right tabular-nums font-medium text-white">{n(i.on_hand ?? 0)}</td>
-                        <td className="py-1.5 text-right tabular-nums text-zinc-500">{n(i.par_level)}</td>
+                        <td className="hidden py-1.5 text-right tabular-nums text-zinc-500 sm:table-cell">{n(i.par_level)}</td>
                         <td className={`py-1.5 text-right tabular-nums ${(i.pct_of_par ?? 0) < 50 ? "text-rose-300" : "text-amber-300"}`}>
                           {i.pct_of_par ?? "—"}
                         </td>
@@ -188,6 +230,7 @@ export default function StoreStockView({
               </div>
             )}
           </div>
+          )}
 
           <button type="button" onClick={() => setShowAll((v) => !v)}
             className="mb-3 w-full rounded-xl border border-white/10 bg-white/4 px-4 py-2 text-xs text-zinc-400 hover:bg-white/8">
