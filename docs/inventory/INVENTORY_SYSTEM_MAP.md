@@ -38,6 +38,13 @@
 
 **「par を直してください」と言われたら、まずどの par かを確定させる。** 6箇所ある。
 
+⚠️ **店舗の par は 3 が正。** `daily_inv_report_items.par_level`（全店共通・241品目）
+ではなく、`daily_inv_par_patterns` の **`WAREHOUSE_<曜日>` を土台に
+`<支店>_<曜日>` で上書き**したもの。入力画面が使っているのがこちらで、
+在庫表示が master の方を読むと**同じ品で「par割れ」の件数が画面ごとに変わる**
+（実測: TAFT で 113件 → 正しくは 76件）。読むときは必ず
+`db_daily_inventory.par_for_branch_on_date()` を通す。
+
 ---
 
 ## §1 最初に間違える6つ
@@ -257,10 +264,29 @@ Backup 報告 → backup_par_levels と名称で突合（70/71一致・ここは
 POS売上 → rebuild_inv_order_consumptions_from_pos → 台帳 CONSUMPTION
 ```
 
+**2026-09-27 追加: 店舗の在庫表示（`store_stock_view`）**
+
+```
+直近のカウント（Daily Inventory）＋ そのカウント以降に着いた納品（受領）
+  → /api/daily-inventory/stock?branch=  → Daily Inventory 画面の [Stock]
+```
+
+- **新しく数えさせるものは無い。** 既に毎日打っている数字を在庫として読むだけ。
+- 受領の突き合わせ実測（マニラ3店・30日 2,865行）: **2,772行（96%）が
+  品名一致＋単位換算に成功**。品名が無い78行・単位が換算できない15行は
+  `unmatched_receipts` に名前で返す（`Sheet→PC`・`LTR→KG` 等）。
+- 9/25 の実測: TAFT で **113品目**にカウント後の納品が足された。
+- ⚠️ **消費（売れた分）は引いていない。** POS の明細と棚卸しの品名は別の名簿で、
+  繋ぐと7〜8割落ちる（§1-3）。画面に「数えた時点＋その後の入荷であり、
+  売れた分は引いていない」と書いてある。
+- ⚠️ **ドバイには出ない。** 日次カウントが30日で0件なので読む元が無い。
+  ボタン自体を出さない。
+
 ⚠️ **`daily_inv_entries` を読むのは `daily_inventory_api.py` と
-`db_store_supplier.py` の2つだけ。** 30日で188種類の item_code が入力され、
-**発注に繋がっているのは22種類**（`store_supplier_catalog.daily_inv_item_code`、
-有効23・重なり22）。残り **166種類（88%）は画面表示以外の行き先が無い。**
+`db_store_supplier.py` と `store_stock_view` の3つ。** 30日で188種類の item_code が
+入力され、**発注に自動で繋がっているのは22種類**（`store_supplier_catalog.daily_inv_item_code`、
+有効23・重なり22）。残り166種類は発注には繋がらないが、
+**2026-09-27 以降は Stock 画面で在庫として読める。**
 
 ⚠️ 店舗コードが2系統ある: `daily_inv_reports.branch` は `TAFT/CUBAO/PARANAQUE`、
 `store_supplier_catalog.store` は `TAFT/CUB/PAR`。変換は
