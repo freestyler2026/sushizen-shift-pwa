@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import ModalScrim from "@/components/ModalScrim";
 import {
   LANES, STAGE_LABEL, laneOf, stageAlert, stageOf, stageTone,
@@ -137,6 +137,7 @@ export default function DirectPurchasesAdminPage() {
 
   // ── Expand/edit ──
   const [expandedId, setExpandedId] = useState("");
+  const [showBacklog, setShowBacklog] = useState(false);
   const [editingId,  setEditingId]  = useState("");
   const [editState,  setEditState]  = useState<EditState | null>(null);
   const [editBusy,   setEditBusy]   = useState(false);
@@ -376,7 +377,14 @@ export default function DirectPurchasesAdminPage() {
     }
   };
 
-  // ─── Delivered / expected-date handlers ──────────────────────────────────
+  // ─── Dispatch confirmation / expected-date handlers ──────────────────────
+  // Named "Delivered" until 2026-09-27. The back office presses it when the
+  // supplier has confirmed the delivery is arranged, which is not the same
+  // event as the goods being in the kitchen -- that is the kitchen's own
+  // receipt. Yusuke asked for the rename so the two are not read as one:
+  // an order with no dispatch confirmed is stuck at the supplier, and an
+  // order with dispatch confirmed but no receipt is waiting on the kitchen.
+  // The column stays delivered_confirmed_at; only what people read changed.
   // Token auth, no PIN: the back office touches these every day, and lesson 77
   // is that a PIN on a daily action is how a feature reaches zero uses.
   const handleDelivered = async (row: DirectPurchaseRow, undo: boolean) => {
@@ -468,7 +476,17 @@ export default function DirectPurchasesAdminPage() {
   // not say what to do next; created_at DESC answers "what is newest", which is
   // the opposite of what a queue needs (pattern 5). Received and closed rows
   // stay newest-first because nobody is working them.
-  const visibleRows = rows
+  // Anything that has sat in its lane this long is not this week's work. Yusuke
+  // asked for it on 2026-09-27: In Review held 48 orders, every one of them
+  // raised before 19 August, so a genuinely new request would have arrived into
+  // a pile it could not be told apart from. The line is drawn on time in the
+  // lane rather than on the request's age -- an old request that was approved
+  // yesterday is today's problem, and belongs at the top.
+  //
+  // Nothing is hidden: the backlog keeps its own count and opens in one click.
+  const BACKLOG_DAYS = 30;
+
+  const laneRows = rows
     .filter(r => laneOf(r) === lane)
     .sort((a, b) => {
       if (lane === "RECEIVED" || lane === "CLOSED") {
@@ -478,6 +496,13 @@ export default function DirectPurchasesAdminPage() {
       const bv = lane === "PO_ISSUED" ? Number(b.days_past_delivery_date ?? -9999) : Number(b.days_in_stage || 0);
       return bv - av;
     });
+
+  const isBacklog = (r: DirectPurchaseRow) =>
+    lane !== "RECEIVED" && lane !== "CLOSED" && Number(r.days_in_stage || 0) > BACKLOG_DAYS;
+  const visibleRows = laneRows.filter(r => !isBacklog(r));
+  const backlogRows = laneRows.filter(isBacklog);
+  const backlogOldest = backlogRows.length
+    ? Math.max(...backlogRows.map(r => Number(r.days_in_stage || 0))) : 0;
 
 
   return (
@@ -691,15 +716,36 @@ export default function DirectPurchasesAdminPage() {
 
       {/* List */}
       <div className="space-y-3">
-        {visibleRows.map((row) => {
+        {visibleRows.length === 0 && backlogRows.length > 0 && (
+          <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-5 text-center text-sm text-zinc-400">
+            Nothing new in this lane — everything here has been waiting more than {BACKLOG_DAYS} days.
+          </div>
+        )}
+        {[...visibleRows, ...(showBacklog ? backlogRows : [])].map((row, idx) => {
           const isExpanded = expandedId === row.id;
           const isEditing  = editingId  === row.id;
           const createdDt  = row.created_at
             ? new Date(row.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
             : "—";
 
+          // Where the backlog starts, so an expanded lane still reads as two
+          // piles rather than one long one.
+          const startsBacklog = showBacklog && idx === visibleRows.length && backlogRows.length > 0;
+
           return (
-            <div key={row.id} className={`rounded-2xl border transition-all ${row.data_verified_at ? "border-white/8 bg-white/4" : "border-amber-500/20 bg-amber-500/5"}`}>
+            <Fragment key={row.id}>
+            {startsBacklog && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/4 px-4 py-2.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                  Waiting more than {BACKLOG_DAYS} days — {backlogRows.length} order{backlogRows.length === 1 ? "" : "s"}, oldest {backlogOldest} days
+                </span>
+                <button type="button" onClick={() => setShowBacklog(false)}
+                  className="text-xs font-medium text-violet-300 hover:text-violet-200">
+                  Hide these
+                </button>
+              </div>
+            )}
+            <div className={`rounded-2xl border transition-all ${row.data_verified_at ? "border-white/8 bg-white/4" : "border-amber-500/20 bg-amber-500/5"}`}>
 
               {/* Row header */}
               <button type="button" className="w-full px-4 py-4 text-left"
@@ -757,7 +803,7 @@ export default function DirectPurchasesAdminPage() {
                       )}
                       {row.delivered_confirmed_at && (
                         <span className="text-sky-300">
-                          Delivered {String(row.delivered_confirmed_at).slice(0, 10)}
+                          Dispatch confirmed {String(row.delivered_confirmed_at).slice(0, 10)}
                           {row.delivered_confirmed_by ? ` · ${row.delivered_confirmed_by}` : ""}
                         </span>
                       )}
@@ -801,7 +847,7 @@ export default function DirectPurchasesAdminPage() {
                         className={`${SMALL_BUTTON} flex items-center gap-1.5 border-sky-500/30 text-sky-300 hover:bg-sky-500/10`}
                         title="Back office confirms the supplier delivered. The kitchen still confirms receipt.">
                         {poBusy === row.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                        Mark Delivered
+                        Confirm Dispatch
                       </button>
                     )}
                     {row.po_id && stageOf(row) === "DELIVERED" && !isEditing && (
@@ -810,7 +856,7 @@ export default function DirectPurchasesAdminPage() {
                         disabled={poBusy === row.id}
                         className={`${SMALL_BUTTON} flex items-center gap-1.5`}
                         title="Undo the delivered mark">
-                        Undo Delivered
+                        Undo Dispatch
                       </button>
                     )}
                     {(row.status || "").toUpperCase() === "APPROVED" && !isEditing && (
@@ -999,8 +1045,16 @@ export default function DirectPurchasesAdminPage() {
                 </div>
               )}
             </div>
+            </Fragment>
           );
         })}
+        {!showBacklog && backlogRows.length > 0 && (
+          <button type="button" onClick={() => setShowBacklog(true)}
+            className="w-full rounded-xl border border-dashed border-white/12 bg-white/2 px-4 py-3 text-sm text-zinc-400 hover:border-violet-500/30 hover:text-zinc-200">
+            Show {backlogRows.length} order{backlogRows.length === 1 ? "" : "s"} waiting more than {BACKLOG_DAYS} days
+            <span className="text-zinc-500"> · oldest {backlogOldest} days</span>
+          </button>
+        )}
       </div>
 
       {/* ── Void confirmation modal ── */}

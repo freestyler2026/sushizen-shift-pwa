@@ -87,7 +87,7 @@ export const STAGE_LABEL: Record<string, string> = {
   IN_REVIEW: "In Review",
   APPROVED_NO_PO: "Approved · no PO",
   PO_ISSUED: "PO issued · awaiting delivery",
-  DELIVERED: "Delivered · awaiting kitchen",
+  DELIVERED: "Dispatch confirmed · awaiting kitchen",
   RECEIVED: "Received",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
@@ -129,8 +129,8 @@ export const LANES: Lane[] = [
  *
  * Deliberately NOT the same grouping as LANES above, and deliberately from the
  * same stage vocabulary. The back office needs PO Issued and Delivered apart —
- * "the supplier has not sent it" and "it is here but the kitchen has not
- * received it" are different people's problems — while the Direct Purchase
+ * "the supplier has not sent it" and "the supplier sent it but the kitchen has
+ * not received it" are different people's problems — while the Direct Purchase
  * screen merges them into Incoming, because there the question is only
  * "has it arrived". One set of stages, two readings of it; a second set of
  * stage names is how two screens start disagreeing about the same order.
@@ -141,9 +141,9 @@ export const STORE_STAGES: Lane[] = [
   { key: "APPROVAL", label: "Approval", stages: ["IN_REVIEW"],
     hint: "Waiting for approval." },
   { key: "PO_ISSUED", label: "PO Issued", stages: ["APPROVED_NO_PO", "PO_ISSUED"],
-    hint: "Approved. Shows whether the purchase order has been raised yet." },
-  { key: "DELIVERED", label: "Delivered", stages: ["DELIVERED"],
-    hint: "Back office has confirmed delivery; the kitchen has not received it yet." },
+    hint: "Approved and ordered, with no dispatch confirmed yet — this is where an order stuck at the supplier sits." },
+  { key: "DELIVERED", label: "Dispatch Confirmed", stages: ["DELIVERED"],
+    hint: "Back office has confirmed the supplier arranged the delivery; the kitchen has not received it yet." },
   { key: "RECEIVED", label: "Received", stages: ["RECEIVED"],
     hint: "The kitchen confirmed receipt." },
 ];
