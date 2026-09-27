@@ -2,6 +2,46 @@
 
 ## 2026-09-27 — Yusuke 報告の4件（発注の単価・プルダウン）
 
+### 追記（同日・オーナーの「本当に完全に直っているか」で全件検算）
+
+最初の報告のあと全290品を通して**3つ見つかった**（詳細は CLAUDE.md 教訓135）。
+
+| 見つかったもの | 対応 |
+|---|---|
+| テストが本番ではなく**写した規則**を検査していた | 規則を `app/units.py` に出し、テストが本番と同じ1つを読む形にした |
+| 単価の引き当てが入れ子の関数で**外から呼べない**＝実データで検算できない | `app/order_pricing.py`（`CatalogPricer`）に抽出。全290品を通せるようになった |
+| 私の単位検査が**24品の単価を消していた**（引き当てがカタログの1行しか見ていない） | 単位が合う行を先に選ぶ。8件が正しい値で復帰（全て `proc_receiving_items` で裏取り） |
+
+**その修正の途中で25倍事故を自分で再現した**（単位が合う行が単価0のとき他の行に落ちる → `Sliced Cheese` の PC ₱83 が PKT の数量に付いた）。テストが捕まえた。合う行が0なら0。
+
+**本番の検算結果（デプロイ済みコードを one-off dyno で実行）**
+
+```
+Salt KG -> 16.0 / Dashinomoto (1KG) kg -> 460.0
+Onigiri Film PKT -> 355.0 / Paper Bowl White 780 PKT -> 255.0
+Mirin KG -> 0.0 / Ajinomoto KG -> 0.0   （名前が違う＝Yusuke 対応待ち）
+店舗の Warehouse タブ: Paranaque/Taft/Cubao いずれも 60品・両方表示・形が違う行 0
+棚卸し 290品 / 単価0 63品 = 単位違い13 + 単位は合うが単価空5 + カタログに行が無い45
+```
+
+### 単価0の18件 — カタログの単位表記が納品の実物と違う（**データ作業・Yusuke**）
+
+対応が3通りに分かれるので一括書き換えはしていない。根拠は全て `proc_receiving_items`。
+
+**内部のみ（CK↔店舗・外部POに出ない／4件）**
+| 品 | 棚卸し | カタログ | 受領の実績 | 対応 |
+|---|---|---|---|---|
+| Sliced Cheese | pkt | PC ₱83 / PKT ₱0 | pkt×83×24 | PKT 行に ₱83 を入れる |
+| Cheese Spread | PKT | KG ₱80 | PKT×80×18 | 単位を PKT に直す |
+| Pork for Tonkatsu | Portion | PC ₱36.28 / PCS ₱0 | Portion×36.28×31 | 単位を PTN に直す |
+| Miso Ramen Base | kg | KG ₱0 / PTN ₱8.34 | （受領なし）| KG 行に単価を入れる |
+
+**仕入先に出る（POの文言が変わる／14件）** — Oyster Sauce(GAL/bottle×400)・OZAKI Mayonnaise(BOT/pkt×330×23)・Pork Lard(PKT ₱0/KG×300×14)・Sweet Chili Sauce(KG/bottle×227.50×18)・Chicken Stock Powder(CAN/Bottleで数えている)・**Dish Washing Liquid(BTL行が₱0・PC ₱170/BTL×170×45)**・**Handwash(PKT行が₱0・PC ₱170/PKT×170×8)**・Red Miso・White Miso(PKT ₱160/kgで数えている)・PANICH SRIRACHA(**BOX ₱156 は実際は1本の値段。箱は₱1,560**)・Vegetable Stock(Bottle ₱125/LTR×145)・Unsalted Anchor Butter(PC ₱171.50 は実は PKT)・Tomato Ketchup(BTL ₱84.25/pktで数えている)・Masking Tape(PCS ₱56.75/KG×42.50)
+
+⚠️ **Dish Washing Liquid と Handwash は倉庫の60品に入っている。** 「倉庫カタログは形が揃った」は
+`store_scope`/`catalog_category`/`order_type`/`supplier` の話で、**単位表記までは揃っていない**。
+
+
 **本人の報告**: ①Paper Bowl 780ml の価格が出ない ②Mirin・Salt の価格が出ない／間違う
 （Dashinomoto・Ajinomoto も同じはず）③Salt は 1sack=25kg ₱400 なのに 1kg=₱400 で計算される
 ④マニュアルでアイテムを追加するとき「Onigiri Film」がプルダウンに出ない

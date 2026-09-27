@@ -647,6 +647,28 @@ td.muted { color:var(--muted); font-size:12px; }
     </div>
   </div>
 
+  <div class="card">
+    <div class="card-title" data-en="One item, several rows — and the unit decides which one prices an order" data-ja="1つの品に複数の行 — どの行が発注の単価になるかは単位で決まる">One item, several rows — the unit decides which one prices an order</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="A name normally carries two or three active rows, because the supply legs differ: the store buys from the Central Kitchen, and the Central Kitchen buys from a vendor. Those rows hold different units and different prices, and both are correct for their own leg." data-ja="ひとつの品名に有効な行が2〜3本あるのが普通です。供給元が違うためで、店舗はCKから買い、CKは仕入先から買います。行ごとに単位も単価も違い、どちらもその経路では正しい値です。">A name normally has 2–3 active rows — one per supply leg. Different units, different prices, both correct for their own leg.</p>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Row" data-ja="行">Row</th><th data-en="Means" data-ja="意味">Means</th><th data-en="Example (Sliced Beef)" data-ja="例（Sliced Beef）">Example</th></tr>
+      <tr><td>Supplier <b>Central Kitchen</b>, order type <b>CK</b></td>
+          <td data-en="The store orders it from the Central Kitchen." data-ja="店舗がCKに発注する。">Store orders it from the CK.</td><td>PC ₱50</td></tr>
+      <tr><td>Supplier <b>CK</b>, order type <b>CK</b></td>
+          <td data-en="A duplicate registration, usually with no price." data-ja="重複登録。多くは単価が空。">A duplicate registration, usually unpriced.</td><td>PTN ₱0</td></tr>
+      <tr><td>A real vendor, order type <b>CK_WH_to_supplier</b></td>
+          <td data-en="The Central Kitchen buys it from outside." data-ja="CKが外部から買う。">The CK buys it from outside.</td><td>PKT ₱795</td></tr>
+    </table></div>
+    <div class="tip info" style="margin-top:8px">
+      <span class="tip-icon">📐</span>
+      <span data-en="The order line takes the price from the row whose unit matches what the stocktake counts in. So a wrong unit on one row does not spoil the others — but if no row carries the counted unit, no price is taken at all. That is why the unit label matters more than it looks." data-ja="発注明細の単価は、棚卸しが数えている単位と一致する行から取ります。ですから1行の単位が違っていても他の行は無事です。ただし**どの行も棚卸しの単位を持っていなければ単価は付きません**。単位の表記は見た目以上に効きます。">The line takes the price from the row whose unit matches the count. No row with that unit = no price at all.</span>
+    </div>
+    <div class="tip warning" style="margin-top:8px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="18 counted items are in this state today — the price on the row is the right amount, but the unit beside it is not what the goods arrive as. Oyster Sauce is sold by the GAL and received by the bottle; Cheese Spread is sold by the KG and received as PKT x ₱80, eighteen times. Check the receiving record before changing a unit: what was received is the physical fact." data-ja="現在18品がこの状態です。行の金額は合っているのに、隣の単位が納品の実物と違います。Oyster Sauce は GAL で登録され bottle で納品、Cheese Spread は KG で登録され PKT×₱80 で18回納品されています。単位を直す前に受領記録を見てください。受け取った物の記録だけが物理的な事実です。">18 items are in this state now: right amount, wrong unit label. Check the receiving record before changing a unit — what was received is the fact.</span>
+    </div>
+  </div>
+
   <!-- 倉庫カタログは1品1行 (2026-09-27) -->
   <div class="card">
     <div class="card-title" data-en="Warehouse items: one row for all three stores" data-ja="倉庫アイテムは3店舗で1行">Warehouse items: one row for all three stores</div>
