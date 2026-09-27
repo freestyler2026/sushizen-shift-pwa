@@ -21,6 +21,7 @@
 タスクが...
 ├─ **給与・勤怠・控除・休暇**            → **docs/payroll/PAYROLL_SYSTEM_MAP.md（必読・他を読む前に）**
 ├─ **発注・PO・受領・Direct Purchase**   → **docs/procurement/CK_SUPPLIER_ORDER_MAP.md（必読・他を読む前に）**
+├─ **在庫・棚卸・Daily Inventory・廃棄** → **docs/inventory/INVENTORY_SYSTEM_MAP.md（必読・他を読む前に）**
 ├─ フロントページ・コンポーネント変更    → docs/ai/FRONTEND_MAP.md
 ├─ バックエンドAPIエンドポイント追加     → docs/ai/BACKEND_MAP.md
 ├─ DBテーブル・クエリ変更              → docs/ai/DATABASE_SCHEMA.md
@@ -32,6 +33,7 @@
 | ファイル | 用途 |
 |---|---|
 | `docs/payroll/PAYROLL_SYSTEM_MAP.md` | **給与に触る前に必読。** 2都市の違い・お金を生む9つの処理・休暇と欠勤の区別・検算手順。`python3 scripts/verify-payroll-doc.py` がコードとの一致を検査する |
+| `docs/inventory/INVENTORY_SYSTEM_MAP.md` | **在庫に触る前に必読。** 「在庫」という1つの仕組みは無く、**在庫数の系統が4つ・par level が6つ・item の名前空間が4つ**並走している。台帳 `inv_stock_ledger` は**入庫経路がコードに存在せず**、全拠点でほぼ全品マイナス（＝Ledger/Balances画面の数字は現状無意味）。毎日使われているのは Daily Inventory と Backup と CK セッション棚卸だけ。`python3 scripts/verify-inventory-doc.py` がコードとの一致を検査する |
 | `docs/procurement/CK_SUPPLIER_ORDER_MAP.md` | **発注周りに触る前に必読。** purchase_type 5種の違い・PO と受領の粒度のずれ・Overdue 389件の68%がノイズである理由・マニラとドバイが正反対であること。`python3 scripts/verify-procurement-doc.py` がコードとの一致を検査する |
 | `docs/ai/CURRENT_TASKS.md` | **毎セッション必読** — 現在の状態・pending tasks |
 | `docs/ai/FRONTEND_MAP.md` | 全ページ・コンポーネント一覧 |
