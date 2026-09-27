@@ -254,74 +254,40 @@ describe("AdminDailyInventoryTab — page structure", () => {
 
 // ── Staff names loading ───────────────────────────────────────────────────────
 
-describe("AdminDailyInventoryTab — staff names", () => {
+describe("AdminDailyInventoryTab — who filed the report", () => {
   beforeEach(() => {
     mockAuth = adminAuth();
   });
 
-  it("shows 'Loading staff…' in selector while fetching", async () => {
-    // Delay staff-names response
-    mockFetch.mockImplementation((url: string) => {
-      if (typeof url === "string" && url.includes("/staff-names")) {
-        return new Promise(() => {}); // never resolves
-      }
-      if (typeof url === "string" && url.includes("/daily-inventory/items")) {
-        return makeResponse(SAMPLE_ITEMS);
-      }
-      return makeResponse({});
-    });
-    await renderTab();
-    await waitFor(() =>
-      expect(screen.getByText("Loading…")).toBeInTheDocument()
-    );
-  });
+  // 2026-09-27: 誰が出したかは選ばせるのをやめた。30日の実測で
+  // 「Mary Jane」と「Mary」、「Samantha」と「Samantha Varca」が別人として
+  // 記録されていた。サーバもトークンの本人で上書きするので、画面に
+  // 選択欄を残すと「選べるはず」と読まれる動かない欄になる。
 
-  it("populates staff dropdown with names from API", async () => {
+  it("shows the logged-in staff member, and does not ask", async () => {
     routedFetch();
     await renderTab();
-    await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
-    expect(screen.getByText("Bob")).toBeInTheDocument();
-    expect(screen.getByText("Carol")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Filed by")).toBeInTheDocument());
+    expect(screen.getByText("Admin User")).toBeInTheDocument();
   });
 
-  it("shows 'Other' option in staff dropdown", async () => {
+  it("offers no staff picker and no free-text name", async () => {
     routedFetch();
     await renderTab();
-    await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
-    expect(screen.getByText("Other")).toBeInTheDocument();
-  });
-
-  it("shows custom staff text input when 'Other' is selected", async () => {
-    routedFetch();
-    await renderTab();
-    await waitFor(() => screen.getByText("Other"));
-    // Find the staff select and choose "Other"
-    const staffSelect = screen.getAllByRole("combobox").find(
-      (el) => el.querySelector ? true : false
-    );
-    // Use the select that contains staff options
+    await waitFor(() => screen.getByText("Filed by"));
+    expect(screen.queryByPlaceholderText("Enter name")).toBeNull();
     const selects = screen.getAllByRole("combobox");
-    const staffSel = selects.find((s) => s.innerHTML.includes("Other")) ?? selects[0];
-    fireEvent.change(staffSel, { target: { value: "Other" } });
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText("Enter name")).toBeInTheDocument()
-    );
+    expect(selects.some((el) => el.innerHTML.includes("Other"))).toBe(false);
   });
 
-  it("shows staff list error when API fails", async () => {
-    mockFetch.mockImplementation((url: string) => {
-      if (typeof url === "string" && url.includes("/staff-names")) {
-        return makeErrorResponse(500, "Server error");
-      }
-      if (typeof url === "string" && url.includes("/daily-inventory/items")) {
-        return makeResponse(SAMPLE_ITEMS);
-      }
-      return makeResponse({});
-    });
+  it("does not fetch the staff list any more", async () => {
+    routedFetch();
     await renderTab();
-    await waitFor(() =>
-      expect(screen.getByText(/Could not load staff list/i)).toBeInTheDocument()
+    await waitFor(() => screen.getByText("Filed by"));
+    const called = mockFetch.mock.calls.some(
+      (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).includes("/staff-names")
     );
+    expect(called).toBe(false);
   });
 });
 
@@ -491,18 +457,17 @@ describe("AdminDailyInventoryTab — form interactions", () => {
     routedFetch();
   });
 
-  it("changing branch triggers new staff-names fetch", async () => {
+  it("changing branch reloads the sheet, without asking who is filing", async () => {
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
+    await waitFor(() => screen.getByText("Filed by"));
     const branchSelect = screen.getByDisplayValue("PARANAQUE");
     fireEvent.change(branchSelect, { target: { value: "CUBAO" } });
-    await waitFor(() =>
-      // After branch change, staff names are re-fetched
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("home_branch=CUBAO"),
-        expect.anything()
-      )
+    // 支店を変えてもスタッフ一覧は引かない（引く先がもう無い）。
+    await waitFor(() => expect(screen.getByDisplayValue("CUBAO")).toBeInTheDocument());
+    const asked = mockFetch.mock.calls.some(
+      (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).includes("/staff-names")
     );
+    expect(asked).toBe(false);
   });
 
   it("changing shift updates the shift selector", async () => {
@@ -538,35 +503,34 @@ describe("AdminDailyInventoryTab — save draft", () => {
       return makeResponse({});
     });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
+    await waitFor(() => screen.getByText("Filed by"));
 
-    // Select staff and click save
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
+    // 出した人はログイン中の本人なので、選ぶ操作は無い。
     fireEvent.click(screen.getByText("💾 Save draft"));
     await waitFor(() =>
       expect(screen.getByText("Saving…")).toBeInTheDocument()
     );
   });
 
-  it("shows save error when no staff is selected", async () => {
-    routedFetch();
+  it("saves without asking who is filing", async () => {
+    routedFetch({ saveResult: { report_id: 77 } });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    // No staff selected — click save
+    await waitFor(() => screen.getByText("Filed by"));
     fireEvent.click(screen.getByText("💾 Save draft"));
-    await waitFor(() =>
-      expect(screen.getByText(/Select a staff member/i)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText(/Draft saved/)).toBeInTheDocument());
+    const savedCall = mockFetch.mock.calls.find(
+      ([url, opts]: [string, RequestInit]) =>
+        typeof url === "string" && url.includes("/save") && opts?.method === "POST"
     );
+    // 送るのはログイン中の本人。サーバ側も同じ名前で上書きする。
+    expect(JSON.parse(savedCall![1].body as string).staff_name).toBe("Admin User");
   });
 
   it("shows save confirmation message on successful save", async () => {
     routedFetch({ saveResult: { report_id: 77 } });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
+    await waitFor(() => screen.getByText("Filed by"));
 
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
     fireEvent.click(screen.getByText("💾 Save draft"));
     await waitFor(() =>
       expect(screen.getByText(/Draft saved/)).toBeInTheDocument()
@@ -581,9 +545,7 @@ describe("AdminDailyInventoryTab — save draft", () => {
       return makeResponse({});
     });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
+    await waitFor(() => screen.getByText("Filed by"));
     fireEvent.click(screen.getByText("💾 Save draft"));
     await waitFor(() =>
       expect(screen.getByText(/Save error/i)).toBeInTheDocument()
@@ -602,10 +564,8 @@ describe("AdminDailyInventoryTab — submit report", () => {
   it("shows submitted success screen after successful submit", async () => {
     routedFetch({ saveResult: { report_id: 55 }, submitResult: { ok: true } });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
+    await waitFor(() => screen.getByText("Filed by"));
 
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
     fireEvent.click(screen.getByText("✅ Submit report"));
     await waitFor(() =>
       expect(screen.getByText("Report Submitted")).toBeInTheDocument()
@@ -615,9 +575,7 @@ describe("AdminDailyInventoryTab — submit report", () => {
   it("shows report ID in submitted screen", async () => {
     routedFetch({ saveResult: { report_id: 55 }, submitResult: { ok: true } });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
+    await waitFor(() => screen.getByText("Filed by"));
     fireEvent.click(screen.getByText("✅ Submit report"));
     await waitFor(() =>
       expect(screen.getByText(/Report ID: 55/i)).toBeInTheDocument()
@@ -627,9 +585,7 @@ describe("AdminDailyInventoryTab — submit report", () => {
   it("shows 'Start a new report' button after submit", async () => {
     routedFetch({ saveResult: { report_id: 55 }, submitResult: { ok: true } });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
+    await waitFor(() => screen.getByText("Filed by"));
     fireEvent.click(screen.getByText("✅ Submit report"));
     await waitFor(() =>
       expect(screen.getByText("Start a new report")).toBeInTheDocument()
@@ -639,9 +595,7 @@ describe("AdminDailyInventoryTab — submit report", () => {
   it("'Start a new report' resets the form", async () => {
     routedFetch({ saveResult: { report_id: 55 }, submitResult: { ok: true } });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
+    await waitFor(() => screen.getByText("Filed by"));
     fireEvent.click(screen.getByText("✅ Submit report"));
     await waitFor(() => screen.getByText("Start a new report"));
     fireEvent.click(screen.getByText("Start a new report"));
@@ -656,9 +610,7 @@ describe("AdminDailyInventoryTab — submit report", () => {
     (global.confirm as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
     routedFetch({ saveResult: { report_id: 55 } });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
+    await waitFor(() => screen.getByText("Filed by"));
     fireEvent.click(screen.getByText("✅ Submit report"));
     // After confirm cancel, still on the form
     await waitFor(() =>
@@ -666,23 +618,19 @@ describe("AdminDailyInventoryTab — submit report", () => {
     );
   });
 
-  it("shows submit error message when no staff and save fails (regression: generic msg should not overwrite real error)", async () => {
+  it("shows the real save error, not a generic one", async () => {
     mockFetch.mockImplementation((url: string, opts?: RequestInit) => {
-      if (url.includes("/staff-names")) return makeResponse(SAMPLE_STAFF);
+      if (typeof url !== "string") return makeResponse({});
       if (url.includes("/daily-inventory/items")) return makeResponse(SAMPLE_ITEMS);
-      if (url.includes("/save") && opts?.method === "POST") return makeErrorResponse(503, "Network timeout");
+      if (url.includes("/save") && opts?.method === "POST") {
+        return makeErrorResponse(500, "Database is down");
+      }
       return makeResponse({});
     });
     await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Alice" } });
-    fireEvent.click(screen.getByText("✅ Submit report"));
-    await waitFor(() => {
-      // Should show the real save error, not "Save first (select staff...)"
-      const errEl = screen.queryByText(/Network timeout/i);
-      expect(errEl?.textContent).toContain("Network timeout");
-    });
+    await waitFor(() => screen.getByText("Filed by"));
+    fireEvent.click(screen.getByText("💾 Save draft"));
+    await waitFor(() => expect(screen.getByText(/Database is down/)).toBeInTheDocument());
   });
 });
 
@@ -768,52 +716,3 @@ describe("AdminDailyInventoryTab — history tab", () => {
 
 // ── effectiveStaffName unit tests ─────────────────────────────────────────────
 
-describe("AdminDailyInventoryTab — effectiveStaffName (via UI)", () => {
-  beforeEach(() => {
-    mockAuth = adminAuth();
-    routedFetch();
-  });
-
-  it("selecting a named staff shows the name in the select", async () => {
-    await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Bob" } });
-    expect(expectSelectShowing("Bob")).toBeTruthy();
-  });
-
-  it("selecting Other + entering custom name uses the custom name for save", async () => {
-    routedFetch({ saveResult: { report_id: 9 } });
-    await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Other" } });
-    await waitFor(() => screen.getByPlaceholderText("Enter name"));
-    fireEvent.change(screen.getByPlaceholderText("Enter name"), { target: { value: "Temp Worker" } });
-    fireEvent.click(screen.getByText("💾 Save draft"));
-    await waitFor(() =>
-      expect(screen.getByText(/Draft saved/)).toBeInTheDocument()
-    );
-    // Verify the POST body contained "Temp Worker"
-    const savedCall = mockFetch.mock.calls.find(
-      ([url, opts]: [string, RequestInit]) =>
-        typeof url === "string" && url.includes("/save") && opts?.method === "POST"
-    );
-    expect(savedCall).toBeDefined();
-    const body = JSON.parse(savedCall![1].body as string);
-    expect(body.staff_name).toBe("Temp Worker");
-  });
-
-  it("selecting Other + leaving name blank shows validation error on save", async () => {
-    await renderTab();
-    await waitFor(() => screen.getByText("Alice"));
-    const staffSel = screen.getAllByRole("combobox").find((s) => s.innerHTML.includes("Other"))!;
-    fireEvent.change(staffSel, { target: { value: "Other" } });
-    await waitFor(() => screen.getByPlaceholderText("Enter name"));
-    // Leave custom name empty, click save
-    fireEvent.click(screen.getByText("💾 Save draft"));
-    await waitFor(() =>
-      expect(screen.getByText(/Select a staff member/i)).toBeInTheDocument()
-    );
-  });
-});

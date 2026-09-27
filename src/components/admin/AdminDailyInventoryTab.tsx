@@ -113,7 +113,6 @@ function fmtSection(sec: string): string {
     sec.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const STAFF_OTHER = "Other";
 
 interface InvItem {
   id: number;
@@ -213,10 +212,6 @@ function DetailStatusBadge({ qty, minLevel, parLevel }: { qty: number | null; mi
   return <span className={BADGE_SUCCESS}>OK</span>;
 }
 
-function effectiveStaffName(staffChoice: string, customStaff: string): string {
-  if (staffChoice === STAFF_OTHER) return customStaff.trim();
-  return staffChoice.trim();
-}
 
 function formatDate(d: string) {
   if (!d) return "—";
@@ -2212,8 +2207,6 @@ export default function AdminDailyInventoryTab() {
   const [branch, setBranch] = useState<string>(cityBranches[0]);
   const [reportDate, setReportDate] = useState(todayYmd());
   const [shift, setShift] = useState("AM");
-  const [staffChoice, setStaffChoice] = useState<string>("");
-  const [customStaff, setCustomStaff] = useState("");
   const [sourceTab, setSourceTab] = useState<SourceType>("supplier");
 
   const [items, setItems] = useState<InvItem[]>([]);
@@ -2224,8 +2217,8 @@ export default function AdminDailyInventoryTab() {
   const entriesRef = useRef<EntryMap>({});
   useEffect(() => { entriesRef.current = entries; }, [entries]);
 
-  const headerRef = useRef<{ branch: string; reportDate: string; shift: string; staffChoice: string; customStaff: string }>({ branch: cityBranches[0], reportDate: todayYmd(), shift: "AM", staffChoice: "", customStaff: "" });
-  useEffect(() => { headerRef.current = { branch, reportDate, shift, staffChoice, customStaff }; }, [branch, reportDate, shift, staffChoice, customStaff]);
+  const headerRef = useRef<{ branch: string; reportDate: string; shift: string }>({ branch: cityBranches[0], reportDate: todayYmd(), shift: "AM" });
+  useEffect(() => { headerRef.current = { branch, reportDate, shift }; }, [branch, reportDate, shift]);
 
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -2242,9 +2235,6 @@ export default function AdminDailyInventoryTab() {
   // All items across sources (for detail view)
   const [allItems, setAllItems] = useState<InvItem[]>([]);
 
-  const [staffNames, setStaffNames] = useState<string[]>([]);
-  const [staffNamesLoading, setStaffNamesLoading] = useState(true);
-  const [staffListError, setStaffListError] = useState("");
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -2252,7 +2242,6 @@ export default function AdminDailyInventoryTab() {
   const [recoveryDraft, setRecoveryDraft] = useState<ReportHeader | null>(null);
   // When restoring a draft whose branch differs from current, staff names reload after setBranch.
   // Store the intended name here so the staff-loading effect can resolve it correctly.
-  const pendingStaffRestoreRef = useRef<string | null>(null);
 
   // WAREHOUSE par pattern lookup for the form entry view (today's day, with fallback to any WAREHOUSE_* pattern)
   // Check pattern list first so we only fall back when the day-specific pattern truly doesn't exist,
@@ -2304,44 +2293,9 @@ export default function AdminDailyInventoryTab() {
     setRecoveryDraft(null);
   }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Staff names
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setStaffNamesLoading(true); setStaffListError("");
-      try {
-        // For Manila: pass home_branch to filter by branch. For Dubai: skip branch filter (all Dubai staff).
-        const branchParam = city === "manila" ? encodeURIComponent(branch) : "";
-        const res = await apiFetch(`/api/daily-inventory/staff-names?home_branch=${branchParam}&city=${city}`);
-        const text = await res.text();
-        if (!res.ok) throw new Error(text || "Failed to load staff names");
-        const data = JSON.parse(text || "{}") as { names?: string[] };
-        const names = Array.isArray(data.names) ? data.names.map((n) => String(n || "").trim()).filter(Boolean) : [];
-        if (cancelled) return;
-        setStaffNames(names);
-        // If a draft restore is pending, resolve the staff name against the newly loaded list
-        const pendingName = pendingStaffRestoreRef.current;
-        if (pendingName) {
-          pendingStaffRestoreRef.current = null;
-          if (names.includes(pendingName)) {
-            setStaffChoice(pendingName);
-          } else {
-            setStaffChoice(STAFF_OTHER);
-            setCustomStaff(pendingName);
-          }
-        } else {
-          setStaffChoice((prev) => {
-            if (prev === STAFF_OTHER) return prev;
-            if (prev && !names.includes(prev)) return "";
-            return prev;
-          });
-        }
-      } catch {
-        if (!cancelled) { setStaffNames([]); setStaffListError("Could not load staff list."); }
-      } finally { if (!cancelled) setStaffNamesLoading(false); }
-    })();
-    return () => { cancelled = true; };
-  }, [branch, city]); // eslint-disable-line react-hooks/exhaustive-deps
+  // スタッフ名の一覧は読み込まない。誰が出したかはログインで分かっており、
+  // サーバもトークンの本人で上書きする（2026-09-27）。一覧を残すと、
+  // 選べないのに読み込みだけ走る。
 
   // Items by source tab
   useEffect(() => {
@@ -2406,8 +2360,10 @@ export default function AdminDailyInventoryTab() {
 
   const doSave = useCallback(async (showMsg: boolean): Promise<number | null> => {
     const h = headerRef.current;
-    const name = effectiveStaffName(h.staffChoice, h.customStaff);
-    if (!name) { if (showMsg) setError("Select a staff member, or choose Other and enter a name."); return null; }
+    // 出した人はログイン中の本人。控えの手入力は残していない — 残すと
+    // 「揺れた名前」が戻ってくる道がそのまま残る。
+    const name = auth?.staffName || "";
+    if (!name) { if (showMsg) setError("Could not tell who you are — sign in again."); return null; }
     setSaving(true); setError("");
     try {
       const ent = entriesRef.current;
@@ -2433,7 +2389,9 @@ export default function AdminDailyInventoryTab() {
       setError(`Save error: ${e instanceof Error ? e.message : String(e)}`);
       return null;
     } finally { setSaving(false); }
-  }, []);
+    // auth を読むので依存に入れる。入れないと、ログインし直した直後の保存が
+    // 古い名前で飛ぶ。
+  }, [auth?.staffName]);
 
   const handleEntryChange = useCallback((itemCode: string, field: keyof EntryState, value: string) => {
     setEntries((prev) => ({ ...prev, [itemCode]: { ...prev[itemCode], [field]: value } }));
@@ -2506,20 +2464,9 @@ export default function AdminDailyInventoryTab() {
       setCurrentReportId(detail.id);
       setReportDate(detail.report_date);
       setShift(detail.shift);
-      // Restore staff — if branch changes, staff names reload and pendingStaffRestoreRef handles it
-      if (detail.branch !== branch) {
-        pendingStaffRestoreRef.current = detail.staff_name;
-        setStaffChoice("");
-        setCustomStaff("");
-        setBranch(detail.branch); // triggers staff reload → ref resolves name
-      } else {
-        if (staffNames.includes(detail.staff_name)) {
-          setStaffChoice(detail.staff_name);
-        } else {
-          setStaffChoice(STAFF_OTHER);
-          setCustomStaff(detail.staff_name);
-        }
-      }
+      // 下書きを戻すときに名前を突き合わせる必要はなくなった。出した人は
+      // ログイン中の本人で決まる。
+      if (detail.branch !== branch) setBranch(detail.branch);
       setRecoveryDraft(null);
       setSelectedDetail(null);
       setView("form");
@@ -2813,16 +2760,15 @@ export default function AdminDailyInventoryTab() {
                 </select>
               </div>
               <div className="sm:col-span-1">
-                <label className={`${T_LABEL} mb-1.5 block`}>Staff</label>
-                <select value={staffChoice} onChange={(e) => setStaffChoice(e.target.value)} disabled={staffNamesLoading} className={`${SELECT_CLASS} disabled:opacity-60`}>
-                  <option value="">{staffNamesLoading ? "Loading…" : "— Select —"}</option>
-                  {staffNames.map((n) => <option key={n} value={n}>{n}</option>)}
-                  <option value={STAFF_OTHER}>Other</option>
-                </select>
-                {staffChoice === STAFF_OTHER && (
-                  <input type="text" value={customStaff} onChange={(e) => setCustomStaff(e.target.value)} placeholder="Enter name" className={`${INPUT_CLASS} mt-2`} />
-                )}
-                {staffListError && <p className="mt-1.5 text-xs text-amber-400">{staffListError}</p>}
+                {/* 誰が出したかはログインで分かっている。選ばせていたので
+                    「Mary Jane」と「Mary」、「Samantha」と「Samantha Varca」が
+                    別人として記録されていた（30日の実測）。サーバも本人で
+                    上書きするので、ここは表示だけにする — 動かない選択欄を
+                    残すと、次に読む人が「選べるはず」と考える。 */}
+                <label className={`${T_LABEL} mb-1.5 block`}>Filed by</label>
+                <div className={`${INPUT_CLASS} flex items-center bg-white/4 text-zinc-300`}>
+                  {auth?.staffName || "—"}
+                </div>
               </div>
             </div>
           </div>
