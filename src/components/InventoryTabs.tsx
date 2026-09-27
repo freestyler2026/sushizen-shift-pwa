@@ -4,15 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowRightLeft,
   Boxes,
   Building2,
   ChefHat,
-  CircleDollarSign,
   ClipboardList,
   LayoutDashboard,
   ListChecks,
-  PackageMinus,
   RefreshCw,
   ScanLine,
   Utensils,
@@ -23,10 +20,26 @@ import {
 import { canAccessCountTemplatesAdmin, canAccessDailyInventoryAdmin, canAccessInventoryAdmin, getAuth } from "@/lib/auth";
 
 // ── PRIMARY tabs — shown prominently at the top for staff ────────────────────
+//
+// ⚠️ ここに並べるのは「押したら何かが起きる」ものだけ。押しても何も起きない
+// 選択肢が並んでいると、画面全体が信用されなくなる。
+//
+// 2026-09-27 に本番の全行を数えて外したもの（**コードもルートも消していない。
+// 一覧から外しただけ**なので、URL を直接開けば今も使える）:
+//   - Transfer Orders … `inv_transfer_orders` / `inv_transfers` が開設以来 **0行**
+//   - Quantity Adjustments … `inv_quantity_adjustments` **0行**
+//   - Cost Adjustments … `inv_cost_adjustments` **0行**
+//
+// **Full Inventory Count は外していない。** 行数だけ見ると止まって見えるが、
+// 2026-09-08 に TAFT で7件作られている（全部0品目・同じ人が23分で7回）。
+// これは「使われていない」ではなく「使おうとして進めなかった」で、
+// 外せばその人が次に困る。原因（ヘッダと品目を別々に書いていた）は直した。
+//
+// 同じ理由で CK Production（2026-06 に6件・全部 DRAFT）と
+// Quick Spot Check（2026-03 に4件・CLOSED まで到達）も残す。
 const PRIMARY_ITEMS = [
   { href: "/admin/daily-inventory",          label: "Daily Inventory Input", icon: Warehouse },
   { href: "/admin/inventory/counts",          label: "Full Inventory Count",  icon: ListChecks },
-  { href: "/admin/inventory/transfer-orders", label: "Transfer Orders",       icon: ArrowRightLeft },
   { href: "/admin/inventory/productions",     label: "CK Production",         icon: ChefHat },
   { href: "/admin/inventory/ck-inventory",    label: "CK Inventory",          icon: Layers },
   { href: "/admin/inventory/wh-inventory",    label: "WH Inventory",          icon: Building2 },
@@ -38,8 +51,6 @@ const SECONDARY_ITEMS = [
   { href: "/admin/inventory/items",              label: "Ingredients / Products", icon: Boxes },
   { href: "/admin/inventory/count-sheets",       label: "Count Templates",        icon: ClipboardList },
   { href: "/admin/inventory/spot-checks",        label: "Quick Spot Check",       icon: ScanLine },
-  { href: "/admin/inventory/quantity-adjustments", label: "Quantity Adjustments", icon: PackageMinus },
-  { href: "/admin/inventory/cost-adjustments",   label: "Cost Adjustments",       icon: CircleDollarSign },
   { href: "/admin/inventory/ingredient-usage",   label: "Ingredients Used by Sales", icon: Utensils },
   { href: "/admin/inventory/pos-sync",           label: "POS Sync",               icon: RefreshCw },
   { href: "/admin/inventory/ledger",             label: "Ledger",                 icon: ScrollText },

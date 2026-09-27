@@ -435,6 +435,9 @@ export default function InventoryCountsPage() {
     try {
       const nextDraftLines = syncedDraftLines();
       const selectedSheet = countSheetOptions.find((row) => row.id === selectedCountSheetId) || null;
+      // ヘッダと品目を1回で送る。分けて送っていたので、品目側が落ちるたびに
+      // 空のカウントが1件ずつ残っていた（2026-09-08 TAFT で23分に7件）。
+      // 失敗したときはサーバ側がヘッダごと捨てるので、押し直しても増えない。
       const created = await inventoryPost<{ row: CountRow }>("/api/admin/inventory/counts", {
         city,
         branch_code: branchCode,
@@ -445,15 +448,12 @@ export default function InventoryCountsPage() {
         pic_name: picName,
         approver_name: approverName,
         notes,
-      });
-      const countId = String(created?.row?.id || "");
-      await inventoryPost(`/api/admin/inventory/counts/${encodeURIComponent(countId)}/items`, {
-        city,
         items: nextDraftLines.map((line, index) => ({
           ...line,
           sort_order: index + 1,
         })),
       });
+      const countId = String(created?.row?.id || "");
       setDraftLines(nextDraftLines);
       await refreshHistoryAndDetail(countId);
       setSelectedCountId(countId);
