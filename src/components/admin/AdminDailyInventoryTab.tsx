@@ -298,46 +298,20 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const [modalOrderItems, setModalOrderItems] = useState<{ item: InvItem; entry: ReportEntry }[]>([]);
 
   useEffect(() => {
+    // par の合成（WAREHOUSE_<曜日> を土台に <支店>_<曜日> で上書き）は
+    // サーバに1つ置いた。ここで同じ合成をもう一度書くと、在庫表示と
+    // この画面が同じ品について別の par を出す（教訓62）。
+    if (!detail.report_date || !detail.branch) return;
     apiFetch("/api/daily-inventory/par-patterns")
       .then((r) => r.json())
-      .then(async (d: { patterns?: string[] }) => {
-        const pats = d.patterns || [];
-        setPatterns(pats);
-        if (!pats.length || !detail.report_date) return;
-
-        const dt = new Date(detail.report_date + "T00:00:00");
-        const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dt.getDay()];
-        const autoPattern = `${detail.branch}_${dayName}`;
-        const warehousePattern = `WAREHOUSE_${dayName}`;
-
-        // Build merged lookup: WAREHOUSE first (lower priority), then branch (overrides)
-        // Fall back to any WAREHOUSE_* pattern when the day-specific one doesn't exist
-        const merged: Record<string, number> = {};
-
-        const effectiveWHPattern = pats.includes(warehousePattern)
-          ? warehousePattern
-          : (pats.find(p => p.startsWith("WAREHOUSE_")) ?? null);
-
-        if (effectiveWHPattern) {
-          try {
-            const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(effectiveWHPattern)}/items`);
-            const data = await r.json() as { items?: { item_code: string; par_level: number }[] };
-            (data.items || []).forEach((it) => { merged[it.item_code] = it.par_level; });
-          } catch { /* ignore */ }
-        }
-
-        if (pats.includes(autoPattern)) {
-          setActivePattern(autoPattern);
-          try {
-            const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(autoPattern)}/items`);
-            const data = await r.json() as { items?: { item_code: string; par_level: number }[] };
-            (data.items || []).forEach((it) => { merged[it.item_code] = it.par_level; });
-          } catch { /* ignore */ }
-        } else if (effectiveWHPattern) {
-          setActivePattern(effectiveWHPattern);
-        }
-
-        setPatternLookup(merged);
+      .then((d: { patterns?: string[] }) => setPatterns(d.patterns || []))
+      .catch(() => {});
+    apiFetch(`/api/daily-inventory/par?branch=${encodeURIComponent(detail.branch)}&date=${encodeURIComponent(detail.report_date)}`)
+      .then((r) => r.json())
+      .then((d: { par?: Record<string, number>; patterns_used?: string[] }) => {
+        setPatternLookup(d.par || {});
+        const used = d.patterns_used || [];
+        setActivePattern(used.length ? used[used.length - 1] : "");
       })
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
