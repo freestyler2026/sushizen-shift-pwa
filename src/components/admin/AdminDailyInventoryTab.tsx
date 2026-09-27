@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import SelectDark from "@/components/SelectDark";
+import StoreStockView from "@/components/admin/StoreStockView";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { IncomingNote, incomingFor as incomingLinesFor, type IncomingPayload } from "@/components/IncomingNote";
 import {
@@ -2259,7 +2260,7 @@ export default function AdminDailyInventoryTab() {
   const [error, setError] = useState("");
   const [itemsLoading, setItemsLoading] = useState(true);
 
-  const [view, setView] = useState<"form" | "history" | "detail" | "items">("form");
+  const [view, setView] = useState<"form" | "history" | "detail" | "items" | "stock">("form");
   const [history, setHistory] = useState<ReportHeader[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<ReportDetail | null>(null);
@@ -2642,6 +2643,16 @@ export default function AdminDailyInventoryTab() {
     );
   }
 
+  if (view === "stock") {
+    // 打った数字が戻ってくる場所。入力画面と同じ導線に置く — 別ページを作ると
+    // 誰も辿り着かない（設計思想の型6「作ったが繋いでいない」）。
+    return (
+      <div className="relative mx-auto max-w-4xl pb-24 text-white">
+        <StoreStockView branch={branch} onBack={() => setView("form")} fetcher={apiFetch} />
+      </div>
+    );
+  }
+
   const toolbarPortal = typeof document !== "undefined" && !submitted
     ? createPortal(
         <div ref={toolbarDockRef}
@@ -2655,6 +2666,10 @@ export default function AdminDailyInventoryTab() {
                   className="flex items-center gap-1.5 rounded-xl border border-zinc-600/40 bg-zinc-700/30 px-3 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-700/50 touch-manipulation">
                   <Settings2 className="h-3.5 w-3.5" />Manage Items
                 </button>
+              )}
+              {view === "form" && (
+                <button type="button" onClick={() => { setView("stock"); setError(""); }}
+                  className={`${SECONDARY_BUTTON} touch-manipulation py-2 text-sm`}>Stock</button>
               )}
               {view === "form" && (
                 <button type="button" onClick={() => { setView("history"); setError(""); }} className={`${SECONDARY_BUTTON} touch-manipulation py-2 text-sm`}>History</button>
