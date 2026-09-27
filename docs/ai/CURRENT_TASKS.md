@@ -1,5 +1,43 @@
 # CURRENT_TASKS.md
 
+## 2026-09-27 — Yusuke 報告の4件（発注の単価・プルダウン）
+
+**本人の報告**: ①Paper Bowl 780ml の価格が出ない ②Mirin・Salt の価格が出ない／間違う
+（Dashinomoto・Ajinomoto も同じはず）③Salt は 1sack=25kg ₱400 なのに 1kg=₱400 で計算される
+④マニュアルでアイテムを追加するとき「Onigiri Film」がプルダウンに出ない
+
+**原因は3つで、どれも「カタログに無い」ではなかった**（詳細 `docs/inventory/INVENTORY_SYSTEM_MAP.md` §3.10 / §3.11）
+
+| 品 | 原因 | 対応 |
+|---|---|---|
+| Paper Bowl White 780(1PKT = 50pcs) | `inv_items`（SK-3743・PKT・₱255）にあってカタログに1行も無い | カタログ行を作成。₱255 = 5,100/箱 ÷ 20PKT（520 の 3,350 ÷ 167.50 から箱=20PKT を確定） |
+| Onigiri Film (1PKT = 100PC) | 有効行が `store_scope='Paranaque'`・`catalog_category='Packaging'`・`order_type='WH'` の1件だけ。倉庫60件中この1件だけ形が違う | ALL / Warehouse / WH_to_supplier に統一（₱355/PKT）。3店舗で表示を確認 |
+| Salt | 完全一致に単位検査が無く SACK ₱400 が KG の数量に付いていた（25倍） | 単位検査を追加（デプロイ済）＋ `package_spec='25kg'` を読んで **₱16.00/kg** を割り出す |
+| Dashinomoto (1KG) | カタログ PKT ₱460 / 棚卸し kg | `package_spec='1kg'` を記入 → ₱460/kg |
+| Mirin | 名前も単位も違う（棚卸し `Mirin` KG / カタログ `Mirin 1L` LTR ₱122.23） | **Yusuke 対応待ち**: Daily Inventory の単位を LTR に、名前をカタログに合わせる |
+| Ajinomoto | 名前が違う（カタログ `Ajinomoto China` KG ₱150/₱185） | **Yusuke 対応待ち**: どちらかの名前に寄せる |
+
+**実装**
+- `app/daily_inventory_api.py` — `package_spec` から単価を割り出す（`<数字><単位>` のみ／
+  カタログ単位が直接換算できるときは使わない）。レスポンスに `price_from_pack` と
+  `price_unit_mismatch` を分けて返す。`tests/test_order_price_unit.py` 11件。
+- `app/ck_par_level_api.py` — `catalog-items` が `excluded_items`（order_type で外れた行）を返す。
+- `src/components/admin/AdminDailyInventoryTab.tsx` — 単位違い／パックから割り出し を別枠で表示。
+- `src/app/admin/ck/par-levels/page.tsx` — ピッカーが対象外の行を**名前で**言う。
+
+**本番データ変更**（退避 `_proc_catalog_bk_20260927`・3行）
+- Onigiri Film: 8991ac74 を有効化+₱355、a04adbea を無効化
+- Paper Bowl White 780: 9eab7e78 を新規作成（₱255/PKT）
+- Dashinomoto (1KG): a0eae4c1 の `package_spec='1kg'`
+
+**残っている宿題**
+- `package_spec` が空で単位が合わない **25件**（Lemon・Oyster Sauce・Red Miso 等）。
+  発注のたびに画面が名前で出すので、出たものから埋める。
+- `order_type='WH'` の品名 **38件**が3店舗そろって有効でなく、**8件**はどの店舗でも
+  有効行が無い。それでも店舗は倉庫から 100〜147 品を注文しており、23〜58 品が
+  カタログを通らずに入っている（＝単価0の発注になる）。倉庫カタログの棚卸しが要る。
+
+
 ## 2026-09-26 — サーモン歩留まりを Morning Review へ（Yusuke の依頼）／デプロイ済み
 
 `salmon_yield_alert` は 2026-08-29 に「1ヶ月で一度も送られなかった」として

@@ -368,6 +368,61 @@ Backup 固有は `Base Roll 1〜11`・`Boiled Beansprout`・`Akadama`・`Box12 S
 フォームは最初から空提出を止めている。②「動かない項目が多い」と仮説を立てた
 （上のとおり否定）。**どちらもクエリ1本で否定できた。数える前に人を疑わない。**
 
+## §3.10 発注に単価が出ない3つの理由（2026-09-27 実測・Yusuke 報告）
+
+棚卸し → 発注（`POST /api/daily-inventory/reports/{id}/generate-order`）で単価が
+0 になるのは、**カタログに無いから**とは限らない。原因は3つあり、対応が全部違う。
+「カタログに登録してください」と案内する前にどれなのかを見る（教訓97）。
+
+| 理由 | 実測 | 見分け方 | 対応 |
+|---|---|---|---|
+| **名前が違う** | Mirin（棚卸し）vs `Mirin 1L`・`OZAKI HONMIRIN 18L`（カタログ）／Ajinomoto vs `Ajinomoto China` | 前方一致も効かない（残りが仕様の綴りでない＝別物） | どちらかの名前を寄せる。**綴りの揺れだけ寄せる。語が増えたら別物**（教訓92・`app/item_names.py`） |
+| **単位が違う** | カタログに名前がある244件のうち **28件** | レスポンスの `price_unit_mismatch` | 棚卸しをカタログの単位で数える、または `package_spec` を埋める |
+| **カタログに行が無い** | `Paper Bowl White 780(1PKT = 50pcs)` は `inv_items`（SK-3743・₱255）にあってカタログに1行も無かった | レスポンスの `unpriced` | カタログに1行作る |
+
+### `package_spec` は単価の橋になる（2026-09-27 実装）
+
+`proc_curated_catalog_items.package_spec`（702行中109行が記入済み）に
+`<数字><単位>` が入っていれば、カタログ単位が棚卸し単位に換算できなくても
+単価を割り出す。Salt = 1 SACK ₱400・`package_spec='25kg'` → **₱16.00/kg**。
+
+- 受けるのは `25kg` `500g` `1kg` のような綴りだけ。`Half Bottle` `Paranaque`
+  `500 pcs per bundle` `1Container` は**実在する値**で、推測で数に直さない。
+- **カタログ単位が棚卸し単位に直接換算できるときは使わない**（KG の行の `25kg` は
+  袋の中身なので、割ると 1/25 になる）。
+- 28件のうち3件が単価を取り戻した（Salt / CURRY POWDER / Dried Shrimp）。
+  残る25件は `package_spec` が空で、**発注のたびに画面が名前で列挙する**。
+
+## §3.11 倉庫カタログは「1品1行」— 店舗別の行は品を消す（2026-09-27 修正）
+
+店舗が倉庫から買う有効行は **60件**、そのすべてが
+
+```
+store_scope='ALL'  catalog_category='Warehouse'  order_type='WH_to_supplier'  supplier_name='Warehouse'
+```
+
+`GET /api/admin/procurement/requests/item-catalog` はこの4つ全部で絞るので、
+**どれか1つ違うだけで、その品はどの店舗の Warehouse タブにも出ない。**
+
+- 2026-09-27 修正前、`Onigiri Film (1PKT = 100PC)` は `store_scope='Paranaque'`・
+  `catalog_category='Packaging'`・`order_type='WH'` の1行だけが有効で、
+  **59件中この1件だけが形が違っていた**（＝プルダウンに出ない）。ALL/Warehouse/
+  WH_to_supplier に直し、`Paper Bowl White 780(1PKT = 50pcs)` の欠けていた行を作った。
+  退避は `_proc_catalog_bk_20260927`。
+- **未解決**: `order_type='WH'` の品名 **38件**が3店舗そろって有効ではなく、**8件**は
+  どの店舗でも有効行が無い。それでも店舗は90日で 100〜147 品を倉庫から注文しており、
+  **23〜58 品がカタログを通らない経路で入っている**（自由入力・過去発注からの引き当て）。
+  その行が単価0の発注になる。§3.10 と同じ根。
+
+```sql
+-- 形が違う行を出す（1件でもあれば、その品はどこかの店舗で見えていない）
+SELECT btrim(item_name), store_scope, catalog_category, order_type, unit_price
+  FROM proc_curated_catalog_items
+ WHERE city='manila' AND active AND lower(btrim(supplier_name))='warehouse'
+   AND (store_scope <> 'ALL' OR catalog_category <> 'Warehouse'
+        OR order_type <> 'WH_to_supplier');
+```
+
 ## §4 唯一の閉ループ
 
 `inv_counts` だけが台帳と往復している:
