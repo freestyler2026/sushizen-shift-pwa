@@ -36,12 +36,17 @@ interface SearchItem {
   category: string;
   name: string;
   default_unit: string;
+  // 1レシピがいくつ作るか。1 なら「1個 = 1レシピ」なので、数えた単位の
+  // 綴りが違っても意味が変わらない。材料は null。
+  output_qty?: number | null;
 }
 
 interface DisposalLine {
   _key: string;
   item_type: ItemType;
   item_id: number | null;
+  item_unit?: string;
+  item_output_qty?: number | null;
   item_name_snapshot: string;
   item_category: string;
   quantity: string;
@@ -70,6 +75,25 @@ const SHIFT_LABELS: Record<Shift, string> = {
 
 // Common units for restaurant items
 const UNIT_OPTIONS = ["pcs", "g", "kg", "ml", "L", "bag", "box", "pack", "rolls", "bottle", "sheet", "portion", "tray", "can"];
+
+/** その品について、台帳が受け取れる単位。
+ *
+ *  サーバ側 `_disposal_recipe_batches` と同じ規則を、選択肢の形にしたもの。
+ *  ここが狭い分には黙って壊れない（サーバが受け取れるものを出し損ねるだけ）が、
+ *  広いとサーバに弾かれて提出後に "not posted" が出る。
+ *
+ *  2026-09-27 に一度「品を選んだら単位も固定」にしたが、それだと過去90日の
+ *  入力141行のうち71行しか同じ単位で打てなかった。酢飯をグラムで数えるのは
+ *  正しいが、寿司ボックスを set でしか打てないのは現場の数え方ではない。
+ */
+function unitsFor(itemUnit: string, outputQty: number | null | undefined): string[] {
+  const u = (itemUnit || "pcs").trim();
+  const k = u.toLowerCase();
+  if (k === "g" || k === "kg") return ["g", "kg"];
+  if (k === "ml" || k === "l") return ["ml", "L"];
+  // 1レシピ = 1個 の品は、pcs でも set でも同じ1個を指す。
+  return outputQty === 1 ? Array.from(new Set([u, "pcs"])) : [u];
+}
 
 interface DisposalReport {
   id: number;
@@ -445,13 +469,26 @@ function DisposalLineCard({
           onChange={(e) => onUpdate({ quantity: e.target.value })}
           placeholder="Qty" />
         {line.item_id ? (
-          /* 単位はその品が数えている単位で、選ぶものではない。選べるままに
-             していたので、1レシピ3,145gの酢飯が pcs で打たれ、AVOCADO が
-             kg で打たれて1000倍ずれた。欄を消せば、そのずれは起きない
-             （教訓113 — 間違えられる選択肢を出さない）。 */
-          <span className="w-24 shrink-0 rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-center text-sm text-zinc-300">
-            {line.unit || "pcs"}
-          </span>
+          /* 選べるのは、その品について台帳が換算できる単位だけ。14種類から
+             自由に選べたので、1レシピ3,145gの酢飯が pcs で打たれ、AVOCADO が
+             kg で打たれて1000倍ずれた。かといって1つに固定すると、寿司ボックスを
+             box と数えている人が打てなくなる（実測: 90日141行中71行しか
+             元の単位で入らない）。既定はその品の単位。 */
+          (() => {
+            const opts = unitsFor(line.item_unit || line.unit, line.item_output_qty);
+            return opts.length <= 1 ? (
+              <span className="w-24 shrink-0 rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-center text-sm text-zinc-300">
+                {line.unit || "pcs"}
+              </span>
+            ) : (
+              <SelectDark
+                className="w-24 shrink-0 appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+                value={line.unit}
+                onChange={(v) => onUpdate({ unit: v })}
+                options={opts.map((u) => ({ value: u, label: u }))}
+              />
+            );
+          })()
         ) : (
           <UnitSelector value={line.unit} onChange={(v) => onUpdate({ unit: v })} />
         )}
@@ -1152,6 +1189,8 @@ export default function DisposalPage() {
                   line.item_name_snapshot = item.name;
                   line.item_category = item.category;
                   line.unit = item.default_unit || "pcs";
+                  line.item_unit = item.default_unit || "pcs";
+                  line.item_output_qty = item.output_qty ?? null;
                   setLines((prev) => [...prev, line]);
                 }}
               />
