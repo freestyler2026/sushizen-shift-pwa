@@ -54,8 +54,30 @@ Mirin KG -> 0.0 / Ajinomoto KG -> 0.0   （名前が違う＝Yusuke 対応待ち
 | Onigiri Film (1PKT = 100PC) | 有効行が `store_scope='Paranaque'`・`catalog_category='Packaging'`・`order_type='WH'` の1件だけ。倉庫60件中この1件だけ形が違う | ALL / Warehouse / WH_to_supplier に統一（₱355/PKT）。3店舗で表示を確認 |
 | Salt | 完全一致に単位検査が無く SACK ₱400 が KG の数量に付いていた（25倍） | 単位検査を追加（デプロイ済）＋ `package_spec='25kg'` を読んで **₱16.00/kg** を割り出す |
 | Dashinomoto (1KG) | カタログ PKT ₱460 / 棚卸し kg | `package_spec='1kg'` を記入 → ₱460/kg |
-| Mirin | 名前も単位も違う（棚卸し `Mirin` KG / カタログ `Mirin 1L` LTR ₱122.23） | **Yusuke 対応待ち**: Daily Inventory の単位を LTR に、名前をカタログに合わせる |
-| Ajinomoto | 名前が違う（カタログ `Ajinomoto China` KG ₱150/₱185） | **Yusuke 対応待ち**: どちらかの名前に寄せる |
+| Mirin | 名前も単位も違う（棚卸し `Mirin` KG / カタログ `Mirin 1L` LTR ₱122.23） | **こちらで修正**（下記）→ ₱122.23/LTR |
+| Ajinomoto | 名前が違う（カタログ `Ajinomoto China` KG ₱150/₱185） | **こちらで修正**（下記）→ ₱150/KG |
+
+### Mirin / Ajinomoto の改名（2026-09-27・棚卸し品の側を直した）
+
+「Yusuke に直してもらう」と書いたが、**どちらが正しい名前かは受領記録で決まる**ので
+こちらで直した。退避は `_daily_inv_items_bk_20260927`（2行）。`daily_inv_report_items`
+に `item_name` の一意制約は無い（`item_code` のみ）ので、同名の無効行があっても改名は通る。
+
+| item_code | 変更前 | 変更後 | 根拠（3つ一致） |
+|---|---|---|---|
+| `CK-E68E90C7` | `Mirin` / **KG** / ₱122.2222 | `Mirin 1L` / **LTR** | 受領 `Mirin 1L / LTR / ₱122.23`（2026-08-31）／カタログ有効行 `Mirin 1L` LTR ₱122.23／`menu_item_master` に `Mirin 1L`。登録原価 122.2222 は**同じ数字が KG の欄に入っていた** |
+| `CK-7B78AA7B` | `Ajinomoto` / KG / ₱150 | `Ajinomoto China` / KG | 受領 `Ajinomoto China / KG / ₱150 × 6回`（最終 2026-09-22）。**`Ajinomoto` 単独の受領は0件**／カタログ4行すべて `Ajinomoto China`／無効の棚卸し品 `CK-OT-077` も同名 |
+
+- **入力履歴は消えない**（`daily_inv_entries` は `item_code` で紐づく）。Mirin 9件・
+  Ajinomoto 10件（どちらも 2026-08-30〜09-27）をそのまま保持。
+- Mirin は KG→LTR で過去9件の**申告単位が遡って変わる**。実測値は 0〜2 の小さい数で、
+  この品は1Lボトルの作業在庫（18Lの箱は別品目 `CKIN029 OZAKI HONMIRIN 18L`）なので
+  数字の意味は変わらない。
+- 検算（デプロイ済みコード・本番データ）: `Mirin 1L LTR → ₱122.23` / `Ajinomoto China
+  KG → ₱150.0`。単価0は **63 → 61品**、内訳（単位違い13・単価空5・パック算出4）は不変。
+- ⚠️ Ajinomoto が ₱150（Better mart・CKが仕入れる値）を採るのは、この棚卸し品が
+  **CK自身のカウント**（`source_type='ck'`）で、受領も ₱150/KG だから。₱185 は
+  CK→店舗の振替価格で別の脚。
 
 **実装**
 - `app/daily_inventory_api.py` — `package_spec` から単価を割り出す（`<数字><単位>` のみ／
