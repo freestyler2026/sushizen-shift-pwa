@@ -16,6 +16,10 @@ type ApplyBlocked = {
   arrivals?: number;
   arrivals_submitted?: number;
   arrivals_blocked?: number;
+  // Counted by network rather than by page load, so one person who reloads
+  // three times is one visitor. The tiles read as people, so they use these.
+  arrival_ips?: number;
+  arrival_ips_submitted?: number;
   views_since?: string | null;
   by_field: { field: string; people: number; gave_up: number }[];
 };
@@ -73,8 +77,13 @@ export default function FormFunnel() {
   const viewsSince = data?.views_since
     ? new Date(data.views_since).toLocaleDateString(undefined, { day: "numeric", month: "short" })
     : null;
-  const arrivals = data?.arrivals ?? 0;
-  const sent = data?.arrivals_submitted ?? 0;
+  const loads = data?.arrivals ?? 0;
+  // People, not page loads: a form id is minted per load, so somebody who
+  // reloads twice before sending would otherwise show up as two losses.
+  // The other direction is a shared shop wifi counting several people once,
+  // which is why the page-load figure is still printed under the tiles.
+  const arrivals = data?.arrival_ips ?? 0;
+  const sent = data?.arrival_ips_submitted ?? 0;
   // Everyone who opened the form and never sent it. Bigger than "gave up"
   // below on purpose: that one counts only the people the form stopped, and
   // most of the people who leave are never stopped by anything.
@@ -123,9 +132,11 @@ export default function FormFunnel() {
             ))}
           </div>
           <p className="mt-1 text-[11px] text-zinc-600">
-            Arrivals counted{viewsSince ? ` since ${viewsSince}` : ""}, one row per
-            page load. A visit that left without sending was not necessarily stopped
-            by the form — most were not.
+            Counted{viewsSince ? ` since ${viewsSince}` : ""} by network, so one
+            person who reloads counts once and a shared shop connection counts
+            several people once. {loads} page load{loads === 1 ? "" : "s"} in total.
+            Leaving without sending does not mean the form stopped them &mdash;
+            most who leave are never stopped by anything.
           </p>
         </>
       )}
