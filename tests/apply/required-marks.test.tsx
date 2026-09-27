@@ -98,6 +98,10 @@ describe("public application form — counting the sends that were stopped", () 
     mockFetch.mock.calls
       .filter((c) => String(c[0]).includes("/api/apply/outcome"))
       .map((c) => JSON.parse(String((c[1] as RequestInit).body)));
+  // Opening the page now reports an arrival, so a test about what stopped a
+  // send has to say which rows it means. Counting every outcome call would
+  // make these two assertions drift every time a new stage is added.
+  const blocks = () => outcomes().filter((o) => o.stage === "blocked");
 
   it("records which fields stopped the send, and nothing about the person", async () => {
     render(<ApplyPage />);
@@ -106,8 +110,8 @@ describe("public application form — counting the sends that were stopped", () 
     fireEvent.change(name, { target: { value: "Maria Santos" } });
     fireEvent.click(screen.getByRole("button", { name: /Send application/i }));
 
-    await waitFor(() => expect(outcomes().length).toBe(1));
-    const sent = outcomes()[0];
+    await waitFor(() => expect(blocks().length).toBe(1));
+    const sent = blocks()[0];
     expect(sent.stage).toBe("blocked");
     expect(sent.fields).toContain("cv");
     expect(sent.fields).toContain("phone");
@@ -123,11 +127,27 @@ describe("public application form — counting the sends that were stopped", () 
     await screen.findByText(/Work at Sushi ZEN/i);
     const send = screen.getByRole("button", { name: /Send application/i });
     fireEvent.click(send);
-    await waitFor(() => expect(outcomes().length).toBe(1));
+    await waitFor(() => expect(blocks().length).toBe(1));
     fireEvent.click(send);
-    await waitFor(() => expect(outcomes().length).toBe(2));
-    expect(outcomes()[0].form_id).toBe(outcomes()[1].form_id);
-    expect(outcomes()[0].form_id).toBeTruthy();
+    await waitFor(() => expect(blocks().length).toBe(2));
+    expect(blocks()[0].form_id).toBe(blocks()[1].form_id);
+    expect(blocks()[0].form_id).toBeTruthy();
+  });
+
+  it("reports the arrival once on open, under the same form id as the send", async () => {
+    render(<ApplyPage />);
+    await waitFor(() => expect(outcomes().filter((o) => o.stage === "view").length).toBe(1));
+    const view = outcomes().find((o) => o.stage === "view")!;
+    expect(view.form_id).toBeTruthy();
+    expect(view.fields).toEqual([]);
+    // The arrival must carry nothing but the form id, the language and the
+    // stage -- it is written for every visitor, including ones who never
+    // typed anything.
+    expect(Object.keys(view).sort()).toEqual(["fields", "form_id", "language", "stage"]);
+    fireEvent.click(screen.getByRole("button", { name: /Send application/i }));
+    await waitFor(() => expect(blocks().length).toBe(1));
+    // Same visit: the arrival and what stopped it can be joined.
+    expect(blocks()[0].form_id).toBe(view.form_id);
   });
 
   it("still tells the applicant what is missing when the counting is down", async () => {

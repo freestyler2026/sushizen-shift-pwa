@@ -10,6 +10,13 @@ type ApplyBlocked = {
   gave_up: number;
   rows_ever: number;
   recording_since: string | null;
+  // Arrivals are counted in their own table and started later than the
+  // blocked half, so they are optional here: an older backend answers
+  // without them and the card must still draw.
+  arrivals?: number;
+  arrivals_submitted?: number;
+  arrivals_blocked?: number;
+  views_since?: string | null;
   by_field: { field: string; people: number; gave_up: number }[];
 };
 
@@ -26,11 +33,16 @@ const BLOCKED_LABEL: Record<string, string> = {
   cv: "Your CV",
 };
 
-/** How many people the application form turned away, and on what.
+/** How many people reached the form, how many sent it, and what stopped the rest.
  *
  *  It sits on the Pipeline because "who applied" and "who tried and could not"
  *  are the same question asked twice, and the second one had no answer at all
  *  until 24 Sep: the only record of a submission is written when one succeeds.
+ *
+ *  The top row is arrivals, added 27 Sep. Without it a drop in applications
+ *  could not be split into "fewer people came" and "the same people came and
+ *  could not send" -- the question actually asked when the count fell, and the
+ *  one the blocked half alone can only answer by elimination.
  *
  *  Counted by form id, not by row — somebody who fixes two fields and sends
  *  produces three rows and was never lost. The column that matters is the one
@@ -58,12 +70,21 @@ export default function FormFunnel() {
   const since = data?.recording_since
     ? new Date(data.recording_since).toLocaleDateString(undefined, { day: "numeric", month: "short" })
     : null;
+  const viewsSince = data?.views_since
+    ? new Date(data.views_since).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+    : null;
+  const arrivals = data?.arrivals ?? 0;
+  const sent = data?.arrivals_submitted ?? 0;
+  // Everyone who opened the form and never sent it. Bigger than "gave up"
+  // below on purpose: that one counts only the people the form stopped, and
+  // most of the people who leave are never stopped by anything.
+  const left = Math.max(arrivals - sent, 0);
 
   return (
     <div className="mx-3 mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-zinc-200">
-          Stopped before they could send
+          Who reached the form, and who sent it
         </h3>
         <div className="flex items-center gap-1">
           {[7, 14, 30].map((d) => (
@@ -84,6 +105,35 @@ export default function FormFunnel() {
       {error && (
         <p className="mt-2 text-xs text-rose-300">
           Could not read it ({error}). This is not the same as nobody being stopped.
+        </p>
+      )}
+
+      {!error && data && arrivals > 0 && (
+        <>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {([
+              ["Opened the form", arrivals, "text-zinc-200"],
+              ["Sent it", sent, "text-emerald-300"],
+              ["Left without sending", left, "text-amber-300"],
+            ] as const).map(([label, n, tone]) => (
+              <div key={label} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                <div className={`text-xl font-semibold tabular-nums ${tone}`}>{n}</div>
+                <div className="text-[11px] leading-tight text-zinc-500">{label}</div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-zinc-600">
+            Arrivals counted{viewsSince ? ` since ${viewsSince}` : ""}, one row per
+            page load. A visit that left without sending was not necessarily stopped
+            by the form — most were not.
+          </p>
+        </>
+      )}
+
+      {!error && data && arrivals === 0 && (
+        <p className="mt-2 text-xs italic text-zinc-500">
+          Arrivals are not counted yet for this window. Until they are, a quiet week
+          cannot be told apart from a form nobody can send.
         </p>
       )}
 

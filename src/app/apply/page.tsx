@@ -212,7 +212,7 @@ const BAD = "border-red-400/70";
  *  failure is swallowed: a form that will not send because the counting is
  *  down would be worse than not counting.
  */
-function reportOutcome(formId: string, stage: "blocked" | "sent",
+function reportOutcome(formId: string, stage: "blocked" | "sent" | "view" | "submitted",
                        fields: string[], language: string) {
   if (!formId) return;
   try {
@@ -340,10 +340,16 @@ export default function ApplyPage() {
   // browser's first paint disagree (lesson 42).
   useEffect(() => {
     const token = rememberedVoice();
+    // One row per page load, so "fewer people applied" and "the same people
+    // came and could not send" stop being the same number. Not counted when
+    // the screen is being rebuilt for somebody who already applied -- that is
+    // the same visit coming back, and it can never end in a send.
+    if (!token) reportOutcome(formKey(), "view", [], lang);
     if (!token) return;
     setVoiceToken(token);
     setResumed(true);
     setDone(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function pickCv(file: File | null) {
@@ -458,6 +464,10 @@ export default function ApplyPage() {
       // too would make "recovered" meaningless -- the number we want is how
       // many of the people the form turned away came back and finished.
       if (wasBlocked.current) reportOutcome(formKey(), "sent", [], lang);
+      // Every send, blocked first or not. This one marks the arrival row
+      // rather than writing a new one, so "recovered" above keeps meaning
+      // what it says: of the people the form stopped, how many came back.
+      reportOutcome(formKey(), "submitted", [], lang);
       setDone(true);
     } catch {
       setErr(t.errNetwork);
