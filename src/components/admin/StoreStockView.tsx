@@ -47,7 +47,7 @@ export const STOCK_BRANCHES = ["TAFT", "CUBAO", "PARANAQUE"];
  *  足していないかを画面に書く。
  */
 export default function StoreStockView({
-  branch, onBack, fetcher,
+  branch: initialBranch, onBack, fetcher,
 }: {
   branch: string;
   onBack: () => void;
@@ -55,6 +55,9 @@ export default function StoreStockView({
    *  既に1つあるので、ここに2つ目を書かない（教訓62）。 */
   fetcher: (path: string, init?: RequestInit) => Promise<Response>;
 }) {
+  // 店を見比べるのに「フォームへ戻る→支店を変える→Stock」と3タップ要るのは、
+  // 3店を見る側（BO・管理）には毎回の手間になる。ここで切り替える。
+  const [branch, setBranch] = useState(initialBranch);
   const [data, setData] = useState<StockView | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -102,9 +105,19 @@ export default function StoreStockView({
 
   return (
     <div className="mx-auto max-w-4xl pb-24 text-white">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold sm:text-xl">📊 Stock on hand — {branch}</h1>
-        <div className="flex gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold sm:text-xl">📊 Stock on hand</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-xl border border-white/10 bg-white/4 p-1">
+            {STOCK_BRANCHES.map((b) => (
+              <button key={b} type="button" onClick={() => setBranch(b)}
+                className={`rounded-lg px-2.5 py-1.5 text-xs transition ${
+                  b === branch ? "bg-violet-500/25 text-violet-100" : "text-zinc-500 hover:text-zinc-300"
+                }`}>
+                {b}
+              </button>
+            ))}
+          </div>
           <button type="button" onClick={() => void load()} disabled={loading}
             className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/10 disabled:opacity-50">
             {loading ? "Loading…" : "Refresh"}
