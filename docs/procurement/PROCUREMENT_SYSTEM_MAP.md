@@ -97,7 +97,7 @@
 | | Payments | inventory, full | **`proc_payments` 0行** |
 | | Supplier Price Checks | inventory, full | `proc_price_check_tasks` 0行（バッジは別ソース） |
 | **Analytics**「KPI & risks」 | Dashboard | inventory, full | 未計測 |
-| | KPI | full | **`proc_kpi_monthly` 0行** |
+| | KPI | full | **全カードが常に0**（§5.1） |
 | | Scorecards | full | 未計測 |
 | | Stock Risk | full | **`proc_stockout_risk_snapshots` 0行** |
 | **Admin**「Config & audit」 | Vendors | full | 64行・9月も追加あり |
@@ -128,13 +128,20 @@
 判定は**コホート**で行う。「今何件あるか」ではなく
 **「その週に入った行のうち、何件が出ていったか」**で見る。
 
-### §3.1 Claims — 4ヶ月で1,190件、処理**0件**
+### §3.1 Claims — 4ヶ月で1,195件、処理**0件**
 
 ```
-proc_claims:  1,190行  全件 status='OPEN'
+proc_claims:  1,195行  全件 status='OPEN'   （毎日増える。9/27 だけで5件）
               resolved_at / assigned_at / escalated_at / resolution_note  → 全件 NULL または空
               直近10週で890件作成、クローズ 0件（週ごとに1件も無い）
+              updated_at > created_at + 1秒 の行が 0 件
+                → 「解決して再オープン」ですらない。挿入後、一度も書かれていない
 ```
+
+**他の閉じ方が無いことも確認済み:**
+- 親の承認ケースが閉じても claim は OPEN のまま（1,112件が APPROVED のケース配下）
+- `DELETE FROM proc_claims` はコードのどこにも無い（`proc_request_items` にはある）
+- `proc_claims` を触る関数は db.py に4つだけ（create / get / list / update）
 
 | | 件数 | 金額 |
 |---|---:|---:|
@@ -151,16 +158,21 @@ proc_claims:  1,190行  全件 status='OPEN'
 | 到達できるか | **できる** — Financials → Claims |
 | 誰が見えるか | **`showTo: ["full"]`。** HQ・ADMIN・両 MANAGEMENT だけ。**作っている店舗側も、請求書を入力している inventory ロールも見えない** |
 | 件数を知らせるか | **知らせない。** `ProcurementTabs.tsx` の `badgeMap` は hub / approval-inbox / exceptions / price-checks / invoices の**5つだけ**。Claims は入っていない。worker にも Discord 通知にも無い |
-| 誰かに割り当たるか | **割り当たらない。** `assigned_to` は1,190件すべて空。自動割当は無い |
-| 出口の重さ | **3操作すべて `_require_action_with_pin`。** 承認者名＋PIN が要る（`app/main.py:32239 / 32288 / 32337`）。**教訓77と同型**（Prep Time が同じ理由で確認0件だった） |
-| 入口の重さ | **ゼロ。自動生成。** 受領確認時に欠品・過剰・品質NGがあれば無条件で1件作る（`app/main.py:29411`）。請求書照合が hold でも作る（`:33428`） |
+| 誰かに割り当たるか | **割り当たらない。** `assigned_to` は1,195件すべて空。自動割当は無い |
+| 一覧が読めるか | **⚠️ ここが一番重い。** `list_proc_claims` に**都市の引数が無い**。画面の都市セレクタは通貨ラベル（`currencyCode`／`claims/page.tsx:110`）を変えるだけでクエリを変えない。**ドバイ894件とマニラ296件が1つの表に混ざり、全行が選択中の通貨で表示される。** AED 3,486 が ₱3,486 として ₱52,488 の隣に並ぶ |
+| 全件に届くか | **届かない。** `limit=200` 固定。1,195件のうち**200件しか画面に出ない** |
+| 出口の重さ | **3操作すべて `_require_action_with_pin`**（`app/main.py:32239 / 32288 / 32337`）。承認者名＋PIN。**閲覧は PIN 不要**（一覧は `_require_action_from_token`）。画面は `defaultProcurementPin()` で事前入力するが、効くのは**このセッションで一度PIN検証を通した人だけ**（sessionStorage は意図的に不使用／`procurementClient.ts:40`）。教訓77と同型だが **Prep Time ほど重くはない** |
+| 入口の重さ | **ゼロ。自動生成。** 受領確認時に欠品・過剰・品質NGがあれば無条件で1件作る（`app/main.py:29411`）。⚠️ **請求書 hold 側（`:33428`）は一度も発火していない** — `invoice_id` を持つ行も `INVOICE_VARIANCE` も0件 |
+| 手動の入口 | **ある。導線8本。** `/store/procurement/claim` への "File Claim" 等のリンクが store の3画面と `ProcurementStepper` から出ている。**4ヶ月で作られた手動 claim は1件**（`proc_case_messages` の本文は1,195件中1,194件が「Auto claim opened」、監査ログの `procurement.claim.create` も1件） |
 | 閾値 | **無い。** ドバイは663件（74%）が100未満。**教訓39と同型** |
 
-**つまり：入口は自動で無料、出口は人手でPIN付き、件数は誰にも表示されない。**
-この3つが揃えば溜まる。**1,190件はその必然の結果であって、誰かの怠慢ではない。**
+**つまり：入口は自動で無料、件数は誰にも表示されず、開いても2都市の通貨が
+混ざった200行が出てくる。** これで処理される方がおかしい。
+**1,195件は必然の結果であって、誰かの怠慢ではない。**
 
-⚠️ **「PINを外す」だけでは直らない。** 誰も件数を知らないので、外しても開かれない。
-**バッジ・宛先・閾値の3つが同時に要る。**
+⚠️ **PIN は主因ではない。** 見るだけなら PIN は要らず、画面も事前入力する。
+**最初に直すのは通貨の混在と200件の上限**で、その次がバッジ・宛先・閾値。
+「PINを外して終わり」にすると、**中身が読めない画面のまま残る。**
 
 ### §3.2 PO Match（請求書照合）— マニラが8月中旬から停止
 
@@ -259,6 +271,21 @@ Alerts バッジが消える。**
 
 ⚠️ グループのバッジは**合計を「9+」で打ち止め**にする。128件も9件も同じ表示になる。
 
+### §5.1 KPI 画面は全カードが0 — キー名の不一致
+
+`/admin/procurement/kpi` は `data?.summary` を読む。API が返すキーは
+**`kpi_summary`**（`app/services/procurement_control.py:698`）。
+`summary` は常に `undefined` → `setSummary(null)` →
+**Score・Grade・Receiving Delay・Requests・Variance Rate・Claim rate・Payment
+Compliance の7項目がすべて 0.0 固定で表示される。**
+
+キーが合っていても、さらに2つ壊れている:
+- `claim_rate` は**月次サマリに存在しない**（あるのは `claim_count`）。担当者別ロールアップ側にだけあり、そちらは**比率（0〜1）なのに画面は `%` を付けて描く**
+- `_proc_build_kpi_dashboard` は `list_proc_requests(city="manila")` で**マニラ固定**。ドバイのKPIは出ない
+
+**「Claim rate: 0.0%」は、クレーム件数が数字として出る社内で唯一の場所**で、
+そこが1,195件を0と表示している。
+
 ---
 
 ## §6 生きているものの確認（誤って「壊れている」と書かないために）
@@ -332,8 +359,10 @@ SELECT date_trunc('week', created_at)::date wk, count(*) created,
 
 ## §8 次に直すなら（着手していない・オーナー判断待ち）
 
-1. **Claims にバッジと宛先を付ける。** PIN を外すのは同時にやる。
-   片方だけでは動かない（§3.1）。閾値も要る — ドバイの74%は100未満。
+1. **Claims を読める画面にする。** 順番がある:
+   ① 一覧に都市フィルタ（通貨が混ざっている）→ ② `limit` を上げるかページング
+   （1,195件中200件しか出ない）→ ③ バッジ → ④ 宛先 → ⑤ 閾値（ドバイの74%は100未満）。
+   **PIN の撤廃は最後でよい。閲覧は元から PIN 不要。**
 2. **マニラの PO Match に担当を決める。** コードは動いている。
    Aliana さん1人が両都市を見ていて、マニラが落ちている。
 3. `proc_approval_cases` の滞留512件を掃除（334件は request 側が既に承認済み）。
