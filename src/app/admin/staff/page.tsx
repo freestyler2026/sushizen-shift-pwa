@@ -78,10 +78,14 @@ type StaffRole = string;
 // someone who had left kept ADMIN for two months.
 const STATUS_OPTIONS = ["ACTIVE", "ON_LEAVE", "SEPARATED"] as const;
 type StaffStatus = (typeof STATUS_OPTIONS)[number];
+// "Separated" is what HR calls it and nobody else does. The owner asked for a
+// retirement status on 2026-09-28 -- this one, already built and in front of
+// him -- because the word did not read as "has left". The stored value stays
+// SEPARATED; what the screen says is the part that failed.
 const STATUS_LABEL: Record<StaffStatus, string> = {
   ACTIVE: "Active",
   ON_LEAVE: "On Leave",
-  SEPARATED: "Separated",
+  SEPARATED: "Left the company",
 };
 
 type StaffRow = {
@@ -922,7 +926,7 @@ export default function AdminStaffPage() {
       // it actually does, and how the two differ.
       const warning =
         newStatus === "SEPARATED"
-          ? `Mark ${dn} as SEPARATED (left the company)?\n\n` +
+          ? `Mark ${dn} as having left the company?\n\n` +
             `• Their account is frozen and any session ends now\n` +
             `• Salary configuration is switched off\n` +
             `• Their roles and permissions are removed\n\n` +
@@ -932,7 +936,7 @@ export default function AdminStaffPage() {
             `• Their account is frozen and any session ends now\n` +
             `• Salary configuration is switched off\n` +
             `• Their roles are kept, so returning needs no rebuilding\n\n` +
-            `If they have left the company, use "Separated" instead.`
+            `If they have left the company, use "Left the company" instead.`
           : `Reactivate ${dn}? The account is unfrozen and salary configuration is restored.`;
       if (!window.confirm(warning)) return;
       setLoading(true);
@@ -1439,7 +1443,7 @@ export default function AdminStaffPage() {
                     </td>
                     <td className={TABLE_CELL + " px-4 align-top"}>
                       <div className="space-y-2">
-                        <span className={statusBadgeClass(st)}>{st}</span>
+                        <span className={statusBadgeClass(st)}>{STATUS_LABEL[st] ?? st}</span>
                         {pushKeySavedName === dn ? <div className="text-xs text-emerald-300">Push key saved</div> : null}
                         {infoSavedName === dn ? <div className="text-xs text-emerald-300">Saved ✓</div> : null}
                         {detailsSavedName === dn ? <div className="text-xs text-emerald-300">Details saved ✓</div> : null}
@@ -1528,7 +1532,7 @@ export default function AdminStaffPage() {
                               On Leave
                             </button>
                             <button type="button" onClick={() => setStatusOnly(dn, "SEPARATED")} className={DANGER_BUTTON + " px-3 py-1.5 text-xs"} disabled={loading}>
-                              Separated
+                              Left the company
                             </button>
                           </div>
                         ) : (

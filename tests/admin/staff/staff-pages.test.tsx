@@ -417,7 +417,10 @@ describe("AdminStaffPage — load and roster", () => {
     await screen.findByText("Tanaka Jay", {}, { timeout: 5000 });
     // "JLT" appears in the roster row AND in the dropdown options, so use getAllByText
     expect(screen.getAllByText("JLT").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("ACTIVE").length).toBeGreaterThan(0);
+    // The badge prints the label, not the stored value: it said SEPARATED on a
+    // row whatever STATUS_LABEL held, which is the bug that hid the status
+    // from the owner in the first place.
+    expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
   });
 
   it("shows success message with row count", async () => {
@@ -510,7 +513,7 @@ describe("AdminStaffPage — status change", () => {
     const btn = await screen.findByRole("button", { name: /Login & Load/i });
     await clickAndFlush(btn);
     await screen.findByText("Tanaka Jay", {}, { timeout: 5000 });
-    await clickAndFlush(screen.getByRole("button", { name: /Separated/ }));
+    await clickAndFlush(screen.getByRole("button", { name: /Left the company/ }));
     await waitFor(() => {
       const postCall = mockApiPost.mock.calls.find(([path]: [string]) =>
         String(path).includes("/change_status"),
@@ -527,7 +530,7 @@ describe("AdminStaffPage — status change", () => {
     await clickAndFlush(btn);
     await screen.findByText("Tanaka Jay", {}, { timeout: 5000 });
     const callsBefore = mockApiPost.mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: /Separated/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Left the company/ }));
     await waitFor(() => expect(mockApiPost.mock.calls.length).toBe(callsBefore));
   });
 
@@ -858,6 +861,9 @@ describe("StaffAuditClient", () => {
     render(<StaffAuditClient />);
     await screen.findByText("Tanaka Jay", {}, { timeout: 5000 });
     expect(screen.getByText("STAFF")).toBeInTheDocument();
+    // StaffAuditClient prints the payload verbatim -- it is an audit log, and
+    // relabelling what a record said would defeat it. Only the roster badge
+    // reads through STATUS_LABEL.
     expect(screen.getByText("ACTIVE")).toBeInTheDocument();
   });
 
