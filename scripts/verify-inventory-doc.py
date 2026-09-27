@@ -61,9 +61,19 @@ m = re.search(r"def sync_disposal_report_to_ledger\(.*?(?=\ndef |\Z)", inv_db, r
 ck("sync_disposal_report_to_ledger exists", m is not None)
 if m:
     body = m.group(0)
-    ck("sync_disposal_report_to_ledger still ignores the line's unit (§2 bug)",
-       not re.search(r"line\.get\(\s*[\"']unit[\"']", body),
-       "it now reads the unit — §2 may be fixed; re-measure MIN(delta_qty)")
+    # §2 fixed 2026-09-27: the entered unit is read and converted, and a line
+    # that cannot be converted is refused rather than guessed.
+    ck("sync_disposal_report_to_ledger reads the entered unit",
+       re.search(r"line\.get\(\s*[\"']unit[\"']", body) is not None,
+       "the unit is ignored again — §2 has regressed")
+    ck("menu-item lines go through _disposal_recipe_batches",
+       "_disposal_recipe_batches" in body)
+    ck("ingredient lines are converted into the ingredient's own unit",
+       "FROM ingredient_master" in body and "_units_convert" in body)
+    ck("refused lines are returned, not silently dropped", "not_posted" in body)
+ck("search_disposal_items returns each menu item's own unit, not 'pcs'",
+   "'pcs' AS default_unit" not in db and "NULLIF(BTRIM(output_unit)" in db,
+   "the hard-coded pcs is back — §2 input side has regressed")
 
 print("== §1-5 authorization gaps ==")
 ck("both auth gates exist and default to enforce (doc's correction)",

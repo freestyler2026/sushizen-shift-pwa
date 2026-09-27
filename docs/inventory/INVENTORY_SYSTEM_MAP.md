@@ -96,10 +96,9 @@
   **保存・API往復のみで、掛け算も割り算も1箇所も無い**（全文grepで演算子との共起ゼロ）。
 - `_expand_cost_calc_bom`（`inventory_db.py:5645-5651`）は `mc.quantity` をそのまま
   数量として扱い、**`mc.unit` と `ingredient_master.unit` の一致を検査しない。**
-- `disposal_report_lines.unit`（'g'/'kg'/'pcs'/'rolls'/'box'）は
-  `sync_disposal_report_to_ledger` が **SELECT はするが一度も参照しない**
-  （`app/inventory_db.py:9045-9050` 付近、`quantity` を生で BOM 展開に渡す）。
-  → 実害は §2。
+- ~~`disposal_report_lines.unit` を `sync_disposal_report_to_ledger` が参照しない~~
+  → **2026-09-27 修正済み（§2）。** いまは `menu_item_master.output_qty/output_unit`
+  へ換算してから BOM に渡し、換算できない組み合わせは書かずに理由を返す。
 - 唯一の単位正規化SQL `_QTY_NORM_SQL` / `_UNIT_NORM_SQL`（`app/db.py:73432-73447`）は
   **Backup par の検出処理専用**で、台帳にも BOM にも Daily Inventory にも効かない。
 
@@ -135,20 +134,47 @@
 
 ---
 
-## §2 確認済みの不具合 — Disposal が台帳の47%を削っている
+## §2 Disposal の単位 — 2026-09-27 に修正済み（履歴は未訂正）
 
-`sync_disposal_report_to_ledger`（`app/inventory_db.py:8993`）は
-`disposal_report_lines.quantity` を**単位を見ずに** BOM 展開へ渡す。
+**何が壊れていたか。** `sync_disposal_report_to_ledger` が
+`disposal_report_lines.quantity` を**単位を見ずに** BOM 展開へ渡していた。
+`_expand_cost_calc_bom(menu_item_id, quantity=N)` の N は「レシピ何回分」なので、
+1レシピ 3,145 g の酢飯を「23,546 g 廃棄」と入れるとレシピ 23,546 回分になる。
 
-- 「Sushi Rice 2」を `quantity=2000, unit='g'` で入れると、レシピが2000倍展開される。
-- 実測: DISPOSAL 由来の台帳行は **901行しかないのに合計 −11,700,029**
+- 実測: DISPOSAL 由来の台帳行は **901行で合計 −11,700,029**
   （CONSUMPTION 361,250行で −13,421,646）。**行数0.25%で削減量の47%。**
 - 最大の1行: CUB 2026-09-09 `Sushi Rice 2` で **−1,836,099**。
+- 90日の実データで空回しすると、メニュー品の合計は
+  **52,198 レシピ回分 → 742.70 レシピ回分**（70倍の過大計上）。
 
-同じ画面の入力品質（90日）:
+**直した内容**（`app/inventory_db.py:_disposal_recipe_batches`）:
+- メニュー品は `menu_item_master.output_qty` / `output_unit` へ換算してから割る。
+- 材料は `ingredient_master.unit` へ換算する（**従来は換算ゼロ**で、
+  「AVOCADO 1.125 kg」が 1.125 g として引かれていた）。
+- 換算できない組み合わせは**推測せず書かない**（90日で20行）。理由を
+  `not_posted` で返し、提出した本人の画面に品名つきで出す。
+- 台帳の note に `[entered 23546 g]` を残す。単位を取り違えた行は換算後の
+  数字だけでは気づけないため。
+- 単位の同一視は `app/units.py` に集約（`ck_par_level_api` から移設・再輸出）。
+  `tests/test_disposal_units.py` と既存の `tests/test_ck_par_stock_units.py` が縁を固定。
+- 入力側: `search_disposal_items` が全メニュー品に `'pcs'` を固定で返していた
+  （`app/db.py:50685`）のを、その品の `output_unit` に。画面は**品を選んだら
+  単位を選ばせない**（教訓113）。
+
+⚠️ **既存の901行は直っていない。** 台帳の鍵は
+`uuid5(report_id, line_id, item_id)` ＋ `ON CONFLICT DO NOTHING` なので、
+**再syncしても正しい行に置き換わらない**（実測: 報告808で再実行 → 増減0行）。
+履歴の訂正は別の破壊的操作で、オーナーの判断が要る。
+
+⚠️ **kg を選んで g を打った行は、正しく換算すると1000倍になる。**
+90日で6行（AVOCADO 11,961 kg = ₱4,271,785 など。明細1行の金額は
+中央値 ₱21.65 / p95 ₱492）。上限は設けていない（頼まれていない既定値は
+仕様になる／教訓123）。画面から単位の選択を外したので新規では起きない。
+
+同じ画面の入力品質（90日）— **こちらは未対応**:
 - 行の **59.7%（293/491）が `item_id` NULL**＝マスタに繋がらない自由入力。
-- 491行に対し**異なる名称が213個**。`sushi rice` は `g` `kg` `pcs` の3単位で記録。
-- `rG` という打ち間違いの単位が1件そのまま保存されている。
+  記録には残るが在庫は動かない。画面に "not in stock list" と出るようにしただけ。
+- 491行に対し**異なる名称が213個**。
 
 ---
 
@@ -279,8 +305,10 @@ WITH typed AS (SELECT DISTINCT e.item_code FROM daily_inv_entries e
 SELECT (SELECT COUNT(*) FROM typed),(SELECT COUNT(*) FROM used),
        (SELECT COUNT(*) FROM typed JOIN used ON used.cd=typed.item_code);
 
-# Disposal の単位無視が直っているか（1行で数千を超えたら未修正）
-SELECT MIN(delta_qty) FROM inv_stock_ledger WHERE event_type='DISPOSAL';
+# Disposal の単位換算が効いているか。2026-09-27 以降に作られた行だけを見る
+# （それ以前の901行は訂正していないので、全期間で見ると常に古い値が出る）
+SELECT MIN(delta_qty), COUNT(*) FROM inv_stock_ledger
+ WHERE event_type='DISPOSAL' AND created_at >= '2026-09-27';
 ```
 
 `python3 scripts/verify-inventory-doc.py` が、この文書のコード側の主張
