@@ -181,6 +181,13 @@ const BRANCHES = [
     address: "Cubao, Quezon City" },
   { code: "CK", label: "Central Kitchen", area: "QC",
     address: "20 1st Ave., Brgy. Bagong Lipunan Ng Crame, Quezon City" },
+  // Las Piñas. No `area` for the same reason Parañaque has none: the mall
+  // names its own location, and "SM South Mall — Las Piñas" is 25 characters
+  // in a picker row that clips at about 22. The city is on the line under the
+  // select instead, at the same granularity as Cubao's entry — the street
+  // address is not on file yet and is not invented here.
+  { code: "SSM", label: "SM South Mall", area: "",
+    address: "SM Southmall, Las Piñas" },
   { code: "BO", label: "Office", area: "Taguig", address: "" },
 ];
 const EXPERIENCE = ["none", "under_1y", "1_3y", "over_3y"];
