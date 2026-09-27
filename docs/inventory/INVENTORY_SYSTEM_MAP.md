@@ -59,10 +59,13 @@
 | IN（+） | **56** | +15,602 |
 
 入庫を書く関数は `close_inv_count` / `close_inv_spot_check` / `close_inv_transfer` /
-`close_inv_production` / `close_inv_quantity_adjustment` の5つだけで、**対応する表は
-全部0行〜数行**（§3）。**仕入受領（`proc_receiving_items` 90日で13,421行）から
-台帳へ入れる経路はコードに存在しない**（`grep -n "RECEIVING" app/inventory_db.py` →
-`TRANSFER_RECEIVE` のみ）。
+`close_inv_production` / `close_inv_quantity_adjustment` の5つで、**対応する表は
+全部0行〜数行**（§3）。
+
+⚠️ **2026-09-27 に受領→台帳の経路を足した（§3.5）が、まだ1行も入っていない。**
+`RECEIVING_LEDGER_ENABLED` が既定 OFF で、期首残高（A-2）を置くまで入れても
+残高は正しくならないため。**上の数字（入庫56行）は、この節を読む時点でも
+実測し直すこと** — §8 のクエリで1本。
 
 結果、最新残高は全拠点でほぼ全品マイナス:
 
@@ -264,6 +267,55 @@ Backup 3件 / Disposal 1件 / CKセッション 0 / Daily Inventory 0。
 一方で台帳は AL_BARSHA 27,094行・JLT 2,246行を**削り続けている。**
 
 ---
+
+## §3.5 受領 → 台帳（A-1・2026-09-27 実装・既定OFF）
+
+```
+proc_receivings ＋ proc_requests.city
+   → レシピで消費される品だけ → inv_stock_ledger (event_type='RECEIVING')
+```
+
+- **レシピで消費される品だけ入れる。** 実測で、名簿にある受領の60%（金額41%）は
+  台帳が一度も減らしていない品（紙袋・ステッカー・包材）。入れると
+  「増える一方」になり、壊れ方が鏡写しになる。
+- 90日の実測（都市別）: マニラ 6,339行中 **676行**、ドバイ 6,037行中 **1,880行**が入る。
+- 入らない理由は3つに分けて名前で返す:
+  `not_in_item_master` / `not_consumed_by_any_recipe` / `unit_not_convertible`。
+- **単位の橋は `inv_items.storage_to_ingredient`。** 2026-09-27 までこの列は
+  Items 画面が作成時に 1 を固定で書き、編集欄も無く、**計算に一度も使われて
+  いなかった**。いまは入力でき、実際に換算に使われる。**空欄なら足さない**
+  （20kg袋を「1」として入れると、その品だけ残高が2万分の1になる）。
+- 答えてもらう問いは **マニラ36件 / ドバイ44件**（`1 PKT = ? G (MILK FISH)` の形）。
+  単位そのものが数字・空の行（`1 5.75 = ? KG`）は `bad_units` に分け、
+  人の一覧に混ぜない。
+- 冪等: 台帳の id は受領明細の uuid5。何度流しても二重に入らない。
+- **既定 OFF**（`RECEIVING_LEDGER_ENABLED`）。**期首残高（A-2）を置くまで、
+  入れても残高は正しくならない。**
+
+⚠️ **2026-09-27 に自分で入れて自分で直した不具合が2つ。**
+① 都市で絞っていなかった（両都市とも全12,376行を見ていた）。`proc_receivings`
+に city 列は無く、**`CK` は両都市に実在する**ので店名では絞れない。
+`proc_requests.city` を辿る（教訓127と同型）。
+② `store_code` は人の打った文字列で、`BB`/`B BAY`・`CUB`/`CUBAO` が混在する。
+正規化せずに書くと1つの店が2支店として積み上がる（`_inv_canonical_branch`）。
+
+## §3.6 Daily Inventory と Backup は二重入力ではない（2026-09-27 測定・C の結論）
+
+統合しかけたが、**測ったらほとんど重なっていなかった。**
+
+| | 品目数 |
+|---|---:|
+| Backup の品目（90日） | 82 |
+| **Backup にしか無い** | **66** |
+| 名前が重なる | 16 |
+
+Backup 固有は `Base Roll 1〜11`・`Boiled Beansprout`・`Akadama`・`Box12 Set` —
+**店で作った「出せる状態の在庫」**。Daily Inventory が数えているのは
+**原材料と資材**。別の問いなので、統合すれば片方の意味が消える。
+
+重なる16件（Bok Choy・Spring Onion・Sweet Corn 等）も、Backup 側の単位は
+`container`/`pcs` で、生の kg とは状態が違う可能性が高い。**触る前に1品ずつ
+「同じ状態のものを2回数えているか」を見ること。** 件数だけで統合しない。
 
 ## §4 唯一の閉ループ
 

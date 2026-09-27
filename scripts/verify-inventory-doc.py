@@ -18,6 +18,7 @@ inv_api = (BACK / "app/inventory_api.py").read_text()
 daily_api = (BACK / "app/daily_inventory_api.py").read_text()
 daily_db = (BACK / "app/db_daily_inventory.py").read_text()
 store_sup = (BACK / "app/db_store_supplier.py").read_text()
+worker = (BACK / "worker.py").read_text()
 db = (BACK / "app/db.py").read_text()
 main = (BACK / "app/main.py").read_text()
 
@@ -39,13 +40,23 @@ ck("D: daily_inv_entries DDL has no theoretical qty",
 ck("C and D share daily_inv_report_items as the item master",
    "daily_inv_report_items" in db and "daily_inv_report_items" in daily_db)
 
-print("== §1-1 the ledger is still one-way (no receiving -> ledger path) ==")
-ck("no RECEIVING/RECEIPT_IN/STOCK_IN event type exists in inventory_db",
-   not re.search(r"event_type[\"']?\s*:\s*[\"'](RECEIVING|RECEIPT_IN|STOCK_IN|PURCHASE_IN)[\"']", inv_db),
-   "a stock-in event type appeared — §1-1 and §2 must be re-measured")
-ck("proc_receiving_items is never posted to inv_stock_ledger",
-   "proc_receiving_items" not in inv_db,
-   "receiving now reaches inventory_db — the doc's core claim changed")
+print("== §1-1 / §3.5 the receiving path exists but is not armed ==")
+ck("a RECEIVING event type exists (added 2026-09-27, §3.5)",
+   re.search(r"_RECEIVING_LEDGER_EVENT\s*=\s*[\"']RECEIVING[\"']", inv_db) is not None)
+ck("receiving reaches the ledger through post_receiving_to_ledger",
+   "def post_receiving_to_ledger(" in inv_db and "proc_receiving_items" in inv_db)
+ck("it posts only items a recipe consumes",
+   "not_consumed_by_any_recipe" in inv_db,
+   "the recipe restriction is gone — §3.5's whole argument was that 60% of "
+   "lines are for items nothing ever depletes")
+ck("it is off unless RECEIVING_LEDGER_ENABLED is set",
+   '_env_flag("RECEIVING_LEDGER_ENABLED", False)' in worker,
+   "the worker now writes on deploy — §3.5 says it waits for an opening count")
+ck("the candidate query resolves the city from the purchase request",
+   "JOIN proc_requests q ON q.id = r.request_id" in inv_db and "q.city = %s" in inv_db,
+   "the city filter is gone again — CK exists in both cities")
+ck("receipts are written under a canonical branch code",
+   "_inv_canonical_branch(plan[\"city\"]" in inv_db)
 
 print("== §1-2 inv_stock_balance_daily is still write-only ==")
 # "DELETE FROM x" also matches a naive FROM search — only count reads.
