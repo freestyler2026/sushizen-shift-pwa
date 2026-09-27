@@ -208,6 +208,35 @@
 | `/store/ck-production-plan` | 13計画 / 380行 | CK |
 | `/admin/inventory/wh-inventory` | `wh_stock_counts` 275行 | **1名のみ** |
 
+### タブから外したもの（2026-09-27・**コードとルートは残っている**）
+
+一覧から外しただけで、URL を直接開けば今も使える。使い始めるときは
+`src/components/InventoryTabs.tsx` に行を戻す。
+
+| 外した | 根拠 |
+|---|---|
+| Transfer Orders | `inv_transfer_orders` / `inv_transfers` が開設以来 **0行** |
+| Quantity Adjustments | `inv_quantity_adjustments` **0行** |
+| Cost Adjustments | `inv_cost_adjustments` **0行** |
+
+⚠️ **Full Inventory Count は外していない。** 行数だけ見ると止まって見えるが、
+2026-09-08 に TAFT で **7件（23分・同じ人・全部0品目）**作られている。
+「使われていない」ではなく**「使おうとして進めなかった」**。同じ理由で
+CK Production（2026-06 に6件・全部DRAFT）と Quick Spot Check（2026-03 に4件・
+CLOSED まで到達）も残した。
+
+### Full Inventory Count が進まない理由（2026-09-27 調査）
+
+1. **画面側の不具合（修正済み）**: ヘッダと品目を別々の要求で書いていたので、
+   品目が落ちるたびに空のカウントが1件残った。**7件はその痕跡。**
+   いまは1回の要求で書き、失敗したらヘッダも残さない
+   （`discard_empty_inv_count` は **DRAFT かつ0品目のときしか消さない**）。
+2. **データ側（未対応・コードでは直らない）**: **TAFT に 15TH のカウント
+   テンプレートが無い。** 唯一の TAFT シートは MONTH_END の
+   「Paranaque Month End 2026-04-28」の写しで**3品目**。
+   PAR は 15TH に160品目のシートがあり、だから5〜6月の PAR は SUBMITTED まで
+   到達している。**誰かが TAFT / CUB の 15TH シートを作る必要がある。**
+
 ### 作ってあるが実質ゼロ
 
 | テーブル | 全行 | 最終書き込み |
