@@ -79,12 +79,14 @@
 **`/admin/inventory/ledger` と `/balances` が出す数字は現状すべて無意味。**
 画面には何の注意書きも無い。
 
-### 2. `inv_stock_balance_daily` は書かれるだけで誰も読まない
+### 2. `inv_stock_balance_daily` はほぼ書かれるだけ
 
-30日で30,573行書かれている（`_inv_refresh_daily_snapshot`, `inventory_db.py:1352`）が、
-`SELECT` するのは item 統合の後始末 `_inv_merge_inv_stock_balance_daily`
-（`inventory_db.py:3410`）**だけ**。残高の読み取り（`list_inv_stock_balances`,
-`inventory_db.py:5558`）は台帳の最新行を見るので、この表は通らない。
+30日で30,573行書かれている（`_inv_refresh_daily_snapshot`, `inventory_db.py:1352`）。
+読むのは2箇所だけ — item 統合の後始末 `_inv_merge_inv_stock_balance_daily`
+（`inventory_db.py:3410`）と、2026-09-27 に足した `inv_ledger_health`
+（マイナスの割合を数えるため）。**残高の読み取り本体**
+（`list_inv_stock_balances`, `inventory_db.py:5558`）は台帳の最新行を見るので、
+この表は通らない。
 
 ### 3. item の名前空間が4つあり、ほとんど繋がっていない
 
@@ -133,14 +135,15 @@
 **塞ぐ前に実績で誰が使っているか数えること**（教訓32・57）。この一覧は「塞げ」ではなく
 「ここは開いている」という事実。
 
-### 6. `ensure_ck_inventory_tables()` はリクエストごとにDDLを流す
+### 6. ~~`ensure_ck_inventory_tables()` はリクエストごとにDDLを流す~~ → 2026-09-27 修正
 
-`app/db.py:58827-58889`。**メモ化フラグが無い**まま `ck_inventory_*` の全10関数から
-呼ばれ、毎回 8本の接続で `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` ×7 と
-`CREATE TABLE/INDEX IF NOT EXISTS` を実行する。**教訓85そのもの**（朝の同時アクセスで
-2人目が statement timeout になる型）。`inventory_db.py:195` と
-`db_daily_inventory.py:18` は同じ処理を `_READY` フラグで1回に抑えており、
-**CKだけが抜けている。**
+`app/db.py`。**メモ化フラグが無い**まま `ck_inventory_*` の全10関数から呼ばれ、
+毎回 8本の接続で `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` ×7 と
+`CREATE TABLE/INDEX IF NOT EXISTS` を実行していた。**教訓85そのもの**で、
+**CKが棚卸しの数値を保存するたび**に通る経路だった。`inventory_db.py` と
+`db_daily_inventory.py` は最初から `_READY` フラグで1回に抑えており、
+**CKだけが抜けていた。** いまは同じ形（`_CK_INVENTORY_TABLES_READY` ＋ ロック、
+フラグは DDL がコミットした後に立てる）。
 
 ---
 

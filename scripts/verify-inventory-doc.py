@@ -61,8 +61,13 @@ ck("receipts are written under a canonical branch code",
 print("== §1-2 inv_stock_balance_daily is still write-only ==")
 # "DELETE FROM x" also matches a naive FROM search — only count reads.
 reads = [m for m in re.finditer(r"(?<!DELETE )FROM\s+inv_stock_balance_daily", inv_db)]
-ck("inv_stock_balance_daily is SELECTed only by the dedupe merge",
-   len(reads) <= 1, f"{len(reads)} SELECT sites")
+# Two readers as of 2026-09-27: the dedupe merge, and inv_ledger_health (which
+# counts negative balances for the Ledger screen's banner). The real balance
+# read still goes to the ledger's own latest row, not to this table.
+ck("inv_stock_balance_daily has no more than the two known readers",
+   len(reads) <= 2, f"{len(reads)} SELECT sites")
+ck("the balance read still comes from the ledger, not the snapshot",
+   re.search(r"def list_inv_stock_balances\(.*?FROM inv_stock_ledger", inv_db, re.S) is not None)
 
 print("== §1-4 units are still not converted ==")
 ck("storage_to_ingredient is never used in arithmetic",
@@ -106,9 +111,13 @@ print("== §1-6 ensure_ck_inventory_tables has no memo flag ==")
 m = re.search(r"def ensure_ck_inventory_tables\(.*?(?=\ndef )", db, re.S)
 ck("ensure_ck_inventory_tables exists", m is not None)
 if m:
-    ck("ensure_ck_inventory_tables still runs DDL on every call",
-       not re.search(r"_CK_INVENTORY_READY|if\s+_\w*READY", m.group(0)),
-       "a guard appeared — §1-6 is fixed, update the doc")
+    # §1-6 fixed 2026-09-27: it is memoised like its two siblings, and the flag
+    # is set only after the DDL commits.
+    ck("ensure_ck_inventory_tables runs its DDL once per process",
+       "_CK_INVENTORY_TABLES_READY" in m.group(0),
+       "the guard is gone — every ck-inventory request takes a schema lock again")
+    ck("the ready flag is set after the DDL, not before",
+       db.index("_ensure_ck_inventory_tables_once()") < db.index("_CK_INVENTORY_TABLES_READY = True"))
 
 print("== §4 inv_counts is the only closed loop ==")
 ck("close_inv_count posts COUNT_ADJUSTMENT back to the ledger",
