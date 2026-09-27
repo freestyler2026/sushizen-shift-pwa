@@ -87,7 +87,7 @@ export const STAGE_LABEL: Record<string, string> = {
   IN_REVIEW: "In Review",
   APPROVED_NO_PO: "Approved · no PO",
   PO_ISSUED: "PO issued · awaiting delivery",
-  DELIVERED: "Delivered · awaiting kitchen",
+  DELIVERED: "Dispatch confirmed · awaiting kitchen",
   RECEIVED: "Received",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
@@ -97,6 +97,10 @@ export const STAGE_LABEL: Record<string, string> = {
   // They were missing here, which made 121 orders belong to no group at all
   // -- and the test that was supposed to catch that compared this list
   // against itself instead of against the data.
+  // Bought, and the receipt was never recorded. Not RECEIVED: saying so would
+  // need a receipt date nobody has. 165 Manila direct purchases from June to
+  // August are in this state, confirmed as real purchases on 2026-09-28.
+  PURCHASED_NO_RECEIPT: "Purchased · receipt not recorded",
   RETURNED: "Returned to requester",
   IN_PRODUCTION: "In production (CK)",
   PURCHASED: "Purchased",
@@ -121,6 +125,10 @@ export const LANES: Lane[] = [
     hint: "Closed — the kitchen confirmed receipt." },
   { key: "CLOSED", label: "Rejected / Draft", stages: ["REJECTED", "CANCELLED", "DRAFT"],
     hint: "Not going ahead, or never submitted." },
+  // Its own lane, not folded into the one above: these were bought. Putting
+  // them under "Rejected / Draft" would say the purchase never happened.
+  { key: "NO_RECEIPT", label: "No receipt recorded", stages: ["PURCHASED_NO_RECEIPT"],
+    hint: "Purchased, but nobody recorded the receipt here. Closed — kept so the order is still findable." },
 ];
 
 /**
@@ -129,8 +137,8 @@ export const LANES: Lane[] = [
  *
  * Deliberately NOT the same grouping as LANES above, and deliberately from the
  * same stage vocabulary. The back office needs PO Issued and Delivered apart —
- * "the supplier has not sent it" and "it is here but the kitchen has not
- * received it" are different people's problems — while the Direct Purchase
+ * "the supplier has not sent it" and "the supplier sent it but the kitchen has
+ * not received it" are different people's problems — while the Direct Purchase
  * screen merges them into Incoming, because there the question is only
  * "has it arrived". One set of stages, two readings of it; a second set of
  * stage names is how two screens start disagreeing about the same order.
@@ -141,9 +149,9 @@ export const STORE_STAGES: Lane[] = [
   { key: "APPROVAL", label: "Approval", stages: ["IN_REVIEW"],
     hint: "Waiting for approval." },
   { key: "PO_ISSUED", label: "PO Issued", stages: ["APPROVED_NO_PO", "PO_ISSUED"],
-    hint: "Approved. Shows whether the purchase order has been raised yet." },
-  { key: "DELIVERED", label: "Delivered", stages: ["DELIVERED"],
-    hint: "Back office has confirmed delivery; the kitchen has not received it yet." },
+    hint: "Approved and ordered, with no dispatch confirmed yet — this is where an order stuck at the supplier sits." },
+  { key: "DELIVERED", label: "Dispatch Confirmed", stages: ["DELIVERED"],
+    hint: "Back office has confirmed the supplier arranged the delivery; the kitchen has not received it yet." },
   { key: "RECEIVED", label: "Received", stages: ["RECEIVED"],
     hint: "The kitchen confirmed receipt." },
 ];
@@ -154,6 +162,7 @@ export const STORE_STAGES: Lane[] = [
  * says how many orders it affects rather than quietly dropping them.
  */
 export const OUTSIDE_THE_FIVE: Record<string, string> = {
+  PURCHASED_NO_RECEIPT: "bought, with no receipt recorded here — closed, and outside the five",
   REJECTED: "under the cards below",
   CANCELLED: "under the cards below",
   RETURNED: "under the cards below, waiting on the requester",

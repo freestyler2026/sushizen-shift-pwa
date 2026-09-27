@@ -175,6 +175,9 @@ h3.sub { font-size: 13px; font-weight: 700; color: var(--text); margin: 22px 0 8
   <div class="nav-item" onclick="show('payroll')">
     <span class="nav-icon">💰</span><span class="ja">給与担当 / HQ</span><span class="en">Payroll / HQ</span>
   </div>
+  <div class="nav-item" onclick="show('late')">
+    <span class="nav-icon">⏳</span><span class="ja">48時間を過ぎた残業</span><span class="en">Past the 48-hour window</span>
+  </div>
   <div class="sidebar-label"><span class="ja">その他</span><span class="en">Reference</span></div>
   <div class="nav-item" onclick="show('trouble')">
     <span class="nav-icon">🛠️</span><span class="ja">困ったとき</span><span class="en">When something looks wrong</span>
@@ -1070,6 +1073,87 @@ then add it.</pre>
   </div>
 </div>
 
+<!-- ═══════════ LATE ENTRY ═══════════ -->
+<div class="section" id="section-late">
+  <div class="hero-header">
+    <div class="hero-icon">⏳</div>
+    <div>
+      <div class="section-title"><span class="ja">48時間を過ぎた残業を記録する</span><span class="en">Recording overtime past the 48-hour window</span></div>
+      <div class="section-path">Overtime Requests → Late entry</div>
+      <div class="section-desc">
+        <span class="ja">申請の窓が閉じた後でも、働いた時間を記録する唯一の道。HQ / Admin と <span class="ui">overtime.manage</span> を持つ人だけが使えます。</span>
+        <span class="en">The one way to record hours after the submission window has shut. HQ / Admin and holders of <span class="ui">overtime.manage</span> only.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip danger">
+    <span class="tip-icon">⚠️</span>
+    <div>
+      <p><strong><span class="ja">シフト表を残業込みに書き換えても、残業代は1円も出ません。</span><span class="en">Editing the roster to include the overtime pays nothing.</span></strong></p>
+      <p><span class="ja">残業時間は<strong>打刻から</strong>計算されます（在社時間 − 休憩 − 8時間）。シフト表が渡すのは休憩の長さだけで、開始・終了時刻は計算に入りません。そして支払われるのは<strong>承認済みの申請</strong>だけです。つまりシフトの終了時刻を後ろに伸ばしても、残業は増えず、<strong>打刻の退勤がシフト終了より前になるので早退が発生します</strong>。</span>
+        <span class="en">Overtime comes <strong>from the clock</strong>: time at work, less the break, less eight hours. All the roster contributes is the length of the break — its start and end times are not in the calculation. And pay comes only from an <strong>approved request</strong>. So extending a shift's end adds no overtime, and because the clock-out now falls before the rostered end, it <strong>creates undertime instead</strong>.</span></p>
+      <p><span class="ja">2026年9月、この誤解でドバイの45セルが書き換えられました。残業代は0、早退が5件発生。書き換えを元に戻し、同じ時間を<strong>このページの経路</strong>で52件の申請として登録して解決しました（81.18時間）。<strong>過去のシフトは触らず、ここから申請してください。</strong></span>
+        <span class="en">In September 2026 this misunderstanding rewrote forty-five Dubai cells. It produced no overtime pay and five days of undertime. The fix was to put the roster back and file the same hours as fifty-two requests <strong>through this route</strong> (81.18 hours). <strong>Leave the past roster alone and file here.</strong></span></p>
+    </div>
+  </div>
+
+  <h3 class="sub"><span class="ja">なぜ窓があるのか</span><span class="en">Why there is a window at all</span></h3>
+  <div class="card">
+    <p><span class="ja">スタッフの申請画面は<strong>2日より古い勤務日を受け付けません</strong>。記憶が新しいうちに出させるためで、これは残します。</span>
+      <span class="en">The staff form <strong>refuses a work date older than two days</strong>, so that a claim is made while the day is still fresh. That stays.</span></p>
+    <p><span class="ja">ただし、それがリクエストを作る<strong>唯一の経路</strong>でした。窓が閉じた後は HR も HQ も記録できず、<strong>実際に働いた時間が支払えない</strong>状態になっていました。2026-09-26 に Cyrine から報告があり、この例外経路を作りました。</span>
+      <span class="en">But it was the <strong>only</strong> path that created a request. Once the window shut, neither HR nor HQ could record anything, and <strong>hours that were genuinely worked simply could not be paid</strong>. Reported by Cyrine on 2026-09-26; this exception was built beside the window.</span></p>
+  </div>
+
+  <h3 class="sub"><span class="ja">手順</span><span class="en">How to use it</span></h3>
+  <ol class="steps">
+    <li class="step"><span class="step-num">1</span><div>
+      <div class="step-title"><span class="ja">分数は打刻から取る</span><span class="en">Take the minutes from the clock</span></div>
+      <div class="step-desc"><span class="ja">DTR の <span class="ui">overtime_hours</span> がその日の残業です。<strong>記憶や口頭の申し出ではなく、打刻を根拠にしてください。</strong>時間帯は実際の退勤時刻で終わるように置くと、後から見た人が突き合わせられます。</span>
+        <span class="en">The DTR's <span class="ui">overtime_hours</span> is the day's overtime. <strong>Use the punches as the basis, not a recollection.</strong> Set the window to end at the actual clock-out so that whoever reads it later can check it.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">2</span><div>
+      <div class="step-title"><span class="ja">2つの署名を書く</span><span class="en">Both signatures</span></div>
+      <div class="step-desc"><span class="ja"><span class="ui">late_entry_by</span> はログイン中の本人から自動で入ります。<span class="ui">late_entry_reason</span> は<strong>10文字以上が必須</strong>で、なぜ窓を過ぎたのかを書く唯一の場所です。理由の無い例外は、窓が存在しないのと同じになります。</span>
+        <span class="en"><span class="ui">late_entry_by</span> is taken from whoever is logged in. <span class="ui">late_entry_reason</span> is <strong>required, at least ten characters</strong>, and is the only record of why the window was passed. An exception nobody signed and gave a reason for is the window quietly not existing.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">3</span><div>
+      <div class="step-title"><span class="ja">承認は飛ばせません</span><span class="en">It does not skip approval</span></div>
+      <div class="step-desc"><span class="ja">作られる状態は <span class="pill amber">pending</span> です。通常の申請とまったく同じく、<strong>Manager Approve → Add to Payroll</strong> を通す必要があります。この経路が変えるのは「記録できるかどうか」だけで、「誰が認めるか」は変えません。</span>
+        <span class="en">It is created <span class="pill amber">pending</span>. Like any other request it still has to go through <strong>Manager Approve, then Add to Payroll</strong>. What this route changes is only whether the hours can be entered at all — not who allows them.</span></div>
+    </div></li>
+    <li class="step"><span class="step-num">4</span><div>
+      <div class="step-title"><span class="ja">ドバイは最後に同期する</span><span class="en">Dubai: sync last</span></div>
+      <div class="step-desc"><span class="ja">ドバイの給与は DTR の <span class="ui">approved_ot_hours</span> から払います。paid にした後で <strong>Sync from OS Attendance</strong> を実行しないと、承認済みの残業は給与計算に届きません。</span>
+        <span class="en">Dubai pays from the DTR's <span class="ui">approved_ot_hours</span>. Unless <strong>Sync from OS Attendance</strong> is run after marking them paid, approved overtime never reaches the calculation.</span></div>
+    </div></li>
+  </ol>
+
+  <h3 class="sub"><span class="ja">拒否される入力</span><span class="en">What it refuses</span></h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th><span class="ja">入力</span><span class="en">Input</span></th>
+        <th><span class="ja">結果</span><span class="en">Result</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td><span class="ja">窓の内側の日付（2日以内）</span><span class="en">A date inside the window</span></td>
+            <td><span class="ja">拒否。<strong>本人が自分で出せます</strong>ので、他人の名前を付ける必要がありません。</span><span class="en">Refused — <strong>the staff member can submit it themselves</strong>, so nobody else's name need go on it.</span></td></tr>
+        <tr><td><span class="ja">未来の日付</span><span class="en">A future date</span></td><td><span class="ja">拒否</span><span class="en">Refused</span></td></tr>
+        <tr><td><span class="ja">理由が10文字未満、または空</span><span class="en">A reason under ten characters, or blank</span></td><td><span class="ja">拒否</span><span class="en">Refused</span></td></tr>
+        <tr><td><span class="ja">開始と終了が同じ時刻</span><span class="en">Identical start and end</span></td><td><span class="ja">拒否</span><span class="en">Refused</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tip info">
+    <span class="tip-icon">💡</span>
+    <div><p><span class="ja">日付跨ぎの勤務は、<strong>シフトが始まった日</strong>で申請してください。深夜1時30分に終わった前日のシフトを翌日の日付で出すと、その日の打刻と合わなくなります（2026年9月に1件発生）。</span>
+      <span class="en">For a shift that crosses midnight, file it under <strong>the date the shift started</strong>. Filing yesterday's shift that ended at 01:30 under today's date leaves it disagreeing with today's punches — which happened once in September 2026.</span></p></div>
+  </div>
+</div>
+
 <!-- ═══════════ TROUBLE ═══════════ -->
 <div class="section" id="section-trouble">
   <div class="hero-header">
@@ -1151,8 +1235,8 @@ then add it.</pre>
   <div class="tip info">
     <span class="tip-icon">🌍</span>
     <div>
-      <span class="ja"><strong>この連携はマニラのみです。</strong>ドバイの OT 申請はこの経路を通らず、マニラの勤怠には入りません。</span>
-      <span class="en"><strong>This link is Manila only.</strong> Dubai overtime requests do not travel this path and never reach the Manila attendance records.</span>
+      <span class="ja"><strong>この経路はマニラのものです。ドバイには自分の経路があります。</strong>ドバイの OT 申請がマニラの勤怠に入ることはありません。ドバイは <code>dubai_attendance_daily.approved_ot_hours</code> を読み、<strong>そこに書くのは Sync from OS Attendance です</strong> ── paid にしただけでは届かないので、必ず同期してから計算してください。<strong>2026-09-22 まで、この列を読むコードがどこにもありませんでした</strong>（55件・67時間が paid のまま1円も生んでいませんでした）。</span>
+      <span class="en"><strong>This path is Manila's; Dubai has its own.</strong> A Dubai request never reaches the Manila attendance records. Dubai's engine reads <code>dubai_attendance_daily.approved_ot_hours</code>, and <strong>what writes it is Sync from OS Attendance</strong> — marking a request paid does not get it there, so the sync has to run before the calculation. <strong>Until 2026-09-22 nothing read that column at all</strong>: fifty-five requests covering sixty-seven hours sat at paid and produced no money anywhere.</span>
     </div>
   </div>
 </div>

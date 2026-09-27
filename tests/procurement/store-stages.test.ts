@@ -9,8 +9,14 @@ const row = (stage: string): DirectPurchaseRow =>
 
 describe("the Store Procurement five stages (Yusuke's 4)", () => {
   it("is the five he named, in his order", () => {
+    // The fourth was "Delivered" until 2026-09-27. Yusuke renamed it after
+    // deciding who presses it: the back office, when the supplier has confirmed
+    // the delivery is arranged. That is not the goods reaching the kitchen --
+    // the kitchen's own receipt is the fifth stage -- and calling both events
+    // "delivered" is why the fourth had no reason to be pressed and stood at
+    // zero. The stage key is untouched; this is the word people read.
     expect(STORE_STAGES.map(s => s.label))
-      .toEqual(["Request", "Approval", "PO Issued", "Delivered", "Received"]);
+      .toEqual(["Request", "Approval", "PO Issued", "Dispatch Confirmed", "Received"]);
   });
 
   it("separates 'supplier has not sent it' from 'here but not received'", () => {
@@ -57,6 +63,10 @@ describe("the Store Procurement five stages (Yusuke's 4)", () => {
     "APPROVED_NO_PO", "CANCELLED", "DELIVERED", "DRAFT", "IN_PRODUCTION",
     "IN_REVIEW", "PO_ISSUED", "PURCHASED", "RECEIVED", "REJECTED",
     "RETURNED", "SUBMITTED",
+    // Added 2026-09-28 with the Manila backfill: 165 June-to-August direct
+    // purchases that were bought and never receipted here. A stage that exists
+    // in the data and not in this list is exactly what this test is for.
+    "PURCHASED_NO_RECEIPT",
   ];
 
   it("has a name for every stage the data actually produces", () => {
