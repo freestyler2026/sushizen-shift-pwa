@@ -1912,6 +1912,19 @@ npx tsc --noEmit
     - **`npx tsc --noEmit` と `npm run lint` は `next build` の代わりにならない。**
       ページのファイルに何かを増やしたら `npm run build` を通す。約2分かかるが、
       通さないと「デプロイ済み」が嘘になる。
+    - ⚠️ **逆向きも起きる（2026-09-28）。GitHub の deployments API に、その sha の
+      記録が一度も付かないことがある。** 待ち続けると永久に終わらないのに、
+      **コードは既に本番で配信されている**。今日2回当たった（docs のみの
+      `ec574d50`、ページを変えた `6a249164`）。
+      **確実なのは、配信されている成果物を直接見ること:**
+      ```bash
+      curl -s https://sushizen-shift-pwa.vercel.app/<path> \
+        | grep -oE '/_next/static/chunks/app/<route>/page-[a-f0-9]+\.js' | head -1
+      curl -s https://sushizen-shift-pwa.vercel.app<chunk> | grep -c '<入れた文字列>'
+      ```
+      今回の変更に固有の文字列を1つ grep すれば、**新旧どちらのバンドルが出て
+      いるか**が1回で分かる。deployment の state は「記録」であって配信そのもの
+      ではない。
 
 125. **「その画面が開ける」と「その画面でその作業ができる」は別の主張 — 案内する前に後者を確かめる** → 2026-09-26、アラートが届かない3名について「Discord ID を登録してください」の案内先を**3回間違えた**。
     - 1回目: 「Store Operations → Management Channel → Discord IDs」と書いた。**そんな経路は存在しない。**
