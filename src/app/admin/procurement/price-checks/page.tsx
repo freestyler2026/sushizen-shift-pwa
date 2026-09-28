@@ -3,11 +3,11 @@
 import { isoDate } from "@/lib/date";
 import {
   AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Download,
-  Minus, RefreshCw, TrendingDown, TrendingUp, TriangleAlert,
+  Minus, Receipt, RefreshCw, TrendingDown, TrendingUp, TriangleAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { defaultProcurementName, defaultProcurementPin, procurementTokenHeaders } from "@/lib/procurementClient";
+import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
 
@@ -1370,10 +1370,493 @@ function CatalogDriftTab({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ④ Invoice → Receiving
+//
+// 第一段階で `proc_receiving_items` に `invoice_unit_price` を足し、第二段階で
+// 請求書の明細をそこへ運ぶ規則を書いた。**その規則を呼ぶ画面が無かった** ので、
+// 適用済みの行は全て one-off dyno から流したもので、現場からは触れなかった。
+// ここがその入口（教訓147）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+type MatchCandidate = { item_name: string; why: string; score: number };
+type MatchProposal = {
+  supplier: string;
+  invoice_description: string;
+  unit: string;
+  unit_price: number;
+  candidates: MatchCandidate[];
+};
+type MatchPreview = {
+  item_name: string; unit: string; supplier: string; invoice_no: string;
+  invoice_date: string; ordered: number; invoice: number; diff: number; how: string;
+};
+type MatchAlias = {
+  supplier_key: string; invoice_description: string; item_name: string;
+  confirmed_by: string; confirmed_at: string;
+};
+type MatchResult = {
+  city: string; since: string;
+  auto: number; by_alias: number; already: number; would_write: number;
+  ambiguous: number; contested: number; no_receiving: number;
+  preview: MatchPreview[];
+  proposals: MatchProposal[];
+  aliases: MatchAlias[];
+  coverage?: { total?: number; with_invoice?: number; pct?: number };
+  coverage_error?: string;
+};
+type MatchedRow = {
+  id: string; item_name: string; unit: string; vendor_name: string;
+  qty_received: number | null; ordered_price: number | null;
+  invoice_price: number | null; price_confirmed_by: string;
+  price_confirmed_at: string | null; delivery_date: string | null;
+};
+
+function money(n: number | null | undefined, city: string): string {
+  if (n === null || n === undefined) return "—";
+  const sym = city === "dubai" ? "AED " : "₱";
+  return sym + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy: string; pin: string }) {
+  const [since, setSince] = useState("2026-07-01");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [result, setResult] = useState<MatchResult | null>(null);
+  const [matched, setMatched] = useState<MatchedRow[]>([]);
+  const [showRules, setShowRules] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [rowBusy, setRowBusy] = useState<string>("");
+
+  const load = useCallback(async () => {
+    setBusy(true); setError("");
+    try {
+      const qs = new URLSearchParams({ city, since });
+      const [dry, done] = await Promise.all([
+        procurementJson<MatchResult>(
+          `/api/admin/procurement/invoice-match/proposals?${qs.toString()}`,
+          { method: "GET" }, requestedBy, pin),
+        procurementJson<{ rows: MatchedRow[] }>(
+          `/api/admin/procurement/invoice-match/matched?${qs.toString()}`,
+          { method: "GET" }, requestedBy, pin),
+      ]);
+      setResult(dry);
+      setMatched(done.rows || []);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [city, since, requestedBy, pin]);
+
+  useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function applyAll() {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const out = await procurementJson<{ applied: number }>(
+        `/api/admin/procurement/invoice-match/apply`,
+        { method: "POST", body: JSON.stringify({ city, since }) }, requestedBy, pin);
+      setNotice(`${out.applied} line${out.applied === 1 ? "" : "s"} now carry the invoice price. Undo any of them below.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 1タップ: 「この請求書の名前はこの品」を確定し、そのまま適用まで通す。
+  // 確定と適用を別ボタンにすると、確定しただけで何も起きない画面になる。
+  async function confirmCandidate(p: MatchProposal, itemName: string, score: number) {
+    const key = `${p.supplier}|${p.invoice_description}`;
+    setRowBusy(key); setError(""); setNotice("");
+    try {
+      await procurementJson(`/api/admin/procurement/invoice-match/alias`, {
+        method: "POST",
+        body: JSON.stringify({
+          city, supplier_name: p.supplier,
+          invoice_description: p.invoice_description,
+          item_name: itemName, score,
+        }),
+      }, requestedBy, pin);
+      const out = await procurementJson<{ applied: number }>(
+        `/api/admin/procurement/invoice-match/apply`,
+        { method: "POST", body: JSON.stringify({ city, since }) }, requestedBy, pin);
+      setNotice(
+        out.applied > 0
+          ? `“${p.invoice_description}” = ${itemName}. ${out.applied} line${out.applied === 1 ? "" : "s"} updated.`
+          : `“${p.invoice_description}” = ${itemName}. No line matched yet — the unit or the delivery date still has to line up.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRowBusy("");
+    }
+  }
+
+  async function undoAlias(a: MatchAlias) {
+    setRowBusy(a.invoice_description); setError(""); setNotice("");
+    try {
+      await procurementJson(`/api/admin/procurement/invoice-match/alias`, {
+        method: "POST",
+        body: JSON.stringify({
+          city, supplier_name: a.supplier_key,
+          invoice_description: a.invoice_description, remove: true,
+        }),
+      }, requestedBy, pin);
+      setNotice(`Removed “${a.invoice_description}” = ${a.item_name}. Prices already written stay — undo those in the list below.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRowBusy("");
+    }
+  }
+
+  async function undoPrice(row: MatchedRow) {
+    setRowBusy(row.id); setError(""); setNotice("");
+    try {
+      await procurementJson(`/api/admin/procurement/invoice-match/undo`,
+        { method: "POST", body: JSON.stringify({ city, ids: [row.id] }) }, requestedBy, pin);
+      setNotice(`${row.item_name} is back to the ordered price. Nothing was written to the PO.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRowBusy("");
+    }
+  }
+
+  const cov = result?.coverage;
+  const proposals = result?.proposals || [];
+  const withCands = proposals.filter((p) => (p.candidates || []).length > 0);
+  const noCands = proposals.filter((p) => (p.candidates || []).length === 0);
+
+  return (
+    <div className="space-y-4">
+      {/* What this is and how far it has got */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <div className="text-sm font-semibold text-white">Carry the invoice price onto the receiving line</div>
+            <p className="mt-1 text-sm text-zinc-400">
+              A receiving line starts life with the price the catalogue had on the day the order was raised.
+              That is an estimate. This puts the price the supplier actually billed beside it, in its own
+              column, so cost can say which one it is using. <span className="text-zinc-300">The ordered price is never overwritten.</span>
+            </p>
+          </div>
+          <div className="flex items-end gap-3">
+            <div>
+              <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Deliveries from</div>
+              <DatePicker value={since} onChange={setSince} />
+            </div>
+            <button
+              type="button" onClick={() => void load()} disabled={busy}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-200 hover:border-emerald-700/40 hover:text-emerald-200 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500">Backed by an invoice</div>
+            <div className="mt-0.5 text-lg font-semibold text-white">
+              {cov ? `${Number(cov.pct ?? 0).toFixed(1)}%` : result?.coverage_error ? "—" : "…"}
+            </div>
+            <div className="text-[11px] text-zinc-500">
+              {result?.coverage_error
+                ? "could not be measured"
+                : cov ? `${(cov.with_invoice ?? 0).toLocaleString()} of ${(cov.total ?? 0).toLocaleString()} lines` : ""}
+            </div>
+          </div>
+          <div className="rounded-xl border border-emerald-800/30 bg-emerald-950/15 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest text-emerald-500/80">Safe to write now</div>
+            <div className="mt-0.5 text-lg font-semibold text-emerald-200">{result?.would_write ?? 0}</div>
+            <div className="text-[11px] text-zinc-500">
+              {(result?.auto ?? 0)} on an exact match, {(result?.by_alias ?? 0)} on a name you confirmed
+            </div>
+          </div>
+          <div className="rounded-xl border border-amber-800/30 bg-amber-950/15 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest text-amber-500/80">Needs a person</div>
+            <div className="mt-0.5 text-lg font-semibold text-amber-200">{withCands.length}</div>
+            <div className="text-[11px] text-zinc-500">
+              invoice names with a candidate to tap
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500">Left alone</div>
+            <div className="mt-0.5 text-lg font-semibold text-zinc-300">
+              {(result?.ambiguous ?? 0) + (result?.no_receiving ?? 0) + noCands.length}
+            </div>
+            <div className="text-[11px] text-zinc-500">
+              {(result?.ambiguous ?? 0)} ambiguous · {(result?.no_receiving ?? 0)} no delivery · {noCands.length} no candidate
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button" onClick={() => setShowRules((v) => !v)}
+          className="mt-3 text-xs text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-zinc-300"
+        >
+          {showRules ? "Hide" : "What gets written without asking me?"}
+        </button>
+        {showRules && (
+          <div className="mt-2 rounded-xl border border-white/8 bg-black/20 p-4 text-xs text-zinc-400">
+            <div className="text-zinc-300">All five have to be true, or the line is left for you:</div>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>the item name on the invoice is <em>exactly</em> ours (case and spacing aside)</li>
+              <li>the unit is the same — <span className="text-zinc-300">CASE and BTL are not the same</span></li>
+              <li>the supplier is the same</li>
+              <li>the delivery is within 3 days of the invoice date</li>
+              <li>the quantity matches to within 1%</li>
+            </ol>
+            <p className="mt-2">
+              Number five is there because the first four line up by accident with a supplier who delivers
+              daily: a 1.00 kg invoice line landed on a 20.00 kg delivery.
+              A delivery line that two invoice lines both claim is left alone as well — one of them is wrong
+              and nothing here can say which.
+            </p>
+            <p className="mt-2">
+              <span className="text-zinc-300">A different quantity on the invoice is not an error to hide.</span>{" "}
+              Four billed against three received is exactly what this is supposed to surface, so those stay out
+              of the automatic write and wait for you.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+      {notice && (
+        <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          {notice}
+        </div>
+      )}
+
+      {/* Safe to write — show what, not just how many */}
+      {(result?.would_write ?? 0) > 0 && (
+        <section className="rounded-2xl border border-emerald-800/30 bg-emerald-950/10 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-emerald-200">
+                {result?.would_write} line{result?.would_write === 1 ? "" : "s"} can take their invoice price now
+              </div>
+              <button
+                type="button" onClick={() => setShowPreview((v) => !v)}
+                className="mt-1 text-xs text-emerald-400/80 underline decoration-dotted underline-offset-4 hover:text-emerald-300"
+              >
+                {showPreview ? "Hide the list" : "See exactly what would change"}
+              </button>
+            </div>
+            <button
+              type="button" onClick={() => void applyAll()} disabled={busy}
+              className="rounded-xl border border-emerald-600/60 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-200 hover:bg-emerald-900/50 disabled:opacity-50"
+            >
+              Write these {result?.would_write}
+            </button>
+          </div>
+          {showPreview && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[720px] text-xs">
+                <thead className="text-[10px] uppercase tracking-widest text-zinc-500">
+                  <tr className="border-b border-white/10">
+                    <th className="px-2 py-2 text-left">Item</th>
+                    <th className="px-2 py-2 text-left">Unit</th>
+                    <th className="px-2 py-2 text-left">Supplier</th>
+                    <th className="px-2 py-2 text-left">Invoice</th>
+                    <th className="px-2 py-2 text-right">Ordered</th>
+                    <th className="px-2 py-2 text-right">Billed</th>
+                    <th className="px-2 py-2 text-right">Difference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result?.preview || []).map((r, i) => (
+                    <tr key={`${r.invoice_no}-${r.item_name}-${i}`} className="border-b border-white/5">
+                      <td className="px-2 py-1.5 text-zinc-200">{r.item_name}</td>
+                      <td className="px-2 py-1.5 text-zinc-500">{r.unit}</td>
+                      <td className="px-2 py-1.5 text-zinc-400">{r.supplier}</td>
+                      <td className="px-2 py-1.5 text-zinc-500">{r.invoice_no} · {r.invoice_date}</td>
+                      <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">{money(r.ordered, city)}</td>
+                      <td className="px-2 py-1.5 text-right text-white tabular-nums">{money(r.invoice, city)}</td>
+                      <td className={`px-2 py-1.5 text-right tabular-nums ${
+                        Math.abs(r.diff) < 0.005 ? "text-zinc-600" : r.diff > 0 ? "text-rose-300" : "text-emerald-300"
+                      }`}>
+                        {Math.abs(r.diff) < 0.005 ? "same" : (r.diff > 0 ? "+" : "") + money(r.diff, city)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Needs a person — tap the item it is */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="text-sm font-semibold text-white">
+          Invoice names we could not place ({withCands.length})
+        </div>
+        <p className="mt-1 text-sm text-zinc-400">
+          Tap the item each one is. It is remembered per supplier, so the same wording goes through on its
+          own next time — and the prices are written straight away.
+        </p>
+        {withCands.length === 0 && (
+          <div className="mt-4 rounded-xl border border-white/8 bg-black/20 px-4 py-6 text-center text-sm text-zinc-500">
+            {busy ? "Reading the invoices…" : "Nothing waiting. Every invoice line either matched or has no delivery to match against."}
+          </div>
+        )}
+        <div className="mt-4 space-y-2">
+          {withCands.map((p) => {
+            const key = `${p.supplier}|${p.invoice_description}`;
+            return (
+              <div key={key} className="rounded-xl border border-white/8 bg-black/20 p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div className="text-sm text-zinc-200">{p.invoice_description}</div>
+                  <div className="text-xs text-zinc-500">
+                    {p.supplier} · {money(p.unit_price, city)} / {p.unit || "—"}
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {p.candidates.map((c) => (
+                    <button
+                      key={c.item_name} type="button"
+                      disabled={rowBusy === key}
+                      onClick={() => void confirmCandidate(p, c.item_name, c.score)}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-200 hover:border-emerald-600/50 hover:bg-emerald-950/30 hover:text-emerald-200 disabled:opacity-40"
+                    >
+                      {c.item_name}
+                      <span className="ml-2 text-[10px] text-zinc-500">
+                        {c.why === "exact" ? "same name" : `${Math.round(c.score * 100)}% of the words`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {noCands.length > 0 && (
+          <details className="mt-4">
+            <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-300">
+              {noCands.length} more with nothing close enough to offer
+            </summary>
+            <div className="mt-2 space-y-1">
+              {noCands.map((p) => (
+                <div key={`${p.supplier}|${p.invoice_description}`} className="flex flex-wrap justify-between gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-1.5 text-xs">
+                  <span className="text-zinc-300">{p.invoice_description}</span>
+                  <span className="text-zinc-600">{p.supplier} · {money(p.unit_price, city)} / {p.unit || "—"}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-zinc-600">
+              These are billed under a wording that shares almost no words with anything we received from that
+              supplier. Usually it is a product we buy under a different name, or a delivery that was never
+              recorded.
+            </p>
+          </details>
+        )}
+      </section>
+
+      {/* Names you have confirmed — with the way back */}
+      {(result?.aliases?.length ?? 0) > 0 && (
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm font-semibold text-white">Names you have confirmed ({result?.aliases.length})</div>
+          <p className="mt-1 text-xs text-zinc-500">
+            Removing one stops it matching from now on. Prices already written stay where they are — undo those
+            in the list below.
+          </p>
+          <div className="mt-3 space-y-1">
+            {result?.aliases.map((a) => (
+              <div key={`${a.supplier_key}|${a.invoice_description}`}
+                   className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-xs">
+                <span className="text-zinc-300">
+                  {a.invoice_description} <span className="text-zinc-600">=</span> <span className="text-zinc-100">{a.item_name}</span>
+                </span>
+                <span className="flex items-center gap-3 text-zinc-600">
+                  <span>{a.confirmed_by || "—"} · {a.confirmed_at}</span>
+                  <button
+                    type="button" disabled={rowBusy === a.invoice_description}
+                    onClick={() => void undoAlias(a)}
+                    className="text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-rose-300 disabled:opacity-40"
+                  >
+                    Remove
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Written — the undo lives here, and it stays here */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="text-sm font-semibold text-white">Lines carrying an invoice price ({matched.length})</div>
+        {matched.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-white/8 bg-black/20 px-4 py-6 text-center text-sm text-zinc-500">
+            None yet. Everything in cost is still reading the price the catalogue had on the day the order was raised.
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[760px] text-xs">
+              <thead className="text-[10px] uppercase tracking-widest text-zinc-500">
+                <tr className="border-b border-white/10">
+                  <th className="px-2 py-2 text-left">Item</th>
+                  <th className="px-2 py-2 text-left">Unit</th>
+                  <th className="px-2 py-2 text-left">Supplier</th>
+                  <th className="px-2 py-2 text-left">Delivered</th>
+                  <th className="px-2 py-2 text-right">Ordered</th>
+                  <th className="px-2 py-2 text-right">Billed</th>
+                  <th className="px-2 py-2 text-left">Confirmed</th>
+                  <th className="px-2 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {matched.map((r) => (
+                  <tr key={r.id} className="border-b border-white/5">
+                    <td className="px-2 py-1.5 text-zinc-200">{r.item_name}</td>
+                    <td className="px-2 py-1.5 text-zinc-500">{r.unit}</td>
+                    <td className="px-2 py-1.5 text-zinc-400">{r.vendor_name}</td>
+                    <td className="px-2 py-1.5 text-zinc-500">{r.delivery_date || "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">{money(r.ordered_price, city)}</td>
+                    <td className="px-2 py-1.5 text-right text-white tabular-nums">{money(r.invoice_price, city)}</td>
+                    <td className="px-2 py-1.5 text-zinc-600">
+                      {r.price_confirmed_by || "—"}{r.price_confirmed_at ? ` · ${r.price_confirmed_at}` : ""}
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
+                      <button
+                        type="button" disabled={rowBusy === r.id}
+                        onClick={() => void undoPrice(r)}
+                        className="text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-rose-300 disabled:opacity-40"
+                      >
+                        Undo
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────────────────
 
-type ActiveTab = "variance" | "changes" | "catalog";
+type ActiveTab = "variance" | "changes" | "catalog" | "match";
 
 export default function ProcurementPriceChecksPage() {
   const auth = useMemo(() => getAuth(), []);
@@ -1492,6 +1975,18 @@ export default function ProcurementPriceChecksPage() {
             <TriangleAlert className={`h-4 w-4 ${activeTab === "catalog" ? "text-amber-400" : "text-zinc-500"}`} />
             ③ Catalogue vs Invoices
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("match")}
+            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+              activeTab === "match"
+                ? "border-emerald-600/60 bg-emerald-900/30 text-emerald-200 shadow-[0_0_12px_rgba(5,150,105,0.15)]"
+                : "border-white/8 bg-white/5 text-zinc-400 hover:border-emerald-800/40 hover:bg-emerald-950/20 hover:text-emerald-300"
+            }`}
+          >
+            <Receipt className={`h-4 w-4 ${activeTab === "match" ? "text-emerald-400" : "text-zinc-500"}`} />
+            ④ Invoice → Receiving
+          </button>
         </div>
       </section>
 
@@ -1503,6 +1998,9 @@ export default function ProcurementPriceChecksPage() {
       )}
       {activeTab === "catalog" && (
         <CatalogDriftTab key={`catalog-${city}`} city={city} requestedBy={requestedBy} pin={pin} />
+      )}
+      {activeTab === "match" && (
+        <InvoiceMatchTab key={`match-${city}`} city={city} requestedBy={requestedBy} pin={pin} />
       )}
     </div>
   );
