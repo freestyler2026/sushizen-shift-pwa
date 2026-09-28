@@ -424,6 +424,75 @@ describe("CostCalculationPage — master sections", () => {
     });
   });
 
+  // ── the component picker's price ────────────────────────────────────────────
+  //
+  // /api/cost/component-options reports menu_item_master.cost_unit_price, and a
+  // stored 0 there does not mean free: it means "not frozen, compute it live",
+  // which is the state 940 of the 1,112 active items are in. The saved costing
+  // was never wrong -- the server walks into the child -- but this editor
+  // believed the 0 and showed a new product's total a third short of what it
+  // would be once saved. Somebody prices from that number.
+  it("takes a processed component's cost from the item, not the stored zero", async () => {
+    mockCostJson = vi.fn(async (url: string) => {
+      if (url.includes("/component-options")) {
+        return { items: [{
+          component_type: "processed_item", id: "4093", name: "Single Order Delivery Set",
+          category: "Delivery Set", unit: "pc", unit_cost: 0, item_type: "processed",
+        }] };
+      }
+      if (url.includes("/master-items/4093")) {
+        return { item: { id: "4093", name: "Single Order Delivery Set", unit_cost: 3.195635,
+                         computed_unit_cost: 3.195635 } };
+      }
+      if (url.includes("/ingredients")) return { items: [], ingredients: [] };
+      if (url.includes("/master-items")) return { items: [] };
+      return {};
+    });
+    render(<CostCalculationPage />);
+    await screen.findByText("Cost Calculation");
+    fireEvent.click(screen.getByText("New Product Costing"));
+    fireEvent.click(await screen.findByText("Add Draft"));
+    // The editor has several empty text boxes of its own, so the component's
+    // lookup is identified as the one the new row added.
+    const before = new Set(Array.from(document.querySelectorAll("input")));
+    fireEvent.click(await screen.findByText("Add Master Item"));
+    const addedInputs = await waitFor(() => {
+      const added = Array.from(document.querySelectorAll("input")).filter((el) => !before.has(el));
+      if (!added.length) throw new Error("no new input for the component row");
+      return added as HTMLInputElement[];
+    });
+    const lookup = addedInputs.find((el) => el.type !== "number") as HTMLInputElement;
+    const qtyBox = addedInputs.find((el) => el.type === "number") as HTMLInputElement;
+    expect(lookup, "component lookup").toBeTruthy();
+    expect(qtyBox, "component quantity").toBeTruthy();
+    fireEvent.focus(lookup);
+    // The list only appears once something is typed.
+    fireEvent.change(lookup, { target: { value: "Single Order" } });
+
+    // highlightMatch splits the name across spans, so match the button by its
+    // whole text rather than by a single node.
+    const option = await waitFor(() => {
+      const btn = Array.from(document.querySelectorAll("button"))
+        .find((b) => (b.textContent || "").includes("Single Order Delivery Set"));
+      if (!btn) throw new Error("option not offered");
+      return btn;
+    });
+    fireEvent.mouseDown(option);
+
+    // The item is asked for its real cost...
+    await waitFor(() => {
+      const calls = (mockCostJson as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => String(c[0]));
+      expect(calls.some((u) => u.includes("/master-items/4093"))).toBe(true);
+    });
+    // ...and with one of them on the recipe the row is worth 3.20, not 0.00.
+    fireEvent.change(qtyBox, { target: { value: "1" } });
+    await waitFor(() => {
+      const shown = Array.from(document.querySelectorAll("*"))
+        .some((el) => el.children.length === 0 && /3\.20/.test(el.textContent || ""));
+      expect(shown, "the row still shows 0.00").toBe(true);
+    });
+  });
+
   it("New Product Costing tab calls master-items API with type=draft", async () => {
     render(<CostCalculationPage />);
     await screen.findByText("Cost Calculation");

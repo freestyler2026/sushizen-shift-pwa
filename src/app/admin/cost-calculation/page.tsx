@@ -2106,6 +2106,43 @@ export default function CostCalculationPage() {
     return scoreAndFilter(processedComponentOptions, 12);
   }, [allIngredientOptions, componentOptions, masterEditor?.item_type, processedComponentOptions]);
 
+  /** The cost the server will actually use for a processed/product component.
+   *
+   *  `/api/cost/component-options` reports `menu_item_master.cost_unit_price`,
+   *  and a stored 0 there does not mean free -- it means "not frozen, compute
+   *  it live", which is the state 940 of the 1,112 active items are in. The
+   *  saved costing was never wrong: `_compute_cost_master_item_totals` walks
+   *  into the child and values it properly, which is why Tuna Sashimi carries
+   *  the delivery set at 3.1956. Only this editor believed the 0, and it
+   *  showed a new product's total nearly a third short of what it will be
+   *  once saved -- a number somebody prices from.
+   *
+   *  One row, one request, ~11ms. Computing the whole option list instead
+   *  costs about 5.5 seconds in Dubai, which is not a picker any more.
+   */
+  const loadMasterComponentCost = useCallback(async (componentId: string, masterItemId: string) => {
+    const id = String(masterItemId || "").trim();
+    if (!id) return;
+    try {
+      const res = await costJson<{ item?: { unit_cost?: unknown; computed_unit_cost?: unknown } }>(
+        `/api/cost/master-items/${encodeURIComponent(id)}`,
+      );
+      const computed = Number(res?.item?.unit_cost ?? res?.item?.computed_unit_cost ?? NaN);
+      if (!Number.isFinite(computed) || computed <= 0) return;
+      // Only if the row still holds the item we asked about: the picker can be
+      // used again while this is in flight.
+      updateMasterComponentRow(componentId, (current) => (
+        current.component_type === "processed_item" && String(current.component_menu_item_id) === id
+          ? { ...current, unit_cost: computed }
+          : current
+      ));
+    } catch {
+      // Keep the stored figure rather than blanking the row. It is the same
+      // number the picker already showed, and the save is computed server-side
+      // regardless.
+    }
+  }, [updateMasterComponentRow]);
+
   const selectMasterComponentOption = useCallback((componentId: string, option: ComponentOption) => {
     updateMasterComponentRow(componentId, (current) => ({
       ...current,
@@ -2120,8 +2157,11 @@ export default function CostCalculationPage() {
       unit_price_formula_note: "",
       ingredient_detail_loaded: option.component_type !== "ingredient",
     }));
+    if (option.component_type === "processed_item") {
+      void loadMasterComponentCost(componentId, option.id);
+    }
     setActiveMasterComponentLookupId(null);
-  }, [updateMasterComponentRow]);
+  }, [loadMasterComponentCost, updateMasterComponentRow]);
 
   const ingredientCategories = useMemo(() => {
     const cats = [...new Set(ingredients.map((item) => item.category).filter(Boolean))];
