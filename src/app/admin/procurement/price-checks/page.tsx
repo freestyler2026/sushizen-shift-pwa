@@ -1493,7 +1493,9 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
       const out = await procurementJson<{ applied: number }>(
         `/api/admin/procurement/invoice-match/apply`,
         { method: "POST", body: JSON.stringify({ city, since }) }, requestedBy, pin);
-      setNotice(`${out.applied} line${out.applied === 1 ? "" : "s"} now carry the invoice price. Undo any of them below.`);
+      setNotice(out.applied === 1
+        ? "1 line now carries the invoice price. Undo it below."
+        : `${out.applied} lines now carry the invoice price. Undo any of them below.`);
       await load();
     } catch (e: any) {
       setError(e?.message || String(e));
