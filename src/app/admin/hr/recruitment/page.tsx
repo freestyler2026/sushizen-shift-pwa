@@ -5578,6 +5578,23 @@ export default function HRRecruitmentPage() {
               </span>
             );
           })}
+          {/* Hired cannot come from `grouped`: that is built from `lanes.active`,
+              and laneOf() sends every hired row to `closed`. So the row above
+              stopped at Offer Sent, and the one question this header gets asked
+              -- how many did we actually take on -- read as 1 when it was 29
+              (2026-09-28: 28 hired + 1 offer sent, all Manila). Counted from
+              every applicant, like Total beside it, because being hired is a
+              terminal state: there is no "active hired" to distinguish it from. */}
+          {(() => {
+            const n = applicants.filter((a) => a.status === "hired").length;
+            if (n === 0) return null;
+            return (
+              <span className={`${T_CAPTION} text-zinc-400`}>
+                Hired:{" "}
+                <span className="font-semibold text-green-300">{n}</span>
+              </span>
+            );
+          })()}
           {/* A CV landing is the one thing on this board that happens without
               anybody here doing it, so it is the one thing you cannot find by
               remembering what you did. Counted only while they are still in
