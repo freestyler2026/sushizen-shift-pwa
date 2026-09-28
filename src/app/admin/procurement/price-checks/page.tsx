@@ -962,6 +962,7 @@ type DriftResult = {
   cross_supplier: number;
   uncomparable: number;
   within_threshold: number;
+  price_disputed?: number;
   total: number;
   rows: DriftRow[];
   unit_total: number;
@@ -1128,6 +1129,14 @@ function CatalogDriftTab({
             <span className="text-zinc-500">
               {result.uncomparable} have never appeared on an invoice under this name — this report cannot see them
             </span>
+            {(result.price_disputed ?? 0) > 0 && (
+              // 黙って一覧から外さない。「差が無い」ではなく「単価が決まらない」
+              // という別の事実なので、件数を出す（教訓58）。
+              <span className="text-amber-400/80">
+                {result.price_disputed} were invoiced at two different prices on the same day, every
+                time we looked — no single price to offer, so they are not in the list
+              </span>
+            )}
           </div>
         )}
       </section>
@@ -1448,8 +1457,9 @@ const REASON_FIX: Record<string, string> = {
 };
 
 type CatalogEvidenceRow = {
-  item_name: string; unit: string; supplier: string; billed: number;
-  deliveries: number; last_delivery: string; confirmed_by: string;
+  item_name: string; unit: string; supplier: string; billed: number | null;
+  deliveries: number; dates_used: number; dates_disputed: number;
+  last_delivery: string; confirmed_by: string;
   catalog_id?: string; catalog_price?: number; catalog_unit?: string;
   catalog_supplier?: string; order_type?: string; store_scope?: string;
   diff?: number; diff_pct?: number | null; reason: string; detail?: string;
@@ -1469,6 +1479,13 @@ const EVIDENCE_BLOCK_TEXT: Record<string, string> = {
   unit_differs: "the catalogue counts it in a different unit",
   supplier_differs: "the catalogue buys it from someone else",
   ambiguous: "more than one catalogue row could be the one",
+  // 空欄どうしは一致ではない。どちらが欠けているかを言う。
+  supplier_unknown: "the delivery line records no supplier, so it cannot be placed",
+  unit_unknown: "the delivery line records no unit, so the price cannot be compared",
+  // 同じ納品日に単価が割れている。どれが単価か決まらない。
+  prices_disagree: "two different prices on the same delivery date",
+  // 「単価が無い」と「単価が違う」は別の作業（教訓135）。
+  no_catalog_price: "the catalogue row has no price yet — this one is worth filling in",
 };
 
 // 見出しの数字を押すとその節へ飛ぶ。6画面ぶんスクロールする画面で
@@ -2001,7 +2018,14 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <div className="text-sm text-zinc-100">{r.item_name}</div>
                       <div className="text-xs text-zinc-500">
-                        {r.supplier} · {r.deliveries} deliver{r.deliveries === 1 ? "y" : "ies"}
+                        {/* ⚠️ 提示額が何から出たかを書く。`deliveries` は確定行の総数なので、
+                            「12 deliveries」の隣に3日ぶんの額が出ていた。 */}
+                        {r.supplier} · priced from {r.dates_used} delivery date
+                        {r.dates_used === 1 ? "" : "s"}
+                        {r.deliveries > r.dates_used ? ` of ${r.deliveries} lines` : ""}
+                        {r.dates_disputed > 0
+                          ? `, ${r.dates_disputed} date${r.dates_disputed === 1 ? "" : "s"} skipped (two prices)`
+                          : ""}
                         {r.last_delivery ? `, last ${r.last_delivery}` : ""}
                       </div>
                     </div>
@@ -2073,7 +2097,9 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
                       {r.detail
                         ? <span className="text-amber-300/80">billed {money(r.billed, city)} &mdash; {r.detail}</span>
                         : <span className="text-emerald-400/70">billed the same</span>}
-                      <span className="text-zinc-600">{r.deliveries}&times;</span>
+                      <span className="text-zinc-600">
+                        {r.dates_used} date{r.dates_used === 1 ? "" : "s"}
+                      </span>
                     </span>
                   </div>
                 ))}
@@ -2090,7 +2116,8 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
             <details className="mt-2 rounded-xl border border-white/8 bg-black/20 px-3 py-2">
               <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-200">
                 <span className="font-semibold text-zinc-200">{evidence.blocked.length}</span>{" "}
-                could not be matched to a catalogue row
+                billed price{evidence.blocked.length === 1 ? "" : "s"} that cannot correct a
+                catalogue row yet
               </summary>
               <div className="mt-2 space-y-1">
                 {evidence.blocked.map((r) => (
@@ -2099,7 +2126,8 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
                     <div className="flex flex-wrap justify-between gap-2">
                       <span className="text-zinc-300">{r.item_name}</span>
                       <span className="text-zinc-600">
-                        {r.supplier} · {money(r.billed, city)} / {r.unit || "—"}
+                        {r.supplier} · {r.billed === null ? "price not settled" : money(r.billed, city)}
+                        {" / "}{r.unit || "—"}
                       </span>
                     </div>
                     <div className="mt-0.5 text-[11px] text-zinc-600">
