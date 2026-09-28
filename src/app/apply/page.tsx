@@ -2,7 +2,6 @@
 
 import SelectDark from "@/components/SelectDark";
 import { useEffect, useRef, useState } from "react";
-import VoiceScreening from "@/components/apply/VoiceScreening";
 import { formatBytes, prepareIfImage, UPLOAD_LIMIT_BYTES } from "@/lib/image-compress";
 
 /**
@@ -65,7 +64,6 @@ const T = {
     doneTitle: "Thank you",
     doneBody: "We have your application. Someone from Sushi ZEN will message you on the number you gave.",
     doneAgain: "Send another application",
-    resumeNote: "Picking up where you left off — your answers so far are saved.",
     errRequired: "Please complete the highlighted fields.",
     starMeans: "You cannot send without this. Everything else is optional.",
     errNetwork: "Could not send. Check your connection and try again.",
@@ -127,7 +125,6 @@ const T = {
     doneTitle: "Salamat",
     doneBody: "Natanggap na namin ang aplikasyon mo. May mag-me-message sa iyo mula sa Sushi ZEN sa numerong ibinigay mo.",
     doneAgain: "Magpadala ng panibagong aplikasyon",
-    resumeNote: "Itutuloy po natin kung saan ka tumigil — nakasave na ang mga sinagot mo.",
     errRequired: "Pakikumpleto ang mga naka-highlight na bahagi.",
     starMeans: "Kailangan ito bago makapagpadala. Opsyonal ang lahat ng iba.",
     errNetwork: "Hindi naipadala. Pakicheck ang koneksyon at subukan ulit.",
@@ -236,46 +233,6 @@ function Req() {
   return <span className="text-rose-400" aria-hidden="true"> *</span>;
 }
 
-/** Where the interview link is kept while it is being answered.
- *
- * The token used to live only in React state. A reload -- a phone call, a tab
- * the OS evicted, a stray back swipe, a deploy landing on the tab -- and it was
- * gone, and the only thing the screen then offered was the empty form. Filling
- * it again is what produced the duplicate applications: 16 of the 20 duplicate
- * phone numbers on 2026-09-14 were one person starting over, with the
- * half-finished recording stranded on the row nobody looks at.
- *
- * The recording itself was never the fragile part -- each answer is uploaded as
- * it is made and the interview resumes at the first unanswered question. What
- * was missing was a way back to it.
- *
- * Kept on the device only, and never anything but the token.
- */
-const RESUME_KEY = "zen:apply-voice";
-const RESUME_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;   // the link's own lifetime
-
-function rememberVoice(token: string): void {
-  if (!token) return;
-  try {
-    localStorage.setItem(RESUME_KEY, JSON.stringify({ token, at: Date.now() }));
-  } catch { /* private mode, or storage refused: the session still works */ }
-}
-
-function forgetVoice(): void {
-  try { localStorage.removeItem(RESUME_KEY); } catch { /* nothing to undo */ }
-}
-
-function rememberedVoice(): string {
-  try {
-    const raw = localStorage.getItem(RESUME_KEY);
-    if (!raw) return "";
-    const v = JSON.parse(raw) as { token?: string; at?: number };
-    if (!v?.token || !v?.at) return "";
-    if (Date.now() - v.at > RESUME_MAX_AGE_MS) { forgetVoice(); return ""; }
-    return String(v.token);
-  } catch { return ""; }
-}
-
 export default function ApplyPage() {
   const [lang, setLang] = useState<Lang>("en");
   const t = T[lang];
@@ -322,7 +279,6 @@ export default function ApplyPage() {
   // Returned by /api/apply so the interview opens straight away. Null when the
   // storage folder is not configured -- then nothing is offered, rather than
   // asking someone to record into nowhere.
-  const [voiceToken, setVoiceToken] = useState("");
   // The CV. Required since 2026-09-10, because HR cannot shortlist without it.
   // It is asked for **here** rather than on the screen after submitting: the
   // old ask sat behind the voice interview's consent step, and of the 22
@@ -339,23 +295,15 @@ export default function ApplyPage() {
   const [cvLate, setCvLate] = useState(false);
   // True only when the screen was rebuilt from storage, so the note about
   // picking up again is not shown to somebody who just pressed Send.
-  const [resumed, setResumed] = useState(false);
 
   // ⚠️ Read in an effect, never in useState(() => ...). This page is
   // prerendered and served from the edge, where there is no localStorage, so
   // deciding the first render from it makes the server's HTML and the
   // browser's first paint disagree (lesson 42).
   useEffect(() => {
-    const token = rememberedVoice();
     // One row per page load, so "fewer people applied" and "the same people
-    // came and could not send" stop being the same number. Not counted when
-    // the screen is being rebuilt for somebody who already applied -- that is
-    // the same visit coming back, and it can never end in a send.
-    if (!token) reportOutcome(formKey(), "view", [], lang);
-    if (!token) return;
-    setVoiceToken(token);
-    setResumed(true);
-    setDone(true);
+    // came and could not send" stop being the same number.
+    reportOutcome(formKey(), "view", [], lang);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -377,7 +325,13 @@ export default function ApplyPage() {
   }
 
   /** Sends the CV once the application has a token to hang it on. Returns
-   *  whether it landed; the caller shows the thank-you screen either way. */
+   *  whether it landed; the caller shows the thank-you screen either way.
+   *
+   *  The token comes back from /api/apply and is the only thing left of the
+   *  voice interview, withdrawn on 2026-09-28: applicants answered five
+   *  questions and 73% of the completed ones were never listened to. The CV
+   *  still hangs off that record — 852 of them — so the upload keeps using it
+   *  rather than opening a second place to keep the same file. */
   async function sendCv(token: string, file: File): Promise<boolean> {
     try {
       // A phone camera shot is routinely over the 4.3 MB Vercel body limit and
@@ -461,8 +415,6 @@ export default function ApplyPage() {
       let token = "";
       try { token = JSON.parse(await res.text())?.voice?.token || ""; }
       catch { token = ""; }
-      setVoiceToken(token);
-      rememberVoice(token);
       // The application is saved by this point. The CV goes up on the same
       // press so nobody has to be asked twice, but a failure here only sets a
       // note -- it must never turn a saved application into an error screen.
@@ -493,38 +445,10 @@ export default function ApplyPage() {
             {t.cvLate}
           </p>
         )}
-        {resumed && (
-          <p className="mx-auto mt-4 max-w-md rounded-xl border border-violet-400/30 bg-violet-400/10 p-3 text-sm text-violet-100">
-            {t.resumeNote}
-          </p>
-        )}
-        {voiceToken && (
-          <VoiceScreening
-            token={voiceToken}
-            lang={lang}
-            cvIn={!cvLate && !!cv}
-            onUnavailable={() => {
-              // The stored link is spent. Forget it rather than leaving the
-              // page permanently parked on an interview that cannot open --
-              // that is worse than the empty form it replaced.
-              if (!resumed) return;
-              forgetVoice();
-              setResumed(false);
-              setVoiceToken("");
-              setDone(false);
-            }}
-          />
-        )}
-
         <button
           type="button"
           onClick={() => {
-            // Somebody else is about to use this handset. Holding on to the
-            // last person's link would drop them into a stranger's interview.
-            forgetVoice();
             setDone(false);
-            setVoiceToken("");
-            setResumed(false);
             setForm({
               full_name: "", phone: "", position_group: "", branch: "",
               experience_level: "", available_from: "", referrer_name: "",

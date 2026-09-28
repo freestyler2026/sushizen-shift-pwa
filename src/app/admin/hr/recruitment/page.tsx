@@ -38,7 +38,6 @@ import {
   TABLE_HEADER,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
-import VoiceScreeningQueue from "@/components/hr/VoiceScreeningQueue";
 import InterviewDay from "@/components/hr/InterviewDay";
 import BookingLinksToSend from "@/components/hr/BookingLinksToSend";
 import InterviewCalendar from "@/components/hr/InterviewCalendar";
@@ -4771,11 +4770,10 @@ export default function HRRecruitmentPage() {
   const [canSetOfferSalary, setCanSetOfferSalary] = useState(true);
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [outcomeReasons, setOutcomeReasons] = useState<OutcomeReason[]>([]);
-  const [view, setView] = useState<"pipeline" | "plans" | "voice" | "interviews" | "calendar">("pipeline");
+  const [view, setView] = useState<"pipeline" | "plans" | "interviews" | "calendar">("pipeline");
   // カレンダーから「この面接を動かす」で飛んできたときの行き先。
   const [focusInterview, setFocusInterview] = useState("");
   // カレンダーの「N answers →」で録音を見に行くときの行き先。
-  const [focusVoice, setFocusVoice] = useState(0);
   // Which candidate the board sent us here for, so the Interviews tab opens on
   // them instead of making somebody find the name again in a list of fifteen.
   // The board's own "Send interview link" opens the wording over the card.
@@ -4793,11 +4791,6 @@ export default function HRRecruitmentPage() {
   // which is the explicit "I am done with these" (the same shape as justClosed
   // on the BO Dashboard).
   const [justDecided, setJustDecided] = useState<Record<string, string>>({});
-  // The tab carries its own count, and it counts both jobs that are waiting on
-  // HR: recordings to listen to, and applicants with no link sent. Counting only
-  // the recordings would leave the badge at zero while twenty people sit
-  // uninvited, and a badge at zero is a tab nobody opens.
-  const [voiceToDo, setVoiceToDo] = useState<{ review: number; invite: number } | null>(null);
   // The Interviews tab carried no number at all, so an interviewer had nothing
   // telling them to open it -- and nothing else tells them either: a booking
   // sends no message to anybody. Two counts, because "today" is the one that
@@ -4886,23 +4879,6 @@ export default function HRRecruitmentPage() {
         const reqData = await reqRes.json();
         setRequisitions(Array.isArray(reqData) ? reqData : reqData?.requisitions || []);
       }
-
-      // The voice tab's badge. Fetched here rather than inside the tab, or the
-      // number only appears once you have already opened the thing it was
-      // meant to send you to. Its own failure is not the pipeline's failure,
-      // so it never throws.
-      try {
-        const vRes = await fetch(
-          `${API_BASE}/api/admin/hr/voice-screenings?city=manila&state=to_review&limit=1`,
-          { headers, cache: "no-store" });
-        if (vRes.ok) {
-          const v = await vRes.json();
-          setVoiceToDo({
-            review: Number(v?.counts?.to_review || 0),
-            invite: Number(v?.counts?.to_invite || 0),
-          });
-        }
-      } catch { /* the badge is not worth breaking the page for */ }
 
       try {
         const iRes = await fetch(
@@ -5496,21 +5472,13 @@ export default function HRRecruitmentPage() {
               店長適性検査（日本人）
             </a>
             <div className={TAB_CONTAINER}>
-              {([["pipeline", "Pipeline"], ["plans", "Plans"], ["voice", "Voice screening"], ["interviews", "Interviews"], ["calendar", "Calendar"]] as const).map(([k, label]) => (
+              {([["pipeline", "Pipeline"], ["plans", "Plans"], ["interviews", "Interviews"], ["calendar", "Calendar"]] as const).map(([k, label]) => (
                 <button
                   key={k}
                   className={view === k ? TAB_ACTIVE : TAB_INACTIVE}
                   onClick={() => setView(k)}
                 >
                   {label}
-                  {k === "voice" && voiceToDo && (voiceToDo.review + voiceToDo.invite) > 0 ? (
-                    <span
-                      className="ml-1.5 rounded-full bg-violet-500/25 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-violet-200"
-                      title={`${voiceToDo.review} to review, ${voiceToDo.invite} to invite`}
-                    >
-                      {voiceToDo.review + voiceToDo.invite}
-                    </span>
-                  ) : null}
                   {k === "interviews" && interviewsToDo && interviewsToDo.week > 0 ? (
                     <span
                       className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
@@ -5655,7 +5623,6 @@ export default function HRRecruitmentPage() {
            the calendar" is not a question a calendar should provoke. */
         <InterviewCalendar
           onOpenInterview={(id) => { setFocusInterview(id); setView("interviews"); }}
-          onOpenVoice={(sid) => { setFocusVoice(sid); setView("voice"); }}
         />
       ) : view === "interviews" ? (
         <>
@@ -5682,12 +5649,6 @@ export default function HRRecruitmentPage() {
             onFocusHandled={() => setFocusInterview("")}
           />
         </>
-      ) : view === "voice" ? (
-        <VoiceScreeningQueue
-          focusScreeningId={focusVoice}
-          onFocusHandled={() => setFocusVoice(0)}
-          onApplicantMoved={() => void loadData()}
-        />
       ) : view === "plans" ? (
         <PlansView
           data={overview}

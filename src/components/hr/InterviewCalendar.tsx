@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight, FileText, Mic, MessageSquare, Copy, Check, Send } from "lucide-react";
+import { CalendarDays, CalendarPlus, RefreshCw, Phone, MonitorSmartphone, ArrowRight, FileText, MessageSquare, Copy, Check, Send } from "lucide-react";
 import {
   BADGE_INFO,
   BADGE_SUCCESS,
@@ -124,11 +124,10 @@ const EXPERIENCE_LABEL: Record<string, string> = {
 const fileSize = (b: number) =>
   !b ? "" : b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`;
 
-export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
+export default function InterviewCalendar({ onOpenInterview }: {
   /** Take the user to that interview on the Interviews tab, ready to act on it. */
   onOpenInterview?: (id: string) => void;
   /** Take them to the recording and transcripts for that screening. */
-  onOpenVoice?: (screeningId: number) => void;
 } = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -472,16 +471,6 @@ export default function InterviewCalendar({ onOpenInterview, onOpenVoice }: {
                         </span>
                       ) : null}
                     </a>
-                  )}
-                  {onOpenVoice && iv.screening_id && iv.voice_answers > 0 && (
-                    <button
-                      onClick={() => onOpenVoice(iv.screening_id as number)}
-                      className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-zinc-300 hover:bg-white/10"
-                    >
-                      <Mic className="h-3 w-3" />
-                      {iv.voice_answers} answers
-                      <ArrowRight className="h-3 w-3" />
-                    </button>
                   )}
                   {/* A grey "Recorded" said the same about the person being
                       hired and the person turned down, so the calendar could

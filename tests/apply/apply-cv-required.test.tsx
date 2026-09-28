@@ -109,8 +109,10 @@ describe("the CV on the application form", () => {
     expect(urls).toContain("/api/voice/tok/resume");
     // The application goes first: the token the upload hangs on comes from it.
     expect(urls.indexOf("/api/apply")).toBeLessThan(urls.indexOf("/api/voice/tok/resume"));
-    // And the screening is told, so it does not ask for the same file again.
-    expect(screen.getByText("screening cvIn=true")).toBeTruthy();
+    // And nothing else is asked for. The voice interview used to open here;
+    // it was withdrawn on 2026-09-28 because 73% of the completed ones were
+    // never listened to, and the applicant is finished at the thank-you.
+    expect(screen.queryByText(/screening/)).toBeNull();
   });
 
   it("keeps the application when the upload fails, and says the CV did not go", async () => {
@@ -125,8 +127,8 @@ describe("the CV on the application form", () => {
 
     expect(await screen.findByText("Thank you")).toBeTruthy();
     expect(screen.getByText(/the CV did not upload/)).toBeTruthy();
-    // The step is left in front of them rather than marked done.
-    expect(screen.getByText("screening cvIn=false")).toBeTruthy();
+    // Still no second step to work through — the note is the whole of it.
+    expect(screen.queryByText(/screening/)).toBeNull();
   });
 
   it("refuses a Word file too big to shrink, before it is picked up", async () => {
