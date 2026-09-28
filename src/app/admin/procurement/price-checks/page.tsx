@@ -1471,6 +1471,21 @@ const EVIDENCE_BLOCK_TEXT: Record<string, string> = {
   ambiguous: "more than one catalogue row could be the one",
 };
 
+// 見出しの数字を押すとその節へ飛ぶ。6画面ぶんスクロールする画面で
+// 「読める数字が押せない」のは、数えた意味が半分無くなる（型7）。
+function Jump({ to, className, children }:
+              { to: string; className?: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={() => document.getElementById(to)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+      className={`${className || ""} text-left transition hover:brightness-125 focus:outline-none focus:ring-1 focus:ring-white/30`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function money(n: number | null | undefined, city: string): string {
   if (n === null || n === undefined) return "—";
   const sym = city === "dubai" ? "AED " : "₱";
@@ -1494,16 +1509,25 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
     setBusy(true); setError("");
     try {
       const qs = new URLSearchParams({ city, since });
+      // ⚠️ `procurementJson` は呼ぶたびにトークンを取り直す。3本を Promise.all で
+      // 並べると `/api/auth/session` が毎回3回走る（本番で実測）。ヘッダは1回だけ
+      // 作って使い回す。
+      const headers = await procurementTokenHeaders(requestedBy, pin);
+      const get = async <T,>(url: string): Promise<T> => {
+        const res = await fetch(url, { cache: "no-store", headers });
+        const text = await res.text();
+        if (!res.ok) {
+          let msg = text || `Request failed (${res.status})`;
+          try { const j = JSON.parse(text); if (typeof j?.detail === "string") msg = j.detail; } catch { /* keep raw */ }
+          throw new Error(msg);
+        }
+        return JSON.parse(text || "{}") as T;
+      };
       const [dry, done, ev] = await Promise.all([
-        procurementJson<MatchResult>(
-          `/api/admin/procurement/invoice-match/proposals?${qs.toString()}`,
-          { method: "GET" }, requestedBy, pin),
-        procurementJson<{ rows: MatchedRow[] }>(
-          `/api/admin/procurement/invoice-match/matched?${qs.toString()}`,
-          { method: "GET" }, requestedBy, pin),
-        procurementJson<CatalogEvidence>(
-          `/api/admin/procurement/invoice-match/catalog-evidence?city=${encodeURIComponent(city)}`,
-          { method: "GET" }, requestedBy, pin),
+        get<MatchResult>(`/api/admin/procurement/invoice-match/proposals?${qs.toString()}`),
+        get<{ rows: MatchedRow[] }>(`/api/admin/procurement/invoice-match/matched?${qs.toString()}`),
+        get<CatalogEvidence>(
+          `/api/admin/procurement/invoice-match/catalog-evidence?city=${encodeURIComponent(city)}`),
       ]);
       setResult(dry);
       setMatched(done.rows || []);
@@ -1663,39 +1687,67 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
             <div className="text-[10px] uppercase tracking-widest text-zinc-500">Backed by an invoice</div>
             <div className="mt-0.5 text-lg font-semibold text-white">
-              {cov ? `${Number(cov.confirmed_pct ?? 0).toFixed(1)}%` : result?.coverage_error ? "—" : "…"}
+              {result?.coverage_error ? "—" : cov ? `${Number(cov.confirmed_pct ?? 0).toFixed(1)}%` : "…"}
             </div>
             <div className="text-[11px] text-zinc-500">
               {result?.coverage_error
                 ? "could not be measured"
-                : cov ? `${(cov.confirmed ?? 0).toLocaleString()} of ${(cov.lines ?? 0).toLocaleString()} lines` : ""}
+                : cov ? `${(cov.confirmed ?? 0).toLocaleString()} of ${(cov.lines ?? 0).toLocaleString()} lines` : "reading…"}
             </div>
           </div>
-          <div className="rounded-xl border border-emerald-800/30 bg-emerald-950/15 px-3 py-2.5">
+          {/* ⚠️ 読み込み中に 0 を出さない。0 は「やることは無い」という断定で、
+              「まだ見ていない」とは別の事実（教訓58）。*/}
+          <Jump to="match-safe" className="rounded-xl border border-emerald-800/30 bg-emerald-950/15 px-3 py-2.5">
             <div className="text-[10px] uppercase tracking-widest text-emerald-500/80">Safe to write now</div>
-            <div className="mt-0.5 text-lg font-semibold text-emerald-200">{result?.would_write ?? 0}</div>
+            <div className="mt-0.5 text-lg font-semibold text-emerald-200">{result ? result.would_write : "…"}</div>
             <div className="text-[11px] text-zinc-500">
-              {(result?.auto ?? 0)} on an exact match, {(result?.by_alias ?? 0)} on a name you confirmed
+              {result
+                ? `${result.auto} on an exact match, ${result.by_alias} on a name you confirmed`
+                : "reading…"}
             </div>
-          </div>
-          <div className="rounded-xl border border-amber-800/30 bg-amber-950/15 px-3 py-2.5">
+          </Jump>
+          <Jump to="match-taps" className="rounded-xl border border-amber-800/30 bg-amber-950/15 px-3 py-2.5">
             <div className="text-[10px] uppercase tracking-widest text-amber-500/80">One tap each</div>
-            <div className="mt-0.5 text-lg font-semibold text-amber-200">{withCands.length}</div>
+            <div className="mt-0.5 text-lg font-semibold text-amber-200">{result ? withCands.length : "…"}</div>
             <div className="text-[11px] text-zinc-500">
-              every one of them writes a price
+              {result ? "every one of them writes a price" : "reading…"}
             </div>
-          </div>
-          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
+          </Jump>
+          {/* カタログの誤りは、この画面で唯一「これから出る発注」の金額を動かす。
+              6画面ぶんスクロールしないと見えない位置にあったので、見出しに出す
+              （教訓: 対応が必要な件数は画面を開いた瞬間に分かること）。*/}
+          <Jump to="match-catalogue"
+                className={`rounded-xl border px-3 py-2.5 ${
+                  (evidence?.differs.length ?? 0) > 0
+                    ? "border-rose-700/50 bg-rose-950/25"
+                    : "border-white/8 bg-black/20"}`}>
+            <div className={`text-[10px] uppercase tracking-widest ${
+              (evidence?.differs.length ?? 0) > 0 ? "text-rose-400/90" : "text-zinc-500"}`}>
+              Catalogue is wrong
+            </div>
+            <div className={`mt-0.5 text-lg font-semibold ${
+              (evidence?.differs.length ?? 0) > 0 ? "text-rose-200" : "text-zinc-300"}`}>
+              {evidence ? evidence.differs.length : "…"}
+            </div>
+            <div className="text-[11px] text-zinc-500">
+              {evidence
+                ? (evidence.differs.length > 0
+                    ? "every order quotes these"
+                    : `${evidence.evidenced} row${evidence.evidenced === 1 ? "" : "s"} checked`)
+                : "reading…"}
+            </div>
+          </Jump>
+          <Jump to="match-blocked" className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
             <div className="text-[10px] uppercase tracking-widest text-zinc-500">Nothing to press</div>
             <div className="mt-0.5 text-lg font-semibold text-zinc-300">
-              {(result?.no_receiving ?? 0) + noCands.length}
+              {result ? (result.no_receiving ?? 0) + noCands.length : "…"}
             </div>
-            <div className="text-[11px] text-zinc-500">reasons below</div>
-          </div>
+            <div className="text-[11px] text-zinc-500">{result ? "reasons below" : "reading…"}</div>
+          </Jump>
         </div>
 
         <button
@@ -1743,11 +1795,13 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
 
       {/* Safe to write — show what, not just how many */}
       {(result?.would_write ?? 0) > 0 && (
-        <section className="rounded-2xl border border-emerald-800/30 bg-emerald-950/10 p-5">
+        <section id="match-safe" className="scroll-mt-4 rounded-2xl border border-emerald-800/30 bg-emerald-950/10 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-emerald-200">
-                {result?.would_write} line{result?.would_write === 1 ? "" : "s"} can take their invoice price now
+                {result?.would_write === 1
+                  ? "1 line can take its invoice price now"
+                  : `${result?.would_write} lines can take their invoice price now`}
               </div>
               <button
                 type="button" onClick={() => setShowPreview((v) => !v)}
@@ -1801,7 +1855,7 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
       )}
 
       {/* Needs a person — tap the item it is */}
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <section id="match-taps" className="scroll-mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
         <div className="text-sm font-semibold text-white">
           Invoice names we could not place ({withCands.length})
         </div>
@@ -1833,7 +1887,7 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
                       key={c.item_name} type="button"
                       disabled={rowBusy === key}
                       onClick={() => void confirmCandidate(p, c.item_name, c.score)}
-                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-200 hover:border-emerald-600/50 hover:bg-emerald-950/30 hover:text-emerald-200 disabled:opacity-40"
+                      className="min-h-[38px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200 hover:border-emerald-600/50 hover:bg-emerald-950/30 hover:text-emerald-200 disabled:opacity-40"
                     >
                       {c.item_name}
                       <span className="ml-2 text-[10px] text-zinc-500">
@@ -1848,7 +1902,7 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
         </div>
 
         {noCands.length > 0 && (
-          <div className="mt-5 space-y-2">
+          <div id="match-blocked" className="mt-5 scroll-mt-4 space-y-2">
             <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
               Nothing to press ({noCands.length}) — and why
             </div>
@@ -1914,7 +1968,7 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
 
       {/* ⑤ What the billed prices say about the order catalogue (phase 4) */}
       {evidence && (
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <section id="match-catalogue" className="scroll-mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="max-w-2xl">
               <div className="text-sm font-semibold text-white">
@@ -1979,7 +2033,7 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
                             title={!pin.trim() || !requestedBy.trim()
                               ? "Fill in Approver and PIN at the top of the page first"
                               : undefined}
-                            className="rounded-lg border border-rose-600/50 bg-rose-900/25 px-3 py-1.5 text-xs font-semibold text-rose-100 hover:bg-rose-900/45 disabled:opacity-40"
+                            className="min-h-[38px] rounded-lg border border-rose-600/50 bg-rose-900/25 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-900/45 disabled:opacity-40"
                           >
                             Set catalogue to {money(r.billed, city)}
                           </button>
