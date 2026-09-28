@@ -1970,8 +1970,15 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
                           </span>
                         ) : (
                           <button
-                            type="button" disabled={rowBusy === r.catalog_id}
+                            type="button"
+                            disabled={rowBusy === r.catalog_id || !pin.trim() || !requestedBy.trim()}
                             onClick={() => void fixCatalog(r)}
+                            // PIN が空のまま押せると、押した先で「PIN is required
+                            // (procurement.config.write)」という内部キー入りの
+                            // 文言に当たる。押せなくして、理由をその場に書く。
+                            title={!pin.trim() || !requestedBy.trim()
+                              ? "Fill in Approver and PIN at the top of the page first"
+                              : undefined}
                             className="rounded-lg border border-rose-600/50 bg-rose-900/25 px-3 py-1.5 text-xs font-semibold text-rose-100 hover:bg-rose-900/45 disabled:opacity-40"
                           >
                             Set catalogue to {money(r.billed, city)}
@@ -1985,6 +1992,11 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
               <p className="text-[11px] text-zinc-600">
                 Changing a catalogue price needs your Approver and PIN at the top of the page &mdash; the same
                 permission and the same audit trail as tab ③. It does not touch any order already raised.
+                {(!pin.trim() || !requestedBy.trim()) && (
+                  <span className="text-amber-400/90">
+                    {" "}The buttons are off until those two boxes are filled in.
+                  </span>
+                )}
               </p>
             </div>
           )}
