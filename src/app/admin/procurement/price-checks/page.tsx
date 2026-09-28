@@ -1401,7 +1401,12 @@ type MatchResult = {
   preview: MatchPreview[];
   proposals: MatchProposal[];
   aliases: MatchAlias[];
-  coverage?: { total?: number; with_invoice?: number; pct?: number };
+  // ⚠️ 本番の戻り値をそのまま写すこと。私は `total`/`with_invoice`/`pct` と
+  // 推測で書き、画面が「0.0% · 0 of 0 lines」を出すところだった（実キーは
+  // `lines`/`confirmed`/`confirmed_pct`）。型は書けば通るので、tsc も build も
+  // 何も言わない。
+  coverage?: { lines?: number; confirmed?: number; confirmed_pct?: number;
+               ordered_value?: number; effective_value?: number };
   coverage_error?: string;
 };
 type MatchedRow = {
@@ -1565,12 +1570,12 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
           <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
             <div className="text-[10px] uppercase tracking-widest text-zinc-500">Backed by an invoice</div>
             <div className="mt-0.5 text-lg font-semibold text-white">
-              {cov ? `${Number(cov.pct ?? 0).toFixed(1)}%` : result?.coverage_error ? "—" : "…"}
+              {cov ? `${Number(cov.confirmed_pct ?? 0).toFixed(1)}%` : result?.coverage_error ? "—" : "…"}
             </div>
             <div className="text-[11px] text-zinc-500">
               {result?.coverage_error
                 ? "could not be measured"
-                : cov ? `${(cov.with_invoice ?? 0).toLocaleString()} of ${(cov.total ?? 0).toLocaleString()} lines` : ""}
+                : cov ? `${(cov.confirmed ?? 0).toLocaleString()} of ${(cov.lines ?? 0).toLocaleString()} lines` : ""}
             </div>
           </div>
           <div className="rounded-xl border border-emerald-800/30 bg-emerald-950/15 px-3 py-2.5">
