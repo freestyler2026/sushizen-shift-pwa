@@ -1,5 +1,105 @@
 # CURRENT_TASKS.md
 
+## 2026-09-27 — Yusuke 報告の4件（発注の単価・プルダウン）
+
+### 追記（同日・オーナーの「本当に完全に直っているか」で全件検算）
+
+最初の報告のあと全290品を通して**3つ見つかった**（詳細は CLAUDE.md 教訓135）。
+
+| 見つかったもの | 対応 |
+|---|---|
+| テストが本番ではなく**写した規則**を検査していた | 規則を `app/units.py` に出し、テストが本番と同じ1つを読む形にした |
+| 単価の引き当てが入れ子の関数で**外から呼べない**＝実データで検算できない | `app/order_pricing.py`（`CatalogPricer`）に抽出。全290品を通せるようになった |
+| 私の単位検査が**24品の単価を消していた**（引き当てがカタログの1行しか見ていない） | 単位が合う行を先に選ぶ。8件が正しい値で復帰（全て `proc_receiving_items` で裏取り） |
+
+**その修正の途中で25倍事故を自分で再現した**（単位が合う行が単価0のとき他の行に落ちる → `Sliced Cheese` の PC ₱83 が PKT の数量に付いた）。テストが捕まえた。合う行が0なら0。
+
+**本番の検算結果（デプロイ済みコードを one-off dyno で実行）**
+
+```
+Salt KG -> 16.0 / Dashinomoto (1KG) kg -> 460.0
+Onigiri Film PKT -> 355.0 / Paper Bowl White 780 PKT -> 255.0
+Mirin KG -> 0.0 / Ajinomoto KG -> 0.0   （名前が違う＝Yusuke 対応待ち）
+店舗の Warehouse タブ: Paranaque/Taft/Cubao いずれも 60品・両方表示・形が違う行 0
+棚卸し 290品 / 単価0 63品 = 単位違い13 + 単位は合うが単価空5 + カタログに行が無い45
+```
+
+### 単価0の18件 — カタログの単位表記が納品の実物と違う（**データ作業・Yusuke**）
+
+対応が3通りに分かれるので一括書き換えはしていない。根拠は全て `proc_receiving_items`。
+
+**内部のみ（CK↔店舗・外部POに出ない／4件）**
+| 品 | 棚卸し | カタログ | 受領の実績 | 対応 |
+|---|---|---|---|---|
+| Sliced Cheese | pkt | PC ₱83 / PKT ₱0 | pkt×83×24 | PKT 行に ₱83 を入れる |
+| Cheese Spread | PKT | KG ₱80 | PKT×80×18 | 単位を PKT に直す |
+| Pork for Tonkatsu | Portion | PC ₱36.28 / PCS ₱0 | Portion×36.28×31 | 単位を PTN に直す |
+| Miso Ramen Base | kg | KG ₱0 / PTN ₱8.34 | （受領なし）| KG 行に単価を入れる |
+
+**仕入先に出る（POの文言が変わる／14件）** — Oyster Sauce(GAL/bottle×400)・OZAKI Mayonnaise(BOT/pkt×330×23)・Pork Lard(PKT ₱0/KG×300×14)・Sweet Chili Sauce(KG/bottle×227.50×18)・Chicken Stock Powder(CAN/Bottleで数えている)・**Dish Washing Liquid(BTL行が₱0・PC ₱170/BTL×170×45)**・**Handwash(PKT行が₱0・PC ₱170/PKT×170×8)**・Red Miso・White Miso(PKT ₱160/kgで数えている)・PANICH SRIRACHA(**BOX ₱156 は実際は1本の値段。箱は₱1,560**)・Vegetable Stock(Bottle ₱125/LTR×145)・Unsalted Anchor Butter(PC ₱171.50 は実は PKT)・Tomato Ketchup(BTL ₱84.25/pktで数えている)・Masking Tape(PCS ₱56.75/KG×42.50)
+
+⚠️ **Dish Washing Liquid と Handwash は倉庫の60品に入っている。** 「倉庫カタログは形が揃った」は
+`store_scope`/`catalog_category`/`order_type`/`supplier` の話で、**単位表記までは揃っていない**。
+
+
+**本人の報告**: ①Paper Bowl 780ml の価格が出ない ②Mirin・Salt の価格が出ない／間違う
+（Dashinomoto・Ajinomoto も同じはず）③Salt は 1sack=25kg ₱400 なのに 1kg=₱400 で計算される
+④マニュアルでアイテムを追加するとき「Onigiri Film」がプルダウンに出ない
+
+**原因は3つで、どれも「カタログに無い」ではなかった**（詳細 `docs/inventory/INVENTORY_SYSTEM_MAP.md` §3.10 / §3.11）
+
+| 品 | 原因 | 対応 |
+|---|---|---|
+| Paper Bowl White 780(1PKT = 50pcs) | `inv_items`（SK-3743・PKT・₱255）にあってカタログに1行も無い | カタログ行を作成。₱255 = 5,100/箱 ÷ 20PKT（520 の 3,350 ÷ 167.50 から箱=20PKT を確定） |
+| Onigiri Film (1PKT = 100PC) | 有効行が `store_scope='Paranaque'`・`catalog_category='Packaging'`・`order_type='WH'` の1件だけ。倉庫60件中この1件だけ形が違う | ALL / Warehouse / WH_to_supplier に統一（₱355/PKT）。3店舗で表示を確認 |
+| Salt | 完全一致に単位検査が無く SACK ₱400 が KG の数量に付いていた（25倍） | 単位検査を追加（デプロイ済）＋ `package_spec='25kg'` を読んで **₱16.00/kg** を割り出す |
+| Dashinomoto (1KG) | カタログ PKT ₱460 / 棚卸し kg | `package_spec='1kg'` を記入 → ₱460/kg |
+| Mirin | 名前も単位も違う（棚卸し `Mirin` KG / カタログ `Mirin 1L` LTR ₱122.23） | **こちらで修正**（下記）→ ₱122.23/LTR |
+| Ajinomoto | 名前が違う（カタログ `Ajinomoto China` KG ₱150/₱185） | **こちらで修正**（下記）→ ₱150/KG |
+
+### Mirin / Ajinomoto の改名（2026-09-27・棚卸し品の側を直した）
+
+「Yusuke に直してもらう」と書いたが、**どちらが正しい名前かは受領記録で決まる**ので
+こちらで直した。退避は `_daily_inv_items_bk_20260927`（2行）。`daily_inv_report_items`
+に `item_name` の一意制約は無い（`item_code` のみ）ので、同名の無効行があっても改名は通る。
+
+| item_code | 変更前 | 変更後 | 根拠（3つ一致） |
+|---|---|---|---|
+| `CK-E68E90C7` | `Mirin` / **KG** / ₱122.2222 | `Mirin 1L` / **LTR** | 受領 `Mirin 1L / LTR / ₱122.23`（2026-08-31）／カタログ有効行 `Mirin 1L` LTR ₱122.23／`menu_item_master` に `Mirin 1L`。登録原価 122.2222 は**同じ数字が KG の欄に入っていた** |
+| `CK-7B78AA7B` | `Ajinomoto` / KG / ₱150 | `Ajinomoto China` / KG | 受領 `Ajinomoto China / KG / ₱150 × 6回`（最終 2026-09-22）。**`Ajinomoto` 単独の受領は0件**／カタログ4行すべて `Ajinomoto China`／無効の棚卸し品 `CK-OT-077` も同名 |
+
+- **入力履歴は消えない**（`daily_inv_entries` は `item_code` で紐づく）。Mirin 9件・
+  Ajinomoto 10件（どちらも 2026-08-30〜09-27）をそのまま保持。
+- Mirin は KG→LTR で過去9件の**申告単位が遡って変わる**。実測値は 0〜2 の小さい数で、
+  この品は1Lボトルの作業在庫（18Lの箱は別品目 `CKIN029 OZAKI HONMIRIN 18L`）なので
+  数字の意味は変わらない。
+- 検算（デプロイ済みコード・本番データ）: `Mirin 1L LTR → ₱122.23` / `Ajinomoto China
+  KG → ₱150.0`。単価0は **63 → 61品**、内訳（単位違い13・単価空5・パック算出4）は不変。
+- ⚠️ Ajinomoto が ₱150（Better mart・CKが仕入れる値）を採るのは、この棚卸し品が
+  **CK自身のカウント**（`source_type='ck'`）で、受領も ₱150/KG だから。₱185 は
+  CK→店舗の振替価格で別の脚。
+
+**実装**
+- `app/daily_inventory_api.py` — `package_spec` から単価を割り出す（`<数字><単位>` のみ／
+  カタログ単位が直接換算できるときは使わない）。レスポンスに `price_from_pack` と
+  `price_unit_mismatch` を分けて返す。`tests/test_order_price_unit.py` 11件。
+- `app/ck_par_level_api.py` — `catalog-items` が `excluded_items`（order_type で外れた行）を返す。
+- `src/components/admin/AdminDailyInventoryTab.tsx` — 単位違い／パックから割り出し を別枠で表示。
+- `src/app/admin/ck/par-levels/page.tsx` — ピッカーが対象外の行を**名前で**言う。
+
+**本番データ変更**（退避 `_proc_catalog_bk_20260927`・3行）
+- Onigiri Film: 8991ac74 を有効化+₱355、a04adbea を無効化
+- Paper Bowl White 780: 9eab7e78 を新規作成（₱255/PKT）
+- Dashinomoto (1KG): a0eae4c1 の `package_spec='1kg'`
+
+**残っている宿題**
+- `package_spec` が空で単位が合わない **25件**（Lemon・Oyster Sauce・Red Miso 等）。
+  発注のたびに画面が名前で出すので、出たものから埋める。
+- `order_type='WH'` の品名 **38件**が3店舗そろって有効でなく、**8件**はどの店舗でも
+  有効行が無い。それでも店舗は倉庫から 100〜147 品を注文しており、23〜58 品が
+  カタログを通らずに入っている（＝単価0の発注になる）。倉庫カタログの棚卸しが要る。
+
+
 ## 2026-09-26 — サーモン歩留まりを Morning Review へ（Yusuke の依頼）／デプロイ済み
 
 `salmon_yield_alert` は 2026-08-29 に「1ヶ月で一度も送られなかった」として

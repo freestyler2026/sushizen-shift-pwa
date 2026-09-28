@@ -615,6 +615,77 @@ td.muted { color:var(--muted); font-size:12px; }
     </div>
   </div>
 
+  <!-- 単価が出ない3つの理由 (2026-09-27) -->
+  <div class="card">
+    <div class="card-title" data-en="When an order line has no price — three different causes" data-ja="発注明細に単価が出ないとき — 原因は3つ">When an order line has no price — three different causes</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="A blank price does not mean the item is missing from the catalogue. Three things produce it, and each needs a different fix. Registering the item again is the wrong answer to two of the three — a second copy never meets its own price or its own recipe." data-ja="単価が空欄なのは「カタログに無い」とは限りません。原因は3つあり、対応がそれぞれ違います。3つのうち2つは「もう一度登録する」では直りません — 二重登録した行は、自分の価格にもレシピにも紐づきません。">A blank price does not mean the item is missing. Three causes, three different fixes. Re-registering fixes only one of them.</p>
+    <div class="table-wrap"><table>
+      <tr>
+        <th data-en="Cause" data-ja="原因">Cause</th>
+        <th data-en="How you can tell" data-ja="見分け方">How you can tell</th>
+        <th data-en="What to do" data-ja="対応">What to do</th>
+      </tr>
+      <tr>
+        <td data-en="<b>The unit differs.</b> The catalogue sells it by the sack, the box or the packet; the count is in kg or litres." data-ja="<b>単位が違う。</b>カタログは SACK・BOX・PKT で売っていて、棚卸しは kg や L で数えている。"><b>The unit differs</b> — catalogue sells by SACK/BOX/PKT, the count is in kg or L.</td>
+        <td data-en="Generate Purchase Request lists these separately in orange: “counted in KG, catalogue sells it by SACK”." data-ja="Generate Purchase Request がオレンジ枠で別に列挙します。「counted in KG, catalogue sells it by SACK」。">Generate Purchase Request lists them in orange, naming both units.</td>
+        <td data-en="Fill that catalogue row's <b>package spec</b> with what one pack holds — “25kg”, “500g”, “1kg”. The price is then worked out from it. Do not add a second row with a second price." data-ja="そのカタログ行の <b>package spec</b> に1パックの中身を書いてください — 「25kg」「500g」「1kg」。そこから単価を割り出します。2行目を作らないでください。">Fill that row's <b>package spec</b> (“25kg”, “500g”). Never add a second row.</td>
+      </tr>
+      <tr>
+        <td data-en="<b>The name differs.</b> The count says “Ajinomoto”, the catalogue says “Ajinomoto China”." data-ja="<b>名前が違う。</b>棚卸しは「Ajinomoto」、カタログは「Ajinomoto China」。"><b>The name differs</b> — “Ajinomoto” vs “Ajinomoto China”.</td>
+        <td data-en="The line appears under “no price — the catalogue has no entry under this exact name and unit”, but searching the catalogue finds something close." data-ja="「価格なし」に出るのに、カタログを検索すると似た名前が見つかる。">Listed as “no price”, yet the catalogue holds a similar name.</td>
+        <td data-en="Make the two names the same. A packaging spec in brackets is still the same item; an extra word is a different item, so decide which name is the real one before changing either side." data-ja="名前を揃えてください。括弧の中の規格違いは同じ品ですが、語がひとつ増えているものは別の品です。どちらが正しい名前か決めてから直してください。">Make the names match. Brackets = same item; an extra word = a different item.</td>
+      </tr>
+      <tr>
+        <td data-en="<b>The catalogue has no row at all.</b> The item exists in the item master but was never registered for ordering." data-ja="<b>カタログに行が無い。</b>アイテムマスタにはあるが、発注用に登録されていない。"><b>No catalogue row</b> — in the item master, never registered for ordering.</td>
+        <td data-en="Searching the catalogue finds nothing under any spelling." data-ja="どの綴りで検索してもカタログに出てこない。">Nothing in the catalogue under any spelling.</td>
+        <td data-en="Register one row. One item, one row." data-ja="1行だけ登録してください。1品1行です。">Register one row — one item, one row.</td>
+      </tr>
+    </table></div>
+    <div class="tip info" style="margin-top:8px">
+      <span class="tip-icon">🧮</span>
+      <span data-en="A price worked out from the pack is shown as such: “₱400 per SACK of 25kg → ₱16.00 per KG”. If that arithmetic looks wrong, the pack spec is wrong — correct the spec, not the price." data-ja="パックから割り出した単価はそう表示されます。「₱400 per SACK of 25kg → ₱16.00 per KG」。計算が合わないときは package spec が間違っています。単価ではなく spec を直してください。">A derived price shows its arithmetic: “₱400 per SACK of 25kg → ₱16.00 per KG”. Wrong figure = wrong pack spec.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="One item, several rows — and the unit decides which one prices an order" data-ja="1つの品に複数の行 — どの行が発注の単価になるかは単位で決まる">One item, several rows — the unit decides which one prices an order</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="A name normally carries two or three active rows, because the supply legs differ: the store buys from the Central Kitchen, and the Central Kitchen buys from a vendor. Those rows hold different units and different prices, and both are correct for their own leg." data-ja="ひとつの品名に有効な行が2〜3本あるのが普通です。供給元が違うためで、店舗はCKから買い、CKは仕入先から買います。行ごとに単位も単価も違い、どちらもその経路では正しい値です。">A name normally has 2–3 active rows — one per supply leg. Different units, different prices, both correct for their own leg.</p>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Row" data-ja="行">Row</th><th data-en="Means" data-ja="意味">Means</th><th data-en="Example (Sliced Beef)" data-ja="例（Sliced Beef）">Example</th></tr>
+      <tr><td>Supplier <b>Central Kitchen</b>, order type <b>CK</b></td>
+          <td data-en="The store orders it from the Central Kitchen." data-ja="店舗がCKに発注する。">Store orders it from the CK.</td><td>PC ₱50</td></tr>
+      <tr><td>Supplier <b>CK</b>, order type <b>CK</b></td>
+          <td data-en="A duplicate registration, usually with no price." data-ja="重複登録。多くは単価が空。">A duplicate registration, usually unpriced.</td><td>PTN ₱0</td></tr>
+      <tr><td>A real vendor, order type <b>CK_WH_to_supplier</b></td>
+          <td data-en="The Central Kitchen buys it from outside." data-ja="CKが外部から買う。">The CK buys it from outside.</td><td>PKT ₱795</td></tr>
+    </table></div>
+    <div class="tip info" style="margin-top:8px">
+      <span class="tip-icon">📐</span>
+      <span data-en="The order line takes the price from the row whose unit matches what the stocktake counts in. So a wrong unit on one row does not spoil the others — but if no row carries the counted unit, no price is taken at all. That is why the unit label matters more than it looks." data-ja="発注明細の単価は、棚卸しが数えている単位と一致する行から取ります。ですから1行の単位が違っていても他の行は無事です。ただし**どの行も棚卸しの単位を持っていなければ単価は付きません**。単位の表記は見た目以上に効きます。">The line takes the price from the row whose unit matches the count. No row with that unit = no price at all.</span>
+    </div>
+    <div class="tip warning" style="margin-top:8px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="18 counted items are in this state today — the price on the row is the right amount, but the unit beside it is not what the goods arrive as. Oyster Sauce is sold by the GAL and received by the bottle; Cheese Spread is sold by the KG and received as PKT x ₱80, eighteen times. Check the receiving record before changing a unit: what was received is the physical fact." data-ja="現在18品がこの状態です。行の金額は合っているのに、隣の単位が納品の実物と違います。Oyster Sauce は GAL で登録され bottle で納品、Cheese Spread は KG で登録され PKT×₱80 で18回納品されています。単位を直す前に受領記録を見てください。受け取った物の記録だけが物理的な事実です。">18 items are in this state now: right amount, wrong unit label. Check the receiving record before changing a unit — what was received is the fact.</span>
+    </div>
+  </div>
+
+  <!-- 倉庫カタログは1品1行 (2026-09-27) -->
+  <div class="card">
+    <div class="card-title" data-en="Warehouse items: one row for all three stores" data-ja="倉庫アイテムは3店舗で1行">Warehouse items: one row for all three stores</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="The Warehouse supplies Taft, Cubao and Paranaque from one stock, so a Warehouse item needs exactly one catalogue row. A store's Warehouse list is filtered on four things at once, and a row that differs on any one of them appears for nobody." data-ja="倉庫は Taft・Cubao・Paranaque に1つの在庫から出しているので、倉庫アイテムのカタログ行は1つで足ります。店舗の Warehouse 一覧は4つの条件で同時に絞っており、どれか1つでも違う行はどの店舗にも出ません。">One stock supplies all three stores, so one row is enough. The store list filters on four fields at once — differ on any one and the item appears for nobody.</p>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Field" data-ja="項目">Field</th><th data-en="Must be" data-ja="正しい値">Must be</th></tr>
+      <tr><td>Store scope</td><td><b>ALL</b><span class="muted" data-en=" — never one store's name" data-ja="— 店舗名を入れない"> — never a single store</span></td></tr>
+      <tr><td>Catalog category</td><td><b>Warehouse</b><span class="muted" data-en=" — not Packaging, even for packaging" data-ja="— 梱包材でも Packaging にしない"> — not Packaging</span></td></tr>
+      <tr><td>Order type</td><td><b>WH_to_supplier</b></td></tr>
+      <tr><td>Supplier</td><td><b>Warehouse</b></td></tr>
+    </table></div>
+    <div class="tip warning" style="margin-top:8px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="If an item cannot be found when adding a line by hand, this is usually why — it is registered, just not in a shape any store can see. Check those four fields on the Catalog page before registering it again." data-ja="手でアイテムを追加しようとして見つからないときは、これが原因のことが多いです。登録はされていて、どの店舗にも見えない形になっているだけです。もう一度登録する前に、Catalog ページでこの4項目を確認してください。">Item missing when adding a line by hand? It is probably registered, just in a shape no store can see. Check these four fields before re-registering.</span>
+    </div>
+  </div>
+
   <!-- ① PO PDF Download -->
   <div class="card green-border">
     <div class="card-title">① Download PO as PDF</div>

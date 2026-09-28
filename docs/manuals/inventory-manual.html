@@ -783,6 +783,34 @@
     </div>
   </div>
 
+  <div class="card">
+    <div class="card-title" data-en="What Generate Purchase Request says about prices" data-ja="Generate Purchase Request が単価について言うこと">What Generate Purchase Request says about prices</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="After the draft orders are created, the screen lists the lines whose price needs attention — in three separate groups, because each one needs a different fix. Read the group, not just the item name." data-ja="ドラフト発注を作ったあと、単価に手当てが要る明細を3つに分けて表示します。対応が3つとも違うので、品名だけでなくどの枠に出ているかを見てください。">After the drafts are created the screen groups the lines whose price needs attention. Each group needs a different fix.</p>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Group" data-ja="枠"></th><th data-en="Means" data-ja="意味">Means</th><th data-en="What to do" data-ja="対応">What to do</th></tr>
+      <tr>
+        <td><span class="chip amber" data-en="No price" data-ja="単価なし">No price</span></td>
+        <td data-en="The Order Catalogue has no row under this exact name and unit." data-ja="この名前と単位でカタログに行がありません。">No catalogue row under this exact name and unit.</td>
+        <td data-en="Report it. Do not write a price on the delivery note — a figure entered there applies to one branch only." data-ja="報告してください。納品書に価格を書き込まないでください — そこに入れた数字は1店舗にしか効きません。">Report it. Never write the price on the delivery note.</td>
+      </tr>
+      <tr>
+        <td><span class="chip" style="background:rgba(251,146,60,.12);color:#fb923c;border-color:rgba(251,146,60,.3)" data-en="Different unit" data-ja="単位違い">Different unit</span></td>
+        <td data-en="The catalogue does hold a price — by the sack, the box or the packet — and the count is in kg or litres. The price is left out rather than copied across units, because a sack price on a kilo quantity is wrong by the size of the sack." data-ja="カタログには単価が入っています。ただし SACK・BOX・PKT の単価で、棚卸しは kg や L です。袋の値段を kg の数量に付けると袋の大きさの分だけ狂うので、そのまま使わずに空欄にしています。">The catalogue has a price, in a different unit. It is left blank rather than copied — a sack price on a kilo quantity is wrong by the size of the sack.</td>
+        <td data-en="Fill that catalogue row's package spec with what one pack holds (“25kg”, “500g”). Do not register the item a second time — it is already registered." data-ja="そのカタログ行の package spec に1パックの中身を書いてください（「25kg」「500g」）。二重登録しないでください — すでに登録されています。">Fill the row's package spec (“25kg”, “500g”). It is already registered — do not add it again.</td>
+      </tr>
+      <tr>
+        <td><span class="chip amber" data-en="No price on the row" data-ja="行に単価が無い">No price on the row</span></td>
+        <td data-en="The catalogue has a row with the right unit, but that row&rsquo;s unit price is empty." data-ja="カタログに正しい単位の行はあるのに、その行の単価が空欄です。">A row with the right unit exists, but its unit price is empty.</td>
+        <td data-en="Fill in the unit price on that row. Do not register the item again — it is registered." data-ja="その行に単価を入れてください。登録済みなので、もう一度登録しないでください。">Fill in the price on that row. It is registered — do not add it again.</td>
+      </tr>
+      <tr>
+        <td><span class="chip" style="background:rgba(56,189,248,.12);color:#38bdf8;border-color:rgba(56,189,248,.3)" data-en="From the pack" data-ja="パックから算出">From the pack</span></td>
+        <td data-en="The price was worked out from the pack spec, and the line shows the arithmetic: “₱400 per SACK of 25kg → ₱16.00 per KG”." data-ja="package spec から単価を割り出しました。計算も表示します。「₱400 per SACK of 25kg → ₱16.00 per KG」。">Worked out from the pack spec, arithmetic shown: “₱400 per SACK of 25kg → ₱16.00 per KG”.</td>
+        <td data-en="Nothing, unless the arithmetic looks wrong — then the pack spec is wrong. Correct the spec, not the price." data-ja="計算が合っていれば何もしません。合わないときは package spec が間違っています。単価ではなく spec を直してください。">Nothing — unless the arithmetic looks wrong. Then correct the spec, not the price.</td>
+      </tr>
+    </table></div>
+  </div>
+
   <div class="tip"><span class="tip-icon">💡</span><span data-en="The 'Create Direct Purchase' button only appears for Supplier-source items. Warehouse and CK items use the 'Generate Purchase Request' workflow instead." data-ja="「Create Direct Purchase」ボタンはSupplierソースのアイテムにのみ表示されます。WarehouseおよびCKアイテムには「Generate Purchase Request」ワークフローを使用します。">The "Create Direct Purchase" button appears for Supplier items only. Warehouse/CK items use "Generate Purchase Request" instead.</span></div>
 </div>
 

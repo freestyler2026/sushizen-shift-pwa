@@ -264,6 +264,11 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   >([]);
   // パック表記から単価を割り出した行。黙って計算するとどこから来た金額か
   // 分からないので、割り出したことと元の値を出す。
+  // 「カタログに行が無い」と「行はあるが単価が空」は対応が別。前者は登録、
+  // 後者は単価の記入。混ぜると登録済みのものを登録しろと言うことになる（教訓97）。
+  const [noPriceAtUnit, setNoPriceAtUnit] = useState<
+    { item_name: string; inventory_unit: string; catalog_unit: string; supplier_name: string }[]
+  >([]);
   const [pricedFromPack, setPricedFromPack] = useState<
     { item_name: string; inventory_unit: string; catalog_unit: string; package_spec: string;
       catalog_price: number; derived_price: number }[]
@@ -402,6 +407,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         price_unit_mismatch?: { item_name: string; inventory_unit: string; catalog_unit: string }[];
         price_from_pack?: { item_name: string; inventory_unit: string; catalog_unit: string;
                             package_spec: string; catalog_price: number; derived_price: number }[];
+        no_price_at_unit?: { item_name: string; inventory_unit: string; catalog_unit: string;
+                             supplier_name: string }[];
       };
       if (!res.ok) {
         const msg = typeof json.detail === "string" ? json.detail : "Failed to generate order";
@@ -411,6 +418,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
       setUnpricedLines(Array.isArray(json.unpriced) ? json.unpriced : []);
       setUnitMismatch(Array.isArray(json.price_unit_mismatch) ? json.price_unit_mismatch : []);
       setPricedFromPack(Array.isArray(json.price_from_pack) ? json.price_from_pack : []);
+      setNoPriceAtUnit(Array.isArray(json.no_price_at_unit) ? json.no_price_at_unit : []);
     } catch (err) {
       setOrderError(err instanceof Error ? err.message : "Unknown error");
     } finally { setOrderBusy(false); }
@@ -636,6 +644,26 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     <p className="mt-1.5 text-[11px] text-amber-300/70">
                       Report these rather than typing a price on the delivery note — a figure
                       entered there applies to one branch only.
+                    </p>
+                  </div>
+                )}
+                {noPriceAtUnit.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-950/25 px-4 py-3">
+                    <p className="text-xs font-semibold text-amber-200">
+                      {noPriceAtUnit.length} line{noPriceAtUnit.length !== 1 ? "s are" : " is"} in
+                      the catalogue with the right unit, but that row carries no price.
+                    </p>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {noPriceAtUnit.map((m) => (
+                        <li key={`np-${m.item_name}-${m.inventory_unit}`} className="text-[11px] text-amber-300/90">
+                          {m.item_name} <span className="text-amber-400/70">({m.catalog_unit})</span>
+                          {m.supplier_name ? ` — ${m.supplier_name}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1.5 text-[11px] text-amber-300/70">
+                      Do not register these — they are registered. Fill in the unit price on that
+                      catalogue row.
                     </p>
                   </div>
                 )}
