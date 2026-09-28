@@ -28,7 +28,7 @@ type Result = {
   pair_marked: number;
   big_five: Record<string, { label: string; pct: number; n: number }>;
   english: { score: number; answered: number; total: number; band: string; writing_missed: string[] };
-  essays: { qn: string; prompt: string; text: string; chars: number; elapsed_ms: number }[];
+  essays: { qn: string; prompt: string; text: string; chars: number; elapsed_ms: number ; blank_reason?: string }[];
   flags: Flag[];
   verdict: string;
   answered: number; total: number;
@@ -238,7 +238,18 @@ export default function ManagerAssessmentPage() {
                     <div key={e.qn} className="rounded-xl border border-white/10 bg-black/20 p-3">
                       <p className="text-xs text-zinc-500">{e.qn}　{e.prompt}</p>
                       <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">
-                        {e.text || <span className="text-zinc-600">（未記入）</span>}
+                        {e.text || (
+                          // ⚠️「（未記入）0字・0秒」だけを出すと、**制限時間に
+                          // 打ち切られたことが本人の怠慢に見える**。画面が
+                          // その人について嘘をつく（2026-09-28 Yuzawa）。
+                          e.blank_reason === "ran_out_of_time" ? (
+                            <span className="text-amber-300/90">
+                              時間切れ — 記述の制限時間が終わり、この問に進めませんでした
+                            </span>
+                          ) : (
+                            <span className="text-zinc-600">（未記入）</span>
+                          )
+                        )}
                       </p>
                       <p className="mt-1 text-[11px] text-zinc-600">
                         {e.chars}字・{Math.round(e.elapsed_ms / 1000)}秒
