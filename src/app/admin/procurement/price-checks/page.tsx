@@ -1133,8 +1133,9 @@ function CatalogDriftTab({
               // 黙って一覧から外さない。「差が無い」ではなく「単価が決まらない」
               // という別の事実なので、件数を出す（教訓58）。
               <span className="text-amber-400/80">
-                {result.price_disputed} were invoiced at two different prices on the same day, every
-                time we looked — no single price to offer, so they are not in the list
+                {result.price_disputed === 1
+                  ? "1 item was invoiced at two different prices on the same day, every time we looked — there is no single price to offer, so it is not in the list"
+                  : `${result.price_disputed} items were invoiced at two different prices on the same day, every time we looked — there is no single price to offer, so they are not in the list`}
               </span>
             )}
           </div>
