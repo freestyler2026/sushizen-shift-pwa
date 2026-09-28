@@ -1385,6 +1385,8 @@ type MatchProposal = {
   unit: string;
   unit_price: number;
   candidates: MatchCandidate[];
+  reason: string;
+  detail: string;
 };
 type MatchPreview = {
   item_name: string; unit: string; supplier: string; invoice_no: string;
@@ -1398,6 +1400,8 @@ type MatchResult = {
   city: string; since: string;
   auto: number; by_alias: number; already: number; would_write: number;
   ambiguous: number; contested: number; no_receiving: number;
+  actionable: number;
+  blocked_by: Record<string, number>;
   preview: MatchPreview[];
   proposals: MatchProposal[];
   aliases: MatchAlias[];
@@ -1414,6 +1418,33 @@ type MatchedRow = {
   qty_received: number | null; ordered_price: number | null;
   invoice_price: number | null; price_confirmed_by: string;
   price_confirmed_at: string | null; delivery_date: string | null;
+};
+
+// 押せない理由。**バックエンドの `_REASONS` と同じ鍵**で、文言だけこちら側。
+// 鍵を2か所で作らない（教訓120）。
+const REASON_ORDER = [
+  "unit_differs", "two_deliveries", "no_delivery_near", "name_unknown", "already_priced",
+];
+const REASON_TEXT: Record<string, string> = {
+  unit_differs: "were received, but counted in a different unit",
+  two_deliveries: "have two deliveries that could be the one",
+  no_delivery_near: "have no delivery from that supplier within three days",
+  name_unknown: "read nothing like anything that supplier delivered that week",
+  already_priced: "already have an invoice price on the delivery line",
+};
+const REASON_FIX: Record<string, string> = {
+  unit_differs:
+    "This one is worth fixing: the supplier bills in one unit and we count in another, so every " +
+    "price from them lands on the wrong quantity. Correct the unit in Cost Calculation and these " +
+    "go through on the next run.",
+  two_deliveries:
+    "Two deliveries of the same item in the same window. Which one the invoice is for cannot be " +
+    "read from either record, so nothing is written.",
+  no_delivery_near:
+    "Either the delivery was never recorded, or the invoice covers a week we are not looking at — " +
+    "move the date at the top back and see if it appears.",
+  name_unknown:
+    "Usually a product we buy under a different name, or a delivery nobody entered.",
 };
 
 function money(n: number | null | undefined, city: string): string {
@@ -1586,20 +1617,18 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
             </div>
           </div>
           <div className="rounded-xl border border-amber-800/30 bg-amber-950/15 px-3 py-2.5">
-            <div className="text-[10px] uppercase tracking-widest text-amber-500/80">Needs a person</div>
+            <div className="text-[10px] uppercase tracking-widest text-amber-500/80">One tap each</div>
             <div className="mt-0.5 text-lg font-semibold text-amber-200">{withCands.length}</div>
             <div className="text-[11px] text-zinc-500">
-              invoice names with a candidate to tap
+              every one of them writes a price
             </div>
           </div>
           <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
-            <div className="text-[10px] uppercase tracking-widest text-zinc-500">Left alone</div>
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500">Nothing to press</div>
             <div className="mt-0.5 text-lg font-semibold text-zinc-300">
-              {(result?.ambiguous ?? 0) + (result?.no_receiving ?? 0) + noCands.length}
+              {(result?.no_receiving ?? 0) + noCands.length}
             </div>
-            <div className="text-[11px] text-zinc-500">
-              {(result?.ambiguous ?? 0)} ambiguous · {(result?.no_receiving ?? 0)} no delivery · {noCands.length} no candidate
-            </div>
+            <div className="text-[11px] text-zinc-500">reasons below</div>
           </div>
         </div>
 
@@ -1712,7 +1741,9 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
         </div>
         <p className="mt-1 text-sm text-zinc-400">
           Tap the item each one is. It is remembered per supplier, so the same wording goes through on its
-          own next time — and the prices are written straight away.
+          own next time — and the price is written straight away.
+          <span className="text-zinc-500">{" "}Only items that supplier actually delivered that week, in the
+          unit they billed, are offered — so every tap here does something.</span>
         </p>
         {withCands.length === 0 && (
           <div className="mt-4 rounded-xl border border-white/8 bg-black/20 px-4 py-6 text-center text-sm text-zinc-500">
@@ -1751,24 +1782,36 @@ function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy
         </div>
 
         {noCands.length > 0 && (
-          <details className="mt-4">
-            <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-300">
-              {noCands.length} more with nothing close enough to offer
-            </summary>
-            <div className="mt-2 space-y-1">
-              {noCands.map((p) => (
-                <div key={`${p.supplier}|${p.invoice_description}`} className="flex flex-wrap justify-between gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-1.5 text-xs">
-                  <span className="text-zinc-300">{p.invoice_description}</span>
-                  <span className="text-zinc-600">{p.supplier} · {money(p.unit_price, city)} / {p.unit || "—"}</span>
-                </div>
-              ))}
+          <div className="mt-5 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
+              Nothing to press ({noCands.length}) — and why
             </div>
-            <p className="mt-2 text-xs text-zinc-600">
-              These are billed under a wording that shares almost no words with anything we received from that
-              supplier. Usually it is a product we buy under a different name, or a delivery that was never
-              recorded.
-            </p>
-          </details>
+            {REASON_ORDER.filter((r) => (result?.blocked_by?.[r] ?? 0) > 0).map((r) => {
+              const rows = noCands.filter((p) => p.reason === r);
+              return (
+                <details key={r} className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+                  <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-200">
+                    <span className="font-semibold text-zinc-200">{rows.length}</span> {REASON_TEXT[r] || r}
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    {rows.map((p) => (
+                      <div key={`${p.supplier}|${p.invoice_description}`}
+                           className="rounded-lg border border-white/5 bg-black/30 px-3 py-1.5 text-xs">
+                        <div className="flex flex-wrap justify-between gap-2">
+                          <span className="text-zinc-300">{p.invoice_description}</span>
+                          <span className="text-zinc-600">{p.supplier} · {money(p.unit_price, city)} / {p.unit || "—"}</span>
+                        </div>
+                        {p.detail && <div className="mt-0.5 text-[11px] text-zinc-600">{p.detail}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  {REASON_FIX[r] && (
+                    <p className="mt-2 text-[11px] text-zinc-600">{REASON_FIX[r]}</p>
+                  )}
+                </details>
+              );
+            })}
+          </div>
         )}
       </section>
 
