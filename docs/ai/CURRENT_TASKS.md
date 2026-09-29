@@ -35,6 +35,11 @@
 時給契約6名は**8月サイクルが 8/31 まで既に精算済み**でサイクル41の対象外、
 Christian Baria と Shushma Kumari は 9/26 に給与設定が無効化済み。8月サイクル(38)は closed。
 
+**⚠️ 2026-06-16（Islamic New Year・37名・AED 1,465.60）は支払わない — オーナー決定 2026-09-29。**
+遡及は「8月に指摘された分以降」。**未払いとして再提案しないこと。**
+勤怠データは 2026-06-01 からなので、それ以前の祝日（1/1・3月Eid・5月Eid）は算定できない。
+6/16 を含む開いたサイクルは無いので、自動で払われる経路も無い（cycle 41 は 8/26 開始）。
+
 **未了**: ①`payroll_salary_configs` が無効なのに `staff_master` が ACTIVE の4名
 （Shushma / Christian / Yogesh Bashyal / Sanjeev Bahadur Malla）②2027年の祝日8件が推定のまま
 
