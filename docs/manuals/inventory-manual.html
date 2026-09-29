@@ -581,6 +581,26 @@
   </div>
 
   <!-- ─── CK PAR LEVEL → DIRECT PURCHASE ORDERS ─── -->
+  <div class="card" style="border-color:rgba(217,119,6,.45)">
+    <div class="card-title" style="color:#fbbf24" data-en="The par unit has to be the unit you count in" data-ja="par の単位は、棚卸しで数えている単位に合わせる">The par unit has to be the unit you count in</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="Par minus stock only works if both are in the same unit. When an item moves from case delivery to bottle delivery, the count changes to bottles straight away &mdash; but the par level stays in cases until somebody changes it, and then the shortfall comes out as a fraction of a case." data-ja="「par − 在庫」は、両方が同じ単位のときだけ成り立ちます。ケース納品からボトル納品に変わると棚卸しはすぐボトルになりますが、<b>par は誰かが直すまでケースのまま</b>です。すると不足がケースの端数で出ます。">Par minus stock only works in one unit. A count in bottles against a par in cases gives a fraction of a case.</p>
+
+    <div class="tip danger">
+      <span class="tip-icon">!</span>
+      <span data-en="Live example, 2026-09-28. Royal (250ml) is counted in bottles and there were 5 in stock, but its par is still 1 CASE. The 5 bottles convert to 0.42 of a case, so the shortfall reads 0.58 of a case &mdash; not a quantity anybody can order, and the row has no supplier on it either. Fixing it means setting the par in bottles (1 case = 12, so par 1 becomes par 12) and naming the supplier." data-ja="実例（2026-09-28）。Royal (250ml) は棚卸しがボトルで在庫5本ですが、<b>par は今も1 CASE</b>です。5本は0.42ケースに換算されるので、不足が<b>0.58ケース</b>と出ます。これは発注できる数量ではありませんし、この行には仕入先も入っていません。直すには par をボトルで入れ（1ケース＝12本なので par 1 → par 12）、仕入先を入れます。">Royal (250ml): counted in bottles, par still in cases. 5 bottles = 0.42 case, so the shortfall reads 0.58 case &mdash; not an orderable quantity.</span>
+    </div>
+
+    <div class="tip" style="margin-top:8px">
+      <span class="tip-icon">💡</span>
+      <span data-en="When the two units cannot be bridged at all, the row is not silently dropped. On the purchase sheet it stays with the count as written and no quantity; on the production plan it is held back and named in the response. Both are on purpose &mdash; producing a full par would be a number nobody computed, and leaving the row out would hide a count somebody walked the store to take." data-ja="2つの単位がどうしても繋がらないときも、行は黙って消えません。発注シートでは<b>棚卸しの数字をそのまま載せ、数量は空</b>で残ります。生産計画では保留にして、応答に品名を出します。どちらも意図的です — par 全量を作るのは誰も計算していない数字ですし、行を落とすのは、誰かが店内を歩いて数えた数を隠すことになるためです。">If the units cannot be bridged, the row stays with the count and no quantity (purchase) or is held back by name (production). Neither silently disappears.</span>
+    </div>
+
+    <div class="tip" style="margin-top:8px">
+      <span class="tip-icon">💡</span>
+      <span data-en="Check all three in one pass when a delivery unit changes: the Daily Inventory unit, the CK Par Level unit, and whether the Order Catalog has a row in that unit with a price. All three have to say the same thing before the item can be ordered in the new unit." data-ja="納品単位が変わったら、3つを一度に確認してください。Daily Inventory の単位・CK Par Level の単位・Order Catalog にその単位の行と単価があるか。3つが揃って初めて、新しい単位で発注できます。">When a delivery unit changes, check all three: Daily Inventory unit, CK Par Level unit, and an Order Catalog row in that unit with a price.</span>
+    </div>
+  </div>
+
   <div class="card" style="border-color:rgba(20,184,166,.4);background:linear-gradient(135deg,rgba(20,184,166,.06) 0%,var(--surface) 60%)">
     <div class="card-title" style="color:#2dd4bf" data-en="CK Par Level → Create Direct Purchase Orders" data-ja="CK Par Level → Create Direct Purchase Orders">CK Par Level → Create Direct Purchase Orders</div>
     <p style="color:var(--muted);font-size:12px;margin-bottom:14px" data-en="The same idea as WH Auto Order, but on the CK Par Level page: Supplier Orders tab → Create Direct Purchase Orders. It suggests Par − Stock for every item that has a supplier, and creates one order per supplier." data-ja="WH Auto Orderと同じ考え方で、CK Par Levelページ側の入口です。Supplier Ordersタブ →「Create Direct Purchase Orders」。仕入先が設定されている各アイテムについて Par − 在庫 を提案し、仕入先ごとに1件の発注書を作成します。">Same idea as WH Auto Order, from the CK Par Level page: Supplier Orders tab → Create Direct Purchase Orders. Suggests Par − Stock per item, and creates one order per supplier.</p>

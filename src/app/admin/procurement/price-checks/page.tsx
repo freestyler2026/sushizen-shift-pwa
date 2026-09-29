@@ -3,11 +3,11 @@
 import { isoDate } from "@/lib/date";
 import {
   AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Download,
-  Minus, RefreshCw, TrendingDown, TrendingUp, TriangleAlert,
+  Minus, Receipt, RefreshCw, TrendingDown, TrendingUp, TriangleAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { defaultProcurementName, defaultProcurementPin, procurementTokenHeaders } from "@/lib/procurementClient";
+import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import SelectDark from "@/components/SelectDark";
 
@@ -962,6 +962,7 @@ type DriftResult = {
   cross_supplier: number;
   uncomparable: number;
   within_threshold: number;
+  price_disputed?: number;
   total: number;
   rows: DriftRow[];
   unit_total: number;
@@ -1128,6 +1129,15 @@ function CatalogDriftTab({
             <span className="text-zinc-500">
               {result.uncomparable} have never appeared on an invoice under this name — this report cannot see them
             </span>
+            {(result.price_disputed ?? 0) > 0 && (
+              // 黙って一覧から外さない。「差が無い」ではなく「単価が決まらない」
+              // という別の事実なので、件数を出す（教訓58）。
+              <span className="text-amber-400/80">
+                {result.price_disputed === 1
+                  ? "1 item was invoiced at two different prices on the same day, every time we looked — there is no single price to offer, so it is not in the list"
+                  : `${result.price_disputed} items were invoiced at two different prices on the same day, every time we looked — there is no single price to offer, so they are not in the list`}
+              </span>
+            )}
           </div>
         )}
       </section>
@@ -1370,10 +1380,834 @@ function CatalogDriftTab({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ④ Invoice → Receiving
+//
+// 第一段階で `proc_receiving_items` に `invoice_unit_price` を足し、第二段階で
+// 請求書の明細をそこへ運ぶ規則を書いた。**その規則を呼ぶ画面が無かった** ので、
+// 適用済みの行は全て one-off dyno から流したもので、現場からは触れなかった。
+// ここがその入口（教訓147）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+type MatchCandidate = { item_name: string; why: string; score: number };
+type MatchProposal = {
+  supplier: string;
+  invoice_description: string;
+  unit: string;
+  unit_price: number;
+  candidates: MatchCandidate[];
+  reason: string;
+  detail: string;
+};
+type MatchPreview = {
+  item_name: string; unit: string; supplier: string; invoice_no: string;
+  invoice_date: string; ordered: number; invoice: number; diff: number; how: string;
+};
+type MatchAlias = {
+  supplier_key: string; invoice_description: string; item_name: string;
+  confirmed_by: string; confirmed_at: string;
+};
+type MatchResult = {
+  city: string; since: string;
+  auto: number; by_alias: number; already: number; would_write: number;
+  ambiguous: number; contested: number; no_receiving: number;
+  actionable: number;
+  blocked_by: Record<string, number>;
+  preview: MatchPreview[];
+  proposals: MatchProposal[];
+  aliases: MatchAlias[];
+  // ⚠️ 本番の戻り値をそのまま写すこと。私は `total`/`with_invoice`/`pct` と
+  // 推測で書き、画面が「0.0% · 0 of 0 lines」を出すところだった（実キーは
+  // `lines`/`confirmed`/`confirmed_pct`）。型は書けば通るので、tsc も build も
+  // 何も言わない。
+  coverage?: { lines?: number; confirmed?: number; confirmed_pct?: number;
+               ordered_value?: number; effective_value?: number };
+  coverage_error?: string;
+};
+type MatchedRow = {
+  id: string; item_name: string; unit: string; vendor_name: string;
+  qty_received: number | null; ordered_price: number | null;
+  invoice_price: number | null; price_confirmed_by: string;
+  price_confirmed_at: string | null; delivery_date: string | null;
+};
+
+// 押せない理由。**バックエンドの `_REASONS` と同じ鍵**で、文言だけこちら側。
+// 鍵を2か所で作らない（教訓120）。
+const REASON_ORDER = [
+  "unit_differs", "two_deliveries", "no_delivery_near", "name_unknown", "already_priced",
+];
+const REASON_TEXT: Record<string, string> = {
+  unit_differs: "were received, but counted in a different unit",
+  two_deliveries: "have two deliveries that could be the one",
+  no_delivery_near: "have no delivery from that supplier within three days",
+  name_unknown: "read nothing like anything that supplier delivered that week",
+  already_priced: "already have an invoice price on the delivery line",
+};
+const REASON_FIX: Record<string, string> = {
+  unit_differs:
+    "This one is worth fixing: the supplier bills in one unit and we count in another, so every " +
+    "price from them lands on the wrong quantity. Correct the unit in Cost Calculation and these " +
+    "go through on the next run.",
+  two_deliveries:
+    "Two deliveries of the same item in the same window. Which one the invoice is for cannot be " +
+    "read from either record, so nothing is written.",
+  no_delivery_near:
+    "Either the delivery was never recorded, or the invoice covers a week we are not looking at — " +
+    "move the date at the top back and see if it appears.",
+  name_unknown:
+    "Usually a product we buy under a different name, or a delivery nobody entered.",
+};
+
+type CatalogEvidenceRow = {
+  item_name: string; unit: string; supplier: string; billed: number | null;
+  deliveries: number; dates_used: number; dates_disputed: number;
+  last_delivery: string; confirmed_by: string;
+  catalog_id?: string; catalog_price?: number; catalog_unit?: string;
+  catalog_supplier?: string; order_type?: string; store_scope?: string;
+  diff?: number; diff_pct?: number | null; reason: string; detail?: string;
+};
+type CatalogEvidence = {
+  city: string; threshold_pct: number;
+  catalog_total: number; catalog_priced: number;
+  evidenced: number; evidenced_pct: number; confirmed_lines: number;
+  agrees: CatalogEvidenceRow[];
+  differs: CatalogEvidenceRow[];
+  blocked: CatalogEvidenceRow[];
+  blocked_by: Record<string, number>;
+};
+
+const EVIDENCE_BLOCK_TEXT: Record<string, string> = {
+  no_catalog_row: "we were billed for it, but the catalogue does not carry it",
+  unit_differs: "the catalogue counts it in a different unit",
+  supplier_differs: "the catalogue buys it from someone else",
+  ambiguous: "more than one catalogue row could be the one",
+  // 空欄どうしは一致ではない。どちらが欠けているかを言う。
+  supplier_unknown: "the delivery line records no supplier, so it cannot be placed",
+  unit_unknown: "the delivery line records no unit, so the price cannot be compared",
+  // 同じ納品日に単価が割れている。どれが単価か決まらない。
+  prices_disagree: "two different prices on the same delivery date",
+  // 「単価が無い」と「単価が違う」は別の作業（教訓135）。
+  no_catalog_price: "the catalogue row has no price yet — this one is worth filling in",
+};
+
+// 見出しの数字を押すとその節へ飛ぶ。6画面ぶんスクロールする画面で
+// 「読める数字が押せない」のは、数えた意味が半分無くなる（型7）。
+function Jump({ to, className, children }:
+              { to: string; className?: string; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={() => document.getElementById(to)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+      className={`${className || ""} text-left transition hover:brightness-125 focus:outline-none focus:ring-1 focus:ring-white/30`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function money(n: number | null | undefined, city: string): string {
+  if (n === null || n === undefined) return "—";
+  const sym = city === "dubai" ? "AED " : "₱";
+  return sym + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+function InvoiceMatchTab({ city, requestedBy, pin }: { city: string; requestedBy: string; pin: string }) {
+  const [since, setSince] = useState("2026-07-01");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [result, setResult] = useState<MatchResult | null>(null);
+  const [matched, setMatched] = useState<MatchedRow[]>([]);
+  const [showRules, setShowRules] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [rowBusy, setRowBusy] = useState<string>("");
+  const [evidence, setEvidence] = useState<CatalogEvidence | null>(null);
+  const [fixedCat, setFixedCat] = useState<Record<string, { before: number; after: number }>>({});
+
+  const load = useCallback(async () => {
+    setBusy(true); setError("");
+    try {
+      const qs = new URLSearchParams({ city, since });
+      // ⚠️ `procurementJson` は呼ぶたびにトークンを取り直す。3本を Promise.all で
+      // 並べると `/api/auth/session` が毎回3回走る（本番で実測）。ヘッダは1回だけ
+      // 作って使い回す。
+      const headers = await procurementTokenHeaders(requestedBy, pin);
+      const get = async <T,>(url: string): Promise<T> => {
+        const res = await fetch(url, { cache: "no-store", headers });
+        const text = await res.text();
+        if (!res.ok) {
+          let msg = text || `Request failed (${res.status})`;
+          try { const j = JSON.parse(text); if (typeof j?.detail === "string") msg = j.detail; } catch { /* keep raw */ }
+          throw new Error(msg);
+        }
+        return JSON.parse(text || "{}") as T;
+      };
+      const [dry, done, ev] = await Promise.all([
+        get<MatchResult>(`/api/admin/procurement/invoice-match/proposals?${qs.toString()}`),
+        get<{ rows: MatchedRow[] }>(`/api/admin/procurement/invoice-match/matched?${qs.toString()}`),
+        get<CatalogEvidence>(
+          `/api/admin/procurement/invoice-match/catalog-evidence?city=${encodeURIComponent(city)}`),
+      ]);
+      setResult(dry);
+      setMatched(done.rows || []);
+      setEvidence(ev);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [city, since, requestedBy, pin]);
+
+  useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function applyAll() {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const out = await procurementJson<{ applied: number }>(
+        `/api/admin/procurement/invoice-match/apply`,
+        { method: "POST", body: JSON.stringify({ city, since }) }, requestedBy, pin);
+      setNotice(out.applied === 1
+        ? "1 line now carries the invoice price. Undo it below."
+        : `${out.applied} lines now carry the invoice price. Undo any of them below.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 1タップ: 「この請求書の名前はこの品」を確定し、そのまま適用まで通す。
+  // 確定と適用を別ボタンにすると、確定しただけで何も起きない画面になる。
+  async function confirmCandidate(p: MatchProposal, itemName: string, score: number) {
+    const key = `${p.supplier}|${p.invoice_description}`;
+    setRowBusy(key); setError(""); setNotice("");
+    try {
+      await procurementJson(`/api/admin/procurement/invoice-match/alias`, {
+        method: "POST",
+        body: JSON.stringify({
+          city, supplier_name: p.supplier,
+          invoice_description: p.invoice_description,
+          item_name: itemName, score,
+        }),
+      }, requestedBy, pin);
+      const out = await procurementJson<{ applied: number }>(
+        `/api/admin/procurement/invoice-match/apply`,
+        { method: "POST", body: JSON.stringify({ city, since }) }, requestedBy, pin);
+      setNotice(
+        out.applied > 0
+          ? `“${p.invoice_description}” = ${itemName}. ${out.applied} line${out.applied === 1 ? "" : "s"} updated.`
+          : `“${p.invoice_description}” = ${itemName}. No line matched yet — the unit or the delivery date still has to line up.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRowBusy("");
+    }
+  }
+
+  async function undoAlias(a: MatchAlias) {
+    setRowBusy(a.invoice_description); setError(""); setNotice("");
+    try {
+      await procurementJson(`/api/admin/procurement/invoice-match/alias`, {
+        method: "POST",
+        body: JSON.stringify({
+          city, supplier_name: a.supplier_key,
+          invoice_description: a.invoice_description, remove: true,
+        }),
+      }, requestedBy, pin);
+      setNotice(`Removed “${a.invoice_description}” = ${a.item_name}. Prices already written stay — undo those in the list below.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRowBusy("");
+    }
+  }
+
+  // カタログの書き換えは ③ と同じ1本だけを使う。ここで別の口を作ると、
+  // 同じ列に2つの経路ができて必ずずれる（教訓62・74）。PIN が要るのも ③ と同じ。
+  async function fixCatalog(row: CatalogEvidenceRow) {
+    if (!row.catalog_id) return;
+    setRowBusy(row.catalog_id); setError(""); setNotice("");
+    try {
+      const out = await procurementJson<{ before?: { unit_price?: number }; after?: { unit_price?: number } }>(
+        `/api/admin/procurement/price-checks/catalog-price`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            approver_name: requestedBy, pin, city,
+            catalog_id: row.catalog_id,
+            unit_price: row.billed,
+            unit: row.catalog_unit || row.unit,
+          }),
+        }, requestedBy, pin);
+      setFixedCat((m) => ({
+        ...m,
+        [row.catalog_id as string]: {
+          before: Number(out?.before?.unit_price ?? row.catalog_price ?? 0),
+          after: Number(out?.after?.unit_price ?? row.billed),
+        },
+      }));
+      setNotice(`${row.item_name} in the order catalogue is now ${money(row.billed, city)} per ${row.catalog_unit || row.unit}.`);
+      window.dispatchEvent(new Event("procurement-badge-refresh"));
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRowBusy("");
+    }
+  }
+
+  async function undoPrice(row: MatchedRow) {
+    setRowBusy(row.id); setError(""); setNotice("");
+    try {
+      await procurementJson(`/api/admin/procurement/invoice-match/undo`,
+        { method: "POST", body: JSON.stringify({ city, ids: [row.id] }) }, requestedBy, pin);
+      setNotice(`${row.item_name} is back to the ordered price. Nothing was written to the PO.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRowBusy("");
+    }
+  }
+
+  const cov = result?.coverage;
+  const proposals = result?.proposals || [];
+  const withCands = proposals.filter((p) => (p.candidates || []).length > 0);
+  const noCands = proposals.filter((p) => (p.candidates || []).length === 0);
+
+  return (
+    <div className="space-y-4">
+      {/* What this is and how far it has got */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <div className="text-sm font-semibold text-white">Carry the invoice price onto the receiving line</div>
+            <p className="mt-1 text-sm text-zinc-400">
+              A receiving line starts life with the price the catalogue had on the day the order was raised.
+              That is an estimate. This puts the price the supplier actually billed beside it, in its own
+              column, so cost can say which one it is using. <span className="text-zinc-300">The ordered price is never overwritten.</span>
+            </p>
+          </div>
+          <div className="flex items-end gap-3">
+            <div>
+              <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Deliveries from</div>
+              <DatePicker value={since} onChange={setSince} />
+            </div>
+            <button
+              type="button" onClick={() => void load()} disabled={busy}
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-200 hover:border-emerald-700/40 hover:text-emerald-200 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500">Backed by an invoice</div>
+            <div className="mt-0.5 text-lg font-semibold text-white">
+              {result?.coverage_error ? "—" : cov ? `${Number(cov.confirmed_pct ?? 0).toFixed(1)}%` : "…"}
+            </div>
+            <div className="text-[11px] text-zinc-500">
+              {result?.coverage_error
+                ? "could not be measured"
+                : cov ? `${(cov.confirmed ?? 0).toLocaleString()} of ${(cov.lines ?? 0).toLocaleString()} lines` : "reading…"}
+            </div>
+          </div>
+          {/* ⚠️ 読み込み中に 0 を出さない。0 は「やることは無い」という断定で、
+              「まだ見ていない」とは別の事実（教訓58）。*/}
+          <Jump to="match-safe" className="rounded-xl border border-emerald-800/30 bg-emerald-950/15 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest text-emerald-500/80">Safe to write now</div>
+            <div className="mt-0.5 text-lg font-semibold text-emerald-200">{result ? result.would_write : "…"}</div>
+            <div className="text-[11px] text-zinc-500">
+              {result
+                ? `${result.auto} on an exact match, ${result.by_alias} on a name you confirmed`
+                : "reading…"}
+            </div>
+          </Jump>
+          <Jump to="match-taps" className="rounded-xl border border-amber-800/30 bg-amber-950/15 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest text-amber-500/80">One tap each</div>
+            <div className="mt-0.5 text-lg font-semibold text-amber-200">{result ? withCands.length : "…"}</div>
+            <div className="text-[11px] text-zinc-500">
+              {result ? "every one of them writes a price" : "reading…"}
+            </div>
+          </Jump>
+          {/* カタログの誤りは、この画面で唯一「これから出る発注」の金額を動かす。
+              6画面ぶんスクロールしないと見えない位置にあったので、見出しに出す
+              （教訓: 対応が必要な件数は画面を開いた瞬間に分かること）。*/}
+          <Jump to="match-catalogue"
+                className={`rounded-xl border px-3 py-2.5 ${
+                  (evidence?.differs.length ?? 0) > 0
+                    ? "border-rose-700/50 bg-rose-950/25"
+                    : "border-white/8 bg-black/20"}`}>
+            <div className={`text-[10px] uppercase tracking-widest ${
+              (evidence?.differs.length ?? 0) > 0 ? "text-rose-400/90" : "text-zinc-500"}`}>
+              Catalogue is wrong
+            </div>
+            <div className={`mt-0.5 text-lg font-semibold ${
+              (evidence?.differs.length ?? 0) > 0 ? "text-rose-200" : "text-zinc-300"}`}>
+              {evidence ? evidence.differs.length : "…"}
+            </div>
+            <div className="text-[11px] text-zinc-500">
+              {evidence
+                ? (evidence.differs.length > 0
+                    ? "every order quotes these"
+                    : `${evidence.evidenced} row${evidence.evidenced === 1 ? "" : "s"} checked`)
+                : "reading…"}
+            </div>
+          </Jump>
+          <Jump to="match-blocked" className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-500">Nothing to press</div>
+            <div className="mt-0.5 text-lg font-semibold text-zinc-300">
+              {result ? (result.no_receiving ?? 0) + noCands.length : "…"}
+            </div>
+            <div className="text-[11px] text-zinc-500">{result ? "reasons below" : "reading…"}</div>
+          </Jump>
+        </div>
+
+        <button
+          type="button" onClick={() => setShowRules((v) => !v)}
+          className="mt-3 text-xs text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-zinc-300"
+        >
+          {showRules ? "Hide" : "What gets written without asking me?"}
+        </button>
+        {showRules && (
+          <div className="mt-2 rounded-xl border border-white/8 bg-black/20 p-4 text-xs text-zinc-400">
+            <div className="text-zinc-300">All five have to be true, or the line is left for you:</div>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>the item name on the invoice is <em>exactly</em> ours (case and spacing aside)</li>
+              <li>the unit is the same — <span className="text-zinc-300">CASE and BTL are not the same</span></li>
+              <li>the supplier is the same</li>
+              <li>the delivery is within 3 days of the invoice date</li>
+              <li>the quantity matches to within 1%</li>
+            </ol>
+            <p className="mt-2">
+              Number five is there because the first four line up by accident with a supplier who delivers
+              daily: a 1.00 kg invoice line landed on a 20.00 kg delivery.
+              A delivery line that two invoice lines both claim is left alone as well — one of them is wrong
+              and nothing here can say which.
+            </p>
+            <p className="mt-2">
+              <span className="text-zinc-300">A different quantity on the invoice is not an error to hide.</span>{" "}
+              Four billed against three received is exactly what this is supposed to surface, so those stay out
+              of the automatic write and wait for you.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {error && (
+        <div className="flex items-start gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+      {notice && (
+        <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          {notice}
+        </div>
+      )}
+
+      {/* Safe to write — show what, not just how many */}
+      {(result?.would_write ?? 0) > 0 && (
+        <section id="match-safe" className="scroll-mt-4 rounded-2xl border border-emerald-800/30 bg-emerald-950/10 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-emerald-200">
+                {result?.would_write === 1
+                  ? "1 line can take its invoice price now"
+                  : `${result?.would_write} lines can take their invoice price now`}
+              </div>
+              <button
+                type="button" onClick={() => setShowPreview((v) => !v)}
+                className="mt-1 text-xs text-emerald-400/80 underline decoration-dotted underline-offset-4 hover:text-emerald-300"
+              >
+                {showPreview ? "Hide the list" : "See exactly what would change"}
+              </button>
+            </div>
+            <button
+              type="button" onClick={() => void applyAll()} disabled={busy}
+              className="rounded-xl border border-emerald-600/60 bg-emerald-900/30 px-4 py-2.5 text-sm font-semibold text-emerald-200 hover:bg-emerald-900/50 disabled:opacity-50"
+            >
+              Write these {result?.would_write}
+            </button>
+          </div>
+          {showPreview && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[720px] text-xs">
+                <thead className="text-[10px] uppercase tracking-widest text-zinc-500">
+                  <tr className="border-b border-white/10">
+                    <th className="px-2 py-2 text-left">Item</th>
+                    <th className="px-2 py-2 text-left">Unit</th>
+                    <th className="px-2 py-2 text-left">Supplier</th>
+                    <th className="px-2 py-2 text-left">Invoice</th>
+                    <th className="px-2 py-2 text-right">Ordered</th>
+                    <th className="px-2 py-2 text-right">Billed</th>
+                    <th className="px-2 py-2 text-right">Difference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result?.preview || []).map((r, i) => (
+                    <tr key={`${r.invoice_no}-${r.item_name}-${i}`} className="border-b border-white/5">
+                      <td className="px-2 py-1.5 text-zinc-200">{r.item_name}</td>
+                      <td className="px-2 py-1.5 text-zinc-500">{r.unit}</td>
+                      <td className="px-2 py-1.5 text-zinc-400">{r.supplier}</td>
+                      <td className="px-2 py-1.5 text-zinc-500">{r.invoice_no} · {r.invoice_date}</td>
+                      <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">{money(r.ordered, city)}</td>
+                      <td className="px-2 py-1.5 text-right text-white tabular-nums">{money(r.invoice, city)}</td>
+                      <td className={`px-2 py-1.5 text-right tabular-nums ${
+                        Math.abs(r.diff) < 0.005 ? "text-zinc-600" : r.diff > 0 ? "text-rose-300" : "text-emerald-300"
+                      }`}>
+                        {Math.abs(r.diff) < 0.005 ? "same" : (r.diff > 0 ? "+" : "") + money(r.diff, city)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Needs a person — tap the item it is */}
+      <section id="match-taps" className="scroll-mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="text-sm font-semibold text-white">
+          Invoice names we could not place ({withCands.length})
+        </div>
+        <p className="mt-1 text-sm text-zinc-400">
+          Tap the item each one is. It is remembered per supplier, so the same wording goes through on its
+          own next time — and the price is written straight away.
+          <span className="text-zinc-500">{" "}Only items that supplier actually delivered that week, in the
+          unit they billed, are offered — so every tap here does something.</span>
+        </p>
+        {withCands.length === 0 && (
+          <div className="mt-4 rounded-xl border border-white/8 bg-black/20 px-4 py-6 text-center text-sm text-zinc-500">
+            {busy ? "Reading the invoices…" : "Nothing waiting. Every invoice line either matched or has no delivery to match against."}
+          </div>
+        )}
+        <div className="mt-4 space-y-2">
+          {withCands.map((p) => {
+            const key = `${p.supplier}|${p.invoice_description}`;
+            return (
+              <div key={key} className="rounded-xl border border-white/8 bg-black/20 p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div className="text-sm text-zinc-200">{p.invoice_description}</div>
+                  <div className="text-xs text-zinc-500">
+                    {p.supplier} · {money(p.unit_price, city)} / {p.unit || "—"}
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {p.candidates.map((c) => (
+                    <button
+                      key={c.item_name} type="button"
+                      disabled={rowBusy === key}
+                      onClick={() => void confirmCandidate(p, c.item_name, c.score)}
+                      className="min-h-[38px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200 hover:border-emerald-600/50 hover:bg-emerald-950/30 hover:text-emerald-200 disabled:opacity-40"
+                    >
+                      {c.item_name}
+                      <span className="ml-2 text-[10px] text-zinc-500">
+                        {c.why === "exact" ? "same name" : `${Math.round(c.score * 100)}% of the words`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {noCands.length > 0 && (
+          <div id="match-blocked" className="mt-5 scroll-mt-4 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
+              Nothing to press ({noCands.length}) — and why
+            </div>
+            {REASON_ORDER.filter((r) => (result?.blocked_by?.[r] ?? 0) > 0).map((r) => {
+              const rows = noCands.filter((p) => p.reason === r);
+              return (
+                <details key={r} className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+                  <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-200">
+                    <span className="font-semibold text-zinc-200">{rows.length}</span> {REASON_TEXT[r] || r}
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    {rows.map((p) => (
+                      <div key={`${p.supplier}|${p.invoice_description}`}
+                           className="rounded-lg border border-white/5 bg-black/30 px-3 py-1.5 text-xs">
+                        <div className="flex flex-wrap justify-between gap-2">
+                          <span className="text-zinc-300">{p.invoice_description}</span>
+                          <span className="text-zinc-600">{p.supplier} · {money(p.unit_price, city)} / {p.unit || "—"}</span>
+                        </div>
+                        {p.detail && <div className="mt-0.5 text-[11px] text-zinc-600">{p.detail}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  {REASON_FIX[r] && (
+                    <p className="mt-2 text-[11px] text-zinc-600">{REASON_FIX[r]}</p>
+                  )}
+                </details>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Names you have confirmed — with the way back */}
+      {(result?.aliases?.length ?? 0) > 0 && (
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm font-semibold text-white">Names you have confirmed ({result?.aliases.length})</div>
+          <p className="mt-1 text-xs text-zinc-500">
+            Removing one stops it matching from now on. Prices already written stay where they are — undo those
+            in the list below.
+          </p>
+          <div className="mt-3 space-y-1">
+            {result?.aliases.map((a) => (
+              <div key={`${a.supplier_key}|${a.invoice_description}`}
+                   className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-xs">
+                <span className="text-zinc-300">
+                  {a.invoice_description} <span className="text-zinc-600">=</span> <span className="text-zinc-100">{a.item_name}</span>
+                </span>
+                <span className="flex items-center gap-3 text-zinc-600">
+                  <span>{a.confirmed_by || "—"} · {a.confirmed_at}</span>
+                  <button
+                    type="button" disabled={rowBusy === a.invoice_description}
+                    onClick={() => void undoAlias(a)}
+                    className="text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-rose-300 disabled:opacity-40"
+                  >
+                    Remove
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ⑤ What the billed prices say about the order catalogue (phase 4) */}
+      {evidence && (
+        <section id="match-catalogue" className="scroll-mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="max-w-2xl">
+              <div className="text-sm font-semibold text-white">
+                What these prices say about the order catalogue
+              </div>
+              <p className="mt-1 text-sm text-zinc-400">
+                Every order screen quotes the catalogue. A price confirmed against a delivery is the
+                only thing that can tell you whether that quote is still true &mdash; and unlike tab ③,
+                it reaches items the invoices never name.
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2.5 text-right">
+              <div className="text-[10px] uppercase tracking-widest text-zinc-500">Catalogue rows with a delivery behind them</div>
+              <div className="mt-0.5 text-lg font-semibold text-white">
+                {evidence.evidenced} <span className="text-sm font-normal text-zinc-500">of {evidence.catalog_total.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {evidence.differs.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-widest text-rose-400/80">
+                The catalogue is wrong ({evidence.differs.length})
+              </div>
+              {evidence.differs.map((r) => {
+                const done = r.catalog_id ? fixedCat[r.catalog_id] : undefined;
+                return (
+                  <div key={r.catalog_id || r.item_name}
+                       className="rounded-xl border border-rose-800/30 bg-rose-950/10 p-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <div className="text-sm text-zinc-100">{r.item_name}</div>
+                      <div className="text-xs text-zinc-500">
+                        {/* ⚠️ 提示額が何から出たかを書く。`deliveries` は確定行の総数なので、
+                            「12 deliveries」の隣に3日ぶんの額が出ていた。 */}
+                        {r.supplier} · priced from {r.dates_used} delivery date
+                        {r.dates_used === 1 ? "" : "s"}
+                        {r.deliveries > r.dates_used ? ` of ${r.deliveries} lines` : ""}
+                        {r.dates_disputed > 0
+                          ? `, ${r.dates_disputed} date${r.dates_disputed === 1 ? "" : "s"} skipped (two prices)`
+                          : ""}
+                        {r.last_delivery ? `, last ${r.last_delivery}` : ""}
+                      </div>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
+                      <span className="text-zinc-400">
+                        catalogue <span className="tabular-nums text-zinc-300">{money(r.catalog_price, city)}</span>
+                        {" / "}{r.catalog_unit || r.unit}
+                      </span>
+                      <span className="text-zinc-600">→</span>
+                      <span className="text-rose-200">
+                        billed <span className="tabular-nums">{money(r.billed, city)}</span>
+                        {r.diff_pct !== null && r.diff_pct !== undefined
+                          ? ` (${r.diff_pct > 0 ? "+" : ""}${r.diff_pct}%)` : ""}
+                      </span>
+                      {r.detail && <span className="text-zinc-500">{r.detail}</span>}
+                      <span className="ml-auto">
+                        {done ? (
+                          <span className="text-emerald-300">
+                            updated {money(done.before, city)} → {money(done.after, city)}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={rowBusy === r.catalog_id || !pin.trim() || !requestedBy.trim()}
+                            onClick={() => void fixCatalog(r)}
+                            // PIN が空のまま押せると、押した先で「PIN is required
+                            // (procurement.config.write)」という内部キー入りの
+                            // 文言に当たる。押せなくして、理由をその場に書く。
+                            title={!pin.trim() || !requestedBy.trim()
+                              ? "Fill in Approver and PIN at the top of the page first"
+                              : undefined}
+                            className="min-h-[38px] rounded-lg border border-rose-600/50 bg-rose-900/25 px-3 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-900/45 disabled:opacity-40"
+                          >
+                            Set catalogue to {money(r.billed, city)}
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-[11px] text-zinc-600">
+                Changing a catalogue price needs your Approver and PIN at the top of the page &mdash; the same
+                permission and the same audit trail as tab ③. It does not touch any order already raised.
+                {(!pin.trim() || !requestedBy.trim()) && (
+                  <span className="text-amber-400/90">
+                    {" "}The buttons are off until those two boxes are filled in.
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+
+          {evidence.agrees.length > 0 && (
+            <details className="mt-4 rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+              <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-200">
+                <span className="font-semibold text-emerald-300">{evidence.agrees.length}</span>{" "}
+                catalogue price{evidence.agrees.length === 1 ? " is" : "s are"} confirmed by a delivery
+              </summary>
+              <div className="mt-2 space-y-1">
+                {evidence.agrees.map((r) => (
+                  <div key={r.catalog_id || r.item_name}
+                       className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/5 bg-black/30 px-3 py-1.5 text-xs">
+                    <span className="text-zinc-300">{r.item_name}</span>
+                    <span className="flex items-center gap-3 text-zinc-500">
+                      <span className="tabular-nums">
+                        {money(r.catalog_price, city)} / {r.catalog_unit || r.unit}
+                      </span>
+                      {r.detail
+                        ? <span className="text-amber-300/80">billed {money(r.billed, city)} &mdash; {r.detail}</span>
+                        : <span className="text-emerald-400/70">billed the same</span>}
+                      <span className="text-zinc-600">
+                        {r.dates_used} date{r.dates_used === 1 ? "" : "s"}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-zinc-600">
+                Anything inside {evidence.threshold_pct}% counts as confirmed, the same line tab ③ draws.
+                The billed figure is shown for each one, so a gap you disagree with is visible rather than
+                hidden behind the word &ldquo;confirmed&rdquo;.
+              </p>
+            </details>
+          )}
+
+          {evidence.blocked.length > 0 && (
+            <details className="mt-2 rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+              <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-200">
+                <span className="font-semibold text-zinc-200">{evidence.blocked.length}</span>{" "}
+                billed price{evidence.blocked.length === 1 ? "" : "s"} that cannot correct a
+                catalogue row yet
+              </summary>
+              <div className="mt-2 space-y-1">
+                {evidence.blocked.map((r) => (
+                  <div key={`${r.item_name}|${r.supplier}|${r.unit}`}
+                       className="rounded-lg border border-white/5 bg-black/30 px-3 py-1.5 text-xs">
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <span className="text-zinc-300">{r.item_name}</span>
+                      <span className="text-zinc-600">
+                        {r.supplier} · {r.billed === null ? "price not settled" : money(r.billed, city)}
+                        {" / "}{r.unit || "—"}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-zinc-600">
+                      {EVIDENCE_BLOCK_TEXT[r.reason] || r.reason}{r.detail ? ` — ${r.detail}` : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {evidence.differs.length === 0 && evidence.agrees.length === 0 && evidence.blocked.length === 0 && (
+            <div className="mt-4 rounded-xl border border-white/8 bg-black/20 px-4 py-6 text-center text-sm text-zinc-500">
+              No delivery has a confirmed price yet, so nothing can be said about the catalogue.
+              Confirm some prices above and this fills in.
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Written — the undo lives here, and it stays here */}
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="text-sm font-semibold text-white">Lines carrying an invoice price ({matched.length})</div>
+        {matched.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-white/8 bg-black/20 px-4 py-6 text-center text-sm text-zinc-500">
+            None yet. Everything in cost is still reading the price the catalogue had on the day the order was raised.
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[760px] text-xs">
+              <thead className="text-[10px] uppercase tracking-widest text-zinc-500">
+                <tr className="border-b border-white/10">
+                  <th className="px-2 py-2 text-left">Item</th>
+                  <th className="px-2 py-2 text-left">Unit</th>
+                  <th className="px-2 py-2 text-left">Supplier</th>
+                  <th className="px-2 py-2 text-left">Delivered</th>
+                  <th className="px-2 py-2 text-right">Ordered</th>
+                  <th className="px-2 py-2 text-right">Billed</th>
+                  <th className="px-2 py-2 text-left">Confirmed</th>
+                  <th className="px-2 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {matched.map((r) => (
+                  <tr key={r.id} className="border-b border-white/5">
+                    <td className="px-2 py-1.5 text-zinc-200">{r.item_name}</td>
+                    <td className="px-2 py-1.5 text-zinc-500">{r.unit}</td>
+                    <td className="px-2 py-1.5 text-zinc-400">{r.vendor_name}</td>
+                    <td className="px-2 py-1.5 text-zinc-500">{r.delivery_date || "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-zinc-400 tabular-nums">{money(r.ordered_price, city)}</td>
+                    <td className="px-2 py-1.5 text-right text-white tabular-nums">{money(r.invoice_price, city)}</td>
+                    <td className="px-2 py-1.5 text-zinc-600">
+                      {r.price_confirmed_by || "—"}{r.price_confirmed_at ? ` · ${r.price_confirmed_at}` : ""}
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
+                      <button
+                        type="button" disabled={rowBusy === r.id}
+                        onClick={() => void undoPrice(r)}
+                        className="text-zinc-500 underline decoration-dotted underline-offset-4 hover:text-rose-300 disabled:opacity-40"
+                      >
+                        Undo
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────────────────
 
-type ActiveTab = "variance" | "changes" | "catalog";
+type ActiveTab = "variance" | "changes" | "catalog" | "match";
 
 export default function ProcurementPriceChecksPage() {
   const auth = useMemo(() => getAuth(), []);
@@ -1492,6 +2326,18 @@ export default function ProcurementPriceChecksPage() {
             <TriangleAlert className={`h-4 w-4 ${activeTab === "catalog" ? "text-amber-400" : "text-zinc-500"}`} />
             ③ Catalogue vs Invoices
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("match")}
+            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+              activeTab === "match"
+                ? "border-emerald-600/60 bg-emerald-900/30 text-emerald-200 shadow-[0_0_12px_rgba(5,150,105,0.15)]"
+                : "border-white/8 bg-white/5 text-zinc-400 hover:border-emerald-800/40 hover:bg-emerald-950/20 hover:text-emerald-300"
+            }`}
+          >
+            <Receipt className={`h-4 w-4 ${activeTab === "match" ? "text-emerald-400" : "text-zinc-500"}`} />
+            ④ Invoice → Receiving
+          </button>
         </div>
       </section>
 
@@ -1503,6 +2349,9 @@ export default function ProcurementPriceChecksPage() {
       )}
       {activeTab === "catalog" && (
         <CatalogDriftTab key={`catalog-${city}`} city={city} requestedBy={requestedBy} pin={pin} />
+      )}
+      {activeTab === "match" && (
+        <InvoiceMatchTab key={`match-${city}`} city={city} requestedBy={requestedBy} pin={pin} />
       )}
     </div>
   );
