@@ -983,11 +983,19 @@ export default function AdminOvertimePage() {
           </p>
           <p className="mt-1.5 text-[11px] text-zinc-500">
             <span className="text-zinc-400">How busy</span> compares that day&apos;s orders,
-            and the people rostered across the overtime hours, against the same weekday at
-            the same branch over the previous 9 weeks. Green is a night at least 15% busier
-            than usual; amber is an ordinary night, and says so more firmly when the branch
-            was also fully staffed. Tap a badge for the numbers. It is there to inform the
-            decision, not to make it — nothing is blocked or rejected by it.
+            and the people rostered across the overtime hours, against{" "}
+            <span className="text-zinc-400">the same weekday last week</span> at the same
+            branch. Green is a night at least 15% busier than that; amber is an ordinary
+            night, and says so more firmly when the branch was also fully staffed. Tap a
+            badge for the numbers. It is there to inform the decision, not to make it —
+            nothing is blocked or rejected by it.
+          </p>
+          <p className="mt-1.5 text-[11px] text-zinc-500">
+            One week is a single night to be measured against, so a heavy week makes the
+            next one look ordinary. Measured over 40 Dubai nights, the verdict moves on 12
+            of them and nearly always that way: Business Bay on 18 September did 144 orders
+            against 104 over nine weeks, and 137 the week before. Read amber as &quot;not
+            unusual for a recent night&quot;, not as &quot;quiet&quot;.
           </p>
         </div>
 
