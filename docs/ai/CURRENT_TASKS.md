@@ -1,5 +1,44 @@
 # CURRENT_TASKS.md
 
+## 2026-09-29 — UAE祝日を給与に接続 / 休憩超過の誤課金を停止（ドバイ）
+
+**きっかけ**: ドバイの給与担当から「Jessica の休憩超過 AED 24.65 は1時間分を上限にすべきか」
+＋「8/28 は祝日だったので祝日手当が要る」。**2つとも金額ではなく判定の問題だった。**
+
+**実装**（`f0366304`）
+- `app/ae_holidays.py` — 祝日判定を1箇所に。ドバイのDTR同期がここを読む
+  （それまで `ordinary_day` / `rest_day` しか書けず、`public_holiday` は手入力の1日のみ）
+- エンジンに祝日割増（Federal Decree-Law 33/2021 §28 の50%）。
+  代休を選ぶ場合は `DUBAI_HOLIDAY_PREMIUM_RATE=0` でデプロイ不要に停止
+- 同期の応答に「まだ推定の祝日」を出す（`is_approximate` の確定漏れを防ぐ）
+- 休憩超過: 出勤の1分以内に始まる／退勤の1分以内に終わる休憩は課金しない
+  （SAVEPOINTで囲い、判定できなければ従来どおり課金）
+- `tests/test_ae_holidays.py` 7件
+
+**データ修正**
+- `ae_holiday_calendar` 2026-08-25 → **2026-08-28**（MOHRE公示・`is_approximate=FALSE`）。
+  退避 `_ae_holiday_bk_20260929`
+- `dubai_attendance_daily` 8/28 の53行を `public_holiday` に。退避 `_dubai_dtr_bk_20260929_holiday`
+- サイクル41（8/26〜9/25・open）を再計算。退避 `_dubai_adj_bk_20260929_c41`（879行）
+
+**結果**（オーナー決定: ②その日の賃金＋Basic Wageの50%）
+
+| subtype | 前 | 後 |
+|---|---|---|
+| public_holiday_premium | 0件 | **46件 AED 2,014.79** |
+| break_excess | 5件 176.60 | **1件 2.29**（−174.31） |
+| night_premium | 688件 2,278.98 | 667件 2,207.46（8/28分は祝日割増に置換） |
+
+純額（加算−控除）AED −5,035.55 → **−2,917.97**（+2,117.58）。他のsubtypeは不変。
+
+⚠️ **8名はエンジンでは処理できず手動で追加**（`source='manual'`・計 AED 398.53）:
+時給契約6名は**8月サイクルが 8/31 まで既に精算済み**でサイクル41の対象外、
+Christian Baria と Shushma Kumari は 9/26 に給与設定が無効化済み。8月サイクル(38)は closed。
+
+**未了**: ①`payroll_salary_configs` が無効なのに `staff_master` が ACTIVE の4名
+（Shushma / Christian / Yogesh Bashyal / Sanjeev Bahadur Malla）②2027年の祝日8件が推定のまま
+
+---
 ## 2026-09-29 — 9月2H の一括OT（店舗側）を取り消し
 
 **経緯**: 9/28 に「8時間を超えて打刻された時間」を一括でOT申請化し承認・支払い扱いにした
