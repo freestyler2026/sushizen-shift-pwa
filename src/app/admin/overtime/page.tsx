@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, Banknote, CheckCircle, Clock, Download, FilePlus2, UserCheck, XCircle } from "lucide-react";
 import { getAuth, hasRouteAccess, refreshAuthFromApi } from "@/lib/auth";
 import { otWindow } from "@/lib/ot-window";
+import { OT_CAUSES, OT_CAUSE_LABELS as CAUSE_LABELS, AVOIDABLE_CAUSES } from "@/lib/ot-causes";
 import { BRANCHES } from "@/lib/branches";
 import SelectDark from "@/components/SelectDark";
 import ModalScrim, { BodyScrollLock } from "@/components/ModalScrim";
@@ -223,19 +224,6 @@ function ContextCell({ c }: { c?: OtContext }) {
   );
 }
 
-const CAUSE_LABELS: Record<string, string> = {
-  orders: "More orders",
-  short_staffed: "Short-staffed",
-  equipment: "Equipment",
-  delivery: "Delivery / stock",
-  closing: "Closing ran long",
-  deadline: "A deadline",
-  prep_unfinished: "Prep not finished",
-  carry_over: "Earlier shift's work",
-};
-/** The two that point at how the shift was run, not at what happened to it.
- *  Marked so the pattern is visible; it decides nothing by itself. */
-const AVOIDABLE_CAUSES = new Set(["prep_unfinished", "carry_over"]);
 
 /**
  * When the request actually arrived, relative to the overtime starting.
@@ -426,18 +414,6 @@ function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) 
 const REVIEWER_ROLES = new Set(["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER", "HR_MANAGER"]);
 const STAGE1_ROLES   = new Set(["ADMIN", "HQ", "MANILA_MANAGEMENT", "HR_MANAGER"]);
 const STAGE2_ROLES   = new Set(["ADMIN", "HQ"]);
-/** Why it happened. Mirrors OT_CAUSES on the server and the chips staff see. */
-const CAUSES: { code: string; label: string }[] = [
-  { code: "orders", label: "More orders than expected" },
-  { code: "short_staffed", label: "Someone was absent or we were short" },
-  { code: "equipment", label: "Equipment or system problem" },
-  { code: "delivery", label: "A delivery, stock count or transfer" },
-  { code: "closing", label: "Closing or cleaning ran long" },
-  { code: "deadline", label: "A deadline — payroll, orders, reports" },
-  { code: "prep_unfinished", label: "The prep was not finished in time" },
-  { code: "carry_over", label: "Finishing what the earlier shift left" },
-];
-
 /** "17:30" to hours from midnight. */
 function hourFromTime(t: string): number {
   const [hh, mm] = t.split(":").map(Number);
@@ -539,9 +515,15 @@ function WorkloadCell({ w }: { w?: Workload }) {
  * reason, because that is where a reviewer looking at the row is already
  * reading.
  */
-function DecisionNotes({ r, onCloseDispute }: {
+function DecisionNotes({ r, onCloseDispute, mayAnswer }: {
   r: OTRequest;
   onCloseDispute: (id: string) => void;
+  /** Whether this reader can act on the request. "Mark as read" tells the
+   *  employee their note was seen and puts a name on it, so it belongs to
+   *  whoever can then do something about it — not to everyone who can open
+   *  the page, which since 2026-09-30 includes holders of the view
+   *  permission alone. */
+  mayAnswer: boolean;
 }) {
   const ground = REJECT_REASONS.find((x) => x.code === r.review_reason_code);
   const open = r.disputed_at && !r.dispute_closed_at;
@@ -589,13 +571,15 @@ function DecisionNotes({ r, onCloseDispute }: {
         <span className="mt-1 block rounded-md border border-amber-500/40 bg-amber-900/25 px-2 py-1 text-[11px] text-amber-200">
           <span className="font-medium">They say the clock is wrong:</span>{" "}
           {r.dispute_note}
-          <button
-            type="button"
-            onClick={() => onCloseDispute(r.id)}
-            className="ml-2 underline underline-offset-2 hover:text-amber-100"
-          >
-            Mark as read
-          </button>
+          {mayAnswer && (
+            <button
+              type="button"
+              onClick={() => onCloseDispute(r.id)}
+              className="ml-2 underline underline-offset-2 hover:text-amber-100"
+            >
+              Mark as read
+            </button>
+          )}
         </span>
       )}
     </>
@@ -682,8 +666,20 @@ export default function AdminOvertimePage() {
   const [lateDone, setLateDone] = useState("");
   const [staffNames, setStaffNames] = useState<string[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
+  /* The periods list comes from the payroll channel, which MANAGER and
+     DUBAI_MANAGEMENT do not hold while still being able to record late
+     overtime. Swallowing that refusal would draw the same screen as a
+     fortnight that is open, so the two are told apart (lesson 58). */
+  const [periodsBlocked, setPeriodsBlocked] = useState(false);
 
+  /* Changing a filter starts a fetch and leaves the one in flight running. The
+     older answer can land second and fill the table with rows the selector no
+     longer describes — visible when the filters are set for you, as they are
+     after recording a late entry. Only the newest response is allowed to
+     write. */
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError("");
     try {
@@ -697,12 +693,14 @@ export default function AdminOvertimePage() {
         cache: "no-store",
       });
       const data = await res.json();
+      if (seq !== loadSeq.current) return;   // a newer load is already running
       if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
       setRequests(data.requests ?? []);
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       setError(e instanceof Error ? e.message : "Load failed");
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [tokenHeaders, apiBase, city, filterBranch, filterStatus, filterMonth]);
 
@@ -727,8 +725,10 @@ export default function AdminOvertimePage() {
         const r = await fetch(`/api/admin/manila-payroll/periods?limit=24`,
           { headers: new Headers(headers), cache: "no-store" });
         const d = await r.json().catch(() => []);
-        if (!cancelled && r.ok && Array.isArray(d)) setPeriods(d as Period[]);
-      } catch { /* the server refuses a paid period anyway */ }
+        if (cancelled) return;
+        if (r.ok && Array.isArray(d)) { setPeriods(d as Period[]); setPeriodsBlocked(false); }
+        else setPeriodsBlocked(true);
+      } catch { if (!cancelled) setPeriodsBlocked(true); }
     })();
     return () => { cancelled = true; };
   }, [lateOpen, city, tokenHeaders]);
@@ -803,6 +803,7 @@ export default function AdminOvertimePage() {
       // would be confirmed and then not be anywhere on the screen.
       const month = lateDate.slice(0, 7);
       setLateStaff(""); setLateDate(""); setLateReason(""); setLateWhy(""); setLateCauses([]);
+      setLateBranch("");
       setFilterStatus(""); setFilterBranch(""); setFilterMonth(month);
       await load();
     } catch {
@@ -1272,7 +1273,7 @@ export default function AdminOvertimePage() {
                       <LateThatDay r={r} />
                     </div>
                     <p className="text-sm text-white/70">{r.reason}</p>
-                    <DecisionNotes r={r} onCloseDispute={closeDispute} />
+                    <DecisionNotes r={r} onCloseDispute={closeDispute} mayAnswer={canStage1 || canLateEntry} />
                     <WorkloadCell w={r.workload} />
                     <ContextCell c={r.ot_context} />
                     {r.manager_approved_by && (
@@ -1389,7 +1390,7 @@ export default function AdminOvertimePage() {
                           {r.paid_by && (
                             <span className="block text-green-400 text-xs mt-0.5">💳 {r.paid_by}</span>
                           )}
-                          <DecisionNotes r={r} onCloseDispute={closeDispute} />
+                          <DecisionNotes r={r} onCloseDispute={closeDispute} mayAnswer={canStage1 || canLateEntry} />
                         </td>
                         <td className={TABLE_CELL}>
                           <WorkloadCell w={r.workload} />
@@ -1857,6 +1858,13 @@ export default function AdminOvertimePage() {
                 is worth more than yours.
               </p>
             )}
+            {city === "manila" && lateDate && periodsBlocked && (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-900/25 px-3 py-2 text-xs text-amber-200">
+                Could not check whether that fortnight has already been paid — this
+                account cannot read the payroll periods. Record it anyway; if it is
+                settled, Add to Payroll will refuse it and say so.
+              </p>
+            )}
             {latePeriod() && String(latePeriod()?.status).toLowerCase() === "paid" && (
               <p className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
                 {latePeriod()?.period_label} has already been paid, so these hours
@@ -1868,7 +1876,7 @@ export default function AdminOvertimePage() {
             <div>
               <span className={T_LABEL}>Why it happened</span>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {CAUSES.map((c) => {
+                {OT_CAUSES.map((c) => {
                   const on = lateCauses.includes(c.code);
                   return (
                     <button
@@ -1882,7 +1890,7 @@ export default function AdminOvertimePage() {
                         : "border-white/15 bg-white/5 text-white/60 hover:text-white/90"}`}
                       aria-pressed={on}
                     >
-                      {c.label}
+                      {c.prompt}
                     </button>
                   );
                 })}
