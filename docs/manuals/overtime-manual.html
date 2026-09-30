@@ -1079,10 +1079,10 @@ then add it.</pre>
     <div class="hero-icon">⏳</div>
     <div>
       <div class="section-title"><span class="ja">48時間を過ぎた残業を記録する</span><span class="en">Recording overtime past the 48-hour window</span></div>
-      <div class="section-path">Overtime Requests → Late entry</div>
+      <div class="section-path">Overtime Management → Record late OT</div>
       <div class="section-desc">
-        <span class="ja">申請の窓が閉じた後でも、働いた時間を記録する唯一の道。HQ / Admin と <span class="ui">overtime.manage</span> を持つ人だけが使えます。</span>
-        <span class="en">The one way to record hours after the submission window has shut. HQ / Admin and holders of <span class="ui">overtime.manage</span> only.</span>
+        <span class="ja">申請の窓が閉じた後でも、働いた時間を記録する唯一の道。画面右上の <span class="ui">Record late OT</span> から。HQ / Admin / Manager / 各 Management と、<span class="ui">overtime.manage</span> を持つ人が使えます。</span>
+        <span class="en">The one way to record hours after the submission window has shut — the <span class="ui">Record late OT</span> button at the top of the page. HQ, Admin, Manager and the city management roles, plus anyone holding <span class="ui">overtime.manage</span>.</span>
       </div>
     </div>
   </div>
@@ -1104,6 +1104,8 @@ then add it.</pre>
       <span class="en">The staff form <strong>refuses a work date older than two days</strong>, so that a claim is made while the day is still fresh. That stays.</span></p>
     <p><span class="ja">ただし、それがリクエストを作る<strong>唯一の経路</strong>でした。窓が閉じた後は HR も HQ も記録できず、<strong>実際に働いた時間が支払えない</strong>状態になっていました。2026-09-26 に Cyrine から報告があり、この例外経路を作りました。</span>
       <span class="en">But it was the <strong>only</strong> path that created a request. Once the window shut, neither HR nor HQ could record anything, and <strong>hours that were genuinely worked simply could not be paid</strong>. Reported by Cyrine on 2026-09-26; this exception was built beside the window.</span></p>
+    <p><span class="ja"><strong>2026-09-30 まで、この経路にボタンがありませんでした。</strong>サーバー側は 9/26 から受け付けていたのに、どの画面からも呼んでいなかったため、探しても見つからなかったのは正しい観察です。同日、Overtime Management の <span class="ui">Record late OT</span> として画面に出しました。</span>
+      <span class="en"><strong>Until 2026-09-30 this route had no button.</strong> The server had accepted it since the 26th and no screen called it, so anyone who went looking and could not find it was right. It is now <span class="ui">Record late OT</span> on Overtime Management.</span></p>
   </div>
 
   <h3 class="sub"><span class="ja">手順</span><span class="en">How to use it</span></h3>
@@ -1143,6 +1145,9 @@ then add it.</pre>
         <tr><td><span class="ja">未来の日付</span><span class="en">A future date</span></td><td><span class="ja">拒否</span><span class="en">Refused</span></td></tr>
         <tr><td><span class="ja">理由が10文字未満、または空</span><span class="en">A reason under ten characters, or blank</span></td><td><span class="ja">拒否</span><span class="en">Refused</span></td></tr>
         <tr><td><span class="ja">開始と終了が同じ時刻</span><span class="en">Identical start and end</span></td><td><span class="ja">拒否</span><span class="en">Refused</span></td></tr>
+        <tr><td><span class="ja">支払い済みの給与期間に入る日付</span><span class="en">A date inside a payroll period already paid</span></td>
+            <td><span class="ja">記録はできますが、<strong>Add to Payroll で止まります</strong>（その期間はもう書き換えません）。フォームは日付を選んだ時点でそう表示します。まだ開いている期間で支払ってください — 本人の明細に訂正として出ます。</span>
+              <span class="en">It can be recorded, but <strong>Add to Payroll refuses it</strong> — a fortnight already paid is not rewritten. The form says so as soon as the date is picked. Pay it in the period that is still open, where the staff member sees it as a correction.</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -1175,8 +1180,8 @@ then add it.</pre>
 
   <div class="card">
     <div class="card-title"><span class="ja">Add to Payroll が拒否される</span><span class="en">Add to Payroll is refused</span></div>
-    <p><span class="ja">その日を含む給与期間がまだありません。Manila Payroll で期間を作ってから追加してください。</span>
-      <span class="en">No payroll period covers that day yet. Create it under Manila Payroll, then add.</span></p>
+    <p><span class="ja"><strong>理由は2つあります。</strong>①その日を含む給与期間がまだ作られていない ── Manila Payroll で期間を作ってから追加してください。②その期間が<strong>すでに支払い済み</strong> ── 支払った明細は書き換えません。まだ開いている期間で支払ってください。本人の明細には訂正として出ます。</span>
+      <span class="en"><strong>Two reasons.</strong> Either no payroll period covers that day — create it under Manila Payroll, then add — or <strong>that period has already been paid</strong>, and a payslip people have in hand is not rewritten. Pay it in the period that is still open, where the staff member sees it as a correction.</span></p>
   </div>
 
   <div class="card">

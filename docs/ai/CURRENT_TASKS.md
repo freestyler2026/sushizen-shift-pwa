@@ -1,5 +1,32 @@
 # CURRENT_TASKS.md
 
+## 2026-09-30 — 48時間を過ぎた残業に画面をつけ、支払い済み期間への追加を止めた
+
+Marithel からの質問2つ（①PICが確認済みの残業をどう申請するか ②締め後でも申請できるか）。
+**①の経路は 9/26 から存在していたが、ボタンが無かった。** `grep -rn "late-entry" src/` が
+**0件**。しかも overtime-manual.html に導線を `Overtime Requests → Late entry` と印刷していた。
+
+| 直したもの | 場所 |
+|---|---|
+| `Record late OT`（Overtime Management 右上・モーダル） | `src/app/admin/overtime/page.tsx` |
+| ページガードがロール名だけ → 権限でも通す | 同上（`hasRouteAccess("/admin/overtime")`） |
+| `mark-paid` が支払い済み期間を受け入れていた → 409 | `app/main.py`（`paid_period_guard.refusal`、**書き込みの前**） |
+| マニュアル（導線・支払い済み期間の拒否・Trouble） | `docs/manuals/overtime-manual.html` v15 |
+
+- **支払い済み期間への追加は、前日の私のガードで「無言」になっていた。** status は paid になり
+  本人に「この期間で支払われます」と通知が飛び、DTRには1行も書かれない。
+- **却下は終端。** `review_overtime_request` は `pending/manager_approved` しか更新しないので、
+  一括取り消しで rejected になった行は戻せない。**late-entry で新しい行を作るのが唯一の道**
+  （同期は `status='paid'` のみ合計するので二重計上にならない — 本番で確認）。
+- 対象の2件はどちらも **9/16・期間8（9/11〜9/25・draft）** なので、**今回の給与で払える**。
+  - Cherish Mapolon Galarosa（PAR・181分・閉めPICは Karen Borja）
+  - Reymar Contillo（TAFT・121分・閉めPICは Junowel Trespecios）
+  - **申請は HR が行う**（PICの確認を持っているのは現場側）。
+- `channel.admin.overtime.manage` の保有者は **Camilla 1名のみ**。Marithel / Cyrine / Peter は
+  ロール名で通る。
+- テスト: 前 `tests/admin/overtime-late-entry.test.tsx`（5件）/ 後 `tests/test_paid_period_guard.py`（13件）。
+- 検証: 本番で `refusal()` を読み取りのみ実行（9/16→通る・9/05→拒否）。配信チャンクで確認済み。
+
 ## 2026-09-30 — 8月の残業3件を承認し、9月2Hに繰り越して支払い
 
 **経緯**: マニラの給与担当から3件の指摘。調査の結果 ①Cherish/Reymar は不具合ではなく
