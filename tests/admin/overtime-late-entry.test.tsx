@@ -79,6 +79,16 @@ describe("recording overtime the window has closed on", () => {
     await waitFor(() => expect(screen.queryByText(/Access denied/)).toBeNull());
   });
 
+  it("lets in a manage-only holder, who is someone the server accepts", async () => {
+    // Role Management grants view and manage separately. Ticking only manage
+    // means "can act here", and the server agrees -- so the page must not be
+    // the thing that refuses them.
+    mockGetAuth.mockReturnValue({ ...HR_STAFF, permissions: ["channel.admin.overtime.manage"] });
+    render(<Page />);
+    await waitFor(() => expect(screen.getByText("Record late OT")).toBeTruthy());
+    expect(screen.queryByText(/Access denied/)).toBeNull();
+  });
+
   it("still refuses someone with neither the role nor the permission", async () => {
     mockGetAuth.mockReturnValue(NO_ACCESS);
     render(<Page />);
@@ -109,6 +119,25 @@ describe("recording overtime the window has closed on", () => {
       expect(body.ot_end_hour).toBe(25);   // 01:00 the next morning
       expect(body.city).toBe("manila");
       expect(body.late_entry_reason.length).toBeGreaterThanOrEqual(10);
+    });
+  });
+
+  it("shows the month the hours belong to, not the month we are standing in", async () => {
+    // The list is filtered by month. A September entry filed in October would
+    // be confirmed and then be nowhere on the screen.
+    await openTheForm();
+    fireEvent.change(screen.getByLabelText("Who worked the hours"), { target: { value: "Reymar Contillo" } });
+    fireEvent.change(screen.getByLabelText("Date worked"), { target: { value: "2026-08-16" } });
+    fireEvent.change(screen.getByLabelText("Overtime started"), { target: { value: "22:00" } });
+    fireEvent.change(screen.getByLabelText("Overtime ended"), { target: { value: "23:00" } });
+    fireEvent.change(screen.getByLabelText("What the overtime was for"), { target: { value: "Closing ran long." } });
+    fireEvent.change(screen.getByLabelText("Why it is being entered now"), { target: { value: "Raised with HR afterwards." } });
+    const { chooseValue } = await import("#tests/select-dark");
+    chooseValue("— Select —", "TAFT");
+    fireEvent.click(screen.getByText("Record as pending"));
+    await waitFor(() => {
+      const lists = mockFetch.mock.calls.filter((c) => String(c[0]).includes("/overtime/list"));
+      expect(String(lists[lists.length - 1][0])).toContain("month=2026-08");
     });
   });
 

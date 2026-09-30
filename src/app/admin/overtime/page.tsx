@@ -798,8 +798,12 @@ export default function AdminOvertimePage() {
       setLateDone(`${lateStaff.trim()} — ${lateDate}, ${formatMinutes(mins)} recorded as pending. `
         + `It still needs Approve, then Add to Payroll.`);
       setLateOpen(false);
+      // Show the month the hours belong to, not the month we are standing in.
+      // The list is filtered by month, so a September entry filed in October
+      // would be confirmed and then not be anywhere on the screen.
+      const month = lateDate.slice(0, 7);
       setLateStaff(""); setLateDate(""); setLateReason(""); setLateWhy(""); setLateCauses([]);
-      setFilterStatus(""); 
+      setFilterStatus(""); setFilterBranch(""); setFilterMonth(month);
       await load();
     } catch {
       setLateError("Could not reach the server — nothing was saved.");
@@ -1053,7 +1057,10 @@ export default function AdminOvertimePage() {
   // gave this to: channel.admin.overtime.manage is held by a single HR Staff
   // account, whose role is not on the list, and the server accepts her. Keep
   // the list and let the permission open the same door (lesson 25).
-  if (!auth || (!REVIEWER_ROLES.has(auth.role ?? "") && !hasRouteAccess("/admin/overtime", auth))) {
+  // canLateEntry is the server's own test (role, or the manage permission), so
+  // nobody the server accepts is refused the screen. hasRouteAccess adds the
+  // view permission, which is what Role Management hands out for reading.
+  if (!auth || (!canLateEntry && !hasRouteAccess("/admin/overtime", auth))) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-white/60">Access denied — Manager or above required.</p>
@@ -1769,7 +1776,6 @@ export default function AdminOvertimePage() {
           nights, and there was no screen anywhere that could take them. */}
       {lateOpen && (
         <ModalScrim className="z-[80] bg-black/60 backdrop-blur-sm">
-          <BodyScrollLock />
           <div className={`${GLASS_CARD} mx-auto my-4 w-full sm:max-w-lg space-y-4 p-4 sm:p-6`}>
             <div>
               <h3 className={T_SECTION}>Record late overtime</h3>
