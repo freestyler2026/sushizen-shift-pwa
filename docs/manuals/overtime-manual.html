@@ -973,8 +973,8 @@ Approve 0h40m as asked</pre>
   <div class="tip info">
     <span class="tip-icon">👥</span>
     <div>
-      <span class="ja">Approve できるのは ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER、および <strong>Role Management で <code>channel.admin.overtime.manage</code> を付与されたロール</strong>です。2026-09-01 に <strong>DUBAI_MANAGEMENT を追加</strong>しました（それまでマニラのマネジメントはドバイのOTを承認できるのに、ドバイのマネジメントはできない状態でした）。Add to Payroll は HQ / ADMIN のみ。<strong>承認する人と、給与に入れる人は分けてあります。</strong></span>
-      <span class="en">Approving is for ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER, plus any role granted <code>channel.admin.overtime.manage</code> in Role Management. DUBAI_MANAGEMENT was added on 2026-09-01 — until then Manila management could confirm Dubai overtime while Dubai management could not. Adding to payroll is HQ / ADMIN only.</span>
+      <span class="ja">Approve できるのは ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER、および <strong>Role Management で <code>channel.admin.overtime.manage</code> を付与されたロール</strong>です。2026-09-01 に <strong>DUBAI_MANAGEMENT を追加</strong>しました（それまでマニラのマネジメントはドバイのOTを承認できるのに、ドバイのマネジメントはできない状態でした）。Add to Payroll は <strong>HQ / ADMIN / HR Manager</strong> の3ロールのみで、<strong>権限では開きません</strong>（2026-09-30 オーナー決定）。それまでは <code>channel.admin.overtime.manage</code> でも通ったため、DUBAI_MANAGEMENT が既定で支払い操作を持っていました（画面にはボタンが出ていなかったので誰も気づいていません）。<strong>承認する人と、給与に入れる人は分けてあります。</strong></span>
+      <span class="en">Approving is for ADMIN / HQ / MANILA_MANAGEMENT / HR_MANAGER, plus any role granted <code>channel.admin.overtime.manage</code> in Role Management. DUBAI_MANAGEMENT was added on 2026-09-01 — until then Manila management could confirm Dubai overtime while Dubai management could not. Adding to payroll is <strong>HQ, Admin and the HR Manager</strong>, by role only — <strong>no permission opens it</strong> (owner decision, 2026-09-30). Until then <code>channel.admin.overtime.manage</code> opened it too, which gave DUBAI_MANAGEMENT the paying step by default while the screen drew them no button.</span>
     </div>
   </div>
 </div>

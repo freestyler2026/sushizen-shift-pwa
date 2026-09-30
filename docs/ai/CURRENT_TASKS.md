@@ -17,6 +17,21 @@
 | 6 | 保存後に**支店だけ残る** → 2件目が前の店舗になる／**月フィルタが古いまま**で新しい行が画面から消える | 全フィルタを入力に追従。`load()` に順序ガード |
 | 7 | 原因コードが**3か所にコピー**（1つは私が作った） | `src/lib/ot-causes.ts` 1本。**サーバの `OT_CAUSES` と avoidable フラグまで突き合わせるテスト**付き |
 
+### 決着（オーナー判断 2026-09-30）— Add to Payroll は3ロールのみ
+
+`_OT_STAGE2_ROLES = {ADMIN, HQ, HR_MANAGER}`。**権限（`channel.admin.overtime.manage`）では開かない。**
+画面も同じ3ロール。**CSV Export はサーバ側が別の狭いゲート（ADMIN/HQ）**なので、
+一緒に広げると403するボタンが出る → `canExport` を分離した。
+
+| | 名前 |
+|---|---|
+| 増える | **Peter Villafuerte**（HR_MANAGER） |
+| 減る | Camilla Gadingan（HR_STAFF）／Rafael Jonas Lagahit（DUBAI_MANAGEMENT） |
+| 実績 | **減る2名は一度も押していない。** 押したことがあるのは Yukihiro 278 / Cyrine 51 / Yuri 16 の3名のみ |
+
+13アカウント → 12。**stage 1（承認）は権限のまま** — レビューは Role Management が配るもの。
+本番で `_actor_allows` を読み取り実行して7名分の可否を確認済み。
+
 ### 報告のみ（判断が要る／触った範囲の外）
 
 - **`canStage2` はロール名だけ**で、サーバは `.manage` も受ける。**DUBAI_MANAGEMENT は既定で `.manage` を持つ**ので、Add to Payroll をサーバは通すのに画面が出さない。**お金が動く操作なので権限設計はオーナー判断。**
