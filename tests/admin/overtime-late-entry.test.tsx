@@ -44,6 +44,16 @@ const NO_ACCESS = {
   accessToken: "t", hasSession: true, permissions: [],
 };
 
+/** One request sitting at the step before payroll. */
+const APPROVED_ROW = {
+  id: "r1", staff_name: "Reymar Contillo", branch_code: "TAFT", work_date: "2026-09-16",
+  request_type: "post", ot_start_hour: 22, ot_end_hour: 24, ot_minutes: 120,
+  reason: "Closing ran long", status: "manager_approved",
+  reviewed_by: "", reviewed_at: null, review_note: "",
+  manager_approved_by: "Yuri Yamada", manager_approved_at: "2026-09-29T02:00:00Z",
+  manager_note: "", paid_by: "", paid_at: null, submitted_at: "2026-09-28T02:00:00Z",
+};
+
 function respond(url: string) {
   if (url.includes("/overtime/list")) return { requests: [] };
   if (url.includes("staff_master/names")) return { ok: true, names: ["Reymar Contillo"] };
@@ -72,6 +82,48 @@ async function openTheForm() {
   fireEvent.click(screen.getByText("Record late OT"));
   await waitFor(() => expect(screen.getByText("Record late overtime")).toBeTruthy());
 }
+
+describe("who may put overtime into payroll", () => {
+  // Owner decision 2026-09-30: HQ, Admin and the HR Manager. The server holds
+  // the same three; the CSV export is a narrower door and must not widen with
+  // them, or the HR Manager gets a button that 403s.
+  function withRow() {
+    mockFetch.mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true, status: 200,
+        json: async () => String(url).includes("/overtime/list")
+          ? { requests: [APPROVED_ROW] } : respond(String(url)),
+      }));
+  }
+
+  it("shows the HR Manager Add to Payroll, and no Export", async () => {
+    withRow();
+    mockGetAuth.mockReturnValue({ ...HR_STAFF, staffName: "Peter Villafuerte", role: "HR_MANAGER", permissions: [] });
+    render(<Page />);
+    await waitFor(() => expect(screen.getAllByText("Add to Payroll").length).toBeGreaterThan(0));
+    expect(screen.queryByText(/Export CSV/)).toBeNull();
+  });
+
+  it("shows HQ both", async () => {
+    withRow();
+    mockGetAuth.mockReturnValue({ ...HR_STAFF, staffName: "Yuri Yamada", role: "HQ", permissions: [] });
+    render(<Page />);
+    await waitFor(() => expect(screen.getAllByText("Add to Payroll").length).toBeGreaterThan(0));
+    expect(screen.getByText(/Export CSV/)).toBeTruthy();
+  });
+
+  it("no longer shows it to a manage-permission holder who is not one of the three", async () => {
+    // channel.admin.overtime.manage used to open this on the server, which gave
+    // it to DUBAI_MANAGEMENT by default. Neither of the two people it covered
+    // had ever pressed it.
+    withRow();
+    mockGetAuth.mockReturnValue({ ...HR_STAFF, role: "HR_STAFF",
+      permissions: ["channel.admin.overtime.view", "channel.admin.overtime.manage"] });
+    render(<Page />);
+    await waitFor(() => expect(screen.getByText("Record late OT")).toBeTruthy());
+    expect(screen.queryByText("Add to Payroll")).toBeNull();
+  });
+});
 
 describe("recording overtime the window has closed on", () => {
   it("lets the permission holder in, not only the role list", async () => {

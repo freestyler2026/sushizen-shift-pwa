@@ -413,7 +413,16 @@ function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) 
 
 const REVIEWER_ROLES = new Set(["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER", "HR_MANAGER"]);
 const STAGE1_ROLES   = new Set(["ADMIN", "HQ", "MANILA_MANAGEMENT", "HR_MANAGER"]);
-const STAGE2_ROLES   = new Set(["ADMIN", "HQ"]);
+/* Adding overtime to payroll — the only step that moves money. Owner decision
+   2026-09-30: HQ, Admin and the HR Manager. The server holds the same three
+   and no longer accepts channel.admin.overtime.manage here, which used to give
+   this to DUBAI_MANAGEMENT by default while this screen showed them no
+   button. */
+const STAGE2_ROLES   = new Set(["ADMIN", "HQ", "HR_MANAGER"]);
+/* The CSV is a separate, narrower door on the server (ADMIN/HQ inline), so it
+   gets its own test here — widening STAGE2 without this would have drawn an
+   Export button for the HR Manager that 403s. */
+const EXPORT_ROLES   = new Set(["ADMIN", "HQ"]);
 /** "17:30" to hours from midnight. */
 function hourFromTime(t: string): number {
   const [hh, mm] = t.split(":").map(Number);
@@ -604,6 +613,7 @@ export default function AdminOvertimePage() {
   const perms = auth?.permissions || [];
   const canStage1 = STAGE1_ROLES.has(role) || perms.includes("channel.admin.overtime.manage");
   const canStage2 = STAGE2_ROLES.has(role);
+  const canExport = EXPORT_ROLES.has(role);
 
   const [activeCity, setActiveCity] = useState<"dubai" | "manila">(userCity);
   const city = activeCity;
@@ -1116,7 +1126,7 @@ export default function AdminOvertimePage() {
                 Record late OT
               </button>
             )}
-            {canStage2 && (
+            {canExport && (
               <button
                 onClick={handleExport}
                 disabled={exporting}
@@ -1152,7 +1162,7 @@ export default function AdminOvertimePage() {
             <span className="text-zinc-600">(Uejima / Yamada / Richard / Peter / Ayako)</span>
             <span>→</span>
             <span className="flex items-center gap-1 text-green-300 font-medium"><Banknote className="h-3 w-3" />In payroll</span>
-            <span className="text-zinc-600">(Yamada / Ayako)</span>
+            <span className="text-zinc-600">(Yamada / Ayako / Peter)</span>
             <span className="ml-auto text-zinc-500">Staff notified at each step</span>
           </div>
           <p className="mt-1.5 text-[11px] text-zinc-500">
