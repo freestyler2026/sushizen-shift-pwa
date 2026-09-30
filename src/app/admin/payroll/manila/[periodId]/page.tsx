@@ -24,6 +24,10 @@ function apiFetch(path: string, opts?: RequestInit) {
   return fetch(path, { ...opts, headers: { ...headers, ...(opts?.headers as Record<string, string> ?? {}) } });
 }
 
+/** Who may close a fortnight — the same three the owner set for Add to
+ *  Payroll on 2026-09-30, and the server holds the same list. */
+const CAN_CLOSE = new Set(["ADMIN", "HQ", "HR_MANAGER"]);
+
 type Period = {
   id: number;
   period_label: string;
@@ -1877,6 +1881,39 @@ export default function ManilaPayrollPeriodPage() {
     }
   };
 
+  /* Closing the fortnight. Until 2026-09-30 no screen called this endpoint at
+     all, so a period only ever reached `paid` by script — and `paid` is what
+     stops it being recomputed after the staff have the money. A guard keyed on
+     a state the product cannot reach protects the fortnight somebody happened
+     to mark and nothing after it. */
+  const mayClose = CAN_CLOSE.has((getAuth()?.role || "").toUpperCase());
+
+  const closePeriod = async () => {
+    if (!period) return;
+    const owed = runs.filter(r => !r.published_at && Number(r.net_pay) > 0).length;
+    if (!confirm(
+      `Mark ${period.period_label} as paid?\n\n`
+      + `This is the record that the money went out, and it freezes the fortnight: `
+      + `no recompute, no adding or removing overtime, no editing a payslip. `
+      + `Anything found wrong afterwards is settled in the period that is still open, `
+      + `where the staff member sees it as a correction.\n\n`
+      + (owed ? `${owed} payslip(s) carrying money are still unpublished — `
+              + `staff cannot see them in My Pay.\n\n` : "")
+      + `Total: ${runs.length} payslips.`
+    )) return;
+    try {
+      const r = await apiFetch(`${API}/periods/${periodId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "paid" }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      await loadPeriod();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   const publishAll = async () => {
     if (!period) return;
     if (!confirm(`Publish all computed/approved payslips for this period to staff My Pay?`)) return;
@@ -2088,6 +2125,18 @@ export default function ManilaPayrollPeriodPage() {
                     >
                       <Users size={14} /> Staff Profiles
                     </Link>
+                    {period.status === "paid" ? (
+                      <span className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-900/25 px-3 py-1.5 text-sm text-emerald-200">
+                        Paid — this fortnight is closed
+                      </span>
+                    ) : runs.length > 0 && mayClose ? (
+                      <button
+                        onClick={closePeriod}
+                        className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-900/25 px-3 py-1.5 text-sm text-emerald-200 hover:bg-emerald-900/45"
+                      >
+                        Mark as paid
+                      </button>
+                    ) : null}
                     {runs.length > 0 && runs.some(r => !r.published_at && ["approved","paid","computed"].includes(r.status)) && (
                       <button
                         onClick={publishAll}

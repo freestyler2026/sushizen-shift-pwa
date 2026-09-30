@@ -178,6 +178,16 @@ td.muted{color:var(--muted);font-size:12px}
     <div>対象月は右上のセレクタで切り替えます。過去12ヶ月分を遡って見られます。</div>
   </div>
 
+  <div class="tip danger"><span class="tip-icon">⚠</span>
+    <div><strong>「2026-09」は暦の9月ではありません。前月26日〜当月25日です。</strong>
+    2026-09 なら <strong>2026-08-26 〜 2026-09-25（31日）</strong>。
+    給与の締め（マニラは2回の期間、ドバイはサイクル）と同じ区切りにしてあるので、
+    人件費とその月の売上・食材費が同じ日数を見ています。
+    画面上部に対象期間の日付が出ます。<br>
+    <strong>暦月の売上表と数字が合わないのは、この範囲の違いです。</strong>
+    2026-06・07 は Excel から上書きしているので暦月のままです。</div>
+  </div>
+
 </section>
 <section class="section" id="sec-sources">
   <div class="section-hero">
@@ -328,7 +338,7 @@ td.muted{color:var(--muted);font-size:12px}
       <tbody>
         <tr><td>売上</td><td>ドバイ=入金額 / マニラ=日次入力の合計</td><td>前月比。ただし集計途中の月は日数を確認</td></tr>
         <tr><td>食材費・率</td><td>発注実績 ×1.03</td><td class="muted">ドバイ 30〜38% / マニラ 38〜48% が近年の水準</td></tr>
-        <tr><td>人件費</td><td>給与実績（マニラ）/ 給与シート（ドバイ）</td><td class="muted">20〜38%</td></tr>
+        <tr><td>人件費</td><td>給与実績（マニラ）/ 給与シート（ドバイ）<br><span class="muted">バックオフィスと7CZの給与は契約月額を足します。窓が途中の月は日数で按分します。</span></td><td class="muted">20〜38%</td></tr>
         <tr><td>経費</td><td>家賃・光熱費など</td><td>「引き継ぎ」表示があれば前月の値</td></tr>
         <tr><td><strong>営業利益</strong></td><td>売上 − 上記3つ</td><td>赤字は赤色。下に利益率</td></tr>
         <tr><td>プライム率</td><td>（食材費＋人件費）÷ 売上</td><td class="muted">参考指標。65%超で警告</td></tr>

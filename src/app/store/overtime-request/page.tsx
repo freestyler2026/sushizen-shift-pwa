@@ -5,6 +5,7 @@ import { Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import { otWindow } from "@/lib/ot-window";
+import { OT_CAUSES } from "@/lib/ot-causes";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -81,16 +82,7 @@ type OtFacts = {
  * orders, I could not make the backup" is what told anyone what was happening.
  * The chips are so the same cause can be counted, which prose never could.
  */
-const CAUSES: { code: string; label: string }[] = [
-  { code: "orders", label: "More orders than expected" },
-  { code: "short_staffed", label: "Someone was absent or we were short" },
-  { code: "equipment", label: "Equipment or system problem" },
-  { code: "delivery", label: "A delivery, stock count or transfer" },
-  { code: "closing", label: "Closing or cleaning ran long" },
-  { code: "deadline", label: "A deadline — payroll, orders, reports" },
-  { code: "prep_unfinished", label: "The prep was not finished in time" },
-  { code: "carry_over", label: "Finishing what the earlier shift left" },
-];
+const CAUSES = OT_CAUSES.map((c) => ({ code: c.code, label: c.prompt }));
 
 /** Mirrors OT_REJECT_REASONS on the server. */
 const REJECT_LABELS: Record<string, string> = {
