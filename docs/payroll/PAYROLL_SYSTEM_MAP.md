@@ -75,7 +75,29 @@ Padam Bahadur K C / Pukar K C / Raman Miya / Rubash Khadka
 （2026-09-25：出勤0〜5日の4名が満額支給される状態だった。3名は退職済み、
 1名は入社2日目で日割り調整が漏れていた。**合計 約 AED 6,800。**）
 
-### ④ お金を生む処理は9本しかない（ドバイ）
+#### 入社側だけは画面が出すようになった（2026-09-30）
+
+同じ穴が9/30に再発し、**Cyrine が支給直前に2名を見つけた**（Sanjeev Tamang 9/1入社・
+Jeffril Marcos Vergara 9/24入社）。調べると**3人目（Rubash Khadka・時給制の交通費）**
+もいて、cycle 41 の過払いは **AED 4,278.71**。
+
+- 検査は `app/db_dubai_proration.py` の `dubai_proration_gaps(cycle_id)`、
+  画面は `/admin/payroll/dubai` のサイクルごとの琥珀色ブロック。
+  **ボタンではなく読み込み時に走る**（教訓55）。**閉じたサイクルは対象外**。
+- 日割りの式は `prorate()` の1箇所だけ。**月額パッケージ × 期間中の未在籍日数 ÷ 期間日数。**
+  時給制は基本給が時間で払われているので**月額手当だけ**を日割りする
+  （Dipesh Thapa の 300×11/25=132.00 がその前例）。
+  `tests/test_dubai_proration_gaps.py` が、**人が手で入れた4件の金額を再現できること**で
+  この式を固定している。
+- **書き込みはしない。** 金額であり、パッケージが変に見える理由が入社日とは限らないため、
+  `partial_month` の投入は人の操作のまま。
+- ⚠️ **退職側は検査できない。** ドバイには最終出社日を書く列が無い
+  （`last_working_date` はマニラの表にしかなく、9月に退職した Sota Horii・
+  Chandra Gurung は**いまも `status='ACTIVE'`・`hr_separation` に行なし**）。
+  日付が保存されていないものは検査できないので、**退職者は引き続き目で見つけるしかない。**
+  画面にもそう書いてある。直すならまず入社日と同じように**最終出社日の置き場**を作る。
+
+### ④ お金を生む処理は10本しかない（ドバイ）
 
 `app/dubai_payroll_engine.py` の `_push()` を数えれば閉じた集合になる。
 
@@ -83,6 +105,7 @@ Padam Bahadur K C / Pukar K C / Raman Miya / Rubash Khadka
 |---|---|---|
 | 加算 | `night_premium`（22:00–04:00 GST・10%） | ○ |
 | 加算 | `approved_overtime`（**承認済み申請から**。打刻からではない） | ○ |
+| 加算 | `public_holiday_premium`（祝日の実働 × `holiday_premium_rate()`。**同じ日の深夜手当は出ない**） | ○ |
 | 減算 | `late_deduction`（15分猶予超。ただし8時間働いた日は課金しない） | × |
 | 減算 | `late_surcharge`（正味60分超で日給の10%） | × |
 | 減算 | `absent_awp`（`absent_without_pay` かつ休暇でない日） | × |
@@ -91,7 +114,7 @@ Padam Bahadur K C / Pukar K C / Raman Miya / Rubash Khadka
 | 減算 | `break_excess`（所定＋60分超） | **○** |
 | 減算 | `monthly_late_accumulation`（15分超が3回で基本給の5%） | × |
 
-**この9本以外に自動で発生する金額は無い。** 他にあるのは
+**この10本以外に自動で発生する金額は無い。** 他にあるのは
 `payroll_adjustments` の `source='manual'`（日割り等）と `expense_auto`（経費精算）だけ。
 
 ### ⑤ 「欠勤」と「休暇」と「公休」は別物 — `absences` は3つとも持つ

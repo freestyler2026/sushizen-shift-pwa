@@ -84,6 +84,39 @@ type CalcResult = {
   grace_waived?: { staff_name: string; work_date: string; subtype: string }[];
 };
 
+/** Somebody on this cycle's payroll who joined after it started and still
+ *  carries the whole package. The engine does not produce basic pay, so the
+ *  deduction only exists if a person enters it, and nothing used to say when
+ *  one was missing — it was caught by eye, twice, the second time with
+ *  AED 4,278.71 about to go out. */
+type ProrationGap = {
+  staff_name: string;
+  branch_code: string;
+  hired_at: string;
+  period_start: string;
+  period_end: string;
+  period_days: number;
+  employed_days: number;
+  unworked_days: number;
+  pay_basis: string;
+  base_amount: number | null;
+  suggested_deduction: number | null;
+  net_pay_now: number | null;
+  already_prorated: boolean;
+};
+
+type ProrationGaps = {
+  ok: boolean;
+  examined: number;
+  rows: ProrationGap[];
+  total_suggested: number | null;
+  already_prorated_count: number;
+  no_hire_date: string[];
+  population: string;
+  leavers_note: string;
+  unavailable?: string;
+};
+
 type StaffGroup = "all" | "parttime";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -119,6 +152,7 @@ export default function DubaiPayrollPage() {
   const [clearLoading, setClearLoading] = useState<number | null>(null);
   const [clearResults, setClearResults] = useState<Record<number, number>>({});
   const [confirmClearId, setConfirmClearId] = useState<number | null>(null);
+  const [gaps, setGaps] = useState<Record<number, ProrationGaps>>({});
 
   // Date range & staff group per cycle
   const [showRangeId, setShowRangeId]     = useState<number | null>(null);
@@ -143,7 +177,23 @@ export default function DubaiPayrollPage() {
       const r = await apiFetch(`${PAY_API}/cycles?city=dubai`);
       if (!r.ok) throw new Error(await r.text());
       const d = await r.json() as { cycles: PayrollCycle[] };
-      setCycles(d.cycles ?? []);
+      const list = d.cycles ?? [];
+      setCycles(list);
+
+      // Loaded here rather than behind the Calculate button. A check that only
+      // runs when somebody presses something is a check for people who already
+      // suspected there was a problem, and those are not the months it is for.
+      // Closed cycles are left alone: they have been paid, so a finding there
+      // is a report, not an action, and it would sit on the screen forever.
+      const open = list.filter(c => String(c.status).toLowerCase() !== "closed");
+      const found = await Promise.all(open.map(async c => {
+        try {
+          const g = await apiFetch(`${API}/proration-gaps?cycle_id=${c.id}`);
+          if (!g.ok) return null;
+          return [c.id, await g.json() as ProrationGaps] as const;
+        } catch { return null; }
+      }));
+      setGaps(Object.fromEntries(found.filter(Boolean) as (readonly [number, ProrationGaps])[]));
     } catch (e) { setCycleErr(String(e)); }
     finally { setCyclesLoading(false); }
   }, []);
@@ -338,6 +388,33 @@ export default function DubaiPayrollPage() {
               <p className="mt-0.5 text-xs text-slate-500">
                 Auto-calculates night premium (22:00–04:00 +10%), late deductions, absent, undertime, missing punch, and break excess from attendance data.
               </p>
+              {/* What the joining-date check cannot see, said once. It used to
+                  be repeated on every cycle card, which is the same sentence
+                  three times for one fact and teaches people to skip it. */}
+              {(() => {
+                // Not Object.values(...)[0]: the keys are cycle ids, and JS
+                // orders integer-like keys numerically, so the first value was
+                // cycle #1 — the one with no period, whose result is
+                // "nothing to measure against". The note never appeared.
+                const any = Object.values(gaps).find(g => g && !g.unavailable);
+                if (!any) return null;
+                // Nothing here assumes a field arrived. A response that is
+                // missing one used to throw inside render, and a throw in
+                // render takes the whole Dubai Payroll page down — cycles,
+                // Auto-Calculate and all — over a footnote. The frontend also
+                // ships separately from the API, so it will meet an older
+                // response eventually.
+                const noDate = any.no_hire_date ?? [];
+                return (
+                  <p className="mt-1 text-xs text-slate-500">
+                    {any.leavers_note}
+                    {noDate.length > 0 && (
+                      <> {noDate.length} people have no joining date on record and
+                        are never checked ({noDate.join(", ")}).</>
+                    )}
+                  </p>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-2">
               <button onClick={loadCycles} className="text-slate-400 hover:text-white transition-colors">
@@ -373,6 +450,14 @@ export default function DubaiPayrollPage() {
               {cycles.map(c => {
                 const res = calcResults[c.id];
                 const isCalcing = calcLoading === c.id;
+                // Same reason as the footnote above: never index into a
+                // field the response might not carry.
+                const raw = gaps[c.id];
+                const gap = raw ? { ...raw, rows: raw.rows ?? [] } : undefined;
+                const money = (v: number | null) =>
+                  v === null || v === undefined
+                    ? "—"   // masked for this reader, not zero
+                    : v.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 return (
                   <div key={c.id} className="px-5 py-4 space-y-3">
                     <div className="flex items-center justify-between gap-3">
@@ -507,6 +592,63 @@ export default function DubaiPayrollPage() {
                           A narrower range replaces only the days inside it and leaves the rest
                           of the cycle alone.
                         </p>
+                      </div>
+                    )}
+
+                    {/* Joined mid-cycle, still on a full package.
+                        Above the calculate controls on purpose: this is the
+                        one thing on the card that money is about to go out
+                        over, and it is not something Run fixes — Run writes
+                        attendance lines only. */}
+                    {gap && gap.rows.length > 0 && (
+                      <div className="rounded-xl border border-amber-500/40 bg-amber-900/15 p-3">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle size={13} className="text-amber-400 flex-shrink-0" />
+                          <span className="text-xs font-semibold text-amber-200">
+                            {gap.rows.length === 1
+                              ? "1 person is being paid for days before they joined"
+                              : `${gap.rows.length} people are being paid for days before they joined`}
+                          </span>
+                          <span className="ml-auto text-xs text-amber-300 font-mono">
+                            AED {money(gap.total_suggested)}
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          {gap.rows.map(g => (
+                            <div key={g.staff_name} className="text-xs text-slate-300 flex flex-wrap items-baseline gap-x-2">
+                              <span className="font-medium text-white">{g.staff_name}</span>
+                              {g.branch_code && <span className="text-slate-500">{g.branch_code}</span>}
+                              <span className="text-slate-400">
+                                joined {g.hired_at} &middot; employed {g.employed_days} of {g.period_days} days
+                              </span>
+                              <span className="ml-auto font-mono text-amber-300">
+                                &minus;{money(g.suggested_deduction)}
+                              </span>
+                              <span className="basis-full text-slate-500">
+                                {g.pay_basis} AED {money(g.base_amount)} &times; {g.unworked_days}/{g.period_days}
+                                {g.net_pay_now !== null && <> &middot; currently paying AED {money(g.net_pay_now)}</>}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        {/* What to do, on the card. The deduction is not
+                            written automatically: a package can look wrong for
+                            reasons a hire date cannot see, and this figure is
+                            money coming off somebody's pay. */}
+                        <p className="mt-2 text-xs text-slate-400">
+                          Add these as <span className="text-slate-200">partial_month</span> deductions
+                          in Adjustments before paying. Nothing here has been written.
+                        </p>
+                      </div>
+                    )}
+                    {gap && gap.rows.length === 0 && (
+                      <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                        <CheckCircle2 size={12} className="text-slate-600" />
+                        {gap.unavailable
+                          ? gap.unavailable
+                          : <>Joining dates checked for {gap.examined} on this payroll
+                              {gap.already_prorated_count > 0 &&
+                                <> &middot; {gap.already_prorated_count} already prorated</>}.</>}
                       </div>
                     )}
 

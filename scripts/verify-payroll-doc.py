@@ -33,21 +33,22 @@ for rel in ("scripts/check-export-audience.py",
 ck("tests/test_leave_is_not_absence.py exists",
    (BACK / "tests/test_leave_is_not_absence.py").exists())
 
-# ── §1④ the nine money lines ─────────────────────────────────────────────
+# ── §1④ the ten money lines ─────────────────────────────────────────────
 dubai = src("app/dubai_payroll_engine.py")
 # The subtype passed to each _push, not merely a string somewhere in the file:
 # renaming one while the old name survived in a summary counter slipped past the
 # weaker check.
-DOCUMENTED = {"night_premium", "approved_overtime", "late_deduction", "late_surcharge",
+DOCUMENTED = {"night_premium", "approved_overtime", "public_holiday_premium",
+              "late_deduction", "late_surcharge",
               "absent_awp", "undertime_deduction", "missing_punch", "break_excess",
               "monthly_late_accumulation"}
 actual = set(re.findall(r'_push\(\s*\n?\s*staff_name,\s*"(?:addition|deduction)",\s*"([a-z_]+)"',
                         dubai))
-ck("the money lines in the engine are exactly the nine the doc lists",
+ck("the money lines in the engine are exactly the ten the doc lists",
    actual == DOCUMENTED,
    f"engine has {sorted(actual)}; doc lists {sorted(DOCUMENTED)}")
 pushes = len(re.findall(r"(?<!def )_push\(", dubai))
-ck("and there are exactly nine of them", pushes == len(DOCUMENTED),
+ck("and there are exactly ten of them", pushes == len(DOCUMENTED),
    f"found {pushes} _push calls")
 for sub in DOCUMENTED:
     ck(f"money line documented: {sub}", sub in DOC)
