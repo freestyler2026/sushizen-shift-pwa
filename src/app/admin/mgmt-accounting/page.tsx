@@ -74,6 +74,9 @@ interface GroupData {
 }
 interface GroupSummary {
   year_month: string; fx_rates: { AED_JPY: number; PHP_JPY: number };
+  /** The dates these figures actually cover. "2026-09" is 08-26..09-25 — the
+   *  fortnight pair payroll settles — and both cities share it. */
+  window?: { from: string | null; to: string | null; days: number | null };
   /** Rates still on the built-in default because none was ever saved. */
   fx_defaulted?: string[];
   dubai: CityData; manila: CityData; group: GroupData;
@@ -589,6 +592,21 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
       </div>
 
       {error && <div className="text-rose-400 text-sm px-1">{error}</div>}
+
+      {/* Which dates the month label stands for. The page says 2026-09 and the
+          money covers 08-26..09-25, because that is what payroll settles as one
+          month. Without this line the figures look like a calendar month and a
+          reader comparing them with a monthly sales report finds a difference
+          with nothing to attribute it to. */}
+      {summary?.window?.from && summary.window.to && (
+        <p className="text-xs text-zinc-500 px-1">
+          対象期間 <span className="text-zinc-300 tabular-nums">{summary.window.from}</span>
+          {" 〜 "}
+          <span className="text-zinc-300 tabular-nums">{summary.window.to}</span>
+          （{summary.window.days}日）— 給与の締めと同じ 26日〜25日で集計しています。
+          暦月の売上表とは範囲が違います。
+        </p>
+      )}
 
       {/* KPI Alerts */}
       {alerts && alerts.alert_count > 0 && (
