@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, AlertTriangle, Banknote, CheckCircle, Clock, Download, UserCheck, XCircle } from "lucide-react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { AlertCircle, AlertTriangle, Banknote, CheckCircle, Clock, Download, FilePlus2, UserCheck, XCircle } from "lucide-react";
+import { getAuth, hasRouteAccess, refreshAuthFromApi } from "@/lib/auth";
+import { otWindow } from "@/lib/ot-window";
 import { BRANCHES } from "@/lib/branches";
 import SelectDark from "@/components/SelectDark";
 import ModalScrim, { BodyScrollLock } from "@/components/ModalScrim";
@@ -425,6 +426,27 @@ function ClockCheck({ f, compact = false }: { f?: OtFacts; compact?: boolean }) 
 const REVIEWER_ROLES = new Set(["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER", "HR_MANAGER"]);
 const STAGE1_ROLES   = new Set(["ADMIN", "HQ", "MANILA_MANAGEMENT", "HR_MANAGER"]);
 const STAGE2_ROLES   = new Set(["ADMIN", "HQ"]);
+/** Why it happened. Mirrors OT_CAUSES on the server and the chips staff see. */
+const CAUSES: { code: string; label: string }[] = [
+  { code: "orders", label: "More orders than expected" },
+  { code: "short_staffed", label: "Someone was absent or we were short" },
+  { code: "equipment", label: "Equipment or system problem" },
+  { code: "delivery", label: "A delivery, stock count or transfer" },
+  { code: "closing", label: "Closing or cleaning ran long" },
+  { code: "deadline", label: "A deadline — payroll, orders, reports" },
+  { code: "prep_unfinished", label: "The prep was not finished in time" },
+  { code: "carry_over", label: "Finishing what the earlier shift left" },
+];
+
+/** "17:30" to hours from midnight. */
+function hourFromTime(t: string): number {
+  const [hh, mm] = t.split(":").map(Number);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return NaN;
+  return hh + mm / 60;
+}
+
+/** A payroll period, only as much of it as this page needs. */
+type Period = { id: number; period_label: string; start_date: string; end_date: string; status: string };
 
 function statusBadge(status: string) {
   if (status === "paid")             return <span className={BADGE_SUCCESS}><Banknote className="h-3 w-3" />In payroll</span>;
@@ -638,6 +660,29 @@ export default function AdminOvertimePage() {
 
   const [exporting, setExporting] = useState(false);
 
+  /* Recording overtime after the 48-hour window has closed.
+     The window is what keeps claims honest, and it also meant that hours
+     somebody really worked simply could not be entered once it shut — asked
+     by Manila HR on 2026-09-30 about two nights the closing PIC had already
+     confirmed. The server has allowed this since 2026-09-26 and nothing on
+     any screen called it, so the answer to "how do we file this" was still
+     "you cannot". It creates a pending request: the approval is unchanged. */
+  const canLateEntry = REVIEWER_ROLES.has(role) || perms.includes("channel.admin.overtime.manage");
+  const [lateOpen, setLateOpen] = useState(false);
+  const [lateStaff, setLateStaff] = useState("");
+  const [lateBranch, setLateBranch] = useState("");
+  const [lateDate, setLateDate] = useState("");
+  const [lateStart, setLateStart] = useState("22:00");
+  const [lateEnd, setLateEnd] = useState("23:00");
+  const [lateCauses, setLateCauses] = useState<string[]>([]);
+  const [lateReason, setLateReason] = useState("");
+  const [lateWhy, setLateWhy] = useState("");
+  const [lateBusy, setLateBusy] = useState(false);
+  const [lateError, setLateError] = useState("");
+  const [lateDone, setLateDone] = useState("");
+  const [staffNames, setStaffNames] = useState<string[]>([]);
+  const [periods, setPeriods] = useState<Period[]>([]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -662,6 +707,106 @@ export default function AdminOvertimePage() {
   }, [tokenHeaders, apiBase, city, filterBranch, filterStatus, filterMonth]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* Names and payroll periods, fetched only when the late-entry form is opened
+     — nobody reviewing overtime needs either. */
+  useEffect(() => {
+    if (!lateOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await tokenHeaders();
+        const r = await fetch(`/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=2000`,
+          { headers: new Headers(headers), cache: "no-store" });
+        const d = await r.json().catch(() => ({}));
+        if (!cancelled && r.ok) setStaffNames((d?.names ?? []).map(String));
+      } catch { /* the name box still takes free text */ }
+      if (city !== "manila") return;
+      try {
+        const headers = await tokenHeaders();
+        const r = await fetch(`/api/admin/manila-payroll/periods?limit=24`,
+          { headers: new Headers(headers), cache: "no-store" });
+        const d = await r.json().catch(() => []);
+        if (!cancelled && r.ok && Array.isArray(d)) setPeriods(d as Period[]);
+      } catch { /* the server refuses a paid period anyway */ }
+    })();
+    return () => { cancelled = true; };
+  }, [lateOpen, city, tokenHeaders]);
+
+  /** The store's own today. The reviewer's laptop may be in another country. */
+  function cityToday(): string {
+    const off = city === "manila" ? 8 : 4;
+    return new Date(Date.now() + off * 3600_000).toISOString().slice(0, 10);
+  }
+
+  function lateMinutes(): number | null {
+    const a = hourFromTime(lateStart);
+    const b = hourFromTime(lateEnd);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) return null;
+    const [s0, e0] = otWindow(a, b);
+    return Math.round((e0 - s0) * 60);
+  }
+
+  /** The payroll period the work date falls in — Manila only, and only to say
+   *  so before the hours are typed. A period already paid cannot take them
+   *  (the server refuses at Add to Payroll), and finding that out three steps
+   *  later is how the work gets done twice. */
+  function latePeriod(): Period | null {
+    if (city !== "manila" || !lateDate) return null;
+    return periods.find((x) => String(x.start_date) <= lateDate && lateDate <= String(x.end_date)) ?? null;
+  }
+
+  /** Inside the window there is nothing to except — the staff member files it
+   *  themselves, and their name belongs on it rather than a reviewer's. */
+  function lateDateTooRecent(): boolean {
+    if (!lateDate) return false;
+    const cutoff = new Date(Date.parse(cityToday()) - 2 * 86_400_000).toISOString().slice(0, 10);
+    return lateDate >= cutoff;
+  }
+
+  async function submitLateEntry() {
+    const mins = lateMinutes();
+    setLateError("");
+    if (!lateStaff.trim())                 { setLateError("Pick who worked the hours."); return; }
+    if (!lateBranch)                       { setLateError("Pick the branch."); return; }
+    if (!lateDate)                         { setLateError("Pick the date they were worked."); return; }
+    if (lateDateTooRecent())               { setLateError("That date is still inside the 48-hour window — the staff member can file it themselves."); return; }
+    if (mins === null || mins <= 0)        { setLateError("The start and end times have to differ."); return; }
+    if (lateReason.trim().length < 5)      { setLateError("Say what the overtime was for (at least 5 characters)."); return; }
+    if (lateWhy.trim().length < 10)        { setLateError("Say why it is being entered late (at least 10 characters)."); return; }
+    setLateBusy(true);
+    try {
+      const headers = await tokenHeaders();
+      const [s0, e0] = otWindow(hourFromTime(lateStart), hourFromTime(lateEnd));
+      const res = await fetch(`${apiBase}/api/admin/overtime/late-entry`, {
+        method: "POST",
+        headers: new Headers(headers),
+        body: JSON.stringify({
+          staff_name: lateStaff.trim(),
+          branch_code: lateBranch,
+          work_date: lateDate,
+          ot_start_hour: s0,
+          ot_end_hour: e0,
+          reason: lateReason.trim(),
+          late_entry_reason: lateWhy.trim(),
+          city,
+          causes: lateCauses,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setLateError(data?.detail || `HTTP ${res.status}`); return; }
+      setLateDone(`${lateStaff.trim()} — ${lateDate}, ${formatMinutes(mins)} recorded as pending. `
+        + `It still needs Approve, then Add to Payroll.`);
+      setLateOpen(false);
+      setLateStaff(""); setLateDate(""); setLateReason(""); setLateWhy(""); setLateCauses([]);
+      setFilterStatus(""); 
+      await load();
+    } catch {
+      setLateError("Could not reach the server — nothing was saved.");
+    } finally {
+      setLateBusy(false);
+    }
+  }
 
   /** Say the note was read. A save that fails must not look like one that
    *  worked — the badge stays and the reason is on the screen (lesson 46). */
@@ -904,7 +1049,11 @@ export default function AdminOvertimePage() {
     return <div className="min-h-screen" aria-busy="true" />;
   }
 
-  if (!auth || !REVIEWER_ROLES.has(auth.role ?? "")) {
+  // The role list alone shuts out the one person Role Management actually
+  // gave this to: channel.admin.overtime.manage is held by a single HR Staff
+  // account, whose role is not on the list, and the server accepts her. Keep
+  // the list and let the permission open the same door (lesson 25).
+  if (!auth || (!REVIEWER_ROLES.has(auth.role ?? "") && !hasRouteAccess("/admin/overtime", auth))) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-white/60">Access denied — Manager or above required.</p>
@@ -950,6 +1099,15 @@ export default function AdminOvertimePage() {
                 ))}
               </div>
             )}
+            {canLateEntry && (
+              <button
+                onClick={() => { setLateOpen(true); setLateError(""); setLateDone(""); setLateBranch(filterBranch || ""); }}
+                className={`${SECONDARY_BUTTON} flex items-center gap-2`}
+              >
+                <FilePlus2 className="h-4 w-4" />
+                Record late OT
+              </button>
+            )}
             {canStage2 && (
               <button
                 onClick={handleExport}
@@ -962,6 +1120,19 @@ export default function AdminOvertimePage() {
             )}
           </div>
         </div>
+
+        {lateDone && (
+          <div className="rounded-xl border border-emerald-500/40 bg-emerald-900/25 px-4 py-2.5 text-sm text-emerald-200">
+            {lateDone}
+            <button
+              type="button"
+              onClick={() => setLateDone("")}
+              className="ml-2 underline underline-offset-2 hover:text-emerald-100"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Flow explanation. The second step is the one that moves money, so it
             says so — "Mark Paid" read like bookkeeping after the fact. */}
@@ -1591,6 +1762,174 @@ export default function AdminOvertimePage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Record overtime the 48-hour window has already closed on.
+          Asked by Manila HR on 2026-09-30: the closing PIC confirmed two
+          nights, and there was no screen anywhere that could take them. */}
+      {lateOpen && (
+        <ModalScrim className="z-[80] bg-black/60 backdrop-blur-sm">
+          <BodyScrollLock />
+          <div className={`${GLASS_CARD} mx-auto my-4 w-full sm:max-w-lg space-y-4 p-4 sm:p-6`}>
+            <div>
+              <h3 className={T_SECTION}>Record late overtime</h3>
+              <p className={`${T_CAPTION} mt-1`}>
+                For hours already worked whose 48 hours have passed. It is created
+                as pending and still goes through Approve and Add to Payroll —
+                nothing here pays anything. Your name and your reason stay on it.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className={T_LABEL} htmlFor="late-staff">Who worked the hours</label>
+                <input
+                  id="late-staff"
+                  list="late-staff-names"
+                  value={lateStaff}
+                  onChange={(e) => { setLateStaff(e.target.value); setLateError(""); }}
+                  placeholder="Start typing a name"
+                  className={`${INPUT_CLASS} mt-1`}
+                />
+                <datalist id="late-staff-names">
+                  {staffNames.map((n) => <option key={n} value={n} />)}
+                </datalist>
+              </div>
+              <div>
+                <label className={T_LABEL}>Branch</label>
+                <SelectDark
+                  className={`${SELECT_CLASS} mt-1`}
+                  value={lateBranch}
+                  onChange={(v) => { setLateBranch(v); setLateError(""); }}
+                  aria-label="Branch"
+                  options={[{ value: "", label: "— Select —" },
+                    ...branches.map((b) => ({ value: b.code, label: `${b.code} — ${b.name}` }))]}
+                />
+              </div>
+              <div>
+                <label className={T_LABEL} htmlFor="late-date">Date worked</label>
+                <input
+                  id="late-date"
+                  type="date"
+                  value={lateDate}
+                  max={cityToday()}
+                  onChange={(e) => { setLateDate(e.target.value); setLateError(""); }}
+                  className={`${INPUT_CLASS} mt-1`}
+                />
+              </div>
+              <div>
+                <label className={T_LABEL} htmlFor="late-start">Overtime started</label>
+                <input
+                  id="late-start" type="time" value={lateStart}
+                  onChange={(e) => { setLateStart(e.target.value); setLateError(""); }}
+                  className={`${INPUT_CLASS} mt-1`}
+                />
+              </div>
+              <div>
+                <label className={T_LABEL} htmlFor="late-end">Overtime ended</label>
+                <input
+                  id="late-end" type="time" value={lateEnd}
+                  onChange={(e) => { setLateEnd(e.target.value); setLateError(""); }}
+                  className={`${INPUT_CLASS} mt-1`}
+                />
+              </div>
+            </div>
+
+            <p className="text-sm text-white/70">
+              {lateMinutes() === null
+                ? "Set the two times to see the length."
+                : <>That is <strong className="text-white">{formatMinutes(lateMinutes() as number)}</strong>
+                    {otWindow(hourFromTime(lateStart), hourFromTime(lateEnd))[1] > 24
+                      ? " — counted on the previous day's shift, which ran past midnight."
+                      : ""}</>}
+            </p>
+
+            {lateDateTooRecent() && (
+              <p className="rounded-lg border border-amber-500/40 bg-amber-900/25 px-3 py-2 text-xs text-amber-200">
+                {lateDate} is still inside the 48-hour window. The staff member can
+                file it themselves from Overtime Request, and their own account on it
+                is worth more than yours.
+              </p>
+            )}
+            {latePeriod() && String(latePeriod()?.status).toLowerCase() === "paid" && (
+              <p className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
+                {latePeriod()?.period_label} has already been paid, so these hours
+                cannot be added to it. Record them and pay them in the period that is
+                still open — the staff member sees the correction that way.
+              </p>
+            )}
+
+            <div>
+              <span className={T_LABEL}>Why it happened</span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {CAUSES.map((c) => {
+                  const on = lateCauses.includes(c.code);
+                  return (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setLateCauses(on
+                        ? lateCauses.filter((x) => x !== c.code)
+                        : [...lateCauses, c.code])}
+                      className={`rounded-full border px-3 py-1 text-xs transition ${on
+                        ? "border-purple-400/60 bg-purple-500/25 text-purple-100"
+                        : "border-white/15 bg-white/5 text-white/60 hover:text-white/90"}`}
+                      aria-pressed={on}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className={T_LABEL} htmlFor="late-reason">What the overtime was for</label>
+              <textarea
+                id="late-reason"
+                rows={2}
+                value={lateReason}
+                onChange={(e) => { setLateReason(e.target.value); setLateError(""); }}
+                placeholder="e.g. Closing ran long — confirmed by the closing PIC, Junowel Trespecios."
+                className={`${TEXTAREA_CLASS} mt-1`}
+              />
+            </div>
+            <div>
+              <label className={T_LABEL} htmlFor="late-why">Why it is being entered now</label>
+              <textarea
+                id="late-why"
+                rows={2}
+                value={lateWhy}
+                onChange={(e) => { setLateWhy(e.target.value); setLateError(""); }}
+                placeholder="e.g. No manager was on duty that night, so it was raised with HR afterwards."
+                className={`${TEXTAREA_CLASS} mt-1`}
+              />
+              <p className={`${T_CAPTION} mt-1`}>
+                This is the only record of why the window was passed. Name who
+                confirmed the hours.
+              </p>
+            </div>
+
+            {lateError && <p className="text-sm text-red-400">{lateError}</p>}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setLateOpen(false)}
+                className={`${SECONDARY_BUTTON} flex-1`}
+                disabled={lateBusy}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitLateEntry}
+                disabled={lateBusy}
+                className={`${PRIMARY_BUTTON} flex-1`}
+              >
+                {lateBusy ? "Saving…" : "Record as pending"}
+              </button>
+            </div>
+          </div>
+        </ModalScrim>
       )}
 
       {/* Change the approved hours on a request that is already approved.
