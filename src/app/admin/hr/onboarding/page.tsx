@@ -12,7 +12,7 @@ import {
   MinusCircle,
   Circle,
 } from "lucide-react";
-import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi, hasRouteAccess } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD,
@@ -840,8 +840,19 @@ export default function HrOnboardingPage() {
       const resolved = await refreshAuthFromApi(raw);
       const a = resolved || raw;
       const role = String(a?.role || "").toUpperCase();
-      if (!ALLOWED_ROLES.includes(role)) {
-        if (!cancelled) setAllowed(false);
+      // Role Management is the source of truth; the role list is only an extra
+      // way in (see hasRouteAccess). HR_STAFF is not on the list and holds
+      // channel.admin.hr_onboarding.view, so checking names alone locked the
+      // HR assistant out of the page she encodes the records on.
+      if (!ALLOWED_ROLES.includes(role) && !hasRouteAccess("/admin/hr/onboarding", a)) {
+        if (!cancelled) {
+          setAllowed(false);
+          // Say it. Leaving these unset means the refusal below never renders
+          // and the page draws an empty list instead -- "No records found" on
+          // a screen holding 20 records (reported 2026-09-30).
+          setAccessToken(a.accessToken ?? "");
+          setHasSession(a.hasSession ?? false);
+        }
         return;
       }
       if (!cancelled) {
