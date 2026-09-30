@@ -1207,6 +1207,24 @@ td.muted{color:var(--muted);font-size:12px}
     </div>
   </div>
 
+  <div class="card orange-border">
+    <div class="card-title" data-en="Joined mid-cycle — the amber block on each cycle" data-ja="サイクル途中の入社 — サイクルごとの琥珀色ブロック">Joined mid-cycle — the amber block on each cycle</div>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The engine does not produce basic pay — it only writes additions and deductions. So somebody who joined after the cycle started is paid the whole monthly package unless a person enters a partial_month deduction by hand. Since 2026-09-30 the cycle card names them when the page loads, before Calculate is pressed." data-ja="エンジンは基本給を作らず、加算・減算だけを書きます。そのためサイクル開始後に入社した人は、誰かが手で partial_month の控除を入れない限り月額パッケージが満額で出ます。2026-09-30 以降、ページを開いた時点でサイクルのカードが該当者を名前で出します（Calculate を押す前）。">The engine does not create basic pay, so a mid-cycle joiner is paid the full package unless somebody enters a partial_month deduction. The cycle card now names them on page load.</p>
+    <div class="chip-row">
+      <span class="chip amber" data-en="Monthly package × unworked days ÷ days in the cycle" data-ja="月額パッケージ × 未在籍日数 ÷ 期間日数">package × unworked days ÷ cycle days</span>
+      <span class="chip" data-en="Hourly staff: the monthly allowance only" data-ja="時給制：月額手当のみ">hourly: allowance only</span>
+      <span class="chip" data-en="Closed cycles are not checked" data-ja="閉じたサイクルは対象外">closed cycles skipped</span>
+    </div>
+    <div class="tip" style="margin-top:8px">
+      <span class="tip-icon">💡</span>
+      <span data-en="Nothing is written for you. Enter each line in Adjustments as a partial_month deduction before paying — the amount shown is a proposal, and a package can look wrong for reasons a joining date cannot see." data-ja="自動では書き込みません。支払い前に Adjustments で partial_month の控除として1件ずつ入れてください。表示額は提案であり、パッケージが変に見える理由が入社日とは限りません。">Nothing is written for you — enter each one in Adjustments before paying. The figure is a proposal.</span>
+    </div>
+    <div class="tip danger" style="margin-top:8px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="Joiners only. Dubai has nowhere to record a last working day, so somebody who left mid-cycle is still not detected and has to be spotted by eye. Staff with no joining date on record are never checked, and the page lists them by name." data-ja="入社側だけです。ドバイには最終出社日を記録する場所が無いため、サイクル途中で退職した人は検出されず、目で見つけるしかありません。入社日が未登録の人は検査対象外で、画面に名前が出ます。">Joiners only — a mid-cycle leaver is still not detected. Staff with no joining date are never checked; the page names them.</span>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-title" data-en="Monthly Late Surcharge — NTE Trigger" data-ja="月次遅刻割増 — NTEトリガー">Monthly Late Surcharge — NTE Trigger</div>
     <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="When a staff member has ≥3 late instances (each > 15 min) in the cycle, the engine adds a 5% monthly salary surcharge AND sets an NTE (Notice to Explain) flag." data-ja="スタッフがサイクル内に15分超の遅刻を3回以上発生させた場合、エンジンは月給の5%割増を追加し、NTE（説明要求通知）フラグを設定します。">≥3 late instances (> 15 min each) in a cycle → engine adds 5% monthly surcharge + NTE flag.</p>
