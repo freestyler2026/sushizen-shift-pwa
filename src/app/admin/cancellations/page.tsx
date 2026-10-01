@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   Clock,
@@ -130,6 +131,11 @@ type CancelRow = {
   photo_upload_urls: string[] | null;
   grab_refund_reason: string | null;
   grab_synced_at: string | null;
+  // Set when the date on this row cannot be believed. Until the reused order
+  // number was taken out of the key, a later cancellation with the same number
+  // overwrote an older one, date included.
+  date_confidence: string | null;
+  date_note: string | null;
 };
 
 // Shape returned by Manila API (different field names)
@@ -137,6 +143,8 @@ type ManilaApiRow = {
   id: number;
   platform: string;
   incident_date: string;
+  date_confidence?: string | null;
+  date_note?: string | null;
   branch: string;
   brand?: string | null;
   category?: string | null;
@@ -193,6 +201,8 @@ function normalizeManilaRow(r: ManilaApiRow): CancelRow {
     no_refund_reason: r.no_refund_reason ?? null,
     grab_refund_reason: r.grab_refund_reason ?? null,
     grab_synced_at: r.grab_synced_at ?? null,
+    date_confidence: r.date_confidence ?? null,
+    date_note: r.date_note ?? null,
     photo_upload_urls: (() => {
       try {
         const raw = r.photo_upload_urls;
@@ -255,6 +265,18 @@ function isOverdue(row: CancelRow): boolean {
   if (row.workflow_status === "Completed") return false;
   if (!row.incident_date) return false;
   return row.incident_date <= daysAgoIso(7);
+}
+
+/** True when the date on this row is not the date the cancellation happened.
+ *
+ * Two ways that happened. Until 2026-10-01 the unique key left the date out, so
+ * a reused order number (Grab recycles the 6-digit one) let a later cancellation
+ * overwrite an older row, date included. And the 2026-04-15 Dubai migration
+ * wrote 170 rows dated in October 2026, which had not happened yet. Neither is
+ * recoverable from the sources we have, so the rows are marked rather than
+ * shown as fact. */
+function dateUnsure(row: CancelRow): boolean {
+  return (row.date_confidence ?? "") === "uncertain";
 }
 
 type SyncStatusMap = Record<
@@ -407,7 +429,17 @@ function DetailModal({
         <div className="space-y-5 px-5 py-5">
           {/* Row 1: Date / Branch / Brand */}
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Date" value={fmtDate(row.incident_date)} />
+            <div>
+              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Date</p>
+              <p className={`text-sm font-medium ${dateUnsure(row) ? "text-amber-300" : "text-white/90"}`}>
+                {fmtDate(row.incident_date)}
+              </p>
+              {dateUnsure(row) && (
+                <p className="mt-1 text-[11px] leading-snug text-amber-300/80">
+                  {row.date_note ?? "This date cannot be believed."}
+                </p>
+              )}
+            </div>
             <div>
               <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Branch</p>
               <p className="text-sm font-medium" style={{ color: bc }}>{row.branch || "—"}</p>
@@ -1200,8 +1232,17 @@ export default function CancellationReportPage() {
                       onClick={() => setSelectedRow(r)}
                     >
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 text-white/50`}>
-                        <span className={rowOverdue ? "text-red-400 font-semibold" : ""}>{fmtDate(r.incident_date)}</span>
+                        <span className={rowOverdue ? "text-red-400 font-semibold" : dateUnsure(r) ? "text-amber-300/80 line-through decoration-amber-400/50" : ""}>
+                          {fmtDate(r.incident_date)}
+                        </span>
                         {rowOverdue && <AlertCircle className="ml-1 inline h-3 w-3 text-red-400" />}
+                        {/* Amber, not red: red says the cancellation was serious.
+                            This says the date cannot be used. */}
+                        {dateUnsure(r) && (
+                          <span title={r.date_note ?? "This date cannot be believed."}>
+                            <AlertTriangle className="ml-1 inline h-3 w-3 text-amber-400" />
+                          </span>
+                        )}
                       </td>
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 font-mono text-white/60`}>
                         {r.order_id || <span className="text-white/20">—</span>}
