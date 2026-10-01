@@ -19,6 +19,7 @@ import {
 import { getAuth, getAuthHeaders, refreshAuthFromApi, tryRefreshAccessToken } from "@/lib/auth";
 import { GLASS_CARD, T_CAPTION } from "@/lib/ui-tokens";
 import { Spinner } from "@/components/ui/Spinner";
+import { sameBranch } from "@/lib/dubai-branch";
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") { const _devBase = process.env.NEXT_PUBLIC_API_BASE_URL; if (_devBase) return _devBase.replace(/\/+$/, ""); return "http://127.0.0.1:8000"; }
@@ -114,7 +115,8 @@ const BRANCH_COLORS: Record<string, string> = {
   "Business Bay": "#6366f1",
   Arjan: "#10b981",
   "Al Barsha": "#f59e0b",
-  "Al Hudaiba": "#ec4899",
+  "Al Mina": "#ec4899",
+  "Al Hudaiba": "#ec4899", // rows entered before the name was settled
   JLT: "#8b5cf6",
 };
 const PLATFORM_COLORS: Record<string, string> = {
@@ -192,7 +194,8 @@ function ChartTooltip({
   );
 }
 
-const BRANCHES_FULL = ["Business Bay", "Arjan", "Al Barsha", "Al Hudaiba", "JLT"] as const;
+// Al Mina is the name the rest of the OS uses; see @/lib/dubai-branch.
+const BRANCHES_FULL = ["Business Bay", "Arjan", "Al Barsha", "Al Mina", "JLT"] as const;
 
 export function DubaiCancellationsTab({
   dateFrom,
@@ -262,7 +265,7 @@ export function DubaiCancellationsTab({
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
-      if (filterBranch !== "All" && r.branch !== filterBranch) return false;
+      if (filterBranch !== "All" && !sameBranch(r.branch, filterBranch)) return false;
       if (filterPlatform !== "All" && r.platform !== filterPlatform) return false;
       if (filterCategory !== "All" && (r.category || "") !== filterCategory) return false;
       if (filterBrand !== "All" && (r.brand || "") !== filterBrand) return false;
@@ -336,10 +339,10 @@ export function DubaiCancellationsTab({
   }));
 
   const branchBarData = BRANCHES_FULL.map((br) => ({
-    branch: br === "Business Bay" ? "Biz Bay" : br === "Al Hudaiba" ? "Hudaiba" : br === "Al Barsha" ? "AB" : br,
-    Careem: records.filter((r) => r.branch === br && r.platform === "Careem").length,
-    Keeta: records.filter((r) => r.branch === br && r.platform === "Keeta").length,
-    Talabat: records.filter((r) => r.branch === br && r.platform === "Talabat").length,
+    branch: br === "Business Bay" ? "Biz Bay" : br === "Al Barsha" ? "AB" : br,
+    Careem: records.filter((r) => sameBranch(r.branch, br) && r.platform === "Careem").length,
+    Keeta: records.filter((r) => sameBranch(r.branch, br) && r.platform === "Keeta").length,
+    Talabat: records.filter((r) => sameBranch(r.branch, br) && r.platform === "Talabat").length,
   }));
 
   const cancelN = summary.by_category?.["Cancellation"] ?? 0;
@@ -514,7 +517,7 @@ export function DubaiCancellationsTab({
                 }`}
                 style={filterBranch === b ? { backgroundColor: b === "All" ? "#6366f1" : BRANCH_COLORS[b] } : undefined}
               >
-                {b === "Business Bay" ? "Biz Bay" : b === "Al Hudaiba" ? "Hudaiba" : b}
+                {b === "Business Bay" ? "Biz Bay" : b}
               </button>
             ))}
           </div>

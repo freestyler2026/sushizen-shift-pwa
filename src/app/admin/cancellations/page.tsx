@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, tryRefreshAccessToken } from "@/lib/auth";
+import { sameBranch } from "@/lib/dubai-branch";
 import {
   GLASS_CARD,
   KPI_CARD,
@@ -242,7 +243,7 @@ const DUBAI_PLATFORM_COLORS: Record<string, string> = {
 };
 const DUBAI_BRANCH_COLORS: Record<string, string> = {
   "Business Bay": "#6366f1", Arjan: "#10b981", "Al Barsha": "#f59e0b",
-  "Al Hudaiba": "#ec4899", JLT: "#8b5cf6",
+  "Al Mina": "#ec4899", "Al Hudaiba": "#ec4899", JLT: "#8b5cf6",
 };
 const MANILA_PLATFORM_COLORS: Record<string, string> = {
   GrabFood: "#00b14f", FoodPanda: "#d70f64",
@@ -715,7 +716,10 @@ export default function CancellationReportPage() {
 
   // City-derived config
   const BRANCHES = city === "dubai"
-    ? ["All", "Business Bay", "Arjan", "Al Barsha", "Al Hudaiba", "JLT"]
+    // Al Mina, not Al Hudaiba: 615 rows carry the canonical name and the filter
+    // compared exactly, so picking "Al Hudaiba" returned 177 rows and there was
+    // no selection that reached the other 615. The backend folds the two.
+    ? ["All", "Business Bay", "Arjan", "Al Barsha", "Al Mina", "JLT"]
     : ["All", "Paranaque", "Taft", "Cubao"];
   const PLATFORMS = city === "dubai"
     ? ["All", "Careem", "Keeta", "Talabat"]
@@ -844,7 +848,7 @@ export default function CancellationReportPage() {
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
-      if (filterBranch !== "All" && r.branch !== filterBranch) return false;
+      if (filterBranch !== "All" && !sameBranch(r.branch, filterBranch)) return false;
       if (filterPlatform !== "All" && r.platform !== filterPlatform) return false;
       if (filterCategory !== "All" && (r.category || "") !== filterCategory) return false;
       if (filterTicket === "sent" && !isTicketSent(r.email_status)) return false;
