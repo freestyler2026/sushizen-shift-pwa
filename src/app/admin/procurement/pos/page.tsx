@@ -47,6 +47,10 @@ type PoRow = {
   last_email_sent_at: string;
   receipt_confirmed_at: string;
   receipt_confirmed_by: string;
+  // The supplier dispatched to us. NOT dispatched_at, which is CK packing goods
+  // and sending them to a store -- same table, similar name, different event.
+  delivered_confirmed_at?: string | null;
+  delivered_confirmed_by?: string | null;
   supplier_confirmation_status?: string;
   supplier_confirmation_notes?: string;
   created_at: string;
@@ -209,6 +213,7 @@ export default function ProcurementPoPage() {
   const [deliveryById, setDeliveryById] = useState<Record<string, DeliveryBundle>>({});
   const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dispatchBusy, setDispatchBusy] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -394,6 +399,36 @@ export default function ProcurementPoPage() {
       setConfSuccess("Error: " + String((e as Error)?.message || e));
     } finally {
       setConfBusy(false);
+    }
+  };
+
+  /** The supplier dispatched this order, or undo that mark.
+   *
+   * The same endpoint the Direct Purchase screen calls. It is here because that
+   * screen only lists purchase_type='direct_purchase' — 810 Manila orders and 4
+   * in Dubai — so Dubai's 681 standard orders with a PO and no receipt had no way
+   * to reach the stage at all. Once the kitchen has confirmed receipt the order is
+   * complete whether this was pressed or not, so the button is not offered then.
+   */
+  const confirmDispatch = async (poId: string, undo: boolean) => {
+    setDispatchBusy(poId);
+    setError("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/pos/${encodeURIComponent(poId)}/delivered`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ undo }),
+        },
+        requestedBy,
+        pin,
+      );
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setDispatchBusy("");
     }
   };
 
@@ -1003,9 +1038,35 @@ export default function ProcurementPoPage() {
                   <div className={T_CAPTION}>
                     Recipient: {row.last_recipient_email || "-"} | Receipt:{" "}
                     {row.receipt_confirmed_at ? String(row.receipt_confirmed_at).slice(0, 16).replace("T", " ") : "Pending"}
+                    {" | Dispatch: "}
+                    {row.delivered_confirmed_at
+                      ? `${String(row.delivered_confirmed_at).slice(0, 16).replace("T", " ")}${row.delivered_confirmed_by ? ` (${row.delivered_confirmed_by})` : ""}`
+                      : "Pending"}
                   </div>
                 </div>
                 <div className="flex items-start gap-2 shrink-0">
+                  {/* Confirm Dispatch was only on the Direct Purchase screen, which
+                      lists purchase_type='direct_purchase' — 810 orders in Manila and
+                      4 in Dubai. Dubai's CK ordering is 'standard', 681 of them with a
+                      PO and no receipt, so the stage was unreachable there. Same
+                      action, same endpoint, on the object it is about. */}
+                  {!row.receipt_confirmed_at && (
+                    <button
+                      type="button"
+                      onClick={() => void confirmDispatch(row.id, !!row.delivered_confirmed_at)}
+                      disabled={dispatchBusy === row.id}
+                      title={row.delivered_confirmed_at
+                        ? "Undo the dispatch mark"
+                        : "The supplier dispatched this order. The kitchen still confirms receipt separately."}
+                      className={`${SMALL_BUTTON} inline-flex items-center gap-1.5 ${
+                        row.delivered_confirmed_at ? "" : "border-sky-500/30 text-sky-300 hover:bg-sky-500/10"}`}
+                    >
+                      {dispatchBusy === row.id
+                        ? <RefreshCw className="h-3 w-3 animate-spin" />
+                        : <CheckCircle className="h-3 w-3" />}
+                      {row.delivered_confirmed_at ? "Undo Dispatch" : "Confirm Dispatch"}
+                    </button>
+                  )}
                   {city === "manila" && row.supplier_confirmation_status !== "not_required" && (
                     <button
                       type="button"
