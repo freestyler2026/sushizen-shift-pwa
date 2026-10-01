@@ -1,5 +1,75 @@
 # CURRENT_TASKS.md
 
+## 2026-10-01（追記18）— ドバイの年ずれ284件を復元。独立監査で自分の欠陥4件が出た
+
+### 元ファイルはコードから見つかった
+`scripts/import_dubai_cancellations_excel.py` が読む先を書いていた。派生ファイル
+`Dubai_Cancellation_DB_Ready.xlsx` は消えているが、上流の
+**`~/Downloads/Aggregators Cancellation & Refunds .xlsx`（4/15 保存）** が残っていた。
+月×プラットフォームのタブ構成で Aug 2025〜Apr 2026。
+
+**4タブの Order Date が年 2026 になっていた**（タブ名は2025）:
+Keeta Oct 80 / Talabat Oct 96 / Talabat Aug 71 / Careem Aug 37 = **284行**。
+
+⚠️ **「2025-10 は既に280件あるから年ずれでは説明できない」と書いたのは誤り。**
+同じ月に正しい行と壊れた行が混在していれば両方成り立つ。実際そうだった。
+
+⚠️ **証拠は zip のタイムスタンプではなく order_id の連番で言う。** zip の DOS 時刻は
+書き手が自由に設定できる。Careem と Talabat の注文IDは全社連番なので、
+**Talabat の「2026-10」96件のIDは Aug 2025 と Dec 2025 の間に挟まる** — これは動かせない。
+**Keeta のIDは3〜4桁で連番性が無い**ので、80行はタブ名と174行のキー一致に依存している。
+
+### 実行したこと（全件 本番で検算済み）
+| | 件数 |
+|---|---:|
+| 年を 2026→2025 に移した | **174** |
+| 入っていなかった行を挿入 | **110**（8月108・10月2） |
+
+**ワークブックと完全一致**: 2025-08 227=227 / 2025-10 456=456。未来日付の行は両都市0。
+退避: `_dubai_canc_year_bk_20261001`(174) / `_dubai_canc_fields_bk_20261001`(110)。
+
+### 独立監査が出した私の欠陥4件（全部直した）
+`scripts/fix_dubai_cancellation_years.py --repair-fields`
+
+| 欠陥 | 影響 |
+|---|---|
+| `encoded_by='year-fix 2026-10-01'` | **職種ラベルを「誰が記録したか」の列に書いた。**画面に Encoded By として出て検索対象。5番目に多い記録者になっていた |
+| `brand` がシートの綴り（`Sushi Zen`） | **ブランド絞り込みが85行に当たらない。**語彙が4→7個に増えた |
+| `category` が NULL | **どのカテゴリ選択でも到達できない。**統計に `Unknown` バケットが出現 |
+| `ordered_items` / `time_reported` / `date_note` が空・Keeta の `reason` 欠落 | Keeta の `Reason of Cancellation` は **[12]**。Talabat は [10]。読む位置が違う |
+
+**変換は全部実測で決めた**（推測していない）: `Sushi Zen`→`Sushi ZEN` 1,828行一致 /
+`J-deli`→`Other` / Careem の **`Distinction` 列が `category` を決める**
+（`Refund & Complaints`→Refund/Complaint 936・`Cancellation Request`→Cancellation 750、例外0）。
+**未知の Distinction は例外で止める。**
+
+### 支店が2つの名前を持っていた（監査が見つけた既存の欠陥）
+`dubai_cancellations` は同じ支店を **`Al Mina` 615行 / `Al Hudaiba` 177行**で持っていた。
+**OS全体の正式名は `Al Mina`** — `app/branches.py`(`AM`)・`shift_excel` が `HUDAIBA`→`AM`・
+`db.py` が2箇所で `hudaiba`→`Al Mina`・week・calendar・cold-chain・daily-check。
+だが**キャンセル入力フォームだけ `Al Hudaiba` を書いていた**。絞り込みは厳密比較なので、
+**「Al Hudaiba」を選ぶと177行が出て615行には到達する選択肢が無かった。**
+
+⚠️ **監査の推奨は逆方向だった**（`Al Hudaiba` に寄せる）。OS全体の正式名を調べると
+`Al Mina` なので採らなかった。**エージェントの指摘も1件ずつ確かめる。**
+
+直し方は**177行を書き換えずに両方を同じ支店として扱う**こと
+（`app/db_dubai_cancellations.py:branch_labels` / `src/lib/dubai-branch.ts`）。
+内訳も1行に畳む。新規入力は正式名で保存。
+**他8画面（評価・低評価・更新・注文・Bayzat）は別テーブルなので触っていない。**
+
+### 残っていること
+- **ワークブックの284行を Excel で直す**（A列の年を2026→2025）。DBだけ直すと次の取込で戻る。
+  `Keeta Oct 2025` A3:A82 / `Talabat Oct 2025` A3:A98 / `Talabat Aug 2025` A3:A73 /
+  `Careem Aug 2025` **A122:A158のみ**（A3:A121の119行は2025で正しい）。
+  **openpyxl で開き直さない** — 数式17,112・テーブル181・図35が壊れる
+- **まだ入っていない61行**: 支店欄が空で弾かれた33行（Keeta Jan/Feb、`import_...py:150` の
+  `if not br: continue` ＋ `branch NOT NULL`）／古いキーで消された22行／
+  テキスト日付のKeeta Jan 5行／日付空のCareem Mar 1行
+- 移行行8件（2026-06〜09）は元が特定できず `uncertain` のまま（ドバイ計10件）
+- マニラ: **データ上は年ずれの痕跡なし**（828行・未来日付0）。ただし元ファイルも消えているので
+  **「影響なし」ではなく「データに痕跡が無い。元は確認できない」**と書く
+
 ## 2026-10-01（追記17）— キャンセル記録: 一意な注文ID・未来日付の遮断・直せない行への印
 
 オーナー指示で3件実装。**全てデプロイ済み・本番で動作確認済み。**
