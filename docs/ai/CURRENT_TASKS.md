@@ -59,7 +59,11 @@ Keeta Oct 80 / Talabat Oct 96 / Talabat Aug 71 / Careem Aug 37 = **284行**。
 **他8画面（評価・低評価・更新・注文・Bayzat）は別テーブルなので触っていない。**
 
 ### 残っていること
-- **284行を直すのは `~/Downloads` の .xlsx ではなく Drive の Google スプレッドシート**
+- ⚠️ **ワークブックは直さない（2026-10-01 オーナー確認済み）。もう使っていない。**
+  現場は **OS の Admin dashboard の Cancellation タブ**から直接入力している。
+  だから「次の取込で年ずれが戻る」心配は無く、`scripts/import_dubai_cancellations_excel.py` は
+  事実上使われない経路。**ワークブックは過去データの出典としてだけ参照する。**
+  （参考・直すとしたらの対象は `~/Downloads` の .xlsx ではなく Drive の Google スプレッドシート）
   （`Aggregators Cancellation & Refunds` / id `1dsRmbL--DbZhx-xs4vwsbyK__MHydFW1g5hTSx2oCgE`
   / 最終更新 2026-08-10・**所有者 Yuri**）。ローカルの .xlsx は**4月時点の書き出し**で、
   どの取込経路もそこを読んでいない。⚠️ **両ファイルとも 2026-08-10 以降更新されていない** —
