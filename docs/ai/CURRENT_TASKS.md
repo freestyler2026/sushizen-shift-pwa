@@ -1,5 +1,35 @@
 # CURRENT_TASKS.md
 
+## 2026-10-01（追記19）— Confirm Dispatch は「権限が無い」のではなく「押せる行が無い」
+
+Yusuke から「Confirm Dispatch の権限が欲しい、方法が分からない」と依頼。**付与するものは無かった。**
+
+### 権限はある
+`Yusuke Uejima` は role=HQ で、権限は **`['*']`**（ワイルドカード）。
+`_policy_allows('HQ','procurement.request.write', …)` を本番で実行して manila/dubai とも **通る**。
+⚠️ **私は `procurement.request.write` という文字列で権限集合を検索して「無い」と判定しかけた。**
+HQ は `*` を持つので文字列では当たらない。**権限の有無は文字列検索ではなく `_policy_allows` を実行して判定する。**
+（同じ理由で「押せる人73名」の一覧にも HQ が出ていなかった。実数はもっと多い）
+
+### 押せる行が無い
+ボタンの表示条件は `row.po_id && stageOf(row) === "PO_ISSUED"`。実測:
+
+| 都市 | direct_purchase 総数 | うち PO_ISSUED（＝ボタンが出る） |
+|---|---:|---:|
+| manila | 810 | **1** |
+| dubai | **4**（取消3・審査中1） | **0** |
+
+Yusuke 自身の 10/01 の発注10件は `APPROVED_NO_PO` か `IN_REVIEW` で、**まだPOが出ていない**。
+
+### 本当の設計の穴
+**Direct Purchase 画面は `purchase_type='direct_purchase'` だけを出す**
+（`list_direct_proc_purchases`:12078）。ドバイの通常のCK発注は **`standard` で3,010件**あり、
+そのうち **PO_ISSUED が681件**。**その681件に Confirm Dispatch は出ない。**
+9/27 に「ドバイ0件」と報告したのはこれが原因で、**名前の問題ではなく画面の対象範囲の問題。**
+standard にも段階を広げるかはオーナー判断（未着手）。
+
+PO を出すのは `/admin/procurement/pos` の bulk create & send。Direct Purchase 画面には PO 発行のボタンは無い。
+
 ## 2026-10-01（追記18）— ドバイの年ずれ284件を復元。独立監査で自分の欠陥4件が出た
 
 ### 元ファイルはコードから見つかった
