@@ -34,7 +34,11 @@
 | 2 | `inv_item_levels_by_branch`（`inventory_db.py:314`） | **0行** |
 | 3 | `daily_inv_par_patterns`（`db_daily_inventory.py:812`） | Daily Inventory の曜日別par |
 | 4 | `backup_par_levels`（`app/db.py:73463`） | Backup Report の判定。376行 |
-| (5) | `ck_par_levels` 813行 / `store_supplier_catalog.par_level_weekday/weekend` | CK発注 / 店舗自動発注 |
+| (5) | `ck_par_levels`（**dubai 345 / manila 468**・city列あり・支店なし） / `store_supplier_catalog.par_level` | CK発注 / 店舗自動発注 |
+
+⚠️ **2026-10-02 訂正: `store_supplier_catalog` に `par_level_weekday/weekend` は無い。** 実際の列は `par_level` 1本（実測）。`/admin/store-par-levels` が書くのはこれで、**`STORES=["PAR","CUB","TAFT"]` をベタ書きしており city の概念が無い**。各店22品のみ。
+
+⚠️ **`daily_inv_par_patterns` の曜日は Sunday / Thursday / Tuesday の3つだけ**（実測）。「曜日別」ではなく**納品日別**。
 
 **「par を直してください」と言われたら、まずどの par かを確定させる。** 6箇所ある。
 
