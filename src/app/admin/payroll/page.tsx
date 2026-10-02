@@ -400,6 +400,12 @@ export default function PayrollPage() {
   const [selectedCycle, setSelectedCycle] = useState<Cycle | null>(null);
   const [rows, setRows] = useState<PayrollRow[]>([]);
   const [totalNetPay, setTotalNetPay] = useState<number | null>(0);
+  // What the rows this viewer can read add up to. The full total is withheld
+  // when somebody on the cycle is ring-fenced, because total minus the visible
+  // rows is the hidden one. The subtotal is the column already on screen.
+  const [visibleNetPay, setVisibleNetPay] = useState<number | null>(null);
+  const [visibleRows, setVisibleRows] = useState(0);
+  const [hiddenRows, setHiddenRows] = useState(0);
   const [configs, setConfigs] = useState<SalaryConfig[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -440,12 +446,18 @@ export default function PayrollPage() {
       const r = await apiFetch(`${API}/table?city=${encodeURIComponent(c)}&cycle_id=${cycleId}`);
       if (id !== tableLoadRef.current) return;
       if (!r.ok) {
-        setRows([]); setTotalNetPay(0);
+        setRows([]); setTotalNetPay(0); setVisibleNetPay(null);
         setErr(await extractApiError(r, "Failed to load payroll table")); return;
       }
-      const data = await r.json() as { rows: PayrollRow[]; total_net_pay: number | null };
+      const data = await r.json() as {
+        rows: PayrollRow[]; total_net_pay: number | null;
+        visible_net_pay?: number | null; visible_rows?: number; hidden_rows?: number;
+      };
       setRows(Array.isArray(data.rows) ? data.rows : []);
       setTotalNetPay(data.total_net_pay ?? null);
+      setVisibleNetPay(data.visible_net_pay ?? null);
+      setVisibleRows(data.visible_rows ?? 0);
+      setHiddenRows(data.hidden_rows ?? 0);
     } catch {
       if (id === tableLoadRef.current) setErr("Network error — please try again");
     } finally {
@@ -721,6 +733,13 @@ export default function PayrollPage() {
         <div className="px-6 py-5">
           <p className="text-xs text-slate-400 mb-1">Total net pay for {cycleName}</p>
           <p className="text-2xl font-bold text-white tabular-nums">{currency} {n(totalNetPay)}</p>
+          {isSalaryHidden(totalNetPay) && visibleNetPay !== null && (
+            <p className="text-xs text-slate-400 mt-1">
+              {currency} {visibleNetPay.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {" "}for the {visibleRows} you can see
+              {hiddenRows > 0 && ` — ${hiddenRows} ${hiddenRows === 1 ? "person is" : "people are"} not shown to your account`}
+            </p>
+          )}
         </div>
         <div className="px-6 py-5">
           <p className="text-xs text-slate-400 mb-1">Processed till date for {cycleName}</p>
