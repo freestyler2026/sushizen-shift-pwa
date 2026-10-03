@@ -3,9 +3,10 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import ModalScrim from "@/components/ModalScrim";
 import {
-  LANES, STAGE_LABEL, laneOf, stageAlert, stageOf, stageTone,
-  type DirectPurchaseRow, type DirectPurchaseItem,
+  LANES, STAGE_LABEL, laneCount, laneOf, laneOldest, rowKey, stageAlert, stageOf, stageTone,
+  type DirectPurchaseRow, type DirectPurchaseItem, type StageSummary,
 } from "@/lib/direct-purchase-stage";
+import { money } from "@/lib/currency";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
   defaultProcurementName,
@@ -122,6 +123,9 @@ export default function DirectPurchasesAdminPage() {
 
   // ── Data ──
   const [rows, setRows]       = useState<DirectPurchaseRow[]>([]);
+  // Every row at every stage, from the server. The lane chips read this, never
+  // `rows` -- `rows` holds one lane now.
+  const [stageSummary, setStageSummary] = useState<StageSummary | null>(null);
   // What the two creator alerts have done, and who they cannot reach.
   const [alerts, setAlerts] = useState<AlertPayload | null>(null);
   // Registering the missing IDs happens here, not on another page. The page
@@ -219,25 +223,32 @@ export default function DirectPurchasesAdminPage() {
   }, [idEdit, requestedBy, pin, cityFilter, statusFilter, verifiedFilter]);
 
   // ─── Load list ───────────────────────────────────────────────────────────
-  const load = useCallback(async (city: string, status: string, dv: string) => {
+  const load = useCallback(async (city: string, status: string, dv: string, forLane?: string) => {
     setError(""); setLoading(true);
     try {
-      // Everything, not one status, and not 200. The lane counts have to be
-      // true to be worth showing, and ordering is created_at DESC, so at 200
-      // the rows that most needed attention -- the oldest, up to 116 days --
-      // were past the end and could not be reached from this screen at all.
+      // The lane being looked at, not every row. Manila is 827 rows and fitted
+      // in one window; Dubai is 3,074 at one row per supplier, so asking for
+      // everything would cut off two thirds and the oldest order -- the one
+      // most worth opening -- is the one that falls off the end.
+      //
+      // The counts come back separately, over every row. A count taken from
+      // the page is a count of the page.
+      const laneKey = forLane ?? lane;
+      const stages = (LANES.find(l => l.key === laneKey)?.stages || []).join(",");
       const qs = new URLSearchParams({
         city,
         ...(status ? { status } : {}),
         ...(dv ? { data_verified: dv } : {}),
+        ...(stages ? { stages } : {}),
         limit: "1000",
       }).toString();
-      const data = await procurementJson<{ rows: DirectPurchaseRow[] }>(
+      const data = await procurementJson<{ rows: DirectPurchaseRow[]; stages?: StageSummary }>(
         `/api/admin/procurement/direct-purchases?${qs}`,
         { method: "GET" },
         requestedBy, pin,
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      setStageSummary(data?.stages || null);
       // Non-fatal on purpose: if this call is refused the banner is simply
       // absent, rather than the whole screen failing over a caption.
       try {
@@ -283,9 +294,11 @@ export default function DirectPurchasesAdminPage() {
 
   // ─── Edit handlers ────────────────────────────────────────────────────────
   const startEdit = (row: DirectPurchaseRow) => {
-    setEditingId(row.id);
+    // Keyed on the row, not the request: an order sent to two suppliers has two
+    // rows, and `row.id` would open both of them for editing at once.
+    setEditingId(rowKey(row));
     setEditState(buildEditState(row));
-    setExpandedId(row.id);
+    setExpandedId(rowKey(row));
     setEditError("");
   };
 
@@ -595,33 +608,38 @@ export default function DirectPurchasesAdminPage() {
           so the flagging is inspectable rather than mysterious. */}
       <div className="mb-3 flex flex-wrap gap-2">
         {LANES.map((l) => {
-          const inLane = rows.filter(r => laneOf(r) === l.key);
-          const flagged = inLane.filter(r => stageAlert(r)).length;
-          const working = l.key !== "RECEIVED" && l.key !== "CLOSED";
-          const oldest = working && inLane.length
-            ? Math.max(...inLane.map(r => Number(
-                l.key === "PO_ISSUED" ? (r.days_past_delivery_date ?? 0) : (r.days_in_stage || 0))))
-            : 0;
           const active = lane === l.key;
+          // From the server, over every row. Only the lane on screen has rows
+          // here, so counting those would report 0 for every other chip.
+          const count = laneCount(stageSummary, l);
+          const working = l.key !== "RECEIVED" && l.key !== "CLOSED";
+          const oldest = working ? laneOldest(stageSummary, l) : 0;
+          // Only for the lane whose rows are loaded. Saying how many of
+          // another lane are flagged would need its rows, and guessing is how
+          // a chip and the list under it start disagreeing.
+          const flagged = active ? rows.filter(r => stageAlert(r)).length : 0;
+          const inLane = active ? rows.filter(r => laneOf(r) === l.key) : [];
           return (
-            <button key={l.key} type="button" onClick={() => setLane(l.key)}
+            <button key={l.key} type="button"
+              onClick={() => { setLane(l.key); setShowBacklog(false); setExpandedId("");
+                               void load(cityFilter, statusFilter, verifiedFilter, l.key); }}
               className={`rounded-xl border px-3 py-2 text-left transition ${
                 active ? "border-violet-400/50 bg-violet-500/15 text-white"
                        : "border-white/10 bg-white/4 text-zinc-300 hover:bg-white/8"}`}>
               <span className="text-xs font-semibold">{l.label}</span>
-              <span className="ml-2 font-mono text-sm">{inLane.length}</span>
+              <span className="ml-2 font-mono text-sm">{count}</span>
               {/* "N flagged" only when it is a strict subset. Every row in
                   In Review and nearly every row in Needs PO is past its
                   threshold right now, and a badge that reads "48 flagged" next
                   to a count of 48 says nothing -- the same way a queue where
                   83% is noise stops being read. The oldest age is informative
                   either way, so that is what the chip carries. */}
-              {flagged > 0 && flagged < inLane.length && (
+              {active && flagged > 0 && flagged < inLane.length && (
                 <span className="ml-2 rounded-lg bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
                   {flagged} flagged
                 </span>
               )}
-              {working && inLane.length > 0 && oldest > 0 && (
+              {working && count > 0 && oldest > 0 && (
                 <span className="ml-2 rounded-lg bg-white/8 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
                   oldest {oldest}d
                 </span>
@@ -633,9 +651,24 @@ export default function DirectPurchasesAdminPage() {
       <p className={`${T_CAPTION} mb-3`}>
         {LANES.find(l => l.key === lane)?.hint}
         {(() => {
+          // The window holds 1,000 and Dubai's Incoming lane is larger than
+          // that. Saying so beats a list that silently stops: the row most
+          // worth opening is the oldest, and it is the one past the end.
+          const total = laneCount(stageSummary, LANES.find(l => l.key === lane)!);
+          if (!rows.length || total <= rows.length) return null;
+          return (
+            <span className="text-zinc-400">
+              {" "}Showing the newest {rows.length} of {total}.
+            </span>
+          );
+        })()}
+        {(() => {
           const inLane = rows.filter(r => laneOf(r) === lane);
           const flagged = inLane.filter(r => stageAlert(r)).length;
-          if (!inLane.length || flagged < inLane.length) return null;
+          // Only when the lane fits in one window: "all 1,000 are past that"
+          // would be a statement about the window, not about the lane.
+          const whole = inLane.length === laneCount(stageSummary, LANES.find(l => l.key === lane)!);
+          if (!whole || !inLane.length || flagged < inLane.length) return null;
           // Saying "all of them" is the difference between a queue somebody
           // works today and a backlog somebody schedules. Without it the
           // screen looks like a daily list that is permanently on fire.
@@ -722,8 +755,9 @@ export default function DirectPurchasesAdminPage() {
           </div>
         )}
         {[...visibleRows, ...(showBacklog ? backlogRows : [])].map((row, idx) => {
-          const isExpanded = expandedId === row.id;
-          const isEditing  = editingId  === row.id;
+          const key = rowKey(row);
+          const isExpanded = expandedId === key;
+          const isEditing  = editingId  === key;
           const createdDt  = row.created_at
             ? new Date(row.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
             : "—";
@@ -733,7 +767,7 @@ export default function DirectPurchasesAdminPage() {
           const startsBacklog = showBacklog && idx === visibleRows.length && backlogRows.length > 0;
 
           return (
-            <Fragment key={row.id}>
+            <Fragment key={key}>
             {startsBacklog && (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/4 px-4 py-2.5">
                 <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
@@ -749,7 +783,7 @@ export default function DirectPurchasesAdminPage() {
 
               {/* Row header */}
               <button type="button" className="w-full px-4 py-4 text-left"
-                onClick={() => setExpandedId(isExpanded ? "" : row.id)}>
+                onClick={() => setExpandedId(isExpanded ? "" : key)}>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
@@ -774,8 +808,17 @@ export default function DirectPurchasesAdminPage() {
                           </span>
                         );
                       })()}
-                      {Number(row.po_count || 0) > 1 && (
-                        <span className={BADGE_WARNING}>{row.po_count} POs</span>
+                      {Number(row.po_vendor_count || 0) > 1 && (
+                        <span className={BADGE_WARNING}
+                          title="This order went to more than one supplier. Each supplier is its own row.">
+                          1 of {row.po_vendor_count} suppliers
+                        </span>
+                      )}
+                      {Number(row.po_reissue_count || 0) > 1 && (
+                        <span className={BADGE_INFO}
+                          title="The purchase order to this supplier was raised more than once — same lines, same amount. The latest is shown.">
+                          PO issued ×{row.po_reissue_count}
+                        </span>
                       )}
                       {row.has_shortage && <span className={BADGE_WARNING}>Short delivery</span>}
                       {row.data_verified_at
@@ -791,8 +834,16 @@ export default function DirectPurchasesAdminPage() {
                       <span>By <span className="text-zinc-300">{row.requested_by}</span></span>
                       {row.store_code && <span>Branch <span className="text-zinc-300">{row.store_code}</span></span>}
                       <span>Date <span className="text-zinc-300">{row.request_date || createdDt}</span></span>
-                      <span>Vendor <span className="text-zinc-200 font-medium">{row.items[0]?.vendor_name || "—"}</span></span>
-                      <span>Total <span className="font-semibold text-amber-300">PHP {Number(row.total_amount || 0).toFixed(2)}</span></span>
+                      <span>Vendor <span className="text-zinc-200 font-medium">{row.po_vendor_name || row.items[0]?.vendor_name || "—"}</span></span>
+                      {/* This supplier's share, and the order's total when they
+                          differ. They differ only on a multi-supplier order,
+                          where one number for both would be the thing this
+                          grain exists to stop. */}
+                      <span>Total <span className="font-semibold text-amber-300">{money(row.city, row.row_amount ?? row.total_amount)}</span>
+                        {Number(row.po_vendor_count || 0) > 1 && (
+                          <span className="text-zinc-500"> of {money(row.city, row.total_amount)}</span>
+                        )}
+                      </span>
                       {row.delivery_date && (
                         <span>
                           Expected <span className="text-zinc-200 font-medium">{row.delivery_date}</span>
@@ -805,6 +856,22 @@ export default function DirectPurchasesAdminPage() {
                         <span className="text-sky-300">
                           Dispatch confirmed {String(row.delivered_confirmed_at).slice(0, 10)}
                           {row.delivered_confirmed_by ? ` · ${row.delivered_confirmed_by}` : ""}
+                        </span>
+                      )}
+                      {/* Yusuke asked who recorded the receipt and when. Every
+                          column was already filled; the screen never asked. */}
+                      {row.received_at && (
+                        <span className="text-emerald-300">
+                          Received {String(row.received_at).slice(0, 16).replace("T", " ")}
+                          {row.received_by ? ` · ${row.received_by}` : ""}
+                        </span>
+                      )}
+                      {/* Said plainly, because the row looks identical to a
+                          received one otherwise: a stamp, a date, a name — the
+                          supplier's. */}
+                      {stageOf(row) === "SUPPLIER_ACKED" && (
+                        <span className="text-amber-300">
+                          Supplier confirmed the order{row.receipt_confirmed_at ? ` ${String(row.receipt_confirmed_at).slice(0, 10)}` : ""} — nobody has recorded it arriving
                         </span>
                       )}
                     </div>
@@ -1027,7 +1094,7 @@ export default function DirectPurchasesAdminPage() {
                     {/* Running total */}
                     <div className="flex justify-end text-sm">
                       <span className="text-zinc-400 mr-3">New total:</span>
-                      <span className="font-semibold text-amber-300">PHP {editTotal.toFixed(2)}</span>
+                      <span className="font-semibold text-amber-300">{money(row.city, editTotal)}</span>
                     </div>
                   </div>
 

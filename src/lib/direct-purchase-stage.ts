@@ -28,6 +28,12 @@ export type DirectPurchaseItem = {
 
 export type DirectPurchaseRow = {
   id: string;
+  /**
+   * What identifies this ROW. The board is one row per supplier per order, so
+   * `id` (the request) repeats when an order went to two suppliers, and a list
+   * keyed on it renders one of them and silently drops the other.
+   */
+  row_key?: string;
   request_no: string;
   parent_case_no: string;
   city: string;
@@ -51,6 +57,26 @@ export type DirectPurchaseRow = {
   po_no?: string | null;
   po_id?: string | null;
   po_count?: number;
+  /**
+   * Who wrote down that the goods arrived, and when. From proc_receivings --
+   * po.receipt_confirmed_by is blank on 657 purchase orders and, where it is
+   * not, is as often a supplier's email address as a person.
+   */
+  received_by?: string | null;
+  received_at?: string | null;
+  receiving_no?: string | null;
+  /** The supplier this row is about, from its purchase order. */
+  po_vendor_name?: string | null;
+  /** How many suppliers the order went to. Above 1, the row is one of several. */
+  po_vendor_count?: number;
+  /**
+   * How many times this supplier's PO was raised. 51 of 56 multi-PO orders are
+   * the same lines issued again under the same vendor at the same amount, so
+   * they collapse to one row and say so here rather than appearing twice.
+   */
+  po_reissue_count?: number;
+  /** This supplier's share of the order. Equals total_amount for the usual one-supplier order. */
+  row_amount?: number;
   delivery_date?: string | null;
   delivery_date_original?: string | null;
   delivery_date_revised_at?: string | null;
@@ -88,6 +114,11 @@ export const STAGE_LABEL: Record<string, string> = {
   APPROVED_NO_PO: "Approved · no PO",
   PO_ISSUED: "PO issued · awaiting delivery",
   DELIVERED: "Dispatch confirmed · awaiting kitchen",
+  // The supplier clicked the confirm link in the PO email. That says they have
+  // the order, not that anything arrived — and until 2026-10-03 this screen
+  // read it as Received, which put 430 Dubai orders and 9 Manila ones in a lane
+  // captioned "the kitchen confirmed receipt".
+  SUPPLIER_ACKED: "Supplier confirmed the order · awaiting kitchen",
   RECEIVED: "Received",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
@@ -106,6 +137,34 @@ export const STAGE_LABEL: Record<string, string> = {
   PURCHASED: "Purchased",
 };
 
+/**
+ * What the server says about every row at a stage, not just the ones fetched.
+ *
+ * The board used to count the rows it had. That is true at Manila's 827 and
+ * false at Dubai's 3,074, where the window holds 1,000 — a lane chip would
+ * report what fitted. Thresholds are NOT in here: which age counts as late is
+ * STALE_DAYS below, and a second copy of that rule on the server is how two
+ * copies of one rule start disagreeing.
+ */
+export type StageSummary = Record<string, {
+  n: number;
+  oldest_days_in_stage: number;
+  oldest_days_past_delivery: number;
+}>;
+
+/** The server's count for a lane, summed over the stages it holds. */
+export function laneCount(summary: StageSummary | null, lane: Lane): number {
+  if (!summary) return 0;
+  return lane.stages.reduce((t, st) => t + Number(summary[st]?.n || 0), 0);
+}
+
+/** The longest wait in a lane, on the clock that lane is judged by. */
+export function laneOldest(summary: StageSummary | null, lane: Lane): number {
+  if (!summary) return 0;
+  const field = lane.key === "PO_ISSUED" ? "oldest_days_past_delivery" : "oldest_days_in_stage";
+  return lane.stages.reduce((m, st) => Math.max(m, Number(summary[st]?.[field] || 0)), 0);
+}
+
 export type Lane = { key: string; label: string; stages: string[]; hint: string };
 
 /**
@@ -119,10 +178,10 @@ export const LANES: Lane[] = [
     hint: "Waiting for approval. Flagged after 2 days." },
   { key: "APPROVED_NO_PO", label: "Needs PO", stages: ["APPROVED_NO_PO"],
     hint: "Approved, but no purchase order has been raised yet. Flagged after 3 days." },
-  { key: "PO_ISSUED", label: "Incoming", stages: ["PO_ISSUED", "DELIVERED"],
+  { key: "PO_ISSUED", label: "Incoming", stages: ["PO_ISSUED", "DELIVERED", "SUPPLIER_ACKED"],
     hint: "Ordered and not yet received by the kitchen. Flagged once the expected delivery date has passed." },
   { key: "RECEIVED", label: "Received", stages: ["RECEIVED"],
-    hint: "Closed — the kitchen confirmed receipt." },
+    hint: "Closed — somebody in the kitchen recorded the goods arriving, and the row says who." },
   { key: "CLOSED", label: "Rejected / Draft", stages: ["REJECTED", "CANCELLED", "DRAFT"],
     hint: "Not going ahead, or never submitted." },
   // Its own lane, not folded into the one above: these were bought. Putting
@@ -148,8 +207,8 @@ export const STORE_STAGES: Lane[] = [
     hint: "Raised, not yet submitted for approval." },
   { key: "APPROVAL", label: "Approval", stages: ["IN_REVIEW"],
     hint: "Waiting for approval." },
-  { key: "PO_ISSUED", label: "PO Issued", stages: ["APPROVED_NO_PO", "PO_ISSUED"],
-    hint: "Approved and ordered, with no dispatch confirmed yet — this is where an order stuck at the supplier sits." },
+  { key: "PO_ISSUED", label: "PO Issued", stages: ["APPROVED_NO_PO", "PO_ISSUED", "SUPPLIER_ACKED"],
+    hint: "Approved and ordered, with nothing received yet — this is where an order stuck at the supplier sits, including one the supplier has acknowledged." },
   { key: "DELIVERED", label: "Dispatch Confirmed", stages: ["DELIVERED"],
     hint: "Back office has confirmed the supplier arranged the delivery; the kitchen has not received it yet." },
   { key: "RECEIVED", label: "Received", stages: ["RECEIVED"],
@@ -198,6 +257,11 @@ export function storeStageOf(row: DirectPurchaseRow): string {
   return lane ? lane.key : "";
 }
 
+/** The key for this row in a list or a state map. */
+export function rowKey(row: DirectPurchaseRow): string {
+  return String(row.row_key || row.id || "");
+}
+
 export function stageOf(row: DirectPurchaseRow): string {
   return String(row.stage || (row.status || "").toUpperCase() || "UNKNOWN");
 }
@@ -212,7 +276,7 @@ export function laneOf(row: DirectPurchaseRow): string {
 export function stageAlert(row: DirectPurchaseRow): string {
   const st = stageOf(row);
   const days = Number(row.days_in_stage || 0);
-  if (st === "PO_ISSUED" || st === "DELIVERED") {
+  if (st === "PO_ISSUED" || st === "DELIVERED" || st === "SUPPLIER_ACKED") {
     // Against its own delivery date, not its age: a PO placed 30 days ago for a
     // delivery due next week is not late, and using age would flag every
     // long-lead order.
