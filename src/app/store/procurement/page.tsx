@@ -2839,7 +2839,12 @@ export default function StoreProcurementHomePage() {
                               const dp = row as unknown as DirectPurchaseRow;
                               const due = dp.delivery_date;
                               const st = stageOf(dp);
-                              if (!due || !["PO_ISSUED", "DELIVERED"].includes(st)) return null;
+                              // SUPPLIER_ACKED too: it means ordered and not
+                              // received, so "due three weeks ago" is exactly
+                              // as much a phone call as it is at PO_ISSUED. It
+                              // read as RECEIVED until 2026-10-03 and so showed
+                              // no date at all.
+                              if (!due || !["PO_ISSUED", "DELIVERED", "SUPPLIER_ACKED"].includes(st)) return null;
                               const late = new Date(`${due}T23:59:59`) < new Date();
                               return (
                                 <span className={late ? "text-amber-400" : "text-zinc-400"}>

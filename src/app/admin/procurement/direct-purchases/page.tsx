@@ -1014,7 +1014,12 @@ export default function DirectPurchasesAdminPage() {
                         <Pencil className="h-3.5 w-3.5" /> Expected date
                       </button>
                     )}
-                    {row.po_id && stageOf(row) === "PO_ISSUED" && !isEditing && (
+                    {/* Also on an acknowledged row. The supplier clicking the
+                        link in the PO email is not the back office checking the
+                        delivery was arranged, and 430 Dubai orders sit in that
+                        state -- without this they could never be given a
+                        dispatch mark at all. */}
+                    {row.po_id && ["PO_ISSUED", "SUPPLIER_ACKED"].includes(stageOf(row)) && !isEditing && (
                       <button type="button"
                         onClick={(e) => { e.stopPropagation(); void handleDelivered(row, false); }}
                         disabled={poBusy === row.id}
