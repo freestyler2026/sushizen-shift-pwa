@@ -11,10 +11,12 @@ import {
   INPUT_CLASS,
   SELECT_CLASS,
   T_PAGE_TITLE,
+  T_SECTION,
   TAB_ACTIVE,
   TAB_INACTIVE,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
+import CountSheetParEditor from "@/components/admin/CountSheetParEditor";
 import { getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 
@@ -191,6 +193,17 @@ export default function StoreParLevelsPage() {
           </button>
         </div>
 
+        {/* Named, now that a second par sits on this page. An unlabelled section
+            beside a labelled one reads as "the main thing" and "an extra", which
+            is not what these two are. */}
+        <div>
+          <h2 className={T_SECTION}>Supplier ordering par</h2>
+          <p className="mt-1 text-xs text-zinc-400">
+            How much of each item a store keeps on hand, used when it orders from its
+            suppliers. This is not the count sheet par below.
+          </p>
+        </div>
+
         {/* Store tabs */}
         <div className="flex gap-2 flex-wrap">
           {STORES.map((s) => (
@@ -328,6 +341,14 @@ export default function StoreParLevelsPage() {
             ))}
           </div>
         )}
+
+        {/* The other par on this page: what the Daily Inventory count sheet
+            prints beside each item, per branch and weekday. Until now the only
+            way to change it was download an Excel template, fill a column and
+            upload it back. Under its own heading because this OS has four par
+            systems and the quickest way to a fifth is to let two of them look
+            like one. */}
+        <CountSheetParEditor />
       </div>
 
       {/* Add / Edit Modal */}
