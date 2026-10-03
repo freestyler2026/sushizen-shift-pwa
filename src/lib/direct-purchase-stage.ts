@@ -75,6 +75,12 @@ export type DirectPurchaseRow = {
    * they collapse to one row and say so here rather than appearing twice.
    */
   po_reissue_count?: number;
+  /**
+   * A later purchase order exists for the same order and supplier. Only ever
+   * true on one that received nothing: the one carrying the receipt keeps it,
+   * which is why 6 of them are still in Received.
+   */
+  po_superseded?: boolean;
   /** This supplier's share of the order. Equals total_amount for the usual one-supplier order. */
   row_amount?: number;
   delivery_date?: string | null;
@@ -119,6 +125,10 @@ export const STAGE_LABEL: Record<string, string> = {
   // read it as Received, which put 430 Dubai orders and 9 Manila ones in a lane
   // captioned "the kitchen confirmed receipt".
   SUPPLIER_ACKED: "Supplier confirmed the order · awaiting kitchen",
+  // Raised again to the same supplier and never received anything. Not work —
+  // a replaced document. 37 of Manila's 75 Incoming rows were these, including
+  // the same PHP 24,030 twice.
+  SUPERSEDED: "Replaced by a later PO",
   RECEIVED: "Received",
   REJECTED: "Rejected",
   CANCELLED: "Cancelled",
@@ -260,8 +270,8 @@ export const LANES: Lane[] = [
     hint: "Ordered and not yet received by the kitchen. Flagged once the expected delivery date has passed." },
   { key: "RECEIVED", label: "Received", stages: ["RECEIVED"],
     hint: "Closed — somebody in the kitchen recorded the goods arriving, and the row says who." },
-  { key: "CLOSED", label: "Rejected / Draft", stages: ["REJECTED", "CANCELLED", "DRAFT"],
-    hint: "Not going ahead, or never submitted." },
+  { key: "CLOSED", label: "Not going ahead", stages: ["REJECTED", "CANCELLED", "DRAFT", "SUPERSEDED"],
+    hint: "Rejected, cancelled, never submitted, or a purchase order that was raised again to the same supplier and never received anything." },
   // Its own lane, not folded into the one above: these were bought. Putting
   // them under "Rejected / Draft" would say the purchase never happened.
   { key: "NO_RECEIPT", label: "No receipt recorded", stages: ["PURCHASED_NO_RECEIPT"],
@@ -299,6 +309,7 @@ export const STORE_STAGES: Lane[] = [
  * says how many orders it affects rather than quietly dropping them.
  */
 export const OUTSIDE_THE_FIVE: Record<string, string> = {
+  SUPERSEDED: "a purchase order raised again to the same supplier, which received nothing",
   PURCHASED_NO_RECEIPT: "bought, with no receipt recorded here — closed, and outside the five",
   REJECTED: "under the cards below",
   CANCELLED: "under the cards below",
@@ -373,6 +384,7 @@ export function stageTone(row: DirectPurchaseRow): "success" | "error" | "warn" 
   const st = stageOf(row);
   if (st === "RECEIVED") return "success";
   if (st === "REJECTED" || st === "CANCELLED") return "error";
+  if (st === "SUPERSEDED") return "info";
   if (st === "APPROVED_NO_PO" || st === "IN_REVIEW") return "warn";
   return "info";
 }

@@ -716,10 +716,13 @@ export default function DirectPurchasesAdminPage() {
           // it. The closed lanes are not work, so they keep their total.
           const count = working ? split.recent : total;
           const oldest = working ? laneOldest(stageSummary, l) : 0;
-          // Only for the lane whose rows are loaded. Saying how many of
-          // another lane are flagged would need its rows, and guessing is how
-          // a chip and the list under it start disagreeing.
-          const flagged = active ? rows.filter(r => stageAlert(r)).length : 0;
+          // Only for the lane whose rows are loaded, AND only when they are
+          // all of it. Counted from the page, this badge is right until a
+          // flaggable lane passes the 1,000-row window and then quietly
+          // reports the window instead -- the thing the counts above were
+          // moved to the server to stop.
+          const whole = active && rows.length >= count;
+          const flagged = whole ? rows.filter(r => stageAlert(r)).length : 0;
           const inLane = active ? rows.filter(r => laneOf(r) === l.key) : [];
           return (
             <button key={l.key} type="button"
@@ -736,7 +739,7 @@ export default function DirectPurchasesAdminPage() {
                   to a count of 48 says nothing -- the same way a queue where
                   83% is noise stops being read. The oldest age is informative
                   either way, so that is what the chip carries. */}
-              {active && flagged > 0 && flagged < inLane.length && (
+              {whole && flagged > 0 && flagged < inLane.length && (
                 <span className="ml-2 rounded-lg bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
                   {flagged} flagged
                 </span>
@@ -921,10 +924,16 @@ export default function DirectPurchasesAdminPage() {
                           1 of {row.po_vendor_count} suppliers
                         </span>
                       )}
+                      {row.po_superseded && (
+                        <span className={BADGE_INFO}
+                          title="A later purchase order was raised to this supplier for this order. This one received nothing.">
+                          Replaced by a later PO
+                        </span>
+                      )}
                       {Number(row.po_reissue_count || 0) > 1 && (
                         <span className={BADGE_INFO}
-                          title="The purchase order to this supplier was raised more than once — same lines, same amount. The latest is shown.">
-                          PO issued ×{row.po_reissue_count}
+                          title="This order carries more than one purchase order to the same supplier. Each is its own row, with its own receipt.">
+                          {row.po_reissue_count} POs to this supplier
                         </span>
                       )}
                       {row.has_shortage && <span className={BADGE_WARNING}>Short delivery</span>}
