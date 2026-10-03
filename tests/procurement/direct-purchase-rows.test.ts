@@ -14,10 +14,13 @@ import {
   laneCount,
   laneOf,
   laneOldest,
+  openRemovals,
+  removalReason,
   rowKey,
   stageAlert,
   storeStageOf,
   type DirectPurchaseRow,
+  type ItemRemoval,
   type StageSummary,
 } from "@/lib/direct-purchase-stage";
 
@@ -130,5 +133,40 @@ describe("the header counts the board", () => {
 
   it("is zero before the summary arrives, not a guess", () => {
     expect(boardTotals(null)).toEqual({ total: 0, unverified: 0 });
+  });
+});
+
+describe("a line taken off an order", () => {
+  const kept = (p: Partial<ItemRemoval>): ItemRemoval =>
+    ({ id: "x", request_id: "r1", item_name: "1oz Cup", qty: 1, unit: "box",
+       unit_price: 1820, line_total: 1820, ...p }) as ItemRemoval;
+
+  it("is open until somebody acknowledges it", () => {
+    const list = [kept({ id: "a" }), kept({ id: "b", ack_status: "acknowledged" })];
+    expect(openRemovals(list).map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("treats a missing status as open, not as seen", () => {
+    expect(openRemovals([kept({ ack_status: null })])).toHaveLength(1);
+  });
+
+  it("reads the reason in the words the screen shows", () => {
+    const labels = { out_of_stock: "Supplier cannot deliver it", other: "Something else" };
+    expect(removalReason(kept({ reason_code: "out_of_stock" }), labels))
+      .toBe("Supplier cannot deliver it");
+    expect(removalReason(kept({ reason_code: "other", reason_note: "shop shut" }), labels))
+      .toBe("Something else — shop shut");
+  });
+
+  it("does not call a record from before the reason existed 'no reason given'", () => {
+    // The backfilled rows had nowhere to put one. Saying the remover gave no
+    // reason would be an accusation about somebody nothing even names.
+    expect(removalReason(kept({ reconstructed: true }), {}))
+      .toBe("Recorded before a reason was asked for");
+    expect(removalReason(kept({}), {})).toBe("No reason given");
+  });
+
+  it("falls back to the stored code when the screen has no wording for it", () => {
+    expect(removalReason(kept({ reason_code: "brand_new" }), {})).toBe("brand_new");
   });
 });

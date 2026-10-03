@@ -176,6 +176,52 @@ export function laneOldest(summary: StageSummary | null, lane: Lane): number {
   return lane.stages.reduce((m, st) => Math.max(m, Number(summary[st]?.[field] || 0)), 0);
 }
 
+/**
+ * A line taken off an order after it existed. Kept rather than deleted, because
+ * deleting it is what this record exists to stop: the request simply read as if
+ * those items had never been asked for, and the purchase order in the
+ * supplier's hands still listed them.
+ */
+export type ItemRemoval = {
+  id: string;
+  request_id: string;
+  po_no?: string | null;
+  item_name: string;
+  category?: string | null;
+  qty: number;
+  unit: string;
+  unit_price: number;
+  line_total: number;
+  vendor_name?: string | null;
+  removed_by?: string | null;
+  removed_at?: string | null;
+  reason_code?: string | null;
+  reason_note?: string | null;
+  /** Worked out from the purchase order's snapshot; nobody recorded who did it. */
+  reconstructed?: boolean;
+  ack_status?: string | null;
+  ack_by?: string | null;
+  ack_at?: string | null;
+  ack_note?: string | null;
+};
+
+/** Removals nobody has acknowledged yet, for one order. */
+export function openRemovals(list: ItemRemoval[] | undefined): ItemRemoval[] {
+  return (list || []).filter((r) => (r.ack_status || "pending") !== "acknowledged");
+}
+
+/** What a removal says it was, in the words the screen shows. */
+export function removalReason(r: ItemRemoval, labels: Record<string, string>): string {
+  const code = (r.reason_code || "").trim();
+  const base = code ? (labels[code] || code) : "";
+  const note = (r.reason_note || "").trim();
+  if (base && note) return `${base} — ${note}`;
+  if (base) return base;
+  if (note) return note;
+  // Not "no reason": the rows from before this existed had nowhere to put one.
+  return r.reconstructed ? "Recorded before a reason was asked for" : "No reason given";
+}
+
 export type Lane = { key: string; label: string; stages: string[]; hint: string };
 
 /**
