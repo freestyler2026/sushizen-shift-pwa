@@ -796,7 +796,7 @@ export default function DirectPurchasesAdminPage() {
           // screen looks like a daily list that is permanently on fire.
           return (
             <span className="text-amber-300">
-              {" "}All {inLane.length} are past that — this is a backlog to clear, not today&apos;s work.
+              {" "}{inLane.length === 1 ? "That one is" : `All ${inLane.length} are`} past that — this is a backlog to clear, not today&apos;s work.
             </span>
           );
         })()}
@@ -1324,7 +1324,9 @@ export default function DirectPurchasesAdminPage() {
                              void load(cityFilter, statusFilter, verifiedFilter, lane, false, next); }}
             className="w-full rounded-xl border border-dashed border-white/12 bg-white/2 px-4 py-3 text-sm text-zinc-400 hover:border-violet-500/30 hover:text-zinc-200">
             {showBacklog
-              ? `Back to the ${split.recent} from the last ${backlogDays} days`
+              ? (split.recent > 0
+                  ? `Back to the ${split.recent} from the last ${backlogDays} days`
+                  : `Back to the last ${backlogDays} days — nothing new there`)
               : `Show ${backlogCount} order${backlogCount === 1 ? "" : "s"} waiting more than ${backlogDays} days`}
             {!showBacklog && backlogOldest > 0 && (
               <span className="text-zinc-500"> · oldest {backlogOldest} days</span>
