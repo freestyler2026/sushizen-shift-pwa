@@ -10,6 +10,7 @@ import {
   LANES,
   OUTSIDE_THE_FIVE,
   STAGE_LABEL,
+  boardTotals,
   laneCount,
   laneOf,
   laneOldest,
@@ -28,12 +29,12 @@ const row = (p: Partial<DirectPurchaseRow>): DirectPurchaseRow =>
      ...p }) as DirectPurchaseRow;
 
 const summary: StageSummary = {
-  PO_ISSUED:  { n: 598, oldest_days_in_stage: 128, oldest_days_past_delivery: 154 },
-  DELIVERED:  { n: 0,   oldest_days_in_stage: 0,   oldest_days_past_delivery: 0 },
-  RECEIVED:   { n: 2021, oldest_days_in_stage: 127, oldest_days_past_delivery: 154 },
-  DRAFT:      { n: 264, oldest_days_in_stage: 123, oldest_days_past_delivery: 0 },
-  REJECTED:   { n: 77,  oldest_days_in_stage: 123, oldest_days_past_delivery: 131 },
-  CANCELLED:  { n: 34,  oldest_days_in_stage: 105, oldest_days_past_delivery: 0 },
+  PO_ISSUED:  { n: 598, unverified: 598, oldest_days_in_stage: 128, oldest_days_past_delivery: 154 },
+  DELIVERED:  { n: 0,   unverified: 0,   oldest_days_in_stage: 0,   oldest_days_past_delivery: 0 },
+  RECEIVED:   { n: 2021, unverified: 2021, oldest_days_in_stage: 127, oldest_days_past_delivery: 154 },
+  DRAFT:      { n: 264, unverified: 264, oldest_days_in_stage: 123, oldest_days_past_delivery: 0 },
+  REJECTED:   { n: 77,  unverified: 70,  oldest_days_in_stage: 123, oldest_days_past_delivery: 131 },
+  CANCELLED:  { n: 34,  unverified: 34,  oldest_days_in_stage: 105, oldest_days_past_delivery: 0 },
 };
 
 describe("which row is which", () => {
@@ -116,5 +117,18 @@ describe("the supplier's acknowledgement is not a receipt", () => {
       expect(inALane.has(st) || st in OUTSIDE_THE_FIVE || laneOf(row({ stage: st })) === "CLOSED",
         `${st} belongs to no lane`).toBe(true);
     }
+  });
+});
+
+describe("the header counts the board", () => {
+  it("adds up every stage, not the rows on screen", () => {
+    // Dubai is 3,074 rows against a 1,000 window; the page's size is not a
+    // fact about the work.
+    expect(boardTotals(summary).total).toBe(598 + 0 + 2021 + 264 + 77 + 34);
+    expect(boardTotals(summary).unverified).toBe(598 + 0 + 2021 + 264 + 70 + 34);
+  });
+
+  it("is zero before the summary arrives, not a guess", () => {
+    expect(boardTotals(null)).toEqual({ total: 0, unverified: 0 });
   });
 });

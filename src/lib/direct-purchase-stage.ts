@@ -148,9 +148,20 @@ export const STAGE_LABEL: Record<string, string> = {
  */
 export type StageSummary = Record<string, {
   n: number;
+  /** How many of them nobody has reviewed yet. */
+  unverified: number;
   oldest_days_in_stage: number;
   oldest_days_past_delivery: number;
 }>;
+
+/** How many rows the board holds, and how many are unreviewed. */
+export function boardTotals(summary: StageSummary | null): { total: number; unverified: number } {
+  const vals = Object.values(summary || {});
+  return {
+    total: vals.reduce((t, v) => t + Number(v.n || 0), 0),
+    unverified: vals.reduce((t, v) => t + Number(v.unverified || 0), 0),
+  };
+}
 
 /** The server's count for a lane, summed over the stages it holds. */
 export function laneCount(summary: StageSummary | null, lane: Lane): number {

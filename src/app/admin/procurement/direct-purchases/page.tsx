@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import ModalScrim from "@/components/ModalScrim";
 import {
-  LANES, STAGE_LABEL, laneCount, laneOf, laneOldest, rowKey, stageAlert, stageOf, stageTone,
+  LANES, STAGE_LABEL, boardTotals, laneCount, laneOf, laneOldest, rowKey, stageAlert, stageOf, stageTone,
   type DirectPurchaseRow, type DirectPurchaseItem, type StageSummary,
 } from "@/lib/direct-purchase-stage";
 import { money } from "@/lib/currency";
@@ -483,7 +483,10 @@ export default function DirectPurchasesAdminPage() {
     ? editState.items.reduce((s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.unit_price) || 0), 0)
     : 0;
 
-  const pendingCount = rows.filter((r) => !r.data_verified_at).length;
+  // Over the whole board, from the server. Counting the rows on screen made
+  // this say 1,000 for a Dubai board of 3,074 -- the page's size, dressed as a
+  // fact about the work.
+  const board = boardTotals(stageSummary);
 
   // Oldest first inside a lane. The whole complaint was that the screen does
   // not say what to do next; created_at DESC answers "what is newest", which is
@@ -528,11 +531,15 @@ export default function DirectPurchasesAdminPage() {
           <p className="mt-1 text-sm text-zinc-400">Review and correct vendor/item data submitted by procurement staff.</p>
         </div>
         <div className="flex items-center gap-2">
-          {pendingCount > 0 && (
-            <span className={`${BADGE_WARNING}`}>{pendingCount} pending review</span>
+          {board.unverified > 0 && (
+            <span className={`${BADGE_WARNING}`}>
+              {board.unverified === board.total
+                ? `Nothing reviewed yet — all ${board.total.toLocaleString()}`
+                : `${board.unverified.toLocaleString()} pending review`}
+            </span>
           )}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
-            <ShoppingBag className="h-3 w-3" />{rows.length} total
+            <ShoppingBag className="h-3 w-3" />{board.total.toLocaleString()} total
           </span>
         </div>
       </div>
