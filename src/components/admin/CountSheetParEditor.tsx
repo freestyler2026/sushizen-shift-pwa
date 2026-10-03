@@ -19,8 +19,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw, Save, Search } from "lucide-react";
 
 import SelectDark from "@/components/SelectDark";
-import { withCity } from "@/lib/daily-inventory-city";
-import { getAuthHeaders } from "@/lib/auth";
+import {
+  asInventoryCity,
+  INVENTORY_CITIES,
+  withCity,
+  type InventoryCity,
+} from "@/lib/daily-inventory-city";
+import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   BADGE_INFO,
@@ -46,6 +51,10 @@ type SaveResult = {
 };
 
 export default function CountSheetParEditor() {
+  // The person's own city to start with, and a picker rather than a constant:
+  // both cities have items now, and the pattern name alone cannot settle it --
+  // WAREHOUSE_Sunday will exist for both.
+  const [city, setCity] = useState<InventoryCity>(() => asInventoryCity(getAuth()?.city));
   const [patterns, setPatterns] = useState<string[]>([]);
   const [pattern, setPattern] = useState("");
   const [rows, setRows] = useState<PatternItem[]>([]);
@@ -57,15 +66,17 @@ export default function CountSheetParEditor() {
   const [result, setResult] = useState<SaveResult | null>(null);
 
   useEffect(() => {
-    void fetch(API_BASE + withCity("/api/daily-inventory/par-patterns"), { headers: getAuthHeaders() })
+    void fetch(API_BASE + withCity("/api/daily-inventory/par-patterns", city), { headers: getAuthHeaders() })
       .then((r) => r.json())
       .then((d: { patterns?: string[] }) => {
         const list = d.patterns || [];
         setPatterns(list);
-        setPattern((p) => p || list[0] || "");
+        // Patterns are named "<branch>_<weekday>", so changing city changes
+        // which ones make sense. Re-pick rather than keep the other city's.
+        setPattern((p) => (p && list.includes(p) ? p : list[0] || ""));
       })
       .catch(() => setError("Could not read the pattern list."));
-  }, []);
+  }, [city]);
 
   const load = useCallback(async () => {
     if (!pattern) return;
@@ -73,7 +84,7 @@ export default function CountSheetParEditor() {
     setError(null);
     try {
       const res = await fetch(
-        API_BASE + withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(pattern)}/items`),
+        API_BASE + withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(pattern)}/items`, city),
         { headers: getAuthHeaders() },
       );
       const d = (await res.json()) as { items?: PatternItem[] };
@@ -84,7 +95,7 @@ export default function CountSheetParEditor() {
     } finally {
       setLoading(false);
     }
-  }, [pattern]);
+  }, [pattern, city]);
 
   useEffect(() => {
     void load();
@@ -94,7 +105,7 @@ export default function CountSheetParEditor() {
   useEffect(() => {
     setResult(null);
     setError(null);
-  }, [pattern]);
+  }, [pattern, city]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -123,7 +134,7 @@ export default function CountSheetParEditor() {
     setResult(null);
     try {
       const res = await fetch(
-        API_BASE + withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(pattern)}/items`),
+        API_BASE + withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(pattern)}/items`, city),
         {
           method: "PUT",
           headers: getAuthHeaders(),
@@ -162,6 +173,12 @@ export default function CountSheetParEditor() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
+        <SelectDark
+          className={SELECT_CLASS + " max-w-[130px]"}
+          value={city}
+          onChange={(v) => setCity(asInventoryCity(v))}
+          options={INVENTORY_CITIES.map((c) => ({ value: c, label: c === "dubai" ? "Dubai" : "Manila" }))}
+        />
         <SelectDark
           className={SELECT_CLASS + " max-w-[240px]"}
           value={pattern}

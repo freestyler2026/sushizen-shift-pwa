@@ -11,7 +11,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
-import { INVENTORY_CITY, withCity } from "@/lib/daily-inventory-city";
+import { asInventoryCity, withCity } from "@/lib/daily-inventory-city";
 
 const SOURCE = readFileSync(
   join(__dirname, "..", "src", "components", "admin", "AdminDailyInventoryTab.tsx"),
@@ -42,28 +42,43 @@ describe("the Daily Inventory screen names its city", () => {
   it("wraps the one request that builds its URL in a variable", () => {
     // Replace mode. The literal is on an earlier line than the call, so a check
     // that only reads the call line would miss exactly the dangerous one.
-    expect(SOURCE).toContain("fetch(withCity(url)");
+    expect(SOURCE).toContain("fetch(withCity(url, city)");
   });
 
   it("appends to a path that already has a query", () => {
-    expect(withCity("/api/daily-inventory/items")).toBe("/api/daily-inventory/items?city=manila");
-    expect(withCity("/api/daily-inventory/items?source_type=ck")).toBe(
-      "/api/daily-inventory/items?source_type=ck&city=manila",
+    expect(withCity("/api/daily-inventory/items", "manila")).toBe("/api/daily-inventory/items?city=manila");
+    expect(withCity("/api/daily-inventory/items?source_type=ck", "dubai")).toBe(
+      "/api/daily-inventory/items?source_type=ck&city=dubai",
     );
   });
 
   it("leaves a path that already names a city alone", () => {
-    expect(withCity("/api/daily-inventory/items?city=dubai")).toBe(
+    expect(withCity("/api/daily-inventory/items?city=dubai", "manila")).toBe(
       "/api/daily-inventory/items?city=dubai",
     );
   });
 
   it("does not touch paths that are not ours", () => {
-    expect(withCity("/api/admin/overview")).toBe("/api/admin/overview");
-    expect(withCity("/api/store/procurement/request")).toBe("/api/store/procurement/request");
+    expect(withCity("/api/admin/overview", "dubai")).toBe("/api/admin/overview");
+    expect(withCity("/api/store/procurement/request", "dubai")).toBe("/api/store/procurement/request");
   });
 
-  it("is manila until phase 2 loads Dubai's items", () => {
-    expect(INVENTORY_CITY).toBe("manila");
+  it("reads a city off the signed-in user, defaulting to manila", () => {
+    expect(asInventoryCity("dubai")).toBe("dubai");
+    expect(asInventoryCity("Dubai")).toBe("dubai");
+    expect(asInventoryCity("manila")).toBe("manila");
+    expect(asInventoryCity(null)).toBe("manila");
+    expect(asInventoryCity("")).toBe("manila");
+  });
+
+  it("every request passes a city it was given, never a constant", () => {
+    // The constant was the bug: a Dubai branch was selected on screen and every
+    // request still said manila, so the screen showed Manila's items.
+    // The constant is gone from the code; the only place the name may still
+    // appear is a comment explaining why (lesson 139), so this looks for a use
+    // rather than for the word.
+    expect(SOURCE).not.toMatch(/INVENTORY_CITY[^/\n]*[),;]/);
+    const bare = requestLines().filter((l) => /withCity\([^)]*\)[^,]/.test(l) && !l.includes(", city"));
+    expect(bare, `withCity without a city:\n${bare.join("\n")}`).toEqual([]);
   });
 });

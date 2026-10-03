@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import SelectDark from "@/components/SelectDark";
-import { withCity } from "@/lib/daily-inventory-city";
+import { asInventoryCity, withCity } from "@/lib/daily-inventory-city";
 import StoreStockView, { STOCK_BRANCHES } from "@/components/admin/StoreStockView";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { IncomingNote, incomingFor as incomingLinesFor, type IncomingPayload } from "@/components/IncomingNote";
@@ -30,8 +30,10 @@ import {
 
 const API_BASE = "";
 
-// INVENTORY_CITY / withCity live in @/lib/daily-inventory-city so the test
-// can call the real function rather than re-implement the rule beside it.
+// withCity lives in @/lib/daily-inventory-city so the test can call the real
+// function rather than re-implement the rule beside it. It takes the city as an
+// argument with no default: this file holds a city picker, and the constant that
+// used to stand in for it quietly overrode what the person had selected.
 
 
 type CityKey = "manila" | "dubai";
@@ -244,6 +246,10 @@ const BRANCH_TO_STORE: Record<string, string> = {
 };
 
 function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; items: InvItem[]; onBack: () => void }) {
+  // The report belongs to a branch, and the branch names the city. Nothing
+  // on this view asks the person which city they meant, because the report
+  // already answered.
+  const city = cityFromBranch(detail.branch);
   const entryMap: Record<string, ReportEntry> = {};
   detail.entries.forEach((e) => { entryMap[e.item_code] = e; });
 
@@ -318,11 +324,11 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     // サーバに1つ置いた。ここで同じ合成をもう一度書くと、在庫表示と
     // この画面が同じ品について別の par を出す（教訓62）。
     if (!detail.report_date || !detail.branch) return;
-    apiFetch(withCity("/api/daily-inventory/par-patterns"))
+    apiFetch(withCity("/api/daily-inventory/par-patterns", city))
       .then((r) => r.json())
       .then((d: { patterns?: string[] }) => setPatterns(d.patterns || []))
       .catch(() => {});
-    apiFetch(withCity(`/api/daily-inventory/par?branch=${encodeURIComponent(detail.branch)}&date=${encodeURIComponent(detail.report_date)}`))
+    apiFetch(withCity(`/api/daily-inventory/par?branch=${encodeURIComponent(detail.branch)}&date=${encodeURIComponent(detail.report_date)}`, city))
       .then((r) => r.json())
       .then((d: { par?: Record<string, number>; patterns_used?: string[] }) => {
         setPatternLookup(d.par || {});
@@ -336,7 +342,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     setActivePattern(name);
     if (!name) { setPatternLookup({}); return; }
     try {
-      const r = await apiFetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/items`));
+      const r = await apiFetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/items`, city));
       const d = await r.json() as { items?: { item_code: string; par_level: number }[] };
       const lookup: Record<string, number> = {};
       (d.items || []).forEach((it) => { lookup[it.item_code] = it.par_level; });
@@ -402,7 +408,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     if (!selectedItems.length) { setOrderError("Select at least one item with a quantity > 0."); return; }
     setOrderBusy(true); setOrderError("");
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/reports/${detail.id}/generate-order`), {
+      const res = await apiFetch(withCity(`/api/daily-inventory/reports/${detail.id}/generate-order`, city), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requested_by: requestedBy, items: selectedItems }),
       });
@@ -1106,7 +1112,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   async function loadItems() {
     setLoading(true); setError("");
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items?source_type=${sourceFilter}&active_only=false`));
+      const res = await apiFetch(withCity(`/api/daily-inventory/items?source_type=${sourceFilter}&active_only=false`, city));
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       const data = JSON.parse(text) as InvItem[];
@@ -1118,7 +1124,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
 
   async function loadSections() {
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/sections"));
+      const res = await apiFetch(withCity("/api/daily-inventory/sections", city));
       if (!res.ok) return;                     // the list still works without it
       const data = JSON.parse(await res.text()) as InvSection[];
       setSectionList(Array.isArray(data) ? data : []);
@@ -1151,7 +1157,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!ok) return;
     setSectionBusy(true); setError("");
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/sections/rename"), {
+      const res = await apiFetch(withCity("/api/daily-inventory/sections/rename", city), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from_name: from, to_name: to }),
       });
@@ -1178,7 +1184,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     [order[i], order[j]] = [order[j], order[i]];
     setSectionBusy(true); setError("");
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/sections/reorder"), {
+      const res = await apiFetch(withCity("/api/daily-inventory/sections/reorder", city), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ names: order }),
       });
@@ -1196,7 +1202,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     [order[i], order[j]] = [order[j], order[i]];
     setSectionBusy(true); setError("");
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/items/reorder"), {
+      const res = await apiFetch(withCity("/api/daily-inventory/items/reorder", city), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ section: sec, item_codes: order }),
       });
@@ -1219,7 +1225,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     order.splice(to, 0, ...order.splice(from, 1));
     setSectionBusy(true); setError("");
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/items/reorder"), {
+      const res = await apiFetch(withCity("/api/daily-inventory/items/reorder", city), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ section: sec, item_codes: order }),
       });
@@ -1244,7 +1250,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     }
     setSectionBusy(true); setError("");
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(code)}`), {
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(code)}`, city), {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ section: to }),
       });
@@ -1266,7 +1272,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   }, [sourceFilter, city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    apiFetch(withCity("/api/daily-inventory/par-patterns"))
+    apiFetch(withCity("/api/daily-inventory/par-patterns", city))
       .then((r) => r.json())
       .then((d: { patterns?: string[] }) => setPatternNames(d.patterns || []))
       .catch(() => {});
@@ -1277,7 +1283,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!whPats.length) return;
     void Promise.all(
       whPats.map((name) =>
-        apiFetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/items`))
+        apiFetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/items`, city))
           .then((r) => r.json() as Promise<{ items?: { item_code: string; par_level: number }[] }>)
           .catch(() => ({ items: [] as { item_code: string; par_level: number }[] }))
       )
@@ -1292,7 +1298,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!window.confirm(`Delete pattern "${name}"? This cannot be undone.`)) return;
     setPatternBusy(name); setPatternMsg("");
     try {
-      await apiFetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}`), { method: "DELETE" });
+      await apiFetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}`, city), { method: "DELETE" });
       setPatternNames((prev) => prev.filter((p) => p !== name));
       setPatternMsg(`Pattern "${name}" deleted.`);
     } catch { setPatternMsg("Delete failed."); }
@@ -1305,7 +1311,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     try {
       const auth = getAuth();
       const fd = new FormData(); fd.append("file", file);
-      const res = await fetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(patternImportTarget)}/import-excel`), {
+      const res = await fetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(patternImportTarget)}/import-excel`, city), {
         method: "POST",
         headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
         body: fd,
@@ -1322,7 +1328,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     setPatternBusy(name);
     try {
       const auth = getAuth();
-      const res = await fetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/template`), {
+      const res = await fetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/template`, city), {
         headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
       });
       const blob = await res.blob();
@@ -1345,7 +1351,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   async function handleWeekdayTemplateDownload() {
     try {
       const auth = getAuth();
-      const res = await fetch(withCity("/api/daily-inventory/par-patterns/weekday-template"), {
+      const res = await fetch(withCity("/api/daily-inventory/par-patterns/weekday-template", city), {
         headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
       });
       if (!res.ok) { setPatternMsg("Template download failed."); return; }
@@ -1362,7 +1368,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     try {
       const auth = getAuth();
       const fd = new FormData(); fd.append("file", file);
-      const res = await fetch(withCity("/api/daily-inventory/par-patterns/import-weekday-excel"), {
+      const res = await fetch(withCity("/api/daily-inventory/par-patterns/import-weekday-excel", city), {
         method: "POST",
         headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
         body: fd,
@@ -1384,7 +1390,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
       }
       setPatternMsg(msg);
       // Refresh pattern list
-      apiFetch(withCity("/api/daily-inventory/par-patterns"))
+      apiFetch(withCity("/api/daily-inventory/par-patterns", city))
         .then((r) => r.json())
         .then((data: { patterns?: string[] }) => setPatternNames(data.patterns || []))
         .catch(() => {});
@@ -1396,7 +1402,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!window.confirm("This will import 103 CK items + 23 Supplier items from the Excel master list. Existing items with the same code will be updated. Continue?")) return;
     setSeeding(true); setError(""); setMsg("");
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/items/seed-excel"), { method: "POST" });
+      const res = await apiFetch(withCity("/api/daily-inventory/items/seed-excel", city), { method: "POST" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Seed failed");
       const data = JSON.parse(text) as { upserted?: number };
@@ -1411,7 +1417,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!addName.trim()) return;
     setAddBusy(true); setError("");
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/items"), {
+      const res = await apiFetch(withCity("/api/daily-inventory/items", city), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           item_name: addName.trim(),
@@ -1442,7 +1448,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     const cost = Number.isNaN(val) ? 0 : Math.max(0, val);
     setEditCostBusy(true);
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`), {
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, city), {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ unit_cost: cost }),
       });
@@ -1460,7 +1466,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!unit) { setEditUnitCode(null); return; }
     setEditUnitBusy(true);
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`), {
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, city), {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ default_unit: unit }),
       });
@@ -1476,7 +1482,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   async function handleSaveSupplierName(itemCode: string, value: string) {
     setSavingSup(true);
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`), {
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, city), {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ supplier_name: value || null }),
       });
@@ -1494,7 +1500,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (Number.isNaN(val)) { setEditParCode(null); return; }
     setEditParBusy(true);
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`), {
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, city), {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ par_level: val }),
       });
@@ -1509,7 +1515,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
 
   async function handleToggleActive(itemCode: string, currentActive: boolean) {
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/set-active`), {
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/set-active`, city), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ item_code: itemCode, is_active: !currentActive }),
       });
@@ -1524,7 +1530,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
   async function handleDelete(itemCode: string, itemName: string) {
     if (!window.confirm(`Deactivate "${itemName}"? It will no longer appear in the inventory form.`)) return;
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`), { method: "DELETE" });
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, city), { method: "DELETE" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Delete failed");
       setItems((prev) => prev.map((it) => it.item_code === itemCode ? { ...it, is_active: false } : it));
@@ -1538,7 +1544,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!window.confirm(`Permanently delete ${retiredCount} [Retired] items? This cannot be undone.`)) return;
     setPurging(true); setError(""); setMsg("");
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/items/purge-retired"), { method: "POST" });
+      const res = await apiFetch(withCity("/api/daily-inventory/items/purge-retired", city), { method: "POST" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Purge failed");
       const data = JSON.parse(text) as { deleted?: number };
@@ -1556,7 +1562,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     const filename = src ? `daily_inventory_${src}_template.xlsx` : "daily_inventory_template.xlsx";
     try {
       // Use fetch directly — apiFetch reads body as text which corrupts binary Excel data
-      const res = await fetch(withCity(`${API_BASE}/api/daily-inventory/items/template-excel${qs}`), {
+      const res = await fetch(withCity(`${API_BASE}/api/daily-inventory/items/template-excel${qs}`, city), {
         headers: new Headers(getAuthHeaders()),
         cache: "no-store",
       });
@@ -1587,7 +1593,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
       // which overrides the multipart/form-data boundary the browser must set for file uploads
       // withCity on the variable, not the literal: this is replace mode, which
       // deactivates every active item NOT in the uploaded file.
-      const res = await fetch(withCity(url), {
+      const res = await fetch(withCity(url, city), {
         method: "POST",
         headers: new Headers(getUploadHeaders()),
         body: formData,
@@ -1612,7 +1618,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!confirm("Restore CK commissary items deactivated within the last 7 days?\nThis will reactivate items used by CK Inventory.\n\nNote: [Retired] items and items deactivated more than 7 days ago will NOT be restored.")) return;
     setRestoring(true); setError(""); setMsg("");
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/restore-commissary`), { method: "POST" });
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/restore-commissary`, city), { method: "POST" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Restore failed");
       const data = JSON.parse(text) as { restored?: number };
@@ -1636,7 +1642,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     )) return;
     setCleaning(true); setError(""); setMsg("");
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/cleanup-commissary`), { method: "POST" });
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/cleanup-commissary`, city), { method: "POST" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Cleanup failed");
       const data = JSON.parse(text) as { retired_deactivated?: number; duplicates_removed?: number };
@@ -1654,7 +1660,7 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
     if (!confirm("Sync Warehouse items from Order Catalog (WH items) into Daily Inventory?\n\nThis will add/update warehouse items based on the active WH entries in the Order Catalog.")) return;
     setSyncingWh(true); setError(""); setMsg("");
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/items/seed-warehouse`), { method: "POST" });
+      const res = await apiFetch(withCity(`/api/daily-inventory/items/seed-warehouse`, city), { method: "POST" });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Sync failed");
       const data = JSON.parse(text) as { synced?: number };
@@ -2341,14 +2347,14 @@ export default function AdminDailyInventoryTab() {
     const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date().getDay()];
     (async () => {
       try {
-        const listRes = await apiFetch(withCity("/api/daily-inventory/par-patterns"));
+        const listRes = await apiFetch(withCity("/api/daily-inventory/par-patterns", city));
         const listData = await listRes.json() as { patterns?: string[] };
         const pats = listData.patterns || [];
         const targetPattern = pats.includes(`WAREHOUSE_${dayName}`)
           ? `WAREHOUSE_${dayName}`
           : (pats.find(p => p.startsWith("WAREHOUSE_")) ?? null);
         if (!targetPattern) return;
-        const r = await apiFetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(targetPattern)}/items`));
+        const r = await apiFetch(withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(targetPattern)}/items`, city));
         const d = await r.json() as { items?: { item_code: string; par_level: number }[] };
         const lookup: Record<string, number> = {};
         (d.items || []).forEach((it) => { lookup[it.item_code] = it.par_level; });
@@ -2361,7 +2367,7 @@ export default function AdminDailyInventoryTab() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await apiFetch(withCity("/api/daily-inventory/items"));
+        const res = await apiFetch(withCity("/api/daily-inventory/items", city));
         const text = await res.text();
         if (!res.ok) return;
         const data = JSON.parse(text || "[]") as InvItem[];
@@ -2394,7 +2400,7 @@ export default function AdminDailyInventoryTab() {
     setItemsLoading(true);
     void (async () => {
       try {
-        const res = await apiFetch(withCity(`/api/daily-inventory/items?source_type=${sourceTab}`));
+        const res = await apiFetch(withCity(`/api/daily-inventory/items?source_type=${sourceTab}`, city));
         const text = await res.text();
         if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
         const data = JSON.parse(text || "[]") as InvItem[];
@@ -2433,7 +2439,7 @@ export default function AdminDailyInventoryTab() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await apiFetch(withCity(`/api/daily-inventory/items?source_type=supplier&active_only=false`));
+        const res = await apiFetch(withCity(`/api/daily-inventory/items?source_type=supplier&active_only=false`, city));
         const text = await res.text();
         if (!res.ok || cancelled) return;
         const data = JSON.parse(text || "[]") as InvItem[];
@@ -2466,7 +2472,7 @@ export default function AdminDailyInventoryTab() {
           .filter(([, e]) => e.qty !== "")
           .map(([item_code, e]) => { const n = parseFloat(e.qty); return { item_code, qty: isNaN(n) ? null : n, unit: e.unit || null, note: e.note || null }; }),
       };
-      const res = await apiFetch(withCity("/api/daily-inventory/save"), {
+      const res = await apiFetch(withCity("/api/daily-inventory/save", city), {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       const text = await res.text();
@@ -2495,7 +2501,7 @@ export default function AdminDailyInventoryTab() {
     if (!window.confirm("Submit this report? You will not be able to edit it after submit.")) return;
     setSubmitting(true); setError("");
     try {
-      const res = await apiFetch(withCity("/api/daily-inventory/submit"), {
+      const res = await apiFetch(withCity("/api/daily-inventory/submit", city), {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ report_id: rid }),
       });
       const text = await res.text();
@@ -2509,7 +2515,7 @@ export default function AdminDailyInventoryTab() {
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=30`));
+      const res = await apiFetch(withCity(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=30`, city));
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       const parsed = JSON.parse(text || "[]") as unknown;
@@ -2521,7 +2527,7 @@ export default function AdminDailyInventoryTab() {
   const loadDetail = async (reportId: number) => {
     setDetailLoading(true); setError("");
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/reports/${reportId}`));
+      const res = await apiFetch(withCity(`/api/daily-inventory/reports/${reportId}`, city));
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       setSelectedDetail(JSON.parse(text) as ReportDetail);
@@ -2537,7 +2543,7 @@ export default function AdminDailyInventoryTab() {
   const loadAndEditDraft = async (reportId: number) => {
     setDetailLoading(true); setError("");
     try {
-      const res = await apiFetch(withCity(`/api/daily-inventory/reports/${reportId}`));
+      const res = await apiFetch(withCity(`/api/daily-inventory/reports/${reportId}`, city));
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       const detail = JSON.parse(text) as ReportDetail;
@@ -2572,7 +2578,7 @@ export default function AdminDailyInventoryTab() {
     setRecoveryDraft(null);     // clear any banner from the previous branch
     void (async () => {
       try {
-        const res = await apiFetch(withCity(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=10`));
+        const res = await apiFetch(withCity(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=10`, city));
         if (!res.ok) return;
         const reports = JSON.parse(await res.text()) as ReportHeader[];
         const today = todayYmd();
@@ -2587,7 +2593,7 @@ export default function AdminDailyInventoryTab() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await apiFetch(withCity("/api/daily-inventory/sections"));
+        const res = await apiFetch(withCity("/api/daily-inventory/sections", city));
         if (!res.ok) return;                 // falls back to alphabetical
         const d = JSON.parse(await res.text()) as InvSection[];
         setSectionList(Array.isArray(d) ? d : []);
