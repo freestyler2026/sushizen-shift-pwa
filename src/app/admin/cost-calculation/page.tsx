@@ -23,6 +23,10 @@ type SpreadsheetColumn = {
   type?: ColumnType;
   align?: Align;
   formulaColor?: string;
+  /** Decimal places for a numeric cell. Per-gram prices need 4; two rounds
+      MOZZARELLA CHEESE's 0.0265 to a flat 0.03. Display only -- the editor
+      seeds from the raw value, so the stored precision is never touched. */
+  decimals?: number;
 };
 
 type IngredientRow = {
@@ -440,7 +444,7 @@ const RECIPE_COLUMNS: SpreadsheetColumn[] = [
   { key: "ingredient", label: "Ingredient", width: 180, editable: true, type: "autocomplete" },
   { key: "quantity", label: "Usage", width: 80, editable: true, type: "number", align: "right" },
   { key: "unit", label: "Unit", width: 60, editable: false },
-  { key: "unit_price", label: "Unit Price", width: 90, editable: false, type: "number", align: "right" },
+  { key: "unit_price", label: "Unit Price", width: 90, editable: false, type: "number", align: "right", decimals: 4 },
   { key: "cost", label: "Item Cost", width: 90, type: "formula", align: "right", formulaColor: "text-blue-300" },
   { key: "selling_price", label: "Selling Price", width: 90, editable: true, type: "number", align: "right" },
   { key: "total_cost", label: "Total Cost", width: 90, type: "subtotal", align: "right", formulaColor: "text-emerald-300" },
@@ -989,7 +993,7 @@ export default function CostCalculationPage() {
       { key: "category", label: "Category", width: 130, editable: true },
       { key: "name", label: "Name", width: 200, editable: true },
       { key: "unit", label: "Unit", width: 70, editable: true },
-      { key: "unit_price", label: `Calculated Price (${currencyCode})`, width: 110, editable: true, type: "number", align: "right" },
+      { key: "unit_price", label: `Calculated Price (${currencyCode})`, width: 128, editable: true, type: "number", align: "right", decimals: 4 },
       { key: "buffer_rate", label: "Buffer", width: 92, editable: true, type: "number", align: "right" },
       { key: "yield_rate", label: "Yield", width: 92, editable: true, type: "number", align: "right" },
       { key: "notes", label: "Notes", width: 220, editable: true },
@@ -6406,7 +6410,7 @@ export default function CostCalculationPage() {
                                   >
                                     <div>{option.name}</div>
                                     <div className="mt-0.5 text-[10px] text-zinc-500">
-                                      {option.category} · {option.unit} · {formatCellNumber(option.unit_price)}
+                                      {option.category} · {option.unit} · {formatCellNumber(option.unit_price, 4)}
                                     </div>
                                   </button>
                                 ))}
@@ -6494,7 +6498,7 @@ export default function CostCalculationPage() {
                               {value === "" ? "—" : `${currencyCode} ${formatCellNumber(value)}`}
                             </span>
                           ) : column.type === "number" || column.type === "formula" || column.type === "subtotal" ? (
-                            value === "" ? "" : formatCellNumber(value)
+                            value === "" ? "" : formatCellNumber(value, column.decimals ?? 2)
                           ) : (
                             String(value ?? "")
                           )}
