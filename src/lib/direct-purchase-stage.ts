@@ -148,6 +148,8 @@ export const STAGE_LABEL: Record<string, string> = {
  */
 export type StageSummary = Record<string, {
   n: number;
+  /** Of those, the ones still inside the backlog threshold — today's work. */
+  recent: number;
   /** How many of them nobody has reviewed yet. */
   unverified: number;
   oldest_days_in_stage: number;
@@ -167,6 +169,25 @@ export function boardTotals(summary: StageSummary | null): { total: number; unve
 export function laneCount(summary: StageSummary | null, lane: Lane): number {
   if (!summary) return 0;
   return lane.stages.reduce((t, st) => t + Number(summary[st]?.n || 0), 0);
+}
+
+/**
+ * Today's work in a lane, and the pile behind it.
+ *
+ * Both numbers, never one: Dubai's Incoming lane is 1,029 orders of which 63
+ * arrived in the last week, and either figure on its own misleads. "1,029"
+ * buries the ones somebody can act on today; "63" hides five months of orders
+ * nobody has closed.
+ */
+export function laneSplit(summary: StageSummary | null, lane: Lane): { recent: number; older: number } {
+  if (!summary) return { recent: 0, older: 0 };
+  const recent = lane.stages.reduce((t, st) => t + Number(summary[st]?.recent || 0), 0);
+  return { recent, older: Math.max(0, laneCount(summary, lane) - recent) };
+}
+
+/** Lanes where the age split means something. A closed order is not late. */
+export function laneIsWork(lane: Lane): boolean {
+  return lane.key !== "RECEIVED" && lane.key !== "CLOSED" && lane.key !== "NO_RECEIPT";
 }
 
 /** The longest wait in a lane, on the clock that lane is judged by. */

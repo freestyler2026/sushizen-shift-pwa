@@ -13,7 +13,9 @@ import {
   boardTotals,
   laneCount,
   laneOf,
+  laneIsWork,
   laneOldest,
+  laneSplit,
   openRemovals,
   removalReason,
   rowKey,
@@ -32,12 +34,13 @@ const row = (p: Partial<DirectPurchaseRow>): DirectPurchaseRow =>
      ...p }) as DirectPurchaseRow;
 
 const summary: StageSummary = {
-  PO_ISSUED:  { n: 598, unverified: 598, oldest_days_in_stage: 128, oldest_days_past_delivery: 154 },
-  DELIVERED:  { n: 0,   unverified: 0,   oldest_days_in_stage: 0,   oldest_days_past_delivery: 0 },
-  RECEIVED:   { n: 2021, unverified: 2021, oldest_days_in_stage: 127, oldest_days_past_delivery: 154 },
-  DRAFT:      { n: 264, unverified: 264, oldest_days_in_stage: 123, oldest_days_past_delivery: 0 },
-  REJECTED:   { n: 77,  unverified: 70,  oldest_days_in_stage: 123, oldest_days_past_delivery: 131 },
-  CANCELLED:  { n: 34,  unverified: 34,  oldest_days_in_stage: 105, oldest_days_past_delivery: 0 },
+  PO_ISSUED:      { n: 599, recent: 63, unverified: 599, oldest_days_in_stage: 128, oldest_days_past_delivery: 154 },
+  DELIVERED:      { n: 0,   recent: 0,  unverified: 0,   oldest_days_in_stage: 0,   oldest_days_past_delivery: 0 },
+  SUPPLIER_ACKED: { n: 430, recent: 17, unverified: 430, oldest_days_in_stage: 120, oldest_days_past_delivery: 150 },
+  RECEIVED:   { n: 2021, recent: 650, unverified: 2021, oldest_days_in_stage: 127, oldest_days_past_delivery: 154 },
+  DRAFT:      { n: 264, recent: 6,  unverified: 264, oldest_days_in_stage: 123, oldest_days_past_delivery: 0 },
+  REJECTED:   { n: 77,  recent: 1,  unverified: 70,  oldest_days_in_stage: 123, oldest_days_past_delivery: 131 },
+  CANCELLED:  { n: 34,  recent: 24, unverified: 34,  oldest_days_in_stage: 105, oldest_days_past_delivery: 0 },
 };
 
 describe("which row is which", () => {
@@ -55,7 +58,7 @@ describe("which row is which", () => {
 describe("lane chips", () => {
   it("counts every row at the lane's stages, not the ones fetched", () => {
     const incoming = LANES.find((l) => l.key === "PO_ISSUED")!;
-    expect(laneCount(summary, incoming)).toBe(598);          // PO_ISSUED + DELIVERED
+    expect(laneCount(summary, incoming)).toBe(599 + 0 + 430);   // PO_ISSUED + DELIVERED + SUPPLIER_ACKED
     const closed = LANES.find((l) => l.key === "CLOSED")!;
     expect(laneCount(summary, closed)).toBe(77 + 34 + 264);  // REJECTED + CANCELLED + DRAFT
   });
@@ -127,8 +130,8 @@ describe("the header counts the board", () => {
   it("adds up every stage, not the rows on screen", () => {
     // Dubai is 3,074 rows against a 1,000 window; the page's size is not a
     // fact about the work.
-    expect(boardTotals(summary).total).toBe(598 + 0 + 2021 + 264 + 77 + 34);
-    expect(boardTotals(summary).unverified).toBe(598 + 0 + 2021 + 264 + 70 + 34);
+    expect(boardTotals(summary).total).toBe(599 + 0 + 430 + 2021 + 264 + 77 + 34);
+    expect(boardTotals(summary).unverified).toBe(599 + 0 + 430 + 2021 + 264 + 70 + 34);
   });
 
   it("is zero before the summary arrives, not a guess", () => {
@@ -168,5 +171,32 @@ describe("a line taken off an order", () => {
 
   it("falls back to the stored code when the screen has no wording for it", () => {
     expect(removalReason(kept({ reason_code: "brand_new" }), {})).toBe("brand_new");
+  });
+});
+
+describe("today's work and the pile behind it", () => {
+  const incoming = LANES.find((l) => l.key === "PO_ISSUED")!;
+
+  it("splits a lane into what is actionable now and what is backlog", () => {
+    // Dubai: 1,029 orders in Incoming, 80 of them inside the threshold.
+    expect(laneSplit(summary, incoming)).toEqual({ recent: 63 + 17, older: 599 + 430 - 80 });
+  });
+
+  it("never reports a negative pile when the counts disagree", () => {
+    const odd: StageSummary = {
+      PO_ISSUED: { n: 2, recent: 9, unverified: 0, oldest_days_in_stage: 0, oldest_days_past_delivery: 0 },
+    };
+    expect(laneSplit(odd, incoming).older).toBe(0);
+  });
+
+  it("is zero on both sides before the summary arrives", () => {
+    expect(laneSplit(null, incoming)).toEqual({ recent: 0, older: 0 });
+  });
+
+  it("applies only where age means something — a closed order is not late", () => {
+    expect(laneIsWork(incoming)).toBe(true);
+    expect(laneIsWork(LANES.find((l) => l.key === "RECEIVED")!)).toBe(false);
+    expect(laneIsWork(LANES.find((l) => l.key === "CLOSED")!)).toBe(false);
+    expect(laneIsWork(LANES.find((l) => l.key === "NO_RECEIPT")!)).toBe(false);
   });
 });

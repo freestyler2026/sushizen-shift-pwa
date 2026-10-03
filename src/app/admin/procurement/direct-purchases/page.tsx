@@ -3,7 +3,8 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import ModalScrim from "@/components/ModalScrim";
 import {
-  LANES, STAGE_LABEL, boardTotals, laneCount, laneOf, laneOldest, openRemovals,
+  LANES, STAGE_LABEL, boardTotals, laneCount, laneIsWork, laneOf, laneOldest,
+  laneSplit, openRemovals,
   removalReason, rowKey, stageAlert, stageOf, stageTone,
   type DirectPurchaseRow, type DirectPurchaseItem, type ItemRemoval, type StageSummary,
 } from "@/lib/direct-purchase-stage";
@@ -161,6 +162,9 @@ export default function DirectPurchasesAdminPage() {
   // ── Expand/edit ──
   const [expandedId, setExpandedId] = useState("");
   const [showBacklog, setShowBacklog] = useState(false);
+  // The threshold comes from the server, so the chip and the list cannot
+  // disagree about which side of it a row is on.
+  const [backlogDays, setBacklogDays] = useState(30);
   const [editingId,  setEditingId]  = useState("");
   const [editState,  setEditState]  = useState<EditState | null>(null);
   const [editBusy,   setEditBusy]   = useState(false);
@@ -243,7 +247,8 @@ export default function DirectPurchasesAdminPage() {
 
   // ─── Load list ───────────────────────────────────────────────────────────
   const load = useCallback(async (city: string, status: string, dv: string,
-                                  forLane?: string, forRemovals?: boolean) => {
+                                  forLane?: string, forRemovals?: boolean,
+                                  forBacklog?: boolean) => {
     setError(""); setLoading(true);
     try {
       // The lane being looked at, not every row. Manila is 827 rows and fitted
@@ -257,15 +262,21 @@ export default function DirectPurchasesAdminPage() {
       const onlyRemovals = forRemovals ?? removalsOnly;
       // Removals cut across the lanes, so asking for them means asking for
       // every stage.
-      const stages = onlyRemovals
+      const laneDef = LANES.find(l => l.key === laneKey);
+      const stages = onlyRemovals ? "" : (laneDef?.stages || []).join(",");
+      // Today's work first. Dubai's Incoming lane is 1,029 orders against a
+      // window of 1,000, and 949 of them are months old -- fetching the whole
+      // lane means the 80 somebody can act on today may not even be in it.
+      const age = onlyRemovals || !laneDef || !laneIsWork(laneDef)
         ? ""
-        : (LANES.find(l => l.key === laneKey)?.stages || []).join(",");
+        : (forBacklog ?? showBacklog) ? "older" : "recent";
       const qs = new URLSearchParams({
         city,
         ...(status ? { status } : {}),
         ...(dv ? { data_verified: dv } : {}),
         ...(stages ? { stages } : {}),
         ...(onlyRemovals ? { open_removals: "true" } : {}),
+        ...(age ? { age } : {}),
         limit: "1000",
       }).toString();
       const data = await procurementJson<{
@@ -274,6 +285,7 @@ export default function DirectPurchasesAdminPage() {
         removals?: Record<string, ItemRemoval[]>;
         removals_open?: number;
         removal_reasons?: Record<string, string>;
+        backlog_days?: number;
       }>(
         `/api/admin/procurement/direct-purchases?${qs}`,
         { method: "GET" },
@@ -284,6 +296,7 @@ export default function DirectPurchasesAdminPage() {
       setRemovals(data?.removals || {});
       setRemovalsOpen(Number(data?.removals_open || 0));
       setRemovalReasons(data?.removal_reasons || {});
+      if (data?.backlog_days) setBacklogDays(Number(data.backlog_days));
       // Non-fatal on purpose: if this call is refused the banner is simply
       // absent, rather than the whole screen failing over a caption.
       try {
@@ -571,8 +584,13 @@ export default function DirectPurchasesAdminPage() {
   // lane rather than on the request's age -- an old request that was approved
   // yesterday is today's problem, and belongs at the top.
   //
+  // The line itself moved to the server on 2026-10-04 (`backlogDays`, from the
+  // response). It was drawn over the rows that happened to be fetched, which is
+  // sound at Manila's 827 and false at Dubai's Incoming lane: 1,029 orders
+  // against a window of 1,000, with 949 of them months old, so the 80 somebody
+  // can act on today might not be in the window at all.
+  //
   // Nothing is hidden: the backlog keeps its own count and opens in one click.
-  const BACKLOG_DAYS = 30;
 
   const laneRows = rows
     .filter(r => removalsOnly || laneOf(r) === lane)
@@ -585,13 +603,13 @@ export default function DirectPurchasesAdminPage() {
       return bv - av;
     });
 
-  const isBacklog = (r: DirectPurchaseRow) =>
-    !removalsOnly && lane !== "RECEIVED" && lane !== "CLOSED"
-    && Number(r.days_in_stage || 0) > BACKLOG_DAYS;
-  const visibleRows = laneRows.filter(r => !isBacklog(r));
-  const backlogRows = laneRows.filter(isBacklog);
-  const backlogOldest = backlogRows.length
-    ? Math.max(...backlogRows.map(r => Number(r.days_in_stage || 0))) : 0;
+  // The server decides which side of the line a row is on and fetches that
+  // side, so these are no longer a slice of what happened to arrive.
+  const visibleRows = laneRows;
+  const activeLane = LANES.find(l => l.key === lane);
+  const split = laneSplit(stageSummary, activeLane || LANES[0]);
+  const backlogCount = activeLane && laneIsWork(activeLane) && !removalsOnly ? split.older : 0;
+  const backlogOldest = activeLane ? laneOldest(stageSummary, activeLane) : 0;
 
 
   return (
@@ -691,8 +709,12 @@ export default function DirectPurchasesAdminPage() {
           const active = lane === l.key;
           // From the server, over every row. Only the lane on screen has rows
           // here, so counting those would report 0 for every other chip.
-          const count = laneCount(stageSummary, l);
-          const working = l.key !== "RECEIVED" && l.key !== "CLOSED";
+          const total = laneCount(stageSummary, l);
+          const working = laneIsWork(l);
+          const split = laneSplit(stageSummary, l);
+          // The working lanes lead with today's work and name the pile behind
+          // it. The closed lanes are not work, so they keep their total.
+          const count = working ? split.recent : total;
           const oldest = working ? laneOldest(stageSummary, l) : 0;
           // Only for the lane whose rows are loaded. Saying how many of
           // another lane are flagged would need its rows, and guessing is how
@@ -702,7 +724,7 @@ export default function DirectPurchasesAdminPage() {
           return (
             <button key={l.key} type="button"
               onClick={() => { setLane(l.key); setRemovalsOnly(false); setShowBacklog(false); setExpandedId("");
-                               void load(cityFilter, statusFilter, verifiedFilter, l.key, false); }}
+                               void load(cityFilter, statusFilter, verifiedFilter, l.key, false, false); }}
               className={`rounded-xl border px-3 py-2 text-left transition ${
                 active ? "border-violet-400/50 bg-violet-500/15 text-white"
                        : "border-white/10 bg-white/4 text-zinc-300 hover:bg-white/8"}`}>
@@ -717,6 +739,11 @@ export default function DirectPurchasesAdminPage() {
               {active && flagged > 0 && flagged < inLane.length && (
                 <span className="ml-2 rounded-lg bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
                   {flagged} flagged
+                </span>
+              )}
+              {working && split.older > 0 && (
+                <span className="ml-2 rounded-lg bg-white/8 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">
+                  +{split.older} older
                 </span>
               )}
               {working && count > 0 && oldest > 0 && (
@@ -844,12 +871,12 @@ export default function DirectPurchasesAdminPage() {
 
       {/* List */}
       <div className="space-y-3">
-        {visibleRows.length === 0 && backlogRows.length > 0 && (
+        {visibleRows.length === 0 && backlogCount > 0 && !showBacklog && (
           <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-5 text-center text-sm text-zinc-400">
-            Nothing new in this lane — everything here has been waiting more than {BACKLOG_DAYS} days.
+            Nothing new in this lane — everything here has been waiting more than {backlogDays} days.
           </div>
         )}
-        {[...visibleRows, ...(showBacklog ? backlogRows : [])].map((row, idx) => {
+        {visibleRows.map((row) => {
           const key = rowKey(row);
           const isExpanded = expandedId === key;
           const isEditing  = editingId  === key;
@@ -857,23 +884,8 @@ export default function DirectPurchasesAdminPage() {
             ? new Date(row.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
             : "—";
 
-          // Where the backlog starts, so an expanded lane still reads as two
-          // piles rather than one long one.
-          const startsBacklog = showBacklog && idx === visibleRows.length && backlogRows.length > 0;
-
           return (
             <Fragment key={key}>
-            {startsBacklog && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/4 px-4 py-2.5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                  Waiting more than {BACKLOG_DAYS} days — {backlogRows.length} order{backlogRows.length === 1 ? "" : "s"}, oldest {backlogOldest} days
-                </span>
-                <button type="button" onClick={() => setShowBacklog(false)}
-                  className="text-xs font-medium text-violet-300 hover:text-violet-200">
-                  Hide these
-                </button>
-              </div>
-            )}
             <div className={`rounded-2xl border transition-all ${row.data_verified_at ? "border-white/8 bg-white/4" : "border-amber-500/20 bg-amber-500/5"}`}>
 
               {/* Row header */}
@@ -1306,11 +1318,17 @@ export default function DirectPurchasesAdminPage() {
             </Fragment>
           );
         })}
-        {!showBacklog && backlogRows.length > 0 && (
-          <button type="button" onClick={() => setShowBacklog(true)}
+        {backlogCount > 0 && (
+          <button type="button"
+            onClick={() => { const next = !showBacklog; setShowBacklog(next); setExpandedId("");
+                             void load(cityFilter, statusFilter, verifiedFilter, lane, false, next); }}
             className="w-full rounded-xl border border-dashed border-white/12 bg-white/2 px-4 py-3 text-sm text-zinc-400 hover:border-violet-500/30 hover:text-zinc-200">
-            Show {backlogRows.length} order{backlogRows.length === 1 ? "" : "s"} waiting more than {BACKLOG_DAYS} days
-            <span className="text-zinc-500"> · oldest {backlogOldest} days</span>
+            {showBacklog
+              ? `Back to the ${split.recent} from the last ${backlogDays} days`
+              : `Show ${backlogCount} order${backlogCount === 1 ? "" : "s"} waiting more than ${backlogDays} days`}
+            {!showBacklog && backlogOldest > 0 && (
+              <span className="text-zinc-500"> · oldest {backlogOldest} days</span>
+            )}
           </button>
         )}
       </div>
