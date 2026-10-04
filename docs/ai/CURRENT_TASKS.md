@@ -1,5 +1,40 @@
 # CURRENT_TASKS.md
 
+## 2026-10-04（追記21）— 「名簿に居ない5名」は3名だった。2名は綴り違いで在籍中
+
+オーナー依頼「HRスタッフがこの作業を理解しやすいように表示させてほしい」。
+**表示を作る前に5件を1件ずつ名簿と突き合わせたら、2件は既に名簿にいた。**
+
+| 応募者名 | 名簿 | 類似度 |
+|---|---|---:|
+| Jeofferson Sibug Sucia | **Joefferson Sucia**（ACTIVE・TAFT） | 0.800 |
+| ceddie mamauag | **Cedie Mamauag**（SEPARATED・CUB） | 0.960 |
+| RONIDEL S. SANCIANGCO | 最も近い Melissa Agcang | 0.581 |
+| Renz erespe | 最も近い Renzy Siena（**別人**） | 0.500 |
+| Nhazarhethe Pinpin | 最も近い Marithel Queri | 0.400 |
+
+**5件を「登録してください」と並べていたら、2件は重複スタッフ登録を作らせていた。**
+重複はシフトと給与が2つに割れるので、綴りを直すより遥かに戻しにくい。
+
+### 閾値 0.75 は実測の谷に置いた
+0.960 / 0.800 が本人、次が 0.581（無関係）。**候補として出すだけで、一致とは扱わない** —
+綴りはどのみち直す必要があり、黙って一致させると以後の照合も全部そこで外れる。
+
+### 画面は2つに分けた
+- **Register these 3** — 名簿に似た名前が1人もいない。職種・配属・電話・待ち日数つき。
+  `Register` が `/admin/staff/create?city=manila&name=...` を**氏名入りで**開く
+  （打ち直しが綴りのぶれを生み、それが今回の2件の原因）
+- **Look these up first 2** — 候補名を在籍状態つきで表示（`SEPARATED · CUB`）
+- 待ち日数は、採用日の記録が無い行では **`at least N days ago`**（記録に無い日付は断定しない）
+- 「実際には入社しなかった人は登録しない。ステータスを直す」も画面に書いた
+
+### 未確認
+- **Register ボタンの先の送信は未検証**（承認PINが要るため私は押していない）。
+  氏名・都市が入った状態で開くところまでは本番で確認済み。
+- 盤面を使う3名（Yukihiro=HQ / Peter Villafuerte=HR_MANAGER / Camilla Gadingan=HR_STAFF）は
+  全員 `channel.admin.staff.view` 保有を確認。行き止まりにはならない。
+
+
 ## 2026-10-04（追記20）— Recruitment に Hired 画面。採用29名と、応募月コホート
 
 オーナー依頼「採用が決まった人を確認しづらい。応募から採用になった人数など分析しやすいUIに」。
