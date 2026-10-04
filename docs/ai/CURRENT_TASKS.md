@@ -1,5 +1,47 @@
 # CURRENT_TASKS.md
 
+## 2026-10-04（追記20）— Recruitment に Hired 画面。採用29名と、応募月コホート
+
+オーナー依頼「採用が決まった人を確認しづらい。応募から採用になった人数など分析しやすいUIに」。
+提案①②（Hiredタブ・コホート表）を実装し、両リポジトリをデプロイ済み。
+
+### 入ったもの
+- `app/hr_outcomes.py` / `GET /api/admin/hr/recruitment/outcomes`（`admin.hr_recruitment`）
+- `src/lib/hr-hires.ts` / `src/components/hr/HiredOutcomes.tsx`
+- 盤面に4つ目のレーン `hired`。**`laneOf` は変えていない** — 採用者は Closed にも残る
+  （Hired は「誰を採用したか」、Closed は名前で引いて必ず出ること）
+
+### 本番の実測（2026-10-04・マニラ、ドバイは応募者0件）
+| 応募月 | 応募 | 採用 | 不採用 | 判断中 | 率 |
+|---|---:|---:|---:|---:|---:|
+| 6月 | 8 | 1 | 7 | 0 | 12.5% |
+| 7月 | 44 | 7 | 37 | 0 | 15.9% |
+| 8月 | 80 | 6 | 74 | 0 | 7.5% |
+| 9月 | 1,028 | 15 | 893 | 120 | 1.5% |
+| 10月 | 40 | 0 | 21 | 19 | — |
+
+合計 1,200件・29名（2.4%）。**応募13倍・率5分の1。**
+流入元は form 854→2（0.2%）／referral 197→7（3.6%）／**facebook 138→20（14.5%）**。
+
+### 画面が「知らない」と書いている2つ
+- **29名中17名は採用日の記録が無い**（`hr_applicant_events` は 2026-09-10 以降）。
+  その行は `hired_on` が `updated_at`（＝最後に触った日）なので **last touched と表示し、
+  日数は出さない**。6月採用の行が9月に触られていて「90日」になるため。
+  所要日数の中央値5日は**分かっている12名で測った**と画面に明記。
+- **採用率の "so far"** — その月に判断中の人が残っているうちは率は上がる一方。
+
+### 未処理（オーナー判断待ち）
+- **採用29名のうち5名が staff_master に居ない** — RONIDEL S. SANCIANGCO /
+  Nhazarhethe Pinpin / Jeofferson Sibug Sucia / Renz erespe / ceddie mamauag。
+  採用を伝えてあるのにシフト・給与・ログインが無い。画面に名前で出している。
+- 提案③（件数と率の推移グラフ）④（流入元→採用）は①②の形を見てから。
+
+### マニュアル
+`docs/manuals/recruitment-guide.html` に「The Hired screen」節を追加して
+artifact を republish（version 42）。⚠️ **この artifact は「固定した過去版」が共有されている**ので、
+HRスタッフに見せるには Share メニューで固定版を更新する必要がある。
+
+
 ## 2026-10-01（追記19）— Confirm Dispatch は「権限が無い」のではなく「押せる行が無い」
 
 Yusuke から「Confirm Dispatch の権限が欲しい、方法が分からない」と依頼。**付与するものは無かった。**
