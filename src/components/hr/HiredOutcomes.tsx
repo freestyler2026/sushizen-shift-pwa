@@ -12,17 +12,19 @@
  */
 
 import { useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Search, UserPlus } from "lucide-react";
 import { getAuthHeaders } from "@/lib/auth";
 import type { Auth } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
-  GLASS_CARD, T_CARD_TITLE, T_CAPTION, TABLE_HEADER, TABLE_ROW, BADGE_WARNING,
+  GLASS_CARD, T_CARD_TITLE, T_CAPTION, TABLE_HEADER, TABLE_ROW,
 } from "@/lib/ui-tokens";
 import {
   monthLabel, dayLabel, notOnRoster, daysToHireLine, cohortTotals,
+  toRegister, toCheckFirst, waitedLabel,
   type Outcomes, type HiredRow,
 } from "@/lib/hr-hires";
+import { isoToday } from "@/lib/date";
 
 export default function HiredOutcomes({
   auth,
@@ -120,31 +122,8 @@ export default function HiredOutcomes({
         )}
       </div>
 
-      {/* ── Hired but not on the staff roster ────────────────────────────── */}
-      {missing.length > 0 && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4">
-          <p className="flex items-center gap-2 text-sm font-semibold text-amber-200">
-            <AlertTriangle size={15} />
-            {missing.length} {missing.length === 1 ? "hire is" : "hires are"} not on
-            the staff roster
-          </p>
-          {/* Being hired and being on the roster are two separate acts, and the
-              second is the one that makes a shift, a payslip and a login
-              exist. Naming them is the point -- a count alone cannot be acted
-              on (lesson 7). */}
-          <p className="mt-1 text-xs text-amber-200/70">
-            They have no shift, no payslip and no login until somebody registers
-            them on Staff → Create. Names matched on the roster allowing for
-            surname order and middle names, so a spelling that differs by more
-            than that will show here too.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {missing.map((h) => (
-              <span key={h.id} className={BADGE_WARNING}>{h.full_name}</span>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ── Hired, with no staff record ──────────────────────────────────── */}
+      {missing.length > 0 && <UnregisteredHires rows={missing} />}
 
       {/* ── What became of each month's applicants ───────────────────────── */}
       <div className={`${GLASS_CARD} p-4`}>
@@ -230,6 +209,124 @@ export default function HiredOutcomes({
   );
 }
 
+/** Hired, with nothing on the staff roster to pay them from.
+ *
+ *  Being hired and being registered are two separate acts, and the second is
+ *  the one that makes a shift, a payslip and a login exist. So this is a job,
+ *  not a statistic, and it is written as one: who, since when, and what to
+ *  press.
+ *
+ *  It is in two parts because on 2026-10-04 two of the five were already on the
+ *  roster under a different spelling — Joefferson Sucia and Cedie Mamauag. A
+ *  flat "register these five" would have asked for two duplicate staff records,
+ *  and a duplicate splits somebody's shifts and their pay, which is far harder
+ *  to undo than a spelling.
+ */
+function UnregisteredHires({ rows }: { rows: HiredRow[] }) {
+  const today = isoToday();
+  const register = toRegister(rows);
+  const check = toCheckFirst(rows);
+
+  return (
+    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+        <AlertTriangle size={15} />
+        {rows.length} hired, with no staff record
+      </h3>
+      <p className="mt-1 text-xs text-amber-200/75">
+        They were told they have the job. Until somebody registers them they have
+        no shift, no payslip and no login.
+      </p>
+
+      {register.length > 0 && (
+        <section className="mt-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-300/90">
+            Register these {register.length === 1 ? "" : `${register.length} `}
+            — nobody on the roster resembles them
+          </h4>
+          <div className="mt-2 flex flex-col gap-2">
+            {register.map((h) => (
+              <div
+                key={h.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-500/25 bg-black/20 px-3 py-2"
+              >
+                <span className="font-semibold text-amber-50">{h.full_name.trim()}</span>
+                <span className="text-xs text-amber-200/70">
+                  {[h.position_applied, h.assigned_branch].filter(Boolean).join(" · ") || "—"}
+                </span>
+                {h.phone && (
+                  <span className="text-xs tabular-nums text-amber-200/60">{h.phone.trim()}</span>
+                )}
+                <span className="ml-auto text-xs text-amber-200/60" title={
+                  h.hired_date_is_recorded
+                    ? "The day the hire was recorded."
+                    : "Their hire date is not in the log — this is the day the record was last touched, so they have been waiting at least this long."}>
+                  hired {dayLabel(h.hired_on)}
+                  {waitedLabel(h, today) ? ` · ${waitedLabel(h, today)}` : ""}
+                </span>
+                {/* Straight to the form, carrying what it needs to be filled
+                    in. Sending somebody to "the Staff page" is a second search
+                    for a name they are already looking at. */}
+                <a
+                  href={`/admin/staff/create?name=${encodeURIComponent(h.full_name.trim())}`}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition-colors"
+                >
+                  <UserPlus size={13} /> Register
+                </a>
+              </div>
+            ))}
+          </div>
+          {/* The other reading of an old row, and the only one where
+              registering them would be wrong. */}
+          <p className="mt-2 text-xs text-amber-200/60">
+            If somebody here never actually started, do not register them — open
+            their name in the table below and change the status instead.
+          </p>
+        </section>
+      )}
+
+      {check.length > 0 && (
+        <section className="mt-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-300/90">
+            Look {check.length === 1 ? "this one" : "these"} up first — the
+            roster has a name this close
+          </h4>
+          <p className="mt-1 text-xs text-amber-200/70">
+            Probably the same person, spelled differently. A second record splits
+            their shifts and their pay, so fix the spelling on one of the two
+            rather than creating anything.
+          </p>
+          <div className="mt-2 flex flex-col gap-2">
+            {check.map((h) => (
+              <div
+                key={h.id}
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm"
+              >
+                <span className="font-medium text-zinc-100">{h.full_name.trim()}</span>
+                <span className="text-zinc-500">on the roster as</span>
+                {(h.roster_candidates || []).map((c) => (
+                  <span key={c.staff_name} className="font-medium text-zinc-100">
+                    {c.staff_name}
+                    <span className="ml-1.5 text-xs font-normal text-zinc-500">
+                      {[c.status, c.branch_code].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                ))}
+                <a
+                  href="/admin/staff"
+                  className="ml-auto flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-zinc-200 hover:bg-white/10 transition-colors"
+                >
+                  <Search size={13} /> Open Staff
+                </a>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
 function HireRow({
   h,
   onSelectName,
@@ -241,6 +338,7 @@ function HireRow({
   // touched. Printing that as a hire date would make the number next to it a
   // measurement of nothing, so both are marked.
   const guessed = !h.hired_date_is_recorded;
+  const near = h.roster_candidates || [];
   return (
     <tr className={TABLE_ROW}>
       <td className="py-2 pr-3">
@@ -257,12 +355,21 @@ function HireRow({
             <span className="font-medium text-zinc-100">{h.full_name}</span>
           )}
           {!h.on_roster && (
-            <span
-              className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-200"
-              title="Hired, but no matching name on the staff roster — they have no shift, payslip or login yet."
-            >
-              Not on roster
-            </span>
+            near.length > 0 ? (
+              <span
+                className="shrink-0 rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-zinc-300"
+                title={`The roster has ${near.map((c) => c.staff_name).join(" or ")}, which may be the same person spelled differently. Look before creating anything.`}
+              >
+                Check spelling
+              </span>
+            ) : (
+              <span
+                className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-200"
+                title="Hired, and nobody on the staff roster resembles them — so no shift, no payslip and no login."
+              >
+                No staff record
+              </span>
+            )
           )}
         </div>
       </td>

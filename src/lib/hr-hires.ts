@@ -25,8 +25,23 @@ export type HiredRow = {
   hired_date_is_recorded: boolean;
   days_to_hire: number | null;
   on_roster: boolean;
+  /** The roster row it matched, so a wrong match can be seen rather than taken
+   *  on trust. Null when nothing matched. */
+  roster_matched_name?: string | null;
+  /** When nothing matched: roster rows close enough to be worth looking at.
+   *  Two of the five unregistered hires on 2026-10-04 were already on the
+   *  roster under a different spelling, so "register these five" would have
+   *  asked for two duplicate staff records. */
+  roster_candidates?: RosterCandidate[];
   phone?: string | null;
   email?: string | null;
+};
+
+export type RosterCandidate = {
+  staff_name: string;
+  status: string | null;
+  branch_code: string | null;
+  score: number;
 };
 
 export type Cohort = {
@@ -98,6 +113,52 @@ export function dayLabel(iso: string | null | undefined): string {
  */
 export function notOnRoster(rows: HiredRow[]): HiredRow[] {
   return rows.filter((r) => !r.on_roster);
+}
+
+/** Longest wait first. The point of the list is being able to name the person
+ *  who has been waiting since July without reading all of it. */
+function oldestFirst(rows: HiredRow[]): HiredRow[] {
+  return [...rows].sort((a, b) =>
+    String(a.hired_on || "").localeCompare(String(b.hired_on || "")));
+}
+
+/** Nobody on the roster resembles them, so this is registration work. */
+export function toRegister(rows: HiredRow[]): HiredRow[] {
+  return oldestFirst(
+    notOnRoster(rows).filter((r) => !(r.roster_candidates || []).length));
+}
+
+/** Somebody on the roster nearly matches, so the first job is to look rather
+ *  than to create. A second record for one person splits their shifts and
+ *  their pay, and that is harder to undo than a spelling. */
+export function toCheckFirst(rows: HiredRow[]): HiredRow[] {
+  return oldestFirst(
+    notOnRoster(rows).filter((r) => (r.roster_candidates || []).length > 0));
+}
+
+/** Whole days between two ISO dates, or null if either is missing. */
+export function daysBetween(fromIso: string | null | undefined, toIso: string): number | null {
+  const a = /^\d{4}-\d{2}-\d{2}$/.exec(String(fromIso || "")) ? String(fromIso) : null;
+  const b = /^\d{4}-\d{2}-\d{2}$/.exec(String(toIso || "")) ? String(toIso) : null;
+  if (!a || !b) return null;
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  // Date.UTC on both sides, so no timezone enters a figure that is only a
+  // count of calendar days (lesson: toISOString is a different question).
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}
+
+/** How long they have been waiting, said in a way that holds.
+ *
+ *  When the hire date is not in the log, `hired_on` is the day the record was
+ *  last touched — the hire happened on or before it, so the wait is at least
+ *  that long and the sentence says "at least".
+ */
+export function waitedLabel(r: HiredRow, todayIso: string): string | null {
+  const n = daysBetween(r.hired_on, todayIso);
+  if (n == null || n < 0) return null;
+  const days = n === 1 ? "1 day" : `${n} days`;
+  return r.hired_date_is_recorded ? `${days} ago` : `at least ${days} ago`;
 }
 
 /** How long it took, in one sentence, with how much of it is actually known.

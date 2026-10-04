@@ -156,14 +156,27 @@ const APPLICANTS = [
  *  not in it at all. */
 const OUTCOMES = {
   ok: true,
-  hired: [{
-    id: "a4", full_name: "Was Hired", position_applied: "kitchen",
-    position_group: null, assigned_branch: "TAFT", source: "referral",
-    referrer_name: null, applied_date: "2026-08-01", hired_on: "2026-09-07",
-    // No hired event in the log for them, so the date is the day their record
-    // was last touched and both it and the day count have to be marked.
-    hired_date_is_recorded: false, days_to_hire: 37, on_roster: false,
-  }],
+  hired: [
+    {
+      id: "a4", full_name: "Was Hired", position_applied: "kitchen",
+      position_group: null, assigned_branch: "TAFT", source: "referral",
+      referrer_name: null, applied_date: "2026-08-01", hired_on: "2026-09-07",
+      // No hired event in the log for them, so the date is the day their record
+      // was last touched and both it and the day count have to be marked.
+      hired_date_is_recorded: false, days_to_hire: 37, on_roster: false,
+      phone: "0917 000 0000", roster_candidates: [],
+    },
+    {
+      // Already on the roster, spelled differently. Telling somebody to
+      // register this person creates a duplicate staff record.
+      id: "a9", full_name: "ceddie mamauag", position_applied: "L1 junior cook",
+      position_group: null, assigned_branch: null, source: "facebook",
+      referrer_name: null, applied_date: "2026-07-22", hired_on: "2026-07-22",
+      hired_date_is_recorded: false, days_to_hire: 0, on_roster: false,
+      roster_candidates: [{ staff_name: "Cedie Mamauag", status: "SEPARATED",
+                            branch_code: "CUB", score: 0.96 }],
+    },
+  ],
   cohorts: [
     { month: "2026-08", applied: 80, hired: 6, rejected: 74, still_open: 0,
       hire_rate: 7.5, settled: 80, complete: true },
@@ -229,12 +242,12 @@ describe("recruitment — four screens", () => {
     expect(screen.getByText("TAFT")).toBeTruthy();
     // Hired and on the roster are two separate acts, and the second is what
     // makes a shift, a payslip and a login exist. Named, not counted.
-    expect(screen.getByText(/not on\s+the staff roster/)).toBeTruthy();
+    expect(screen.getByText(/2 hired, with no staff record/)).toBeTruthy();
     expect(screen.getAllByText("Was Hired").length).toBeGreaterThan(0);
     // No hired event for them, so the date is the day the record was last
     // touched. Printing it unmarked would make the day count beside it a
     // measurement of when somebody last opened a record.
-    expect(screen.getByText("last touched")).toBeTruthy();
+    expect(screen.getAllByText("last touched").length).toBe(2);
     // ...and no day count for them. 37 days between the application and the
     // day somebody last opened the record is a number that looks like a
     // duration and measures nothing.
@@ -427,5 +440,61 @@ describe("recruitment — four screens", () => {
     const box = await screen.findByPlaceholderText("Search name, position or phone…");
     fireEvent.change(box, { target: { value: "zzz" } });
     expect(await screen.findByText("Nothing matches that.")).toBeTruthy();
+  });
+});
+
+
+describe("the hires with no staff record", () => {
+  it("separates registration work from the names to look up first", async () => {
+    // Two of the five real rows on 2026-10-04 were already on the roster under
+    // a different spelling. A flat "register these" asks for a duplicate staff
+    // record, which splits somebody's shifts and their pay.
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /^Hired/ }));
+    await screen.findByText(/2 hired, with no staff record/);
+
+    const register = screen.getByText(/nobody on the roster resembles them/)
+      .closest("section")!;
+    expect(within(register).getByText("Was Hired")).toBeTruthy();
+    expect(within(register).queryByText("ceddie mamauag")).toBeNull();
+    // What the person registering them needs, without opening anything else.
+    expect(within(register).getByText(/kitchen · TAFT/)).toBeTruthy();
+    expect(within(register).getByText("0917 000 0000")).toBeTruthy();
+    // And the only case where registering them would be wrong.
+    expect(within(register).getByText(/never actually started/)).toBeTruthy();
+
+    const check = screen.getByText(/the\s+roster has a name this close/)
+      .closest("section")!;
+    expect(within(check).getByText("ceddie mamauag")).toBeTruthy();
+    expect(within(check).getByText("Cedie Mamauag")).toBeTruthy();
+    // "Already on the roster, and left" is a different answer from "already on
+    // the roster".
+    expect(within(check).getByText(/SEPARATED · CUB/)).toBeTruthy();
+  });
+
+  it("carries the name to the form rather than asking for it again", async () => {
+    // Retyping is where the spelling drifts, and a drifted spelling is what put
+    // two of these rows here in the first place.
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /^Hired/ }));
+    const link = (await screen.findAllByRole("link", { name: /Register/ }))[0];
+    expect(link.getAttribute("href")).toBe("/admin/staff/create?name=Was%20Hired");
+  });
+
+  it("says how long each one has been waiting, and when that is a floor", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /^Hired/ }));
+    // Their hire date is not in the log, so the wait is at least that long --
+    // stating it as exact would quote a date the record does not hold.
+    expect(await screen.findByText(/hired 7 Sep · at least \d+ days ago/)).toBeTruthy();
+  });
+
+  it("does not call somebody 'no staff record' when the roster may hold them", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /^Hired/ }));
+    const row = (await screen.findByRole("button", { name: "ceddie mamauag" }))
+      .closest("tr")!;
+    expect(within(row).getByText("Check spelling")).toBeTruthy();
+    expect(within(row).queryByText("No staff record")).toBeNull();
   });
 });

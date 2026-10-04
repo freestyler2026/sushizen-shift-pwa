@@ -94,6 +94,22 @@ export default function CreateStaffPage() {
     if (first) setHomeBranch(first as BranchCode);
   }, [city]);
 
+  // Arriving from the Hired screen with a name to register. Read after mount
+  // from window rather than useSearchParams: the page is prerendered and shared
+  // by every viewer, so branching the first render on the URL is a hydration
+  // mismatch (and useSearchParams would need a Suspense boundary).
+  //
+  // Only the name. The branch is not carried because the applicant record does
+  // not reliably hold one -- one of the five rows this link exists for has
+  // "will start on July 04" in its branch field.
+  useEffect(() => {
+    try {
+      const n = new URLSearchParams(window.location.search).get("name");
+      // Never overwrite what somebody has already typed.
+      if (n) setDisplayName((cur) => cur || n.trim().slice(0, 120));
+    } catch { /* no URL to read is not a failure */ }
+  }, []);
+
   useEffect(() => {
     const run = async () => {
       // Phase 3: if the user already has a server-side session, use the stored role
