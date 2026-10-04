@@ -478,7 +478,10 @@ describe("the hires with no staff record", () => {
     await renderPage();
     fireEvent.click(screen.getByRole("button", { name: /^Hired/ }));
     const link = (await screen.findAllByRole("link", { name: /Register/ }))[0];
-    expect(link.getAttribute("href")).toBe("/admin/staff/create?name=Was%20Hired");
+    // The city travels too: it decides the branch list, and it would otherwise
+    // default to the viewer's own -- every HQ account is registered in Dubai.
+    expect(link.getAttribute("href"))
+      .toBe("/admin/staff/create?city=manila&name=Was%20Hired");
   });
 
   it("says how long each one has been waiting, and when that is a floor", async () => {

@@ -104,9 +104,16 @@ export default function CreateStaffPage() {
   // "will start on July 04" in its branch field.
   useEffect(() => {
     try {
-      const n = new URLSearchParams(window.location.search).get("name");
+      const q = new URLSearchParams(window.location.search);
+      const n = q.get("name");
       // Never overwrite what somebody has already typed.
       if (n) setDisplayName((cur) => cur || n.trim().slice(0, 120));
+      // The city decides the branch list and whether the Manila-only fields
+      // appear, and it defaults to the viewer's own -- every HQ account is
+      // registered in Dubai, so a Manila hire opened from the Hired screen
+      // would land on a Dubai branch unless the link says otherwise.
+      const c = q.get("city");
+      if (c === "manila" || c === "dubai") setCity(c);
     } catch { /* no URL to read is not a failure */ }
   }, []);
 

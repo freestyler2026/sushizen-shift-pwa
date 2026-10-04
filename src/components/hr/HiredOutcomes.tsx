@@ -268,7 +268,7 @@ function UnregisteredHires({ rows }: { rows: HiredRow[] }) {
                     in. Sending somebody to "the Staff page" is a second search
                     for a name they are already looking at. */}
                 <a
-                  href={`/admin/staff/create?name=${encodeURIComponent(h.full_name.trim())}`}
+                  href={`/admin/staff/create?city=manila&name=${encodeURIComponent(h.full_name.trim())}`}
                   className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition-colors"
                 >
                   <UserPlus size={13} /> Register
