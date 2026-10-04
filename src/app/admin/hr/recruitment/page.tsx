@@ -41,6 +41,7 @@ import SelectDark from "@/components/SelectDark";
 import InterviewDay from "@/components/hr/InterviewDay";
 import BookingLinksToSend from "@/components/hr/BookingLinksToSend";
 import InterviewCalendar from "@/components/hr/InterviewCalendar";
+import HiredOutcomes from "@/components/hr/HiredOutcomes";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ const STALE_DAYS = 14;
  *  just deliberately postponed one. */
 const CONSIDER_DAYS = 3;
 
-type Lane = "active" | "decide" | "closed";
+type Lane = "active" | "decide" | "closed" | "hired";
 
 /** Why a card owes a decision. One value per card, first match wins, and the
  *  same value drives the lane, the card and the sentence -- so the three cannot
@@ -269,6 +270,9 @@ const LANE_LABEL: Record<Lane, string> = {
   // you the row is only leaving when somebody decides something.
   decide: "Needs a decision",
   closed: "Closed",
+  // The 29 hires used to be findable only by typing a name you already knew,
+  // inside 1,061 closed rows set in the same typeface as the rejections.
+  hired: "Hired",
 };
 
 /** The two points where a decision is actually made. Past these, moving someone
@@ -5388,9 +5392,18 @@ export default function HRRecruitmentPage() {
 
   // ── Kanban grouping ───────────────────────────────────────────────────────
 
+  // A hire is in two lanes on purpose. Hired is the answer to "who did we
+  // hire"; Closed stays complete, so searching a name there never comes up
+  // empty for somebody who was taken on. `laneOf` is unchanged -- it decides
+  // where a card lives, and a hire still lives in Closed.
   const lanes = applicants.reduce(
-    (acc, a) => { acc[laneOf(a)].push(a); return acc; },
-    { active: [] as Applicant[], decide: [] as Applicant[], closed: [] as Applicant[] }
+    (acc, a) => {
+      acc[laneOf(a)].push(a);
+      if (a.status === "hired") acc.hired.push(a);
+      return acc;
+    },
+    { active: [] as Applicant[], decide: [] as Applicant[],
+      closed: [] as Applicant[], hired: [] as Applicant[] }
   );
 
   const grouped = OPEN_COLUMNS.reduce(
@@ -5685,7 +5698,7 @@ export default function HRRecruitmentPage() {
               reason to open that screen, and it has to be readable without
               opening it. */}
           <div className="flex flex-wrap items-center gap-1.5 px-3 pt-3">
-            {(["active", "decide", "closed"] as Lane[]).map((k) => {
+            {(["active", "decide", "hired", "closed"] as Lane[]).map((k) => {
               // The decide count is what is left to do, so a decision taken a
               // moment ago comes off it even while its row is still on screen.
               const n = k === "decide"
@@ -5719,6 +5732,8 @@ export default function HRRecruitmentPage() {
                    answer, and the rule has to be on the screen that counts by
                    it -- the number changed meaning the day this shipped. */
                 ? `A review nobody acted on, a hold past ${CONSIDER_DAYS} days, or ${STALE_DAYS} days of silence`
+                : lane === "hired"
+                ? "Following the people who applied, not the columns they are sitting in"
                 : "Hired and rejected — kept so the source figures and repeat applications still work"}
             </p>
           </div>
@@ -5764,6 +5779,15 @@ export default function HRRecruitmentPage() {
                 onDecideApproval={setDecideFor}
                 canApprove={canApprove}
               />
+            ) : lane === "hired" ? (
+              <HiredOutcomes auth={authRef.current} onSelectName={(name) => {
+                // The hire's own card holds the interview, the resume and the
+                // notes. Reaching it from a name is what stops the table being
+                // a dead end -- and it is the Closed list that holds the card,
+                // which is why a hire is still in it.
+                setLane("closed");
+                setClosedSearch(name);
+              }} />
             ) : lane === "closed" ? (
               <ClosedList
                 rows={closedRows}
