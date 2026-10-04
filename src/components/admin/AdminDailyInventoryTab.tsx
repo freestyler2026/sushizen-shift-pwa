@@ -250,6 +250,33 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   // on this view asks the person which city they meant, because the report
   // already answered.
   const city = cityFromBranch(detail.branch);
+
+  // And the item list is read for THAT city, here, rather than taken on trust
+  // from whatever the page loaded earlier. The parent loads it once at mount
+  // for the viewer's own city, so Yusuke -- HQ, registered to Dubai -- opened a
+  // Paranaque report against Dubai's 337 items, of which exactly 0 match its
+  // 127 entries. The tabs then read "Supplier 22 · Central Kitchen 0 ·
+  // Warehouse 0": the 22 were Manila supplier items the form view happened to
+  // have merged in, and the 105 Central Kitchen lines he had recorded were
+  // simply not in the list being matched against. A Manila account saw all of
+  // it, which is why it looked like a permissions problem.
+  const [cityItems, setCityItems] = useState<InvItem[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await apiFetch(withCity("/api/daily-inventory/items?active_only=false", city));
+        if (!alive || !res.ok) return;
+        const data = JSON.parse((await res.text()) || "[]") as InvItem[];
+        if (Array.isArray(data)) setCityItems(data);
+      } catch { /* fall back to what the page already had */ }
+    })();
+    return () => { alive = false; };
+  }, [city, detail.id]);
+  // Until it arrives, the list the page already held. It is the wrong city's
+  // when the viewer is from the other one, which is the whole bug -- so the
+  // counts below are drawn from `items` only while this is loading.
+  items = cityItems ?? items;
   const entryMap: Record<string, ReportEntry> = {};
   detail.entries.forEach((e) => { entryMap[e.item_code] = e; });
 
