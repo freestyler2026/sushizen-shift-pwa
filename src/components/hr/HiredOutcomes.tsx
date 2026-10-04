@@ -205,12 +205,12 @@ export default function HiredOutcomes({
           <table className="w-full min-w-[680px] text-sm">
             <thead>
               <tr className="text-left">
-                <th className={TABLE_HEADER}>Name</th>
-                <th className={TABLE_HEADER}>Position</th>
-                <th className={TABLE_HEADER}>Branch</th>
-                <th className={TABLE_HEADER}>Applied</th>
-                <th className={TABLE_HEADER}>Hired</th>
-                <th className={`${TABLE_HEADER} text-right`}>Days</th>
+                <th className={`${TABLE_HEADER} pr-3`}>Name</th>
+                <th className={`${TABLE_HEADER} pr-3`}>Position</th>
+                <th className={`${TABLE_HEADER} pr-3`}>Branch</th>
+                <th className={`${TABLE_HEADER} pr-3`}>Applied</th>
+                <th className={`${TABLE_HEADER} pr-3`}>Hired</th>
+                <th className={`${TABLE_HEADER} pr-3 text-right`}>Days</th>
                 <th className={TABLE_HEADER}>Source</th>
               </tr>
             </thead>
