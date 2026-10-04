@@ -242,7 +242,7 @@ describe("recruitment — four screens", () => {
     expect(screen.getByText("TAFT")).toBeTruthy();
     // Hired and on the roster are two separate acts, and the second is what
     // makes a shift, a payslip and a login exist. Named, not counted.
-    expect(screen.getByText(/2 hired, with no staff record/)).toBeTruthy();
+    expect(screen.getByText(/2 hires did not match a staff record/)).toBeTruthy();
     expect(screen.getAllByText("Was Hired").length).toBeGreaterThan(0);
     // No hired event for them, so the date is the day the record was last
     // touched. Printing it unmarked would make the day count beside it a
@@ -451,7 +451,7 @@ describe("the hires with no staff record", () => {
     // record, which splits somebody's shifts and their pay.
     await renderPage();
     fireEvent.click(screen.getByRole("button", { name: /^Hired/ }));
-    await screen.findByText(/2 hired, with no staff record/);
+    await screen.findByText(/2 hires did not match a staff record/);
 
     const register = screen.getByText(/nobody on the roster resembles them/)
       .closest("section")!;

@@ -231,11 +231,14 @@ function UnregisteredHires({ rows }: { rows: HiredRow[] }) {
     <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-100">
         <AlertTriangle size={15} />
-        {rows.length} hired, with no staff record
+        {rows.length} {rows.length === 1 ? "hire" : "hires"} did not match a staff record
       </h3>
       <p className="mt-1 text-xs text-amber-200/75">
-        They were told they have the job. Until somebody registers them they have
-        no shift, no payslip and no login.
+        Being hired and being registered are two separate acts, and the second is
+        the one that makes a shift, a payslip and a login exist
+        {check.length > 0
+          ? " — but a name can also simply be spelled differently, so the two lists are not the same job."
+          : "."}
       </p>
 
       {register.length > 0 && (
