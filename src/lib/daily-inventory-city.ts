@@ -23,7 +23,26 @@ export function asInventoryCity(value: string | null | undefined): InventoryCity
 }
 
 /** Append the city to a /api/daily-inventory path, wherever its query starts. */
-export function withCity(path: string, city: InventoryCity): string {
+/**
+ * Every city, for a screen that must cover both.
+ *
+ * HQ work across Manila and Dubai and every HQ account is registered in Dubai,
+ * so "the viewer's city" scoped them to one — a Manila report matched against
+ * Dubai's item master, 0 of its 127 lines matched, and the Central Kitchen tab
+ * read 0. A registered city is a payroll fact, not a statement about what
+ * somebody looks at.
+ *
+ * Only reads may ask for this. Writing needs one city, and the branch names it.
+ */
+export const EVERY_CITY = "all" as const;
+export type CityParam = InventoryCity | typeof EVERY_CITY;
+
+/** Does this person's work span more than one city? Mirrors cities_for() on the server. */
+export function worksInEveryCity(role: string | null | undefined): boolean {
+  return ["HQ", "ADMIN"].includes(String(role || "").trim().toUpperCase());
+}
+
+export function withCity(path: string, city: CityParam): string {
   if (!path.includes("/api/daily-inventory")) return path;
   if (/[?&]city=/.test(path)) return path;   // already said; do not say it twice
   return path + (path.includes("?") ? "&" : "?") + "city=" + encodeURIComponent(city);

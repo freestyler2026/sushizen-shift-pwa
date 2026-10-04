@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import SelectDark from "@/components/SelectDark";
-import { asInventoryCity, withCity } from "@/lib/daily-inventory-city";
+import { EVERY_CITY, asInventoryCity, withCity, worksInEveryCity } from "@/lib/daily-inventory-city";
 import StoreStockView, { STOCK_BRANCHES } from "@/components/admin/StoreStockView";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { IncomingNote, incomingFor as incomingLinesFor, type IncomingPayload } from "@/components/IncomingNote";
@@ -2394,7 +2394,13 @@ export default function AdminDailyInventoryTab() {
   useEffect(() => {
     void (async () => {
       try {
-        const res = await apiFetch(withCity("/api/daily-inventory/items", city));
+        // Both cities for somebody who works in both, not the one they are
+        // registered in. This list is matched against whatever report gets
+        // opened, and item codes are unique across cities (883 of them, 0
+        // shared), so the two merge without colliding.
+        const res = await apiFetch(withCity(
+          "/api/daily-inventory/items",
+          worksInEveryCity(auth?.role) ? EVERY_CITY : city));
         const text = await res.text();
         if (!res.ok) return;
         const data = JSON.parse(text || "[]") as InvItem[];

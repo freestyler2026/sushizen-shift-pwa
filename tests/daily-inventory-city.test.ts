@@ -11,7 +11,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 
-import { asInventoryCity, withCity } from "@/lib/daily-inventory-city";
+import { EVERY_CITY, asInventoryCity, withCity, worksInEveryCity } from "@/lib/daily-inventory-city";
 
 const SOURCE = readFileSync(
   join(__dirname, "..", "src", "components", "admin", "AdminDailyInventoryTab.tsx"),
@@ -80,5 +80,27 @@ describe("the Daily Inventory screen names its city", () => {
     expect(SOURCE).not.toMatch(/INVENTORY_CITY[^/\n]*[),;]/);
     const bare = requestLines().filter((l) => /withCity\([^)]*\)[^,]/.test(l) && !l.includes(", city"));
     expect(bare, `withCity without a city:\n${bare.join("\n")}`).toEqual([]);
+  });
+});
+
+describe("a person who works in both cities", () => {
+  it("is HQ and ADMIN, matching the server's cities_for()", () => {
+    expect(worksInEveryCity("HQ")).toBe(true);
+    expect(worksInEveryCity("admin")).toBe(true);
+    expect(worksInEveryCity("DUBAI_MANAGEMENT")).toBe(false);
+    expect(worksInEveryCity("MANILA_MANAGEMENT")).toBe(false);
+    expect(worksInEveryCity("STAFF")).toBe(false);
+    expect(worksInEveryCity(null)).toBe(false);
+  });
+
+  it("can ask for every city, and the parameter survives withCity", () => {
+    expect(withCity("/api/daily-inventory/items", EVERY_CITY))
+      .toBe("/api/daily-inventory/items?city=all");
+  });
+
+  it("still cannot overwrite a city the caller already named", () => {
+    // A branch names the city; "all" must not override what was decided.
+    expect(withCity("/api/daily-inventory/items?city=manila", EVERY_CITY))
+      .toBe("/api/daily-inventory/items?city=manila");
   });
 });
