@@ -44,6 +44,9 @@ export default function HiredOutcomes({
       setLoading(true);
       setError("");
       try {
+        // Manila, like the board above it. Every one of the 1,200 applicants is
+        // Manila; Dubai has never had one, so a city switch here would be a
+        // permanently empty second view. Change both together if that changes.
         const res = await fetch(
           `${API_BASE}/api/admin/hr/recruitment/outcomes?city=manila`,
           { headers: getAuthHeaders(auth), cache: "no-store" });
