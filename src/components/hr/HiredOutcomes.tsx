@@ -148,18 +148,19 @@ export default function HiredOutcomes({
         <h3 className={T_CARD_TITLE}>By the month they applied</h3>
         <p className={`${T_CAPTION} mt-0.5`}>
           Following the people, not the columns — a month that has finished
-          reads zero on the board however many it hired.
+          reads zero on the board however many it hired. &ldquo;Deciding&rdquo;
+          is applicants from that month who are still on the board.
         </p>
         <div className="mt-3 -mx-1 overflow-x-auto px-1">
-          <table className="w-full min-w-[460px] text-sm">
+          <table className="w-full min-w-[420px] text-sm">
             <thead>
               <tr className="text-left">
-                <th className={TABLE_HEADER}>Applied in</th>
+                <th className={TABLE_HEADER}>Month</th>
                 <th className={`${TABLE_HEADER} text-right`}>Applied</th>
                 <th className={`${TABLE_HEADER} text-right`}>Hired</th>
                 <th className={`${TABLE_HEADER} text-right`}>Rejected</th>
-                <th className={`${TABLE_HEADER} text-right`}>Still open</th>
-                <th className={`${TABLE_HEADER} text-right`}>Hire rate</th>
+                <th className={`${TABLE_HEADER} text-right`}>Deciding</th>
+                <th className={`${TABLE_HEADER} text-right`}>Rate</th>
               </tr>
             </thead>
             <tbody>
