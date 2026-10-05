@@ -187,6 +187,11 @@ type MonthHistoryRow = {
   net_sales: number;
   days: number;
   avg_net_per_order: number;
+  /** What the customer actually paid, per order, before the platform's cut.
+   *  A different question from the one above: on GrabFood the platform keeps
+   *  about half. Null before August 2026, when the gross columns start. */
+  avg_gross_per_order?: number | null;
+  gross_sales?: number | null;
   mom_orders: number | null;
   mom_net_sales: number | null;
   /** The month total is whole; its per-channel split is not, for this many
@@ -697,7 +702,11 @@ export function ManilaOrderCountsTab({
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-neutral-400">Monthly History — Last 12 Complete Months</p>
-              <p className="text-[10px] text-neutral-600 mt-0.5">Orders + net sales from manila_daily_sales · complete months only</p>
+              <p className="text-[10px] text-neutral-600 mt-0.5">
+                Orders + net sales from manila_daily_sales · complete months only ·
+                {" "}Net/Order is what the business keeps; Gross/Order is what the customer paid,
+                and on GrabFood the platform takes about half of it
+              </p>
             </div>
             {historyLoading ? <Spinner size="sm" /> : null}
           </div>
@@ -711,7 +720,10 @@ export function ManilaOrderCountsTab({
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">MoM</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Orders</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">MoM (orders)</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Avg/Order</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500"
+                        title="Net sales ÷ orders — what the business keeps per order, after the platform's commission.">Net/Order</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500"
+                        title="What the customer paid, per order, before the platform's commission. Recorded from August 2026 onwards.">Gross/Order</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Days</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500 w-24">Bar</th>
                   </tr>
@@ -759,6 +771,12 @@ export function ManilaOrderCountsTab({
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-400">
                             {formatPhp(row.avg_net_per_order)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-300">
+                            {row.avg_gross_per_order != null ? formatPhp(row.avg_gross_per_order) : (
+                              <span className="text-neutral-600"
+                                    title="The gross figures start in August 2026. Before that only the net was kept, so what the customer paid cannot be worked out.">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-500">{row.days}</td>
                           <td className="px-4 py-2.5">
