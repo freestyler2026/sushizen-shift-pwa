@@ -170,8 +170,14 @@ type OrderRow = {
   store_name: string;
   transaction_channel: string;
   total_transactions: number;
-  total_sales?: number;
-  net_sales?: number;
+  /** Null when the amount was never recorded for any day in the period, which
+   *  is not the same as zero — July 2026 was restored with its day totals and
+   *  without the channel split. */
+  total_sales?: number | null;
+  net_sales?: number | null;
+  /** Days in the period where this channel took orders and no amount was keyed. */
+  amount_days_missing?: number;
+  amount_days?: number;
 };
 
 type MonthHistoryRow = {
@@ -183,6 +189,11 @@ type MonthHistoryRow = {
   avg_net_per_order: number;
   mom_orders: number | null;
   mom_net_sales: number | null;
+  /** The month total is whole; its per-channel split is not, for this many
+   *  days. Marked so this table and the channel view above cannot disagree in
+   *  silence. */
+  days_without_split?: number;
+  split_complete?: boolean;
 };
 
 type ApiResp = {
@@ -646,7 +657,22 @@ export function ManilaOrderCountsTab({
                             {chPct.toFixed(1)}%
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-300">
-                            {row.net_sales != null ? formatPhp(Number(row.net_sales)) : "—"}
+                            {row.net_sales != null ? (
+                              <>
+                                {formatPhp(Number(row.net_sales))}
+                                {row.amount_days_missing ? (
+                                  <span className="ml-1 text-[10px] text-amber-400/80"
+                                        title={`${row.amount_days_missing} of ${row.amount_days} days in this period have orders on this channel with no amount recorded, so this total is short by those days.`}>
+                                    −{row.amount_days_missing}d
+                                  </span>
+                                ) : null}
+                              </>
+                            ) : (
+                              <span className="text-neutral-500"
+                                    title="Not recorded. These orders happened; the amount for them was never keyed, so this is unknown rather than zero. The month total in the history below still holds the sales.">
+                                not recorded
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -710,7 +736,15 @@ export function ManilaOrderCountsTab({
                       };
                       return (
                         <tr key={row.month_key} className="border-t border-neutral-800/60 hover:bg-neutral-800/20 transition-colors">
-                          <td className="px-4 py-2.5 font-medium text-neutral-200">{row.label}</td>
+                          <td className="px-4 py-2.5 font-medium text-neutral-200">
+                            {row.label}
+                            {row.split_complete === false ? (
+                              <span className="ml-1.5 text-[10px] text-amber-400/80"
+                                    title={`The month total is complete. Its per-channel split is not: ${row.days_without_split} day(s) have orders on a channel with no amount recorded, so the channel view above will read less than this row.`}>
+                                split incomplete
+                              </span>
+                            ) : null}
+                          </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-100 font-semibold">
                             {formatPhp(row.net_sales)}
                           </td>
