@@ -1,5 +1,42 @@
 # CURRENT_TASKS.md
 
+## 2026-10-05（追記22）— HR Clearance の payslip は「添付できるが開けない」状態だった
+
+マニラHRから「13ヶ月目計算に添付した payslip の VIEW PDF を押すと
+`This content is blocked` と出て、Yuri が最終給与を確認できない」と報告。
+
+### 原因
+`SalaryHistory.view()` が payslip を **data: URL で取得し iframe に入れていた**。
+**Chrome は data: URL へのフレーム／タブ遷移を拒否する。**
+保存済み34件は**全部 PDF**で、だから全件が開けなかった
+（`<img src="data:image/...">` なら動くが、画像は1件も無い）。
+
+### 直し方
+`GET /api/admin/hr/clearance/salary-rows/{row_id}/payslip.file` を追加し、
+**バイト列を保存時の type で返す**。画面は素の `<a href target="_blank">` に変更
+（同じページの Final Settlement PDF と同じ形。プロキシが httpOnly Cookie を
+Bearer に変換する）。**JSで window.open しない** — await の後に開くタブは
+ポップアップブロックの対象で、別の無言の失敗に置き換わるだけ。
+
+### セキュリティ上の判断（`app/clearance_payslip.py` に分離・テスト済み）
+自ドメインから配信されるので、**inline に出すのは pdf とラスタ画像だけ**。
+html / svg / xml は `attachment` + `application/octet-stream` に落とす
+（アップロードされた svg を inline 表示すると、閲覧者のセッションで
+アプリとして実行される）。ファイル名も `Content-Disposition` を
+途中で閉じられないようサニタイズ。
+
+### 同種の確認
+`document.write` / iframe を全部洗った。
+- `expense-requests` は `<img src="data:...">` で、**実データ16件すべて image/jpeg** → 影響なし
+- `policy-docs` は blob: URL、`DriveInvoiceModal` は Drive の preview URL、
+  `VoiceScreening` は外部 embed → いずれも影響なし
+**この1箇所だけだった。**
+
+### 残り
+- JSON版 `GET .../payslip`（data: URL を返す）は**フロントから呼ばれなくなった**。
+  POST（添付）は現役。削除はしていない。
+
+
 ## 2026-10-04（追記21）— 「名簿に居ない5名」は3名だった。2名は綴り違いで在籍中
 
 オーナー依頼「HRスタッフがこの作業を理解しやすいように表示させてほしい」。
