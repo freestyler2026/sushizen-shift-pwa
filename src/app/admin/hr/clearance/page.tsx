@@ -810,22 +810,6 @@ function SalaryHistory({ caseId, entered13th }: { caseId: string; entered13th: n
     } finally { setBusy(false); }
   }
 
-  async function view(rowId?: string) {
-    if (!rowId) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/salary-rows/${rowId}/payslip`, {
-        headers: getAuthHeaders(getAuth()),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j.data_url) { setErr(String(j.detail || "No payslip attached.")); return; }
-      const w = window.open();
-      if (w) w.document.write(
-        j.mime === "application/pdf"
-          ? `<iframe src="${j.data_url}" style="width:100%;height:100%;border:0"></iframe>`
-          : `<img src="${j.data_url}" style="max-width:100%">`);
-    } catch { setErr("Could not open the payslip."); }
-  }
-
   if (!loaded) return null;
 
   return (
@@ -872,10 +856,18 @@ function SalaryHistory({ caseId, entered13th }: { caseId: string; entered13th: n
                 </td>
                 <td className="px-2 py-1">
                   {r.has_payslip ? (
-                    <button onClick={() => view(r.id)}
-                            className="text-xs text-violet-300 underline hover:text-violet-200">
+                    /* A link, not a button that fetches. The old one pulled the
+                       payslip down as a data: URL and iframed it, which Chrome
+                       blocks outright -- so every attached payslip read "This
+                       content is blocked" and the 13th month could not be
+                       checked against it. Same shape as the Final Settlement
+                       PDF link further down: the proxy turns the httpOnly
+                       cookie into the Bearer header. */
+                    <a href={`${API_BASE}/api/admin/hr/clearance/salary-rows/${r.id}/payslip.file`}
+                       target="_blank" rel="noopener noreferrer"
+                       className="text-xs text-violet-300 underline hover:text-violet-200">
                       view{r.payslip_name ? ` · ${r.payslip_name.slice(0, 18)}` : ""}
-                    </button>
+                    </a>
                   ) : (
                     <label className="cursor-pointer text-xs text-zinc-400 hover:text-white">
                       attach
