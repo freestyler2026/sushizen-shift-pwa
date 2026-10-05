@@ -740,7 +740,7 @@ export function ManilaOrderCountsTab({
                             {row.label}
                             {row.split_complete === false ? (
                               <span className="ml-1.5 text-[10px] text-amber-400/80"
-                                    title={`The month total is complete. Its per-channel split is not: ${row.days_without_split} day(s) have orders on a channel with no amount recorded, so the channel view above will read less than this row.`}>
+                                    title={`The month total is complete. Its per-channel split is not: on ${row.days_without_split} of its ${row.days} days a channel took orders and no amount was recorded for them, so the channel table above reads less than this row. The sales are in this figure.`}>
                                 split incomplete
                               </span>
                             ) : null}
