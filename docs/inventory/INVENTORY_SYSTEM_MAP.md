@@ -112,6 +112,26 @@
   **保存・API往復のみで、掛け算も割り算も1箇所も無い**（全文grepで演算子との共起ゼロ）。
 - `_expand_cost_calc_bom`（`inventory_db.py:5645-5651`）は `mc.quantity` をそのまま
   数量として扱い、**`mc.unit` と `ingredient_master.unit` の一致を検査しない。**
+
+⚠️ **2026-10-06: その結果、`inv_items.ingredient_unit` が実データと食い違っていた。**
+消費のある182品のうち**27品**（消費原価の43%）で、レシピが `g` と書いているのに
+item 側が `KG` / `CAN` / `PKT` / `1000.0`（単位欄に換算率が入っていた）だった。
+**最大の SALMON がその筆頭**で、599,044 という数字に `KG` と書いてあった（実体は 599kg）。
+
+判定はデータだけで付く。**`cost × 1000` がカタログの ₱/kg と一致すれば、`cost` は
+グラム単価であり数量もグラム**。16品が 0.8〜1.7倍で一致し（PEPPER BLACK POWDER は
+578.9 対 578.95 で 1.00倍）、缶・パック品は「カタログ価格 ÷ cost×1000」で1個あたりの
+重量を逆算して規格と照合した（VEGETABLE OIL 15.2kg/缶・SWEET CORN 247g/缶の固形量）。
+
+**25品を修正済み**（`ingredient_unit` のみ。`cost` と `storage_unit` は未変更、
+退避 `_inv_items_unit_bk_20261006`）。残り2品は保留:
+- `SHICHIMI TOGARASHI` — 受領単価 ₱45/PKT が同じ品の他の行（₱180・₱278）と矛盾し、根拠にならない
+- `STAR ANISE` — **レシピ側が2行で単位が違う**（menu 4462 が 8 `pc`、menu 3953 が 2 `g`）。
+  item 側の `g` は正しく、これは「食い違い」ではなく**レシピ内の正当な使い分け**の可能性がある
+
+⚠️ **名前で UPDATE してはいけない。** `SALT` と `Soy Sauce Tray` は inv_items に
+同名2行（ACTIVE と DELETED）があり、しかも**DELETED 側は既に正しい単位を持っていた**。
+台帳が参照しているのは ACTIVE 側。**id を台帳から引いてから更新する。**
 - ~~`disposal_report_lines.unit` を `sync_disposal_report_to_ledger` が参照しない~~
   → **2026-09-27 修正済み（§2）。** いまは `menu_item_master.output_qty/output_unit`
   へ換算してから BOM に渡し、換算できない組み合わせは書かずに理由を返す。
