@@ -33,6 +33,7 @@ import {
   T_CAPTION,
   DIVIDER,
 } from "@/lib/ui-tokens";
+import { earningFields, showsThirteenthMonth } from "@/lib/clearance-fields";
 import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 import { prepareDataUrl } from "@/lib/image-compress";
 
@@ -742,7 +743,11 @@ type SalaryRow = {
  * because it is both the proof the salary was released and the source of the
  * deduction figure.
  */
-function SalaryHistory({ caseId, entered13th }: { caseId: string; entered13th: number | null }) {
+function SalaryHistory({ caseId, entered13th, city }: { caseId: string; entered13th: number | null; city: string }) {
+  // On a Dubai case the ÷12 line and the figure it is compared against are
+  // both meaningless. The cut-off table stays — it is the working behind the
+  // last salary either way.
+  const thirteenth = showsThirteenthMonth(city);
   const [rows, setRows] = useState<SalaryRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -765,7 +770,7 @@ function SalaryHistory({ caseId, entered13th }: { caseId: string; entered13th: n
   const actual = (r: SalaryRow) => (r.basic_pay ?? 0) - (r.deductions ?? 0);
   const masked = rows.length > 0 && rows.every(r => isSalaryHidden(r.basic_pay));
   const total = masked ? null : rows.reduce((s, r) => s + actual(r), 0);
-  const computed13 = total === null ? null : total / 12;
+  const computed13 = total === null || !thirteenth ? null : total / 12;
   // Two figures that must agree. Showing them apart is what let them diverge.
   const diff = computed13 === null || entered13th === null ? null : entered13th - computed13;
 
@@ -814,11 +819,13 @@ function SalaryHistory({ caseId, entered13th }: { caseId: string; entered13th: n
 
   return (
     <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-      <p className="text-sm font-semibold text-white">Salary history — basis for the 13th month</p>
+      <p className="text-sm font-semibold text-white">
+        {thirteenth ? "Salary history — basis for the 13th month" : "Salary history"}
+      </p>
       <p className="mt-1 mb-3 text-xs text-zinc-400">
-        One row per cut-off. Actual basic is calculated (basic − deductions), and the 13th
-        month is the total ÷ 12. Attach each payslip: it proves the salary was released and
-        is where the deduction figure comes from.
+        One row per cut-off. Actual basic is calculated (basic − deductions)
+        {thirteenth ? ", and the 13th month is the total ÷ 12" : ""}. Attach each payslip: it
+        proves the salary was released and is where the deduction figure comes from.
       </p>
 
       <div className="overflow-x-auto">
@@ -906,12 +913,14 @@ function SalaryHistory({ caseId, entered13th }: { caseId: string; entered13th: n
               {total === null ? SALARY_HIDDEN : total.toFixed(2)}
             </span>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-zinc-400">÷ 12 = 13th month</span>
-            <span className="tabular-nums font-semibold text-white">
-              {computed13 === null ? SALARY_HIDDEN : computed13.toFixed(2)}
-            </span>
-          </div>
+          {thirteenth && (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-zinc-400">÷ 12 = 13th month</span>
+              <span className="tabular-nums font-semibold text-white">
+                {total === null ? SALARY_HIDDEN : (total / 12).toFixed(2)}
+              </span>
+            </div>
+          )}
           {/* One peso, not one centavo. 44,252.85 ÷ 12 is 3,687.7375 and the
               figure people record is 3,687.75 — a correct rounding. Warning on
               that teaches everyone to ignore the warning. */}
@@ -990,6 +999,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
   // reviews, and a reviewer who finds a wrong figure has to be able to get it
   // corrected. Matches the server.
   const frozen = c.current_stage >= 4;
+  const fields = earningFields(c.city, c.fp_prorated_13th);
   // Every amount masked means this account cannot see salary, and so cannot set
   // it either: the server refuses the save. Typing into the boxes and pressing
   // Save used to look like it worked and change nothing.
@@ -1026,13 +1036,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
           <div>
             <p className={`${T_CAPTION} mb-2 text-emerald-400`}>Earnings</p>
             <div className="grid grid-cols-2 gap-2">
-              {[
-                { k: "fp_basic_pay", label: "Basic Pay" },
-                { k: "fp_prorated_13th", label: "Prorated 13th Month" },
-                { k: "fp_leave_conversion", label: "Leave Conversion" },
-                { k: "fp_separation_pay", label: "Separation Pay" },
-                { k: "fp_allowance", label: "Allowance" },
-              ].map(({ k, label }) => (
+              {fields.map(({ k, label }) => (
                 <div key={k}>
                   <label className={T_LABEL}>{label}</label>
                   <input
@@ -1110,7 +1114,7 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
           </div>
 
           {/* The working behind the 13th month, next to the figure it produces. */}
-          <SalaryHistory caseId={c.id} entered13th={fp.fp_prorated_13th} />
+          <SalaryHistory caseId={c.id} entered13th={fp.fp_prorated_13th} city={c.city} />
 
           {/* Built from this case, so the form cannot carry a figure the case
               does not hold — which is how the hand-made version ended up
