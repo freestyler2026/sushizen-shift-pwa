@@ -1,5 +1,22 @@
 # CURRENT_TASKS.md
 
+## 🔄 返却待ち — レシピの食材 ↔ 棚卸しの対応表（マニラ）
+
+**2026-10-08 キッチンに確認依頼中。** `ingredient_stock_map_20261008.xlsx`（日本語）を渡した。
+
+返ってきたら、バックエンドリポジトリで:
+```bash
+export DATABASE_URL="$(heroku config:get DATABASE_URL -a sushizen-shift-app)"
+python3 scripts/inventory/ingredient_stock_map_check.py <返ってきた.xlsx>
+```
+
+詳細・決まったこと・次の手順は
+**`sushizen_shift_app_clean/docs/inventory/INGREDIENT_STOCK_MAP.md`**。
+
+先に直すもの: `invoice_ingredient_mappings` の誤対応2件
+（`SHICHIMI TOGARASHI → Sichuan Pepper`＝七味と花椒、`BAKING POWDER → Baking Soda`）。
+**いま原価計算が花椒の値段で七味を計算している。**
+
 ## 2026-10-06（追記26）— 消費量の単位ラベルを25品修正。理論在庫 vs 実在庫の前提が1つ片付いた
 
 「理論在庫と実在庫を比較したい」の調査から、消費データの検証 → 単位ラベルの修正まで。
