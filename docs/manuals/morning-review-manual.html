@@ -279,6 +279,50 @@
       料理が写っていない写真は、そもそも採点されなくなりました。
     </p>
   </div>
+
+  <div class="note">
+    <h3><span class="en">&ldquo;Not a dish&rdquo; was discarding real orders (fixed 2026-10-08)</span><span class="ja">「料理ではない」が本物のオーダーを捨てていました（2026-10-08 修正）</span></h3>
+    <p class="en">
+      For a month after the rule shipped, 38&ndash;67% of Manila&rsquo;s photos were filed
+      as &ldquo;not a dish&rdquo; every day &mdash; one day showed 59 graded photos beside 56
+      discarded ones. The discarded photos were finished delivery orders on the
+      pass with the GrabFood receipt in frame, which is the most common photo
+      this kitchen takes.
+    </p>
+    <p class="ja">
+      このルールを入れてから1か月、マニラの写真の<strong>毎日38〜67%</strong>が
+      「料理ではない」として捨てられていました。ある日は採点59枚の隣に
+      除外56枚が並んでいます。捨てられていたのは<strong>レシートを添えて提供台に
+      並べた完成した配達オーダー</strong>で、この厨房が最もよく撮る写真でした。
+    </p>
+    <p class="en">
+      The cause was not the wording of the rule. Three reference photos are shown
+      to the model before every judgement, and with them in front of it the model
+      judged the wrong picture. Measured on 39 real photos: without the reference
+      images 1 of 24 came back &ldquo;not a dish&rdquo;, with them 20 of 24 &mdash; and 5 of 15
+      photos that already carried a grade went the same way.
+    </p>
+    <p class="ja">
+      原因はルールの文言ではありませんでした。採点のたびに<strong>基準写真3枚</strong>を
+      先に見せており、それがあると別の写真を判定していました。実写真39枚で実測:
+      参照画像<strong>なし</strong>なら24枚中1枚、<strong>あり</strong>なら24枚中20枚が
+      「料理ではない」。<strong>すでに等級が付いている写真も15枚中5枚</strong>が
+      同じように落ちました。
+    </p>
+    <p class="en">
+      A receipt, a delivery bag, cutlery, sauce cups, or the several containers of
+      one order laid out together are no longer reasons to discard the food beside
+      them. A photo with no prepared food anywhere in it &mdash; a receipt on its own,
+      an empty container, loose ingredients with nothing finished in frame &mdash; is
+      still excluded, and still should be.
+    </p>
+    <p class="ja">
+      レシート・配達袋・カトラリー・ソースカップ・1つのオーダーの複数容器が
+      一緒に写っていても、隣の料理を捨てる理由にはなりません。
+      <strong>料理がどこにも写っていない写真</strong>（レシートだけ、空容器、
+      完成品が無い材料だけ）は今までどおり除外します。
+    </p>
+  </div>
 </section>
 
 <section>
@@ -382,6 +426,43 @@
 </section>
 
 <section>
+  <span class="eyebrow"><span class="en">The photo</span><span class="ja">写真</span></span>
+  <h2>
+    <span class="en">The photo is fetched when you open the row</span>
+    <span class="ja">写真は行を開いたときに取りに行きます</span>
+  </h2>
+  <p class="en">
+    The pictures are not kept in the database. They were 61.7&nbsp;GB of it, which
+    is why they were moved out on 2026-09-29; they live in the kitchen Discord
+    channel and are fetched back when you open a row. That takes about a second,
+    and there is no expiry &mdash; a photo from last night and a photo from last month
+    open the same way.
+  </p>
+  <p class="ja">
+    写真はデータベースには保存していません。61.7GB を占めていたので
+    2026-09-29 に外しました。実体は厨房の Discord チャンネルにあり、
+    <strong>行を開いたときに取りに行きます</strong>。1秒ほどかかります。
+    保存期限はないので、<strong>昨晩の写真も先月の写真も同じように開きます。</strong>
+  </p>
+  <div class="note">
+    <h3><span class="en">If the photo does not appear</span><span class="ja">写真が出ないとき</span></h3>
+    <p class="en">
+      The row says which of three things happened: it is loading, it is here, or
+      it could not be fetched. Between 2026-09-29 and 2026-10-08 it said &ldquo;no
+      longer stored&rdquo; for every photo, because this screen was reading the emptied
+      column instead of asking Discord. Nothing was lost in that window; those
+      photos open now.
+    </p>
+    <p class="ja">
+      行には3つのうちどれかが出ます &mdash; 読み込み中・写真・取得できなかった理由。
+      <strong>2026-09-29 から 2026-10-08 までは全部が「保存されていません」</strong>と
+      出ていました。この画面だけが、空にした列を見ていて Discord に聞いていなかった
+      ためです。<strong>その期間の写真も失われておらず、いま開きます。</strong>
+    </p>
+  </div>
+</section>
+
+<section>
   <span class="eyebrow"><span class="en">Answering</span><span class="ja">回答</span></span>
   <h2>
     <span class="en">One tap first, three questions only if needed</span>
@@ -416,14 +497,27 @@
     <h3><span class="en">&ldquo;Not a dish&rdquo; is not a complaint about you</span><span class="ja">「Not a dish」は遠慮なく押してください</span></h3>
     <p class="en">
       The scorer still misreads a prep tray or a sauce cup now and then, and
-      nothing in its wording gives it away. <strong>How often that button is
-      pressed is the only measurement we have of how often it is wrong.</strong>
-      Press it whenever it applies.
+      nothing in its wording gives it away. Press it whenever it applies.
     </p>
     <p class="ja">
       採点AIは今でも仕込みのトレーやソースカップを料理と読み違えることがあり、
-      文面からは判別できません。<strong>このボタンが押された回数だけが、
-      採点の誤りを測る唯一の手掛かりです。</strong>該当したら必ず押してください。
+      文面からは判別できません。該当したら必ず押してください。
+    </p>
+    <p class="en">
+      This used to say that how often the button is pressed is the only
+      measurement we have of how often the scorer is wrong. It is not, and
+      waiting for the button to tell us cost a month: on 2026-10-08 a sample of
+      100 discarded photos was pulled back out of Discord and looked at
+      directly, and <strong>98 of them were real orders</strong>. The button
+      measures what managers notice; it does not measure what never reached
+      them.
+    </p>
+    <p class="ja">
+      以前ここには「このボタンの回数だけが採点の誤りを測る唯一の手掛かり」と
+      書いていました。<strong>違います。</strong>ボタンを待っていたために1か月
+      かかりました。2026-10-08 に、捨てられた写真100枚を Discord から取り出して
+      直接見たところ、<strong>98枚が本物のオーダー</strong>でした。ボタンが測るのは
+      「マネージャーが気づいた分」で、<strong>そもそも画面に出なかった分は測れません。</strong>
     </p>
   </div>
 
