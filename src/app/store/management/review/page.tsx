@@ -160,6 +160,48 @@ function Chips({
  * had nothing on it, or one a sweep closed without answering anything, is not
  * news (lesson 39).
  */
+/**
+ * The photo behind a graded item.
+ *
+ * The bytes are no longer kept in the database (2026-09-29) — they are
+ * re-fetched from Discord when the row is opened, which takes a moment and can
+ * fail. Three states, not two: loading, the picture, and a reason. The screen
+ * used to say "no longer stored" for every photo on the strength of a column
+ * that had been emptied on purpose, which told managers the picture was gone
+ * when it was one request away.
+ */
+function ReviewPhoto({ itemId, grade, available }: { itemId: number; grade: string; available: boolean }) {
+  const [state, setState] = useState<"loading" | "ok" | "failed">(available ? "loading" : "failed");
+  if (!available || state === "failed") {
+    return (
+      <p className={`${T_CAPTION} mb-3`}>
+        <Camera className="mr-1 inline h-3.5 w-3.5" />
+        {available
+          ? "The photo could not be loaded. It is still in the kitchen channel on Discord at this time."
+          : "No photo was attached to this score."}
+      </p>
+    );
+  }
+  return (
+    <>
+      {state === "loading" && (
+        <p className={`${T_CAPTION} mb-3`}>
+          <Camera className="mr-1 inline h-3.5 w-3.5" />
+          Loading the photo…
+        </p>
+      )}
+      <img
+        src={`/api/store/ops-review/item/${itemId}/photo`}
+        alt={`Product graded ${grade}`}
+        loading="lazy"
+        onLoad={() => setState("ok")}
+        onError={() => setState("failed")}
+        className={`${state === "ok" ? "mb-3" : "hidden"} max-h-80 w-full rounded-xl object-contain`}
+      />
+    </>
+  );
+}
+
 function DoneForYou({ rows, onOpen }: { rows: ReviewRow[]; onOpen: (id: number) => void }) {
   if (!rows.length) return null;
   return (
@@ -603,20 +645,7 @@ export default function MorningReviewPage() {
 
                   {isOpen && (
                     <div className="border-t border-white/8 px-4 py-3">
-                      {it.payload.has_photo ? (
-                        // One request per photo, only when the row is open.
-                        <img
-                          src={`/api/store/ops-review/item/${it.id}/photo`}
-                          alt={`Product graded ${grade}`}
-                          loading="lazy"
-                          className="mb-3 max-h-80 w-full rounded-xl object-contain"
-                        />
-                      ) : (
-                        <p className={`${T_CAPTION} mb-3`}>
-                          <Camera className="mr-1 inline h-3.5 w-3.5" />
-                          The photo is no longer stored.
-                        </p>
-                      )}
+                      <ReviewPhoto itemId={it.id} grade={grade} available={Boolean(it.payload.has_photo)} />
                       <p className={`${T_BODY} mb-3`}>{String(it.payload.feedback ?? "")}</p>
 
                       {a ? (
