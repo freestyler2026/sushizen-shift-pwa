@@ -30,6 +30,20 @@ type UsageRow = {
   compare_status: "ok" | "partial" | "not_linked" | "not_ordered_here" | "unit_unknown";
   unconvertible_units: string[];
   in_par_list: boolean;
+  // On the shelf now, in recipe units. Store and CK are counted daily; the
+  // warehouse is counted every 77 days at the ninetieth percentile, so it is
+  // kept apart rather than added in — a four-month-old warehouse figure read
+  // as today's stock said a branch held 653 kg of tuna.
+  stock_qty: number | null;
+  stock_store_qty: number | null;
+  stock_ck_qty: number | null;
+  stock_wh_qty: number | null;
+  stock_wh_counted_on: string;
+  stock_counted_on: string;
+  stock_counted_where: string[];
+  stock_status: "ok" | "no_map" | "no_conversion" | "no_count";
+  awaiting_pack_size: string[];
+  days_cover: number | null;
 };
 
 type Coverage = {
@@ -82,6 +96,15 @@ const STATUS_NOTE: Record<UsageRow["compare_status"], string> = {
   not_ordered_here: "No invoice for it in these dates — it is linked, just not billed here",
   not_linked: "Not linked to an invoice item — add it in Cost Calculation → Invoice Mapping",
   unit_unknown: "Invoiced in a pack whose size is not on file",
+};
+
+// Why a line has no stock figure. Same rule as the difference column: name the
+// missing thing, because that is what tells the reader who has to do what.
+const STOCK_NOTE: Record<UsageRow["stock_status"], string> = {
+  ok: "",
+  no_map: "Not linked to a counted item yet",
+  no_conversion: "Linked, but nobody has recorded what one pack holds",
+  no_count: "Linked, but this item has not been counted",
 };
 
 function iso(d: Date) {
@@ -342,6 +365,9 @@ export default function IngredientUsagePage() {
                 <th className="px-3 py-2 text-left">Ingredient</th>
                 <th className="px-3 py-2 text-left">Supplier</th>
                 <th className="px-3 py-2 text-right">Used</th>
+                <th className="px-3 py-2 text-right">On shelf</th>
+                <th className="px-3 py-2 text-right">Days left</th>
+                <th className="px-3 py-2 text-right">Warehouse</th>
                 <th className="px-3 py-2 text-right">Invoiced</th>
                 <th className="px-3 py-2 text-right">Difference</th>
                 <th className="px-3 py-2 text-right">Cost of use</th>
@@ -355,10 +381,42 @@ export default function IngredientUsagePage() {
                     <td className="px-3 py-2 text-neutral-100">
                       {r.item_name}
                       {note && <div className="mt-0.5 text-[10px] text-neutral-500">{note}</div>}
+                      {r.stock_status !== "ok" && (
+                        <div className="mt-0.5 text-[10px] text-amber-300/70">
+                          {STOCK_NOTE[r.stock_status]}
+                          {r.awaiting_pack_size.length > 0 &&
+                            `: ${r.awaiting_pack_size.join(", ")}`}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-neutral-400">{r.supplier || "—"}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
                       {qty(r.used_qty, r.unit)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
+                      {r.stock_qty != null ? qty(r.stock_qty, r.unit) : (
+                        <span className="text-neutral-600">—</span>
+                      )}
+                      {r.stock_qty != null && r.stock_counted_on && (
+                        <div className="text-[10px] text-neutral-500">
+                          counted {r.stock_counted_on}
+                        </div>
+                      )}
+                    </td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${
+                      r.days_cover == null ? "text-neutral-600"
+                        : r.days_cover < 2 ? "text-orange-300" : "text-neutral-200"}`}>
+                      {r.days_cover == null ? "—" : r.days_cover.toLocaleString(undefined,
+                        { maximumFractionDigits: 1 })}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-neutral-400">
+                      {r.stock_wh_qty == null ? <span className="text-neutral-600">—</span>
+                        : qty(r.stock_wh_qty, r.unit)}
+                      {r.stock_wh_counted_on && (
+                        <div className="text-[10px] text-neutral-500">
+                          counted {r.stock_wh_counted_on}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
                       {r.bought_qty != null ? qty(r.bought_qty, r.unit) : "—"}
@@ -376,7 +434,7 @@ export default function IngredientUsagePage() {
               })}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-sm text-neutral-500">
+                  <td colSpan={9} className="px-3 py-6 text-center text-sm text-neutral-500">
                     Nothing for this period. If sales exist but nothing shows here, the
                     overnight job has not run for these dates yet.
                   </td>
@@ -389,6 +447,12 @@ export default function IngredientUsagePage() {
         <p className="mt-3 text-xs text-neutral-500">
           <strong className="text-neutral-400">Used</strong> is worked out from the recipes, not
           counted — it is what the sales should have consumed.
+          <strong className="text-neutral-400"> On shelf</strong> is the last count at the
+          branches and the Central Kitchen, converted into the recipe&apos;s unit; both are counted
+          daily. <strong className="text-neutral-400">Warehouse</strong> is kept in its own
+          column with its date because it is counted every 77 days, so adding it in would show a
+          months-old figure as today&apos;s stock. <strong className="text-neutral-400">Days left</strong>
+          divides what is on the shelf by the rate the recipes consumed it over these dates.
           <strong className="text-neutral-400"> Invoiced</strong> is what suppliers billed in the
           same dates, matched to the ingredient through the item mapping on Cost Calculation —
           the same mapping that carries the pack size (1 SACK = 25,000 g).
