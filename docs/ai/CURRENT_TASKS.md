@@ -4,8 +4,13 @@
 
 **2026-10-09。①②③は受領し、対応表163件を本番に投入済み。画面も稼働。⑥（29件）待ち。**
 
-`/admin/inventory/ingredient-usage` に **On shelf / Days left / Warehouse** を追加。
+`/admin/inventory/ingredient-usage` に **On shelf / Days left / Warehouse / Delivered** を追加。
 169種のうち133種が在庫つきで出る。残り: 換算待ち28・対応表に無い6。
+
+**差異（実消費−理論消費）は意図的に出していない。** 10/02〜10/08 の実測で中央値
+1.49倍になり、「半分ロス」と読まれる。原因は入荷の記録漏れ。代わりに
+「期首在庫＋記録された入荷より多く使っている行」（40行）を出している。
+`Sushi Soy Sauce`（id 3343）は普通の醤油と同一と確定したのでアーカイブ済み。
 
 ⑥（パック中身・26件）が返ってきたら:
 ```bash
@@ -19,8 +24,8 @@ python3 scripts/inventory/ingredient_stock_map_load.py  <返ってきた.xlsx> -
 **まだやっていないこと:**
 1. 誤対応2件（`SHICHIMI TOGARASHI → Sichuan Pepper`＝七味と花椒、`BAKING POWDER → Baking Soda`）。
    **いま原価計算が花椒の値段で七味を計算している**
-2. `Sushi Soy Sauce`（加工品 id 3343）をどの商品も使っていない。61商品が生の醤油を直接消費。
-   **配合もレシピ85:15 / 現場70:30 で食い違う**（Yusuke に確認が要る）
+2. **受領の記録漏れ**（運用）。Cubao がCK納品を確認していない（30日で5日分）。
+   サーモン・キュウリ・米が届いているのに受領として記録されていない
 3. 使っていない4件をレシピから外す（Sticker Ramen / Sticker Onigiri / KNORR PORK・BEEF STOCK POWDER）
 4. 棚卸しに追加する2件（WATER GALLON＝CKの豚骨用 / SALMON SKIN）
 5. 理論消費と実在庫の**差異**（期首＋入荷−期末）は未実装。入荷の突合が別の関門
