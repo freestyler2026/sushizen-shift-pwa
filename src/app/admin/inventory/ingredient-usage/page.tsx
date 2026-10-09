@@ -44,6 +44,12 @@ type UsageRow = {
   stock_status: "ok" | "no_map" | "no_conversion" | "no_count";
   awaiting_pack_size: string[];
   days_cover: number | null;
+  // How much more was used than the branch could have had: opening stock plus
+  // every delivery on record. Above zero means something arrived that nobody
+  // wrote down — it is arithmetic, not a threshold somebody chose.
+  unrecorded_intake: number;
+  unrecorded_branches: string[];
+  delivered_qty: number | null;
 };
 
 type Coverage = {
@@ -368,6 +374,7 @@ export default function IngredientUsagePage() {
                 <th className="px-3 py-2 text-right">On shelf</th>
                 <th className="px-3 py-2 text-right">Days left</th>
                 <th className="px-3 py-2 text-right">Warehouse</th>
+                <th className="px-3 py-2 text-right">Delivered</th>
                 <th className="px-3 py-2 text-right">Invoiced</th>
                 <th className="px-3 py-2 text-right">Difference</th>
                 <th className="px-3 py-2 text-right">Cost of use</th>
@@ -418,6 +425,17 @@ export default function IngredientUsagePage() {
                         </div>
                       )}
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      <span className={r.unrecorded_intake > 0 ? "text-orange-300" : "text-neutral-200"}>
+                        {r.delivered_qty != null ? qty(r.delivered_qty, r.unit) : "—"}
+                      </span>
+                      {r.unrecorded_intake > 0 && (
+                        <div className="text-[10px] text-orange-300/80">
+                          {qty(r.unrecorded_intake, r.unit)} arrived unrecorded
+                          {r.unrecorded_branches.length > 0 && ` · ${r.unrecorded_branches.join(", ")}`}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
                       {r.bought_qty != null ? qty(r.bought_qty, r.unit) : "—"}
                     </td>
@@ -434,7 +452,7 @@ export default function IngredientUsagePage() {
               })}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-3 py-6 text-center text-sm text-neutral-500">
+                  <td colSpan={10} className="px-3 py-6 text-center text-sm text-neutral-500">
                     Nothing for this period. If sales exist but nothing shows here, the
                     overnight job has not run for these dates yet.
                   </td>
@@ -447,6 +465,12 @@ export default function IngredientUsagePage() {
         <p className="mt-3 text-xs text-neutral-500">
           <strong className="text-neutral-400">Used</strong> is worked out from the recipes, not
           counted — it is what the sales should have consumed.
+          <strong className="text-neutral-400"> Delivered</strong> is what was received at the
+          branches in these dates, from suppliers and from the Central Kitchen alike. Where it is
+          orange, the sales used more than the branch started with plus everything delivered — so
+          something arrived that nobody recorded, and the figure under it is how much. That is
+          arithmetic, not a threshold: it cannot be argued with, and it does not change if you
+          widen the dates.
           <strong className="text-neutral-400"> On shelf</strong> is the last count at the
           branches and the Central Kitchen, converted into the recipe&apos;s unit; both are counted
           daily. <strong className="text-neutral-400">Warehouse</strong> is kept in its own
