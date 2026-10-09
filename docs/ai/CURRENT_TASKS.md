@@ -1,21 +1,29 @@
 # CURRENT_TASKS.md
 
-## 🔄 返却待ち — レシピの食材 ↔ 棚卸しの対応表（マニラ）
+## 🔄 進行中 — レシピの食材 ↔ 棚卸しの対応表（マニラ）
 
-**2026-10-08 キッチンに確認依頼中。** `ingredient_stock_map_20261008.xlsx`（日本語）を渡した。
+**2026-10-09。①②③は受領し、対応表163件を本番に投入済み。画面も稼働。⑥（29件）待ち。**
 
-返ってきたら、バックエンドリポジトリで:
+`/admin/inventory/ingredient-usage` に **On shelf / Days left / Warehouse** を追加。
+169種のうち133種が在庫つきで出る。残り: 換算待ち28・対応表に無い6。
+
+⑥（パック中身・26件）が返ってきたら:
 ```bash
 export DATABASE_URL="$(heroku config:get DATABASE_URL -a sushizen-shift-app)"
 python3 scripts/inventory/ingredient_stock_map_check.py <返ってきた.xlsx>
+python3 scripts/inventory/ingredient_stock_map_load.py  <返ってきた.xlsx> --by "Yusuke Uejima" --commit
 ```
 
-詳細・決まったこと・次の手順は
-**`sushizen_shift_app_clean/docs/inventory/INGREDIENT_STOCK_MAP.md`**。
+詳細は **`sushizen_shift_app_clean/docs/inventory/INGREDIENT_STOCK_MAP.md`**。
 
-先に直すもの: `invoice_ingredient_mappings` の誤対応2件
-（`SHICHIMI TOGARASHI → Sichuan Pepper`＝七味と花椒、`BAKING POWDER → Baking Soda`）。
-**いま原価計算が花椒の値段で七味を計算している。**
+**まだやっていないこと:**
+1. 誤対応2件（`SHICHIMI TOGARASHI → Sichuan Pepper`＝七味と花椒、`BAKING POWDER → Baking Soda`）。
+   **いま原価計算が花椒の値段で七味を計算している**
+2. `Sushi Soy Sauce`（加工品 id 3343）をどの商品も使っていない。61商品が生の醤油を直接消費。
+   **配合もレシピ85:15 / 現場70:30 で食い違う**（Yusuke に確認が要る）
+3. 使っていない4件をレシピから外す（Sticker Ramen / Sticker Onigiri / KNORR PORK・BEEF STOCK POWDER）
+4. 棚卸しに追加する2件（WATER GALLON＝CKの豚骨用 / SALMON SKIN）
+5. 理論消費と実在庫の**差異**（期首＋入荷−期末）は未実装。入荷の突合が別の関門
 
 ## 2026-10-06（追記26）— 消費量の単位ラベルを25品修正。理論在庫 vs 実在庫の前提が1つ片付いた
 
