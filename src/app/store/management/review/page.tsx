@@ -169,6 +169,16 @@ function Chips({
  * used to say "no longer stored" for every photo on the strength of a column
  * that had been emptied on purpose, which told managers the picture was gone
  * when it was one request away.
+ *
+ * ⚠️ **No `loading="lazy"` here.** Hiding the image until it loads and
+ * deferring it until it is on screen cannot both be true: a `display: none`
+ * element is never near the viewport, so the browser never starts the request,
+ * and neither `onLoad` nor `onError` ever fires. The card then sits on
+ * "Loading the photo…" for good. Measured on production 2026-10-10, with the
+ * three states in place: `complete: false, naturalWidth: 0, currentSrc: ""` —
+ * the request had not begun. The same URL fetched by hand returned 200,
+ * image/jpeg, 582 KB in 1.3 s, so nothing was wrong behind it. An eager image
+ * loads whether or not CSS shows it, which is what this needs.
  */
 function ReviewPhoto({ itemId, grade, available }: { itemId: number; grade: string; available: boolean }) {
   const [state, setState] = useState<"loading" | "ok" | "failed">(available ? "loading" : "failed");
@@ -193,7 +203,6 @@ function ReviewPhoto({ itemId, grade, available }: { itemId: number; grade: stri
       <img
         src={`/api/store/ops-review/item/${itemId}/photo`}
         alt={`Product graded ${grade}`}
-        loading="lazy"
         onLoad={() => setState("ok")}
         onError={() => setState("failed")}
         className={`${state === "ok" ? "mb-3" : "hidden"} max-h-80 w-full rounded-xl object-contain`}
