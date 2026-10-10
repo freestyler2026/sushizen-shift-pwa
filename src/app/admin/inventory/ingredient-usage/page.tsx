@@ -83,6 +83,18 @@ type KitchenItem = {
   on_shelf: number | null;
   counted_on: string;
   days_cover: number | null;
+  // One recipe line, two forms on the shelf. The CK sends a concentrated base
+  // and a diluted soup under separate names, and the dish consumes the pair:
+  // Volcano's 35 g a bowl matches soup 9.0 kg plus base 7.0 kg exactly, where
+  // the soup alone read 177% and looked like a wrong quantity.
+  group_members: string[];
+  // A form nobody has counted lately, so the shelf figure is missing its share.
+  // The base rows sit in HOT_SAUCE_BASE; only RAMEN RELATED ITEMS is counted
+  // daily, and the stores last touched the bases on 2026-07-21.
+  uncounted_members: string[];
+  // Locations whose last count is too old to add in — the warehouse is counted
+  // roughly every 77 days.
+  stale_sources: string[];
 };
 
 // Something the Central Kitchen plans and makes, the stores count every day,
@@ -553,10 +565,22 @@ export default function IngredientUsagePage() {
                       <tr key={k.item_code} className="border-t border-teal-500/10">
                         <td className="px-3 py-2 text-neutral-100">
                           {k.item_name}
+                          {k.group_members.length > 0 && (
+                            <div className="mt-0.5 text-[10px] text-neutral-500">
+                              with {k.group_members.join(", ")} — the kitchen sends
+                              both forms and the dish uses the pair
+                            </div>
+                          )}
                           {k.recipe_name !== k.item_name && (
                             <div className="mt-0.5 text-[10px] text-amber-300/70">
                               Cost Calculation calls it {k.recipe_name} — the two
                               names should match
+                            </div>
+                          )}
+                          {k.uncounted_members.length > 0 && (
+                            <div className="mt-0.5 text-[10px] text-orange-300/80">
+                              {k.uncounted_members.join(", ")} is not being counted,
+                              so the shelf figure is missing that part
                             </div>
                           )}
                         </td>
