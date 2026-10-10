@@ -1,5 +1,83 @@
 # CURRENT_TASKS.md
 
+## 2026-10-10 在庫 — 「CKが作っているのに Cost Calculation に名前が無い」20品
+
+前のエントリで残した2件の宿題を、データで決着させた。**どちらも1件の話ではなく、
+同じ型が20件あった。**
+
+### ① Tonkotsu Broth — レシピが参照していたのは実体の無い項目
+
+| | 生産計画 | CK棚卸し | 90日出荷 | 店舗棚卸し(30日) | 組成 |
+|---|---:|---:|---:|---:|---|
+| **Tonkotsu Broth** | 53回 | 76回 | 1,396kg | 90回 | 水+豚足骨+背骨+ラード+香味 |
+| Tonkotsu Ramen Soup | **0** | **0** | **0** | **0** | 同じ |
+| Tonkotsu Soup | **0** | **0** | **0** | **0** | 同じ |
+
+3つは同じ物で、1回の仕込み量と登録日（04-19 / 05-06 / 07-20）だけが違う。
+しかも `Tonkotsu Ramen Soup` は **投入20,330g → 出来上がり21,230g（歩留104%）** で
+煮出しでは成立しない（Broth 77,688→45,000=58% / Soup 137,000→90,000=66%）。
+
+**入れた対応**: `_RECIPE_ALIAS` に2件追加 → 理論消費 317.9kg（納品の62%）→
+**455.5kg（受領比89% / CK出荷比85%）**。受領記録とCK出荷記録は30日窓で5%以内に一致。
+`Mix Oil` → `Mix Oil for Ramen` も同様（**102% / 96%**、組成は植物油1,000g+ラード200g）。
+
+**本来の直し先は Cost Calculation**: 4147 と 4862 を archive し、10件以上の料理の参照を
+3951（Tonkotsu Broth）へ250gのまま向ける。→ **原価が動くのでオーナー判断。**
+
+### ② 4つのベース — CKはもう作っていない。7月にスープへ切り替わっている
+
+CKの生産計画67品に **4ベースは1件も無い**（`miso ramen base` のみ 7/4・7/6 の2回で停止）。
+作っているのは変種ごとの完成スープ。納品の月次がそのまま切替を示している:
+
+| 品 | 06 | 07 | 08 | 09 | 10 |
+|---|---:|---:|---:|---:|---:|
+| miso ramen **base** | 3.5 | 26.5 | **0** | **0** | **0** |
+| miso ramen **soup** | 0 | 15.0 | 35.0 | 33.5 | 12.0 |
+| shoyu ramen **base** | 2.0 | 25.0 | **0** | 0.5 | **0** |
+| shoyu ramen **soup** | 0 | 12.8 | 26.5 | 25.0 | 12.5 |
+
+よって料理が今も `Miso Ramen Base` 25〜45g・`Shoyu Ramen Base` 15g を直接参照しているのは
+**7月に終わった納品を記述している**。AJINOMOTO の店舗消費13.9kg はこれが全部。
+
+⚠️ **前のエントリの記述を訂正**: 「棚卸し行が無効化された4つ」は誤り。
+**3つは行が有効**で、`RAMEN RELATED ITEMS` セクションに移らなかったため
+**2026-07-21 以降だれも数えていない**だけ。そのセクションの品は毎日数えられている。
+
+### ③ 一般化した検出 — `ck_items_without_a_recipe_name()`
+
+判定は3表の突き合わせ: ①`ck_production_plan_items`（CKが作ると計画した名前）
+②`daily_inv_entries`（店舗が直近30日に数えた名前）③`menu_item_master`（有効な同名）。
+**20件**が該当。理論消費が永久に0で、**行が存在しないので画面の他のどこを見てもおかしく見えない。**
+
+含まれるもの: `Shoyu Tonkotsu Ramen Soup` / `Tantan Ramen Soup` / `Volcano Tonkotsu Soup`
+（7月にベースを置き換えた3つのスープ）/ `Ramen Noodle 80g Portion` / `Pork Dumpling Backup`
+/ `Shrimp Dumpling Backup` / `Chashu (30PC)` / `Marinated Karaage` / `Pork for Tonkatsu`
+/ `Chicken Teriyaki Sauce` / `Rich Lemon Cream` / `Satay Mayo` / `Mentai Mayo` ほか。
+
+⚠️ **判定に `ck_inventory_entries`（CKの棚卸し）を使ってはいけない。** CKは仕入品も
+数えているので72件に膨らみ、中身は Coke Mismo・Salt・Mango・Soy Sauce 18L になる。
+テストで SQL を検査している。
+
+### 繋がなかった3組（同一物らしいが1食あたりの量が未確定）
+
+| レシピ側 | 店舗が数えている | 理論/受領 | 理論/CK出荷 |
+|---|---|---:|---:|
+| Volcano Base | Volcano Tonkotsu Soup | 177% | 168% |
+| Tan Tan Men Base | Tantan Ramen Soup | 162% | 143% |
+| Shoyu Ramen Base | Shoyu Tonkotsu Ramen Soup | 60% | 62% |
+
+桁は合うが、ベースと希釈済みスープでは1食あたりのgが違う。**数量はレシピを直す側の仕事。**
+参考: `Tan Tan Men Base` は `Tantan Ramen Base` の9材料を**同じ絶対量で全部含み、さらに11材料を足した版**。
+
+### 別件で見つけたもの（未対応）
+- `Ramen 6 For Combo` は6変種 × **0.1430食** = 0.858食。1/6 = 0.1667 のはずで、
+  コンボのラーメンが**14%過少**に出る。0.143 = 1/7 なので、以前7変種だった名残。
+- `Ramen Noodle 80g Portion` は店舗が Portion で数え、レシピは
+  `Homemade Noodle (June 2026)` を g で持つ。理論116kg vs 受領5,922 Portion で
+  **単位が橋渡しできない**。
+
+---
+
 ## 2026-10-10 在庫 — 理論消費を「キッチンが持っている品」で止めた
 
 **オーナー決定（2026-10-10）**: CK加工品の中で使われている材料は、キッチンが
