@@ -1,5 +1,63 @@
 # CURRENT_TASKS.md
 
+## 2026-10-10 在庫 — 理論消費を「キッチンが持っている品」で止めた
+
+**オーナー決定（2026-10-10）**: CK加工品の中で使われている材料は、キッチンが
+加工品として持っているなら、そこで止めて在庫としては加工品だけを数える。
+「キッチンに味の素がないのだから棚卸ししない。理論在庫の方を合わせる」。
+
+### 入れたもの
+- `app/recipe_stock_map.store_consumption()` — 売れた料理を、**キッチンが棚卸し
+  している38品の単位で**消費に落とす。`_expand_cost_calc_bom` と同じ
+  `comp_qty / output_qty` 正規化。原価側（`rebuild_inv_order_consumptions_from_pos`）
+  は原材料まで展開したまま。**2つは別の問いに答えるので統合しない。**
+- `app/recipe_stock_map.kitchen_item_balance()` — 38品の理論消費 / CK納品 / 棚 / 日数。
+- `app/pos_menu_match.py` — POS名の名寄せ。原価エンジンの入れ子関数だったものを出した。
+  本番の全389名で旧実装と**完全一致**を確認済み。
+- `/admin/inventory/ingredient-usage`: Used 列が店舗消費に。差があれば全消費と
+  **経由した加工品**を下に出す。新セクション「Kitchen-made items the stores stock」。
+- Inventory Manual v35（手順5と9を追加）。
+- `tests/test_store_consumption.py` / `tests/test_pos_menu_match.py`（15件）。
+- `recipe_stock_map` が持っていた支店名マップを `branches_master` 由来に。
+  **`test_branch_city` の既存の失敗が解消**（このモジュールを作った時点から落ちていた）。
+
+### 実測（2026-09-10〜10-09・マニラ3店舗）
+- 理論消費の合計は CK/倉庫納品の **69%**。38品すべてに納品記録がある。
+- 80〜125% に入るのは10品（Sushi Vinegar 112 / Katsudon Sauce 108 / Velvety Sauce 99 ほか）。
+- 大きく外れるのは10品 → **レシピの使用量を見直す一覧**:
+  | 品 | 理論 | CK納品 | 比 |
+  |---|---:|---:|---:|
+  | You Ling Zhi Sauce | 0.2 kg | 17.0 kg | 1% |
+  | Batter Flour | 40.1 | 184.0 | 22% |
+  | Miso Ramen Soup | 8.0 | 36.0 | 22% |
+  | Gyudon Sauce | 5.2 | 16.5 | 32% |
+  | Japanese BBQ Sauce | 6.3 | 16.5 | 38% |
+  | Shoyu Ramen Soup | 13.7 | 30.5 | 45% |
+  | Beijin Sweet Sauce | 7.1 | 14.5 | 49% |
+  | Poke Sauce | 7.3 | 2.8 | 267% |
+  | Spicy Miso Mayo / Tuna Mayo Sauce | 0 | 4.5 / 0.5 | 0% ← その料理が期間中0食 |
+- 欠落判定の基礎が変わり **MIRIN 24.9kg→4.9kg・SALT 25.5kg→1.7kg**、22品が
+  「CKで使う材料」として判定の対象外に。
+- 本番dynoでの所要 **2.0秒**（手元から測ると42.8秒 — これは往復の時間で、画面の時間ではない）。
+
+### 残っている宿題（オーナー判断）
+1. **`Tonkotsu Broth` の名前の不一致。** レシピは `Tonkotsu Ramen Soup`、棚卸しは
+   `Tonkotsu Broth`。同じ階層の `Miso Ramen Soup`・`Shoyu Ramen Soup` は両方で同名なので、
+   **この1件だけ揃っていない**。いまは `_RECIPE_ALIAS` で繋いでいる。Cost Calculation 側の
+   名前を直したらこの行を消す。
+2. **棚卸し行が無効化された4つのCK加工品** — `Shoyu Ramen Base` / `Miso Ramen Base` /
+   `Shoyu Tonkotsu Ramen Base` / `Tantan Ramen Base`。後ろ2つは**今も店舗へ納品されている**
+   （90日で 8.5kg / 7.0kg）。AJINOMOTO の店舗消費13.9kg はほぼ全部この経路。
+   店舗が受け取るなら棚卸し行を戻す、CKで完結するならレシピから外す — どちらか。
+3. **名寄せできない売上 2,349食（12%）**:
+   - サイズが2通り 1,169食（`Pork Dumpling (4pcs/8pcs)` 930・`Shrimp Dumpling (4pcs/8pcs)` 239）
+     → **Cost Calculation に 4pcs と 8pcs を別項目で持つ**しかない。当てずっぽうにはしない。
+   - 料理でないもの 551食（Package Fee 312・Additional Gari Ginger 170・飲料69）→ 対応不要
+   - レシピ未登録 621食（Gyudon Beef Bowl 270・Ramen + Side Dish & Rice 148・
+     [Lunch]系151・Miso Tonkotsu Ramen 21・Aburi Nigiri 25・Shrimp Dumpling 8pcs 6）
+
+---
+
 ## 🔄 進行中 — レシピの食材 ↔ 棚卸しの対応表（マニラ）
 
 **2026-10-09。①②③は受領し、対応表163件を本番に投入済み。画面も稼働。⑥（29件）待ち。**
