@@ -44,9 +44,11 @@ type UsageRow = {
   stock_status: "ok" | "no_map" | "no_conversion" | "no_count";
   awaiting_pack_size: string[];
   days_cover: number | null;
-  // How much more was used than the branch could have had: opening stock plus
-  // every delivery on record. Above zero means something arrived that nobody
-  // wrote down — it is arithmetic, not a threshold somebody chose.
+  // Set when the branch has had no delivery of this item recorded for 30 days
+  // while the recipes kept consuming it. The window is 30 days rather than the
+  // dates on screen because Cubao, sharing a building with the Central Kitchen,
+  // gets no delivery slip and enters a week at a time: over 30 days its kitchen
+  // receipts carry one date against Paranaque's fourteen.
   unrecorded_intake: number;
   unrecorded_branches: string[];
   delivered_qty: number | null;
@@ -431,7 +433,7 @@ export default function IngredientUsagePage() {
                       </span>
                       {r.unrecorded_intake > 0 && (
                         <div className="text-[10px] text-orange-300/80">
-                          {qty(r.unrecorded_intake, r.unit)} arrived unrecorded
+                          nothing received in 30 days · used {qty(r.unrecorded_intake, r.unit)}
                           {r.unrecorded_branches.length > 0 && ` · ${r.unrecorded_branches.join(", ")}`}
                         </div>
                       )}
@@ -467,10 +469,11 @@ export default function IngredientUsagePage() {
           counted — it is what the sales should have consumed.
           <strong className="text-neutral-400"> Delivered</strong> is what was received at the
           branches in these dates, from suppliers and from the Central Kitchen alike. Where it is
-          orange, the sales used more than the branch started with plus everything delivered — so
-          something arrived that nobody recorded, and the figure under it is how much. That is
-          arithmetic, not a threshold: it cannot be argued with, and it does not change if you
-          widen the dates.
+          orange, that branch has had nothing of it delivered for thirty days while the recipes
+          kept consuming it. Thirty days rather than the dates on screen: Cubao shares a building
+          with the Central Kitchen, gets no delivery slip, and enters a week at a time — over
+          thirty days its kitchen receipts carry one date against Paranaque&apos;s fourteen, so a
+          short window says more about when somebody typed than about what arrived.
           <strong className="text-neutral-400"> On shelf</strong> is the last count at the
           branches and the Central Kitchen, converted into the recipe&apos;s unit; both are counted
           daily. <strong className="text-neutral-400">Warehouse</strong> is kept in its own
