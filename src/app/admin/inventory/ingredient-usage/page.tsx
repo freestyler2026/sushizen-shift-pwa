@@ -52,6 +52,37 @@ type UsageRow = {
   unrecorded_intake: number;
   unrecorded_branches: string[];
   delivered_qty: number | null;
+  // What the STORE's shelf had to supply, as opposed to `used_qty`, which is
+  // every gram the sold dishes contain. Most raw ingredients disappear at the
+  // Central Kitchen: the stores hold 0.1 kg of Ajinomoto against the CK's
+  // 8.2 kg and ordered it twice in sixty days, because what arrives at a store
+  // is the finished broth, not the seasoning in it. Comparing the full figure
+  // against a store shelf reported deliveries as missing that were never due.
+  store_used_qty: number;
+  consumed_at: "store" | "store_and_ck" | "ck_only";
+  // Which preparation carried it there. A bare number reads as "the store used
+  // 13.9 kg of Ajinomoto"; naming Miso Ramen Base (5.8 kg) and Shoyu Ramen Base
+  // (2.5 kg) — neither delivered to a store, both with their count rows
+  // deactivated — tells the reader whether to fix the recipe or the stocktake.
+  store_used_via: { name: string; qty: number }[];
+};
+
+// A preparation the Central Kitchen makes and the stores receive and count as
+// an item of its own. This is where theory and the shelf actually meet: all 38
+// of them have delivery records, which no raw ingredient inside them has.
+type KitchenItem = {
+  item_name: string;
+  recipe_name: string;
+  item_code: string;
+  unit: string;
+  used_qty: number;
+  used_by_branch: Record<string, number>;
+  delivered_qty: number | null;
+  delivered_unit: string;
+  ratio_pct: number | null;
+  on_shelf: number | null;
+  counted_on: string;
+  days_cover: number | null;
 };
 
 type Coverage = {
@@ -74,7 +105,11 @@ type Payload = {
     not_ordered_here: number;
     unit_unknown: number;
     used_value_not_linked: number;
+    unrecorded_intake_rows: number;
+    ck_only_rows: number;
+    kitchen_items: number;
   };
+  kitchen_items: KitchenItem[];
   coverage: Coverage;
   invoices_through: string;
   invoices_behind: boolean;
@@ -108,6 +143,15 @@ const STATUS_NOTE: Record<UsageRow["compare_status"], string> = {
 
 // Why a line has no stock figure. Same rule as the difference column: name the
 // missing thing, because that is what tells the reader who has to do what.
+// Where the ingredient is actually consumed. "ck_only" is not a gap in the
+// data: it is the normal case for flour, pork bones and seasonings, and the
+// reason those rows carry no days-left figure.
+const WHERE_NOTE: Record<UsageRow["consumed_at"], string> = {
+  store: "",
+  store_and_ck: "",
+  ck_only: "Used at the Central Kitchen, not on a store shelf",
+};
+
 const STOCK_NOTE: Record<UsageRow["stock_status"], string> = {
   ok: "",
   no_map: "Not linked to a counted item yet",
@@ -153,6 +197,7 @@ export default function IngredientUsagePage() {
   const [data, setData] = useState<Payload | null>(null);
   const [showMissing, setShowMissing] = useState(false);
   const [onlyGaps, setOnlyGaps] = useState(false);
+  const [showKitchen, setShowKitchen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,6 +235,7 @@ export default function IngredientUsagePage() {
 
   const cov = data?.coverage;
   const rows = (data?.rows || []).filter((r) => !onlyGaps || r.compare_status !== "ok");
+  const kitchen = data?.kitchen_items || [];
 
   return (
     <div className="space-y-6">
@@ -366,6 +412,97 @@ export default function IngredientUsagePage() {
           </label>
         </div>
 
+        {/* The preparations the Central Kitchen makes and the stores receive and
+            count as items of their own. This is the one place theory and the
+            shelf are describing the same object: every one of these has delivery
+            records, which no raw ingredient inside them has. A ratio near 100%
+            means the recipe matches what the kitchen sends; the far-off rows are
+            a list of recipes to check, not a stock problem. */}
+        {kitchen.length > 0 && (
+          <div className="rounded-xl border border-teal-500/25 bg-teal-500/[0.04] p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-teal-100">
+                  Kitchen-made items the stores stock
+                </h2>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-neutral-400">
+                  The stores receive these ready-made and count them. Their raw
+                  ingredients are the Central Kitchen&apos;s, so they are not expected
+                  on a store shelf. Theory against what the kitchen delivered: a
+                  ratio far from 100% means the recipe&apos;s quantity is not what the
+                  kitchen actually sends.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowKitchen((v) => !v)}
+                className="rounded-lg border border-teal-500/40 px-3 py-1.5 text-xs font-medium text-teal-100 hover:bg-teal-500/15"
+              >
+                {showKitchen ? "Hide" : `Show ${kitchen.length} items`}
+              </button>
+            </div>
+            {showKitchen && (
+              <div className="mt-3 overflow-x-auto rounded-lg border border-teal-500/20">
+                <table className="w-full text-xs">
+                  <thead className="bg-teal-500/10 uppercase tracking-wide text-teal-200/70">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Item</th>
+                      <th className="px-3 py-2 text-right font-medium">Recipes used</th>
+                      <th className="px-3 py-2 text-right font-medium">Kitchen sent</th>
+                      <th className="px-3 py-2 text-right font-medium">Theory vs sent</th>
+                      <th className="px-3 py-2 text-right font-medium">On shelf</th>
+                      <th className="px-3 py-2 text-right font-medium">Days left</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kitchen.map((k) => (
+                      <tr key={k.item_code} className="border-t border-teal-500/10">
+                        <td className="px-3 py-2 text-neutral-100">
+                          {k.item_name}
+                          {k.recipe_name !== k.item_name && (
+                            <div className="mt-0.5 text-[10px] text-amber-300/70">
+                              Cost Calculation calls it {k.recipe_name} — the two
+                              names should match
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
+                          {qty(k.used_qty, k.unit)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
+                          {k.delivered_qty == null
+                            ? <span className="text-neutral-600">—</span>
+                            : qty(k.delivered_qty, k.unit)}
+                        </td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${
+                          k.ratio_pct == null ? "text-neutral-600"
+                            : k.ratio_pct < 50 || k.ratio_pct > 200
+                              ? "text-orange-300" : "text-neutral-200"}`}>
+                          {k.ratio_pct == null ? "—" : `${num(k.ratio_pct, 0)}%`}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
+                          {k.on_shelf == null
+                            ? <span className="text-neutral-600">—</span>
+                            : qty(k.on_shelf, k.unit)}
+                          {k.counted_on && (
+                            <div className="text-[10px] text-neutral-500">
+                              counted {k.counted_on}
+                            </div>
+                          )}
+                        </td>
+                        <td className={`px-3 py-2 text-right tabular-nums ${
+                          k.days_cover == null ? "text-neutral-600"
+                            : k.days_cover < 2 ? "text-orange-300" : "text-neutral-200"}`}>
+                          {k.days_cover == null ? "—" : num(k.days_cover, 1)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="overflow-x-auto rounded-lg border border-neutral-800">
           <table className="w-full text-xs">
             <thead className="bg-neutral-900/60 uppercase tracking-wide text-neutral-500">
@@ -390,6 +527,11 @@ export default function IngredientUsagePage() {
                     <td className="px-3 py-2 text-neutral-100">
                       {r.item_name}
                       {note && <div className="mt-0.5 text-[10px] text-neutral-500">{note}</div>}
+                      {WHERE_NOTE[r.consumed_at] && (
+                        <div className="mt-0.5 text-[10px] text-sky-300/70">
+                          {WHERE_NOTE[r.consumed_at]}
+                        </div>
+                      )}
                       {r.stock_status !== "ok" && (
                         <div className="mt-0.5 text-[10px] text-amber-300/70">
                           {STOCK_NOTE[r.stock_status]}
@@ -400,7 +542,21 @@ export default function IngredientUsagePage() {
                     </td>
                     <td className="px-3 py-2 text-neutral-400">{r.supplier || "—"}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
-                      {qty(r.used_qty, r.unit)}
+                      {/* The shelf has to supply the store-level figure, not every
+                          gram the sold dishes contain. Where they differ, say where
+                          the rest went instead of leaving two numbers unexplained. */}
+                      {r.consumed_at === "ck_only" ? (
+                        <span className="text-neutral-600">—</span>
+                      ) : qty(r.store_used_qty, r.unit)}
+                      {r.consumed_at !== "store" && (
+                        <div className="mt-0.5 text-[10px] text-neutral-500">
+                          {qty(r.used_qty, r.unit)} in the dishes sold
+                          {r.store_used_via.length > 0 &&
+                            ` · via ${r.store_used_via
+                              .map((v) => `${v.name} ${qty(v.qty, r.unit)}`)
+                              .join(", ")}`}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
                       {r.stock_qty != null ? qty(r.stock_qty, r.unit) : (
