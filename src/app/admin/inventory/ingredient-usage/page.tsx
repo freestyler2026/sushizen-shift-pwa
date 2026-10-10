@@ -85,6 +85,25 @@ type KitchenItem = {
   days_cover: number | null;
 };
 
+// Something the Central Kitchen plans and makes, the stores count every day,
+// and Cost Calculation has no item of that name. No recipe can consume it, so
+// its theoretical use is always zero and it never appears in the table below.
+// Found by hand on 2026-10-10 for Tonkotsu Broth — the CK had it on 53
+// production plans and sent 512 kg in thirty days while the recipes consumed a
+// differently-named item with no plans, no deliveries and no counts at all.
+type UnnamedCkItem = {
+  item_name: string;
+  item_code: string;
+  unit: string;
+  section: string;
+  counts: number;
+  last_count: string;
+  plans: number;
+  last_plan: string;
+  linked_in_code: boolean;
+  linked_from: string[];
+};
+
 type Coverage = {
   products_sold: number;
   products_without_recipe: number;
@@ -108,8 +127,10 @@ type Payload = {
     unrecorded_intake_rows: number;
     ck_only_rows: number;
     kitchen_items: number;
+    unnamed_ck_items: number;
   };
   kitchen_items: KitchenItem[];
+  unnamed_ck_items: UnnamedCkItem[];
   coverage: Coverage;
   invoices_through: string;
   invoices_behind: boolean;
@@ -198,6 +219,7 @@ export default function IngredientUsagePage() {
   const [showMissing, setShowMissing] = useState(false);
   const [onlyGaps, setOnlyGaps] = useState(false);
   const [showKitchen, setShowKitchen] = useState(false);
+  const [showUnnamed, setShowUnnamed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,6 +258,7 @@ export default function IngredientUsagePage() {
   const cov = data?.coverage;
   const rows = (data?.rows || []).filter((r) => !onlyGaps || r.compare_status !== "ok");
   const kitchen = data?.kitchen_items || [];
+  const unnamed = data?.unnamed_ck_items || [];
 
   return (
     <div className="space-y-6">
@@ -411,6 +434,78 @@ export default function IngredientUsagePage() {
             Only rows that cannot be compared
           </label>
         </div>
+
+        {/* The generalised form of what took a hand trace to find: the kitchen
+            makes it, the stores count it daily, and Cost Calculation has no item
+            of that name, so nothing can ever consume it. Kept as its own list
+            because these items are invisible in the table below — a row that
+            does not exist cannot look wrong. */}
+        {unnamed.length > 0 && (
+          <div className="rounded-xl border border-orange-500/30 bg-orange-500/[0.05] p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-orange-100">
+                  {unnamed.length} items the kitchen makes have no name in Cost Calculation
+                </h2>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-neutral-400">
+                  The Central Kitchen puts these on its production plans and the stores
+                  count them every day, but no Cost Calculation item carries the name.
+                  No recipe can consume what has no name, so their theoretical use is
+                  always zero and they are absent from every figure on this page. Add the
+                  item in Cost Calculation under the name the kitchen and the count sheets
+                  already use, and point the dishes at it.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowUnnamed((v) => !v)}
+                className="rounded-lg border border-orange-500/40 px-3 py-1.5 text-xs font-medium text-orange-100 hover:bg-orange-500/15"
+              >
+                {showUnnamed ? "Hide" : "Show the list"}
+              </button>
+            </div>
+            {showUnnamed && (
+              <div className="mt-3 overflow-x-auto rounded-lg border border-orange-500/20">
+                <table className="w-full text-xs">
+                  <thead className="bg-orange-500/10 uppercase tracking-wide text-orange-200/70">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Item</th>
+                      <th className="px-3 py-2 text-left font-medium">Count sheet section</th>
+                      <th className="px-3 py-2 text-right font-medium">Kitchen plans</th>
+                      <th className="px-3 py-2 text-right font-medium">Counted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unnamed.map((u) => (
+                      <tr key={u.item_code} className="border-t border-orange-500/10">
+                        <td className="px-3 py-2 text-neutral-100">
+                          {u.item_name}
+                          <span className="ml-2 text-[10px] text-neutral-500">
+                            {u.item_code} · {u.unit}
+                          </span>
+                          {u.linked_in_code && (
+                            <div className="mt-0.5 text-[10px] text-sky-300/70">
+                              Linked in code to {u.linked_from.join(", ")} so its figures
+                              appear above — the name in Cost Calculation still needs fixing
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-neutral-400">{u.section || "—"}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
+                          {u.plans}
+                          <div className="text-[10px] text-neutral-500">to {u.last_plan}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-neutral-200">
+                          {u.counts}
+                          <div className="text-[10px] text-neutral-500">to {u.last_count}</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* The preparations the Central Kitchen makes and the stores receive and
             count as items of their own. This is the one place theory and the
