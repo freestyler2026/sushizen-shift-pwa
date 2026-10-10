@@ -1,5 +1,63 @@
 # CURRENT_TASKS.md
 
+## 2026-10-10 Cost Calculation — 豚骨スープを1項目に統合（実行済み・本番反映）
+
+**オーナー承認のうえ本番データを変更した。** 退避・トランザクション・件数ガードつき。
+
+### やったこと
+| | 件数 | 内容 |
+|---|---:|---|
+| 付け替え | **11行** | `Tonkotsu Ramen Soup`(4147) 8行・`Tonkotsu Soup`(4862) 3行 → **`Tonkotsu Broth`(3951)**。全行250gのまま |
+| archive | **2項目** | 4147・4862 を `status='archived'` |
+| 退避 | 11 + 2 行 | `_tonkotsu_merge_bk_20261010_components` / `_tonkotsu_merge_bk_20261010_master` |
+
+対象はラーメン5変種（product と (Without Cutlery set) の両方）＋ archived 1件。
+同じ親が両方を参照している例はなく、既に3951を参照していた draft 4件とも重ならないので
+重複行は作られていない。**`menu_item_components` に (parent, component) の一意制約は無い**
+ので、重なりは事前に数えて確認した。
+
+### 検算
+- 別名なしで理論消費 **455.5kg / CK納品 512.0kg = 89%**（別名ありの時と同値）。旧2名は展開に出てこない。
+- **どちらの歩留が正しいかは豚骨の仕入実績で決まった**: 30日で足骨156kg・背骨44kg＝計200kg。
+  歩留58%（Broth）なら512kg作るのに182kg必要＝**実績の91%**。歩留104%（旧レシピ）なら95kg＝**47%**。
+  旧レシピは骨の必要量を半分しか言っていなかった。
+- 原価: 1杯250g が **₱15.86 → ₱24.33**（+₱8.47）。30日の計上 ₱28,905 → ₱44,334（**+₱15,429**）。
+  ストアされた `cost_unit_price` も同じ向き（Broth ₱111.63/kg vs 旧 ₱70.79 / ₱98.95）。
+- コード側の `_RECIPE_ALIAS` から tonkotsu 2件を**削除**（`mix oil` だけ残る）。
+  **別名で凌ぐより名前を直す方が正しい。**
+
+### ⚠️ 触っていないもの
+`inv_order_consumptions` はマニラ 2026-07-24〜10-09 で **370,375行**あり、**旧レシピで計算された
+内容のまま**。再構築すると過去の理論原価が動くので別の判断（教訓37）。
+
+### ⚠️ オーナー訂正（2026-10-10）
+**`Shoyu Ramen Soup` と `Shoyu Tonkotsu Ramen Soup` は別のアイテム。**
+名前が似ていて後者が未登録のまま納品されている（30日17.0kg）ので繋ぎたくなるが、繋がない。
+`tests/test_store_consumption.py::test_the_two_shoyu_soups_are_never_merged` で禁止している。
+
+### 次の候補（金額が動くので未実行）
+
+**① Miso は決着済み** — `Miso Ramen Base` を直接参照する**3行（active）＋1行（draft）**を
+同じgで `Miso Ramen Soup` に付け替える。根拠は Cost Calculation 自身:
+`Rich Miso Ramen` 素の版が Base 45g、`(Without Cutlery set)` 版が Soup 45g で、
+**同じ料理の2版が同じgで別項目**を使っている。付け替え後の理論は **37.53kg / 納品36.0kg = 104%**。
+原価は下がる（Base ₱153.28/kg → Soup ₱134.99/kg、1杯 −₱0.46〜0.83）。
+⚠️ **Soup のレシピに入っている Base 985g は CK内部なので触らない**（`Red Hot Miso Ramen Soup` 84g も同様）。
+
+**② Shoyu は未決着** — `Shoyu Ramen Base` 15g を直接参照する4行のうち、
+`Black Tonkotsu Ramen (Without Cutlery set)` は素の版が `Shoyu Ramen Soup` 15g なので
+そちらで確定。だが `Classic Shoyu Tonkotsu Ramen` は `Shoyu Tonkotsu Ramen Soup`（未登録・
+30日17.0kg納品）の可能性があり、**2つの shoyu スープは別物**なので推測しない。
+
+**③ 未登録の3スープを作る** — `Shoyu Tonkotsu Ramen Soup` / `Tantan Ramen Soup` /
+`Volcano Tonkotsu Soup`。1杯あたりの量は納品実績から 25.0g / 30.9g / 19.7g（レシピの
+ベースは 15g / 50g / 35g）。**量は厨房に聞く。**
+
+**④ `Ramen 6 For Combo` の 6×0.143 = 0.858** — 1食に足りない（1/6 = 0.1667）。
+コンボのラーメン原価と理論消費が**14%過少**。0.143 = 1/7 なので以前7変種だった名残。
+
+---
+
 ## 2026-10-10 在庫 — 「CKが作っているのに Cost Calculation に名前が無い」20品
 
 前のエントリで残した2件の宿題を、データで決着させた。**どちらも1件の話ではなく、
