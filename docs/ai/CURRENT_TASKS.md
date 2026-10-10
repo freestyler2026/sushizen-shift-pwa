@@ -1,5 +1,57 @@
 # CURRENT_TASKS.md
 
+## 2026-10-10 Cost Calculation — Miso も Soup に付け替えた（実行済み・本番反映）
+
+**オーナー承認のうえ実行。** 退避 `_miso_base_to_soup_bk_20261010`（3行）・トランザクション・件数ガードつき。
+**ID指定で更新した**（パターンや時間窓で指定しない／教訓54）。
+
+| row | 料理 | 量 |
+|---:|---|---|
+| 40462 | Miso Tonkotsu Ramen (Rich nad Savory) | 25g |
+| 41201 | Miso Tonkotsu Ramen (Without Cutlery set) | 25g |
+| 40487 | Rich Miso Ramen | 45g |
+
+`Miso Ramen Base`(4015) → `Miso Ramen Soup`(4140)。**量は変えていない。**
+
+### 除外したもの（意図的）
+- `Miso Ramen Soup` 自身の 985g・`Red Hot Miso Ramen Soup` の 84g → **CK内部の中間材料**。
+  `Red Hot Miso Ramen Soup` は棚卸し行も生産計画も無いので CK 内部で確定。
+- `Teriyaki Chicken Bento`（draft）の 1g → draft かつ「同じ料理の2版」の根拠が及ばない。
+- **`Miso Ramen Base` は archive しない。** CKが棚卸しを71回しており、スープを作る実体がある。
+  豚骨の2項目（生産計画0・出荷0・棚卸し0）とはここが違う。
+
+### 検算
+| 品 | 付け替え前 | 付け替え後 | 納品 |
+|---|---:|---:|---:|
+| Miso Ramen Soup | 8.04kg / 22% | **37.53kg / 104%** | 36.0kg |
+| Shoyu Ramen Soup | 13.69kg / 45% | 13.69kg / 45%（未着手） | 30.5kg |
+| Tonkotsu Broth | 455.5kg / 89% | 455.5kg / 89%（変化なし） | 512.0kg |
+
+**副作用（いずれも改善方向）:**
+- **味の素の店舗消費 13,901g → 7,015g**（半減）。最大の経路は `Shoyu Ramen Base` 2,462g で、未着手の shoyu 側。
+- 80〜125% に入る品 **10 → 13品**、大きく外れる品 **10 → 7品**。
+- 1食の原価: `Rich Miso Ramen` ₱50.67 / `Miso Tonkotsu Ramen` ₱81.42
+  （Base ₱153.28/kg → Soup ₱134.99/kg で**下がる**。スープが安い醤油で薄まるぶん）
+
+### マニュアル v37 — 実測値を書き換えた箇所
+数字を載せている文書なので、変わったら直す。
+- 手順5: 味の素 13.9kg → **7.0kg**（10/10に下がった経緯も書いた）
+- 手順9: 80〜125% が 10品 → **13品**、外れる品 10 → **7品**、例も差し替え
+- 手順9の「Cost Calculation 側の名前が違う例」が Tonkotsu で**古くなったので**、
+  生きている2件（`Mix Oil for Ramen` ← `Mix Oil` / `Flavored Oil` ← `FLAVORED OIL`）に差し替え
+- ⚠️ 自分の書いた日本語に「レシヒ」5箇所・「味醬」1箇所の打ち間違いがあった。
+  **`\u30d2`(ヒ) と `\u30d4`(ピ) を取り違えていた。** エスケープで日本語を書くときは読み返す。
+
+### 残り
+1. **Shoyu は未決着** — `Shoyu Ramen Base` 15g の4行。`Black Tonkotsu Ramen (Without Cutlery set)`
+   は素の版が `Shoyu Ramen Soup` 15g なので確定だが、`Classic Shoyu Tonkotsu Ramen` は
+   `Shoyu Tonkotsu Ramen Soup`（未登録・30日17.0kg納品）の可能性。**2つの shoyu スープは別物**。
+2. 未登録3スープの作成（1杯あたり 25.0g / 30.9g / 19.7g は納品実績から。**量は厨房に聞く**）
+3. `Ramen 6 For Combo` の 6×0.143 = 0.858（14%過少）
+4. `inv_order_consumptions` 370,375行は旧レシピのまま（再構築は別判断）
+
+---
+
 ## 2026-10-10 Cost Calculation — 豚骨スープを1項目に統合（実行済み・本番反映）
 
 **オーナー承認のうえ本番データを変更した。** 退避・トランザクション・件数ガードつき。
