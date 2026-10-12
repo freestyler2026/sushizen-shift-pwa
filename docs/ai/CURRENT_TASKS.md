@@ -1,5 +1,50 @@
 # CURRENT_TASKS.md
 
+## 2026-10-12（最終確認）自分の変更の回帰2件と、ドバイを塞いでいた制限2件
+
+オーナー指摘:「これで本当に正しいか。こちらで設定できるものはないか」。
+**自分が入れた変更に1件、既存に1件、塞ぎが残っていた。**
+
+### ① 自分が入れた回帰 — 発注先の都市が「見ている人」で変わっていた
+`_resolve_city(branch=branch, actor=actor)` と書いたが、この関数は**支店で決まらないと
+呼び手の登録都市に落ちる**。CK・CENTRAL KITCHEN・WAREHOUSE は両都市に実在するので
+支店では決まらず、**同じ報告でも開いた人で発注先の都市が変わる**。
+
+露出は実質ゼロ（CENTRAL KITCHEN の報告36件は 2026-07-08 で止まり、この経路で発注を
+作ったことは一度も無い。ドバイ登録の非HQは1名）。HQ は `works_in_every_city` で
+マニラに落ちるので4名は無害だった。**それでも発注を作る処理の作法として残さない。**
+→ `actor` を渡すのをやめ、支店だけで決める。決まらなければ従来どおりマニラ。
+
+### ② 既存の塞ぎ — 在庫画面が `TAFT/CUBAO/PARANAQUE` 以外を400で拒否
+`api_store_stock` が支店名を直接並べていた。作った時点でドバイの日次カウントが
+30日0件だったための判断だが、**ドバイが数え始めると画面ごと塞がる**。
+中身は都市を通すので動く（実測: Business Bay 275品・par パターン `BUSINESS BAY` 227品）。
+→ `counts_everything_but_commissary()` で判定。CK と WAREHOUSE は
+「数えているものが違う」という理由で外れる（名前の一覧ではなく）。
+
+### ③ フロントも同じ型 — 支店リストが3画面に写されていて、ドバイが入っていたのは1つだけ
+`AdminDailyInventoryTab.CITY_BRANCHES` は8支店、`StoreStockView.STOCK_BRANCHES` は
+マニラ3支店。**ドバイの支店では Stock ボタンが出ず、裏のAPIも400**だった。
+→ `src/lib/daily-inventory-city.ts` に `STORE_BRANCHES` / `ALL_STORE_BRANCHES` を
+1つ置き、両方がそれを読む（教訓62）。
+
+### 確認して「問題なし」だったもの
+- 発注作成後の流れ: `create_proc_request` は2経路とも `city=city` / `store_code=store_code`。
+  DRAFT で止まり、Hub から提出 → 承認は都市対応済み（ドバイは90日で2,045件通っている）
+- par のテンプレート・取込: パターン単位の経路は `pattern_name.split("_")[0]` から
+  都市を解決するので `BUSINESS BAY` → dubai で動く。**曜日版テンプレート
+  （TAFT/CUBAO/PARANAQUE/WAREHOUSE × 3曜日 固定）はマニラ専用**だが、
+  ドバイのパターンは曜日無しなのでそちらは使わない
+- 入力画面 `/admin/daily-inventory` はドバイ対応済み
+
+### まだマニラ専用で残っているもの（意図的・ドバイは使わない）
+- `par-patterns/weekday-template` と `import-weekday-excel`（支店×曜日の列が固定）
+- `_report_branch_to_staff_master_branch`（マニラの staff_master 用）
+
+全1,601件（バックエンド）/ 3,026件（フロント）通過。
+
+---
+
 ## 2026-10-12（続き）Daily Inventory の発注をドバイで動くようにした＋自分の入れた単価を取り消した
 
 ### ① マニラ固定を直した（デプロイ済み）
