@@ -13,7 +13,9 @@ import CountSheetParEditor from "@/components/admin/CountSheetParEditor";
 const PATTERNS = { patterns: ["TAFT_Sunday", "WAREHOUSE_Sunday"] };
 const ITEMS = {
   items: [
-    { item_code: "CK001", item_name: "Tonkotsu Broth", default_unit: "PKT", par_level: 10 },
+    { item_code: "CK001", item_name: "Tonkotsu Broth", default_unit: "PKT", par_level: 10,
+      order_step: 6 },
+    // 刻みのキーが無い行。「指定なし」で、0（丸めない）とは別。
     { item_code: "CK002", item_name: "Chashu", default_unit: "PC", par_level: null },
   ],
 };
@@ -96,5 +98,68 @@ describe("count sheet par editor", () => {
     fireEvent.change(screen.getByLabelText("Par level for Chashu"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: /Save 1 change/ }));
     expect(await screen.findByText(/Save failed \(403\)/)).toBeInTheDocument();
+  });
+});
+
+describe("the branch's order step", () => {
+  // 刻みは画面が**受け取っていながら出していなかった**。効いている設定が
+  // どの画面にも無い状態は、使われなくなる型 #9（ルールが画面に無い）。
+  function cells(name: string) {
+    const row = screen.getAllByRole("row").find((r) => r.textContent?.includes(name));
+    return row!.querySelectorAll("td");
+  }
+
+  it("shows a step that is set, and a dash for one that is not", async () => {
+    mockFetch({ status: 200 });
+    render(<CountSheetParEditor />);
+    await screen.findByText("Tonkotsu Broth");
+    expect(cells("Tonkotsu Broth")[3].textContent).toContain("6");
+    expect(cells("Chashu")[3].textContent).toContain("\u2014");
+  });
+
+  it("writes zero out in words, because it is not the same as blank", async () => {
+    // null = この支店に固有の刻みは無い（カタログのを使う）／0 = 丸めない。
+    vi.stubGlobal("fetch", vi.fn(async (url: string) =>
+      new Response(JSON.stringify(url.includes("/items")
+        ? { items: [{ item_code: "X", item_name: "Sake", default_unit: "BTL",
+                      par_level: 2, order_step: 0 }] }
+        : { patterns: ["TAFT_Sunday"] }), { status: 200 })));
+    render(<CountSheetParEditor />);
+    await screen.findByText("Sake");
+    expect(cells("Sake")[3].textContent).toContain("no rounding");
+  });
+
+  it("says where the step is set, so the column is not a mystery", async () => {
+    mockFetch({ status: 200 });
+    render(<CountSheetParEditor />);
+    await screen.findByText("Tonkotsu Broth");
+    expect(screen.getByText(/read-only here/i)).toBeTruthy();
+    expect(screen.getByText(/Order Step column/i)).toBeTruthy();
+  });
+
+  it("does not send the step, so saving a par cannot erase it", async () => {
+    // 送ると Pydantic の既定値が「消せ」になる。画面に刻みの欄が無いので、
+    // ここが送る理由も無い。
+    const calls = mockFetch({ status: 200, body: { written: 1 } });
+    render(<CountSheetParEditor />);
+    await screen.findByText("Tonkotsu Broth");
+    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "15" } });
+    fireEvent.click(screen.getByText(/Save 1 change/));
+    await waitFor(() => expect(calls.some((c) => c.init?.method === "PUT")).toBe(true));
+    const put = calls.find((c) => c.init?.method === "PUT")!;
+    const body = JSON.parse(put.init!.body as string);
+    expect(body.items[0]).toEqual({ item_code: "CK001", par_level: 15 });
+    expect("order_step" in body.items[0]).toBe(false);
+  });
+
+  it("names a blanked par instead of reporting a save that wrote nothing", async () => {
+    // par_level は NOT NULL なので行が作れない。以前はここが 500 だった。
+    const calls = mockFetch({ status: 200, body: { written: 0, no_par: ["CK001"] } });
+    render(<CountSheetParEditor />);
+    await screen.findByText("Tonkotsu Broth");
+    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "" } });
+    fireEvent.click(screen.getByText(/Save 1 change/));
+    await waitFor(() => expect(calls.some((c) => c.init?.method === "PUT")).toBe(true));
+    expect(await screen.findByText(/a par is required here/i)).toBeTruthy();
   });
 });

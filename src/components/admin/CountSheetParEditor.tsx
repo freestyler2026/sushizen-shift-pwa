@@ -42,6 +42,12 @@ type PatternItem = {
   item_name: string;
   default_unit: string;
   par_level: number | null;
+  /** その支店の発注の刻み。null は「指定なし＝発注カタログの刻みを使う」、
+   *  0 は「丸めない」。別の意味なので潰さない。
+   *  ここでは**読むだけ**。設定はExcelテンプレート（Order Step 列）で入れる。
+   *  受け取っていながら出していなかったので、効いている設定が画面のどこにも
+   *  無い状態だった（使われなくなる型 #9: ルールが画面に無い＝信用されない）。 */
+  order_step?: number | null;
 };
 
 type SaveResult = {
@@ -241,6 +247,14 @@ export default function CountSheetParEditor() {
         </div>
       )}
 
+      {/* 刻みの出どころを書く。画面に無いルールは信用されない（型 #9）。 */}
+      <p className="text-[11px] text-zinc-500">
+        <span className="text-zinc-400">Step</span> is how this branch rounds its order quantity
+        (order 7 with a step of 3 and 9 are ordered). It is read-only here &mdash; set it in the
+        Order Step column of this pattern&rsquo;s Excel template. A dash means no step for this
+        branch, so the ordering catalogue&rsquo;s own step applies.
+      </p>
+
       {loading ? (
         <div className="py-10 text-center text-zinc-500">Loading…</div>
       ) : !filtered.length ? (
@@ -255,6 +269,7 @@ export default function CountSheetParEditor() {
                 <th className="px-3 py-2">Item</th>
                 <th className="px-3 py-2 w-20">Unit</th>
                 <th className="px-3 py-2 w-28 text-right">Par</th>
+                <th className="px-3 py-2 w-24 text-right">Step</th>
               </tr>
             </thead>
             <tbody>
@@ -286,6 +301,17 @@ export default function CountSheetParEditor() {
                           setEdits((prev) => ({ ...prev, [r.item_code]: e.target.value }))
                         }
                       />
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs tabular-nums">
+                      {r.order_step == null ? (
+                        <span className="text-zinc-600" title="No step for this branch — the ordering catalogue's step applies.">
+                          &mdash;
+                        </span>
+                      ) : Number(r.order_step) === 0 ? (
+                        <span className="text-zinc-400" title="0 means do not round at all.">no rounding</span>
+                      ) : (
+                        <span className="text-zinc-300">{Number(r.order_step)}</span>
+                      )}
                     </td>
                   </tr>
                 );
