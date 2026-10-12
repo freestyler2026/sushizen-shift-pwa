@@ -311,6 +311,11 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     { item_name: string; inventory_unit: string; catalog_unit: string; package_spec: string;
       catalog_price: number; derived_price: number }[]
   >([]);
+  // 頼んだ数と違う数を発注した品。最低発注量も刻みも正しい処理だが、
+  // 黙って効くと「自分が入れた数と発注書が違う」になる（教訓73）。
+  const [qtyAdjusted, setQtyAdjusted] = useState<
+    { item_name: string; unit: string; asked: number; ordered: number; why: string }[]
+  >([]);
 
   const incomingStore = BRANCH_TO_STORE[(detail.branch || "").toUpperCase()] || "";
   useEffect(() => {
@@ -447,6 +452,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                             package_spec: string; catalog_price: number; derived_price: number }[];
         no_price_at_unit?: { item_name: string; inventory_unit: string; catalog_unit: string;
                              supplier_name: string }[];
+        qty_adjusted?: { item_name: string; unit: string; asked: number; ordered: number;
+                         why: string }[];
       };
       if (!res.ok) {
         const msg = typeof json.detail === "string" ? json.detail : "Failed to generate order";
@@ -457,6 +464,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
       setUnitMismatch(Array.isArray(json.price_unit_mismatch) ? json.price_unit_mismatch : []);
       setPricedFromPack(Array.isArray(json.price_from_pack) ? json.price_from_pack : []);
       setNoPriceAtUnit(Array.isArray(json.no_price_at_unit) ? json.no_price_at_unit : []);
+      setQtyAdjusted(Array.isArray(json.qty_adjusted) ? json.qty_adjusted : []);
     } catch (err) {
       setOrderError(err instanceof Error ? err.message : "Unknown error");
     } finally { setOrderBusy(false); }
@@ -682,6 +690,27 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     <p className="mt-1.5 text-[11px] text-amber-300/70">
                       Report these rather than typing a price on the delivery note — a figure
                       entered there applies to one branch only.
+                    </p>
+                  </div>
+                )}
+                {qtyAdjusted.length > 0 && (
+                  <div className="rounded-xl border border-sky-500/40 bg-sky-950/25 px-4 py-3">
+                    <p className="text-xs font-semibold text-sky-200">
+                      {qtyAdjusted.length} line{qtyAdjusted.length !== 1 ? "s were" : " was"}{" "}
+                      ordered in a different quantity than you asked for.
+                    </p>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {qtyAdjusted.map((a) => (
+                        <li key={`qa-${a.item_name}-${a.unit}`} className="text-[11px] text-sky-300/90">
+                          {a.item_name}: asked {a.asked} {a.unit} &rarr;{" "}
+                          <span className="font-semibold">ordered {a.ordered} {a.unit}</span>
+                          <span className="text-sky-400/70"> — {a.why}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1.5 text-[11px] text-sky-300/70">
+                      The order carries the quantity above, not the one on the count sheet. A branch
+                      step is set on Store Par Levels; a catalogue step on Cost Calculation.
                     </p>
                   </div>
                 )}
