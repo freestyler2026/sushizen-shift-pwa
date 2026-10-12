@@ -227,10 +227,10 @@ function formatDate(d: string) {
   return `${parseInt(day, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
 }
 
+// 支店名を並べない。一覧は @/lib/daily-inventory-city に1つだけ（教訓62）。
 function cityFromBranch(branch: string): CityKey {
   const b = branch.toUpperCase();
-  return (["BUSINESS BAY", "JLT", "ARJAN", "AL MINA", "AL BARSHA"].some((d) => b.includes(d)))
-    ? "dubai" : "manila";
+  return STORE_BRANCHES.dubai.some((d) => b.includes(d)) ? "dubai" : "manila";
 }
 
 type GeneratedPR = { type: string; request_no: string; case_no: string; request_id: string };
