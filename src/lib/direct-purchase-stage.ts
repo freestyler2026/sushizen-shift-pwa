@@ -318,8 +318,14 @@ export const OUTSIDE_THE_FIVE: Record<string, string> = {
   PURCHASED: "bought directly, no delivery to track",
 };
 
-/** Stage keys whose chip fetches from the server rather than filtering the page. */
-export const SERVER_FETCHED_STAGES = new Set(["REQUEST", "APPROVAL"]);
+/** Stage keys whose chip fetches from the server rather than filtering the page.
+ *
+ *  All five, since 2026-10-12. Before that only the two that mapped onto a
+ *  status did, and the rest filtered the newest 200 — which `open_first` fills
+ *  with unreceived work, so Received held nothing at all: Business Bay had 380
+ *  received orders and not one of them was in the window.
+ */
+export const SERVER_FETCHED_STAGES = new Set(STORE_STAGES.map((l) => l.key));
 
 /**
  * Stage words the Store Procurement row already prints as its status chip

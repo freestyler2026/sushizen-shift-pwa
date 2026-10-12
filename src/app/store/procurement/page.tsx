@@ -97,6 +97,10 @@ type SourceSummaryMonth = {
   central_kitchen: number;
   supplier: number;
   unassigned: number;
+  /** 受領が確定した行の、届いた分の金額。`total` は発注額のままで動かない。 */
+  received?: number;
+  /** 受領記録がまだ無い行の発注額。配送中の分と、記録されなかった分の両方。 */
+  awaiting?: number;
 };
 
 type RequestItem = {
@@ -109,6 +113,12 @@ type RequestItem = {
   unit_price: number;
   line_total: number;
   vendor_name: string;
+  /** 確定した受領で届いた数。**null は「受領記録がまだ無い」、0 は「届かなかった」。**
+   *  CK Delivery は予定と実受領の両方を出すのに、仕入先・倉庫からの納品は
+   *  発注数しか出ていなかった（Yusuke 2026-10-12）。 */
+  qty_received?: number | null;
+  value_received?: number | null;
+  receipt_count?: number | null;
   needed_by_date: string;
 };
 
@@ -659,6 +669,23 @@ function RequestDetailDrawer({
                               <div className="text-sm font-semibold text-white">
                                 {Number(item.qty || 0).toLocaleString()} {item.unit}
                               </div>
+                              {/* 届いた数。受領記録が無い行には何も出さない —
+                                  「0が届いた」と「まだ数えていない」を同じ
+                                  見た目にしない。 */}
+                              {item.qty_received != null && (() => {
+                                const got = Number(item.qty_received);
+                                const want = Number(item.qty || 0);
+                                const tone = got === 0 ? "text-red-300"
+                                  : got < want ? "text-amber-300" : "text-emerald-300";
+                                return (
+                                  <div className={`mt-0.5 text-xs ${tone}`}>
+                                    Received {got.toLocaleString()} {item.unit}
+                                    {got < want && ` (short ${(want - got).toLocaleString()})`}
+                                    {Number(item.receipt_count || 0) > 1 &&
+                                      ` · ${item.receipt_count} deliveries`}
+                                  </div>
+                                );
+                              })()}
                               {editPricesMode ? (
                                 <div className="mt-1">
                                   <input
@@ -999,6 +1026,12 @@ export default function StoreProcurementHomePage() {
   const [serverStageCounts, setServerStageCounts] = useState<Record<string, number> | null>(null);
   // Read inside load() without adding it to every call site's signature.
   const stageFilterRef = useRef<string | null>(null);
+  // 期間での絞り込み。受領済みは200件の窓に収まらない店舗があるので、
+  // 「古い1件に手が届く」唯一の道（db.py のコメントもそう書いている）。
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const fromDateRef = useRef("");
+  const toDateRef = useRef("");
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
   const [lastCreatedRequestAt, setLastCreatedRequestAt] = useState("");
@@ -1197,16 +1230,27 @@ export default function StoreProcurementHomePage() {
       // In Review 0 -> 45, Draft 9 -> 55, Needs PO 22 -> 42.
       const qs = new URLSearchParams({ city: activeCity, limit: "200", open_first: "true" });
       if (activeStore) qs.set("store_code", activeStore);
+      // 期間。既定は空（従来どおり）で、入れたときだけ絞る。受領済みを
+      // 遡るときに、200件では足りない店舗があるため。
+      if (fromDateRef.current) qs.set("date_from", fromDateRef.current);
+      if (toDateRef.current) qs.set("date_to", toDateRef.current);
       // Request and Approval map exactly onto statuses, so when one of those
       // chips is picked the server can return those rows instead of whatever
       // the window happened to hold. Dubai has 261 drafts, all older than the
       // window, so that chip led to an empty list however it was sorted.
-      const stageStatuses: Record<string, string> = {
-        REQUEST: "DRAFT,SUBMITTED",
-        APPROVAL: "IN_REVIEW",
-      };
-      if (stageFilterRef.current && stageStatuses[stageFilterRef.current]) {
-        qs.set("status", stageStatuses[stageFilterRef.current]);
+      // ⚠️ 以前はここで Request と Approval だけを status に落としていた。
+      // 残りの3つは**取得済みの200件を絞るだけ**で、`open_first` が受領済みを
+      // 後ろに回すので **Received は必ず空**だった（2026-10-12 実測:
+      // Business Bay は受領済み380件のうち窓に0件、JLT 262件中0、Al Mina
+      // 243件中0）。自分が受領した注文を、受領した本人が見られない。
+      //
+      // サーバーは `stage` を `PROC_STAGE_SQL` で絞る — 段階の定義は1つ。
+      // 段階を選んでいる間は open_first を外す（未受領を前に出す並びは、
+      // 「受領済みだけ」を見たいときには邪魔にしかならない）。
+      const lane = STORE_STAGES.find((l) => l.key === stageFilterRef.current);
+      if (lane) {
+        qs.set("stage", lane.stages.join(","));
+        qs.delete("open_first");
       }
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs.toString()}`,
@@ -1830,9 +1874,9 @@ export default function StoreProcurementHomePage() {
                       const next = on ? null : st.key;
                       stageFilterRef.current = next;
                       setStageFilter(next);
-                      // Request and Approval are fetched by status, so the
-                      // chip has to re-ask the server rather than filter a
-                      // window that never held those rows.
+                      // どのチップもサーバーに問い合わせ直す。窓を絞るだけだと、
+                      // その段階の行が窓に1件も無いときに空に見える
+                      // （Received がまさにそれだった）。
                       void loadMyRequests();
                     }}
                     className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all ${
@@ -1845,6 +1889,33 @@ export default function StoreProcurementHomePage() {
                   </button>
                 );
               })}
+            </div>
+            {/* 期間。画面は以前から「Narrow the dates」と案内していたのに、
+                日付を入れる場所が無かった。 */}
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+              <span>From</span>
+              <input
+                type="date" value={fromDate}
+                onChange={(e) => { setFromDate(e.target.value); fromDateRef.current = e.target.value; void loadMyRequests(); }}
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-zinc-200"
+                aria-label="Show orders from this date"
+              />
+              <span>to</span>
+              <input
+                type="date" value={toDate}
+                onChange={(e) => { setToDate(e.target.value); toDateRef.current = e.target.value; void loadMyRequests(); }}
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-zinc-200"
+                aria-label="Show orders up to this date"
+              />
+              {(fromDate || toDate) && (
+                <button
+                  type="button"
+                  onClick={() => { setFromDate(""); setToDate(""); fromDateRef.current = ""; toDateRef.current = ""; void loadMyRequests(); }}
+                  className="rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-300 hover:border-white/25"
+                >
+                  Clear dates
+                </button>
+              )}
             </div>
             <p className={`${T_CAPTION} mt-2`}>
               {stageFilter
@@ -2581,7 +2652,10 @@ export default function StoreProcurementHomePage() {
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-semibold text-white">Delivery Amount Summary</p>
-                    <p className="text-xs text-zinc-500">Monthly totals for approved &amp; received orders</p>
+                    <p className="text-xs text-zinc-500">
+                      Ordered is what was approved. Received is what the branches wrote down as
+                      arriving. Emergency replacements are counted separately below.
+                    </p>
                   </div>
                 </div>
                 {deliverySummaryOpen
@@ -2608,7 +2682,10 @@ export default function StoreProcurementHomePage() {
                             <th className="pb-2 text-right font-semibold text-amber-300/90">Warehouse</th>
                             <th className="pb-2 text-right font-semibold">Central Kitchen</th>
                             <th className="pb-2 text-right font-semibold">Supplier</th>
-                            <th className="pb-2 text-right font-semibold">Total ({currencyCode})</th>
+                            <th className="pb-2 text-right font-semibold">Ordered ({currencyCode})</th>
+                            {/* 発注額の隣。差し替えていないので、Ordered の数字は従来どおり。 */}
+                            <th className="pb-2 text-right font-semibold text-emerald-300/90">Received</th>
+                            <th className="pb-2 text-right font-semibold text-zinc-400">No receipt yet</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2658,10 +2735,18 @@ export default function StoreProcurementHomePage() {
                                   <td className="py-2 text-right font-semibold text-violet-300 tabular-nums">
                                     {Number(row.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
+                                  {/* 届いた分。発注額は左のまま動かしていない。 */}
+                                  <td className="py-2 text-right text-emerald-300 tabular-nums">
+                                    {row.received == null ? "—" : Number(row.received).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  {/* 受領記録がまだ無い分。配送中と、記録されなかった分の両方。 */}
+                                  <td className="py-2 text-right text-zinc-500 tabular-nums">
+                                    {row.awaiting == null ? "—" : Number(row.awaiting).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
                                 </tr>
                                 {isOpen && (
                                   <tr>
-                                    <td colSpan={6} className="pb-2 pt-0">
+                                    <td colSpan={8} className="pb-2 pt-0">
                                       <div className="flex flex-col gap-1 rounded-lg border border-white/8 bg-white/3 p-2">
                                         {/* The month total is the server's; this list is only the
                                             requests loaded on this page. Say so when it is short,
@@ -2733,9 +2818,22 @@ export default function StoreProcurementHomePage() {
                             <td className="pt-2 text-right text-sm font-bold text-white tabular-nums">
                               {sourceSummary.reduce((s, r) => s + (r.total || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
+                            <td className="pt-2 text-right text-sm font-bold text-emerald-300 tabular-nums">
+                              {sourceSummary.reduce((s, r) => s + (r.received || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="pt-2 text-right text-sm font-semibold text-zinc-500 tabular-nums">
+                              {sourceSummary.reduce((s, r) => s + (r.awaiting || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
                           </tr>
                         </tfoot>
                       </table>
+                      <p className="mt-2 text-[11px] text-zinc-500">
+                        <span className="text-emerald-300">Received</span> counts only lines a
+                        branch confirmed. A line received as 0 keeps its full value under
+                        Ordered — that is the order as approved, not what arrived. Where the two
+                        differ, the shortfall was either replaced separately or not replaced at
+                        all; neither is shown in the Ordered column.
+                      </p>
                       <p className="mt-3 text-[11px] text-zinc-600">
                         Calculated on the server over every APPROVED, RECEIVED, CLAIMED &amp; CLOSED request for this
                         branch — not only the ones loaded on this page. Amounts are split per line, so a request holding
