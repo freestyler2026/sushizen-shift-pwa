@@ -1372,10 +1372,27 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
         headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
         body: fd,
       });
-      const d = await res.json() as { ok?: boolean; upserted?: number; errors?: string[] };
+      // ⚠️ ここは `d.upserted` を読んでいた。**そのキーはAPIに無い**
+      // （2026-10-03 `edab378c` で written/unchanged/refused に変わった）ので、
+      // 何件入っても「0 items imported」と出ていた。サーバーの数字を読む（教訓15）。
+      const d = await res.json() as {
+        ok?: boolean; errors?: string[];
+        written?: number; unchanged?: number; refused?: string[];
+        no_par?: string[]; step_not_applicable?: string[];
+      };
       if (!res.ok) throw new Error("Import failed");
       setPatternNames((prev) => prev.includes(patternImportTarget) ? prev : [...prev, patternImportTarget].sort());
-      setPatternMsg(`"${patternImportTarget}": ${d.upserted ?? 0} items imported.${(d.errors?.length ?? 0) > 0 ? ` Errors: ${d.errors?.join(", ")}` : ""}`);
+      setPatternMsg([
+        `"${patternImportTarget}": ${d.written ?? 0} saved.`,
+        d.unchanged ? `${d.unchanged} already that number.` : "",
+        d.refused?.length ? `Not this city's items: ${d.refused.join(", ")}.` : "",
+        d.no_par?.length ? `Left blank with no par to keep: ${d.no_par.join(", ")}.` : "",
+        // 埋めたのに効かない、を黙って起こさない。CKの小分け単位はカタログ側。
+        d.step_not_applicable?.length
+          ? `Step not saved for Central Kitchen items — the CK's pack size is on its catalogue row, not per branch: ${d.step_not_applicable.join(", ")}.`
+          : "",
+        d.errors?.length ? `Errors: ${d.errors.join(", ")}` : "",
+      ].filter(Boolean).join(" "));
     } catch { setPatternMsg("Import failed."); }
     finally { setPatternBusy(null); setPatternImportTarget(null); }
   }

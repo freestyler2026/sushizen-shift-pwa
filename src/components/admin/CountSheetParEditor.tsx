@@ -48,6 +48,10 @@ type PatternItem = {
    *  受け取っていながら出していなかったので、効いている設定が画面のどこにも
    *  無い状態だった（使われなくなる型 #9: ルールが画面に無い＝信用されない）。 */
   order_step?: number | null;
+  /** CK品。**支店ごとの刻みを取らない** — CKの小分け単位はカタログ行が品目に
+   *  1つ持っていて、どの支店が頼んでも同じ（実測: 刻みを持つカタログ行は
+   *  両都市で1つの例外もなく order_type='CK'）。 */
+  is_commissary?: boolean;
 };
 
 type SaveResult = {
@@ -57,6 +61,9 @@ type SaveResult = {
   /** Blanked rows that have no par to keep. The column is NOT NULL, so there is
    *  no row to write -- and that used to come back as a 500 with no reason. */
   no_par?: string[];
+  /** CK品に刻みを送ったので保存しなかった行。黙って無視すると
+   *  「設定したのに効かない」になる。 */
+  step_not_applicable?: string[];
 };
 
 export default function CountSheetParEditor() {
@@ -241,6 +248,9 @@ export default function CountSheetParEditor() {
             result.no_par?.length
               ? `Left blank, so nothing was written -- a par is required here. To remove one, delete the pattern: ${result.no_par.join(", ")}.`
               : "",
+            result.step_not_applicable?.length
+              ? `Step not saved for Central Kitchen items -- the CK's pack size lives on its catalogue row, not per branch: ${result.step_not_applicable.join(", ")}.`
+              : "",
           ]
             .filter(Boolean)
             .join(" ")}
@@ -252,7 +262,9 @@ export default function CountSheetParEditor() {
         <span className="text-zinc-400">Step</span> is how this branch rounds its order quantity
         (order 7 with a step of 3 and 9 are ordered). It is read-only here &mdash; set it in the
         Order Step column of this pattern&rsquo;s Excel template. A dash means no step for this
-        branch, so the ordering catalogue&rsquo;s own step applies.
+        branch, so the ordering catalogue&rsquo;s own step applies. Central Kitchen items read
+        <span className="text-zinc-400"> n/a</span> &mdash; the CK&rsquo;s pack size is one number
+        per item on its catalogue row, the same for every branch.
       </p>
 
       {loading ? (
@@ -303,7 +315,11 @@ export default function CountSheetParEditor() {
                       />
                     </td>
                     <td className="px-3 py-2 text-right text-xs tabular-nums">
-                      {r.order_step == null ? (
+                      {r.is_commissary ? (
+                        <span className="text-zinc-600" title="Central Kitchen item — the CK's pack size is on its catalogue row and is the same for every branch.">
+                          n/a
+                        </span>
+                      ) : r.order_step == null ? (
                         <span className="text-zinc-600" title="No step for this branch — the ordering catalogue's step applies.">
                           &mdash;
                         </span>

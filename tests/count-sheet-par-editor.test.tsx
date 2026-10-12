@@ -17,6 +17,9 @@ const ITEMS = {
       order_step: 6 },
     // 刻みのキーが無い行。「指定なし」で、0（丸めない）とは別。
     { item_code: "CK002", item_name: "Chashu", default_unit: "PC", par_level: null },
+    // CK品。支店ごとの刻みを取らない（CKの小分け単位はカタログ行が持つ）。
+    { item_code: "CK003", item_name: "Poke Sauce", default_unit: "kg", par_level: 2,
+      order_step: null, is_commissary: true },
   ],
 };
 
@@ -161,5 +164,45 @@ describe("the branch's order step", () => {
     fireEvent.click(screen.getByText(/Save 1 change/));
     await waitFor(() => expect(calls.some((c) => c.init?.method === "PUT")).toBe(true));
     expect(await screen.findByText(/a par is required here/i)).toBeTruthy();
+  });
+});
+
+describe("Central Kitchen rows do not take a branch step", () => {
+  // 刻みを持つカタログ行は、両都市で1つの例外もなく order_type='CK'
+  // （2026-10-12 実測）。あれは仕入先の梱包単位ではなくCKの小分け単位で、
+  // どの支店が頼んでも同じ。ドバイのParパターンは支店あたり113〜123行がCK品
+  // なので、刻み欄を出して黙って無視すれば、埋めても効かない欄を120個渡す。
+  function cells(name: string) {
+    const row = screen.getAllByRole("row").find((r) => r.textContent?.includes(name));
+    return row!.querySelectorAll("td");
+  }
+
+  it("reads n/a, not a dash — a dash means the catalogue decides", async () => {
+    mockFetch({ status: 200 });
+    render(<CountSheetParEditor />);
+    await screen.findByText("Poke Sauce");
+    expect(cells("Poke Sauce")[3].textContent).toContain("n/a");
+    expect(cells("Chashu")[3].textContent).toContain("\u2014");
+  });
+
+  it("says why, so the empty cell is not read as a missing setting", async () => {
+    mockFetch({ status: 200 });
+    render(<CountSheetParEditor />);
+    await screen.findByText("Poke Sauce");
+    expect(screen.getByText(/pack size is one number/i)).toBeTruthy();
+  });
+
+  it("names a step the server refused to store on a CK item", async () => {
+    // 黙って無視すると「設定したのに効かない」になる。
+    const calls = mockFetch({
+      status: 200,
+      body: { written: 1, step_not_applicable: ["CK003"] },
+    });
+    render(<CountSheetParEditor />);
+    await screen.findByText("Poke Sauce");
+    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "15" } });
+    fireEvent.click(screen.getByText(/Save 1 change/));
+    await waitFor(() => expect(calls.some((c) => c.init?.method === "PUT")).toBe(true));
+    expect(await screen.findByText(/pack size lives on its catalogue row/i)).toBeTruthy();
   });
 });
