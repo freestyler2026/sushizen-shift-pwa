@@ -47,3 +47,29 @@ export function withCity(path: string, city: CityParam): string {
   if (/[?&]city=/.test(path)) return path;   // already said; do not say it twice
   return path + (path.includes("?") ? "&" : "?") + "city=" + encodeURIComponent(city);
 }
+
+/**
+ * The store branches each city counts, as Daily Inventory names them.
+ *
+ * One definition, because three screens were each carrying their own copy and
+ * only one of them had Dubai in it: the tab's branch picker listed all eight,
+ * while the Stock button's list held Manila's three, so a Dubai branch had the
+ * button hidden and the endpoint behind it answered 400. That list was written
+ * when Dubai had no counts at all (zero reports in thirty days, measured
+ * 2026-10), which is no longer where Dubai is.
+ *
+ * CK and WAREHOUSE are deliberately absent. They count different things, and
+ * both exist in both cities, so a branch name alone does not say which city
+ * they belong to.
+ */
+export const STORE_BRANCHES: Record<InventoryCity, string[]> = {
+  manila: ["PARANAQUE", "CUBAO", "TAFT"],
+  dubai: ["BUSINESS BAY", "JLT", "ARJAN", "AL MINA", "AL BARSHA"],
+};
+
+/** Every store branch, both cities. A branch belongs to exactly one city, so a
+ *  screen that only needs "is this a store branch" can ask without the city. */
+export const ALL_STORE_BRANCHES: string[] = [
+  ...STORE_BRANCHES.manila,
+  ...STORE_BRANCHES.dubai,
+];

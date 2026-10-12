@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import SelectDark from "@/components/SelectDark";
-import { EVERY_CITY, asInventoryCity, withCity, worksInEveryCity } from "@/lib/daily-inventory-city";
+import { EVERY_CITY, STORE_BRANCHES, asInventoryCity, withCity, worksInEveryCity } from "@/lib/daily-inventory-city";
 import StoreStockView, { STOCK_BRANCHES } from "@/components/admin/StoreStockView";
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { IncomingNote, incomingFor as incomingLinesFor, type IncomingPayload } from "@/components/IncomingNote";
@@ -38,10 +38,10 @@ const API_BASE = "";
 
 type CityKey = "manila" | "dubai";
 
-const CITY_BRANCHES: Record<CityKey, string[]> = {
-  manila: ["PARANAQUE", "CUBAO", "TAFT"],
-  dubai:  ["BUSINESS BAY", "JLT", "ARJAN", "AL MINA", "AL BARSHA"],
-};
+// 支店の一覧は @/lib/daily-inventory-city に1つだけ置く。
+// ここと StoreStockView がそれぞれ写しを持っていて、片方にしかドバイが
+// 入っていなかった（教訓62）。
+const CITY_BRANCHES: Record<CityKey, string[]> = STORE_BRANCHES;
 
 // Keep for backward compat (auto-save, par-pattern lookup etc. that only Manila uses)
 const BRANCHES = CITY_BRANCHES.manila;

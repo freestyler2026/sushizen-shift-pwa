@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ALL_STORE_BRANCHES } from "@/lib/daily-inventory-city";
 import { GLASS_CARD, T_CARD_TITLE } from "@/lib/ui-tokens";
 
 type StockItem = {
@@ -31,10 +32,13 @@ type StockView = {
 
 const n = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/\.?0+$/, ""));
 
-/** 在庫を出せる支店 = 日次カウントを出している支店。
- *  ドバイの店舗は Daily Inventory を1件も出していない（30日で0件）ので、
- *  数える元が無い。ボタン自体を出さないために、一覧をここに1つ置く。 */
-export const STOCK_BRANCHES = ["TAFT", "CUBAO", "PARANAQUE"];
+/** 在庫を出せる支店 = 店舗の支店。**一覧はここに持たない。**
+ *
+ *  以前は `["TAFT","CUBAO","PARANAQUE"]` を直接書いていた。ドバイが
+ *  Daily Inventory を1件も出していなかった頃（30日で0件・2026-10 実測）の
+ *  判断だが、ドバイが数え始めると**ボタンが出ず、裏のエンドポイントも 400** を
+ *  返す。支店名は片方の都市にしか存在しないので、都市を渡さずに判定できる。 */
+export const STOCK_BRANCHES = ALL_STORE_BRANCHES;
 
 /** 店舗の在庫。数えた数 ＋ そのあと着いた数。
  *
