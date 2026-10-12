@@ -48,6 +48,9 @@ type SaveResult = {
   written?: number;
   unchanged?: number;
   refused?: string[];
+  /** Blanked rows that have no par to keep. The column is NOT NULL, so there is
+   *  no row to write -- and that used to come back as a 500 with no reason. */
+  no_par?: string[];
 };
 
 export default function CountSheetParEditor() {
@@ -226,6 +229,11 @@ export default function CountSheetParEditor() {
             result.unchanged ? `${result.unchanged} were already that number.` : "",
             result.refused?.length
               ? `Not saved, because they are not this city's items: ${result.refused.join(", ")}.`
+              : "",
+            // Blanking a par used to 500. Now it comes back named, because a
+            // save that did nothing must not read like a save that worked.
+            result.no_par?.length
+              ? `Left blank, so nothing was written -- a par is required here. To remove one, delete the pattern: ${result.no_par.join(", ")}.`
               : "",
           ]
             .filter(Boolean)
