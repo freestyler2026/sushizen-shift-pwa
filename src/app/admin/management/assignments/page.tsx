@@ -57,6 +57,80 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
  * unsent *of their own types*, so an owner with no Discord id is a queue
  * nobody is being told about — and that was only visible in a worker log.
  */
+/** 当番表に載っている人の Discord ID。
+ *
+ *  この画面は「◯◯ には Discord ID がありません」と出していたのに、入れる場所が
+ *  無かった。唯一の入力欄は Direct Purchase の画面にあり、当番表とは何の関係も
+ *  ない。2026-10-13、新しいマネージャー3名の登録を頼まれて分かった
+ *  （Roxanne Joy N. Buenaventura / Ronidel S. Sanciangco / Nhazarethe Pinpin、
+ *  3人とも当番表には20コマ入っていた）。
+ *
+ *  ⚠️ 下の `OwnerDiscord` とは**別の表**。あちらは例外タイプの担当者
+ *  （bo_assignments）、こちらは当番表の担当者（management_channel_discord）。
+ *  宛先が違うので統合できない。
+ */
+function RosterDiscord({
+  names, known, onSaved,
+}: {
+  names: string[];
+  known: { staff_name: string; discord_user_id: string; display_name: string }[];
+  onSaved: () => void;
+}) {
+  const [edit, setEdit] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+  if (!names.length) return null;
+  const idOf = (n: string) =>
+    known.find((k) => k.staff_name === n)?.discord_user_id ?? "";
+
+  const save = async (name: string) => {
+    const value = (edit[name] ?? "").trim();
+    if (!/^\d{5,}$/.test(value)) {
+      setMsg(`${name}: a Discord user ID is digits only — copy it from Discord with Developer Mode on.`);
+      return;
+    }
+    setBusy(name); setMsg("");
+    try {
+      const res = await fetch("/api/admin/management/channel-discord", {
+        method: "PUT",
+        headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+        body: JSON.stringify({ staff_name: name, discord_user_id: value, display_name: "" }),
+      });
+      const j = await res.json().catch(() => ({}));
+      setMsg(res.ok ? `Saved for ${name}.` : String(j.detail || `Could not save (${res.status}).`));
+      if (res.ok) { const n = { ...edit }; delete n[name]; setEdit(n); onSaved(); }
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally { setBusy(""); }
+  };
+
+  return (
+    <div className="mb-3 flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+      <p className="text-sm text-amber-200">
+        <strong>{names.join(", ")}</strong> {names.length === 1 ? "has" : "have"} no
+        Discord ID, so no notification is posted for them. They would have to open
+        the page themselves. Set it here.
+      </p>
+      {names.map((n) => (
+        <div key={n} className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="min-w-[180px] text-zinc-200">{n}</span>
+          <input
+            value={edit[n] ?? idOf(n)}
+            onChange={(e) => setEdit({ ...edit, [n]: e.target.value })}
+            placeholder="Discord user ID (numbers only)"
+            inputMode="numeric"
+            className="min-w-[220px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder:text-zinc-500"
+          />
+          <button className={SMALL_BUTTON} disabled={busy === n} onClick={() => save(n)}>
+            {busy === n ? "Saving…" : "Save"}
+          </button>
+        </div>
+      ))}
+      {msg && <p className="text-sm text-zinc-300">{msg}</p>}
+    </div>
+  );
+}
+
 function OwnerDiscord({
   city, owners, edit, setEdit, msg, setMsg, onSaved,
 }: {
@@ -277,16 +351,11 @@ function OwnerRoster({ city }: { city: string }) {
           {msg}
         </div>
       )}
-      {data.missing_discord_id.length > 0 && (
-        <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-          <p className="text-sm text-amber-200">
-            <strong>{data.missing_discord_id.join(", ")}</strong> {data.missing_discord_id.length === 1 ? "has" : "have"} no
-            Discord ID, so no notification is posted for them. They would have to open
-            the page themselves.
-          </p>
-        </div>
-      )}
+      <RosterDiscord
+        names={data.missing_discord_id}
+        known={data.discord}
+        onSaved={() => void load()}
+      />
 
 
       <div className="overflow-x-auto">
