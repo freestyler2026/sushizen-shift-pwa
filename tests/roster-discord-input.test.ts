@@ -37,7 +37,21 @@ describe("the roster's missing Discord IDs", () => {
 
   it("refuses something that is not a Discord user ID", () => {
     // 名前やユーザー名を貼ると、黙って保存されて通知が届かないままになる。
-    expect(CODE).toMatch(/\\d\{5,\}/);
+    // 本番の13件は全部18〜19桁なので、17〜20の外は打ち間違いか別物。
+    expect(CODE).toMatch(/\\d\{17,20\}/);
+  });
+
+  it("shows every roster owner, not only the ones with no ID", () => {
+    // 未登録だけに絞ると、登録した瞬間に行が消えて**入っている値が
+    // どこにも出なくなる**。1桁打ち間違えても保存は通り、通知だけ届かない。
+    expect(CODE).toMatch(/missing=\{data\.missing_discord_id\}/);
+    expect(CODE).toMatch(/Object\.values\(data\.branches\)\.flat\(\)/);
+    expect(CODE).toMatch(/Object\.values\(data\.substitutes\)/);
+  });
+
+  it("keeps the amber warning for the ones still missing", () => {
+    expect(CODE).toMatch(/missing\.length > 0/);
+    expect(CODE).toMatch(/missing\.join\(", "\)/);
   });
 
   it("reloads after saving, so the warning clears without a refresh", () => {

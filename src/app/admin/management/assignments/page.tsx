@@ -68,11 +68,19 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
  *  ⚠️ 下の `OwnerDiscord` とは**別の表**。あちらは例外タイプの担当者
  *  （bo_assignments）、こちらは当番表の担当者（management_channel_discord）。
  *  宛先が違うので統合できない。
+ *
+ *  ⚠️ **未登録の人だけでなく、当番表の全員を出す。** 最初は欠けている人だけに
+ *  していたが、登録した瞬間に行が消えて、**入っている値がどこにも出なくなる**。
+ *  IDは18〜19桁の数字で、1桁打ち間違えても保存は通り、通知だけが届かない。
+ *  出していなければ誰も気づけない。
  */
 function RosterDiscord({
-  names, known, onSaved,
+  names, missing, known, onSaved,
 }: {
+  /** 当番表に載っている全員。 */
   names: string[];
+  /** そのうちIDが無い人。警告の文面に使う。 */
+  missing: string[];
   known: { staff_name: string; discord_user_id: string; display_name: string }[];
   onSaved: () => void;
 }) {
@@ -85,8 +93,10 @@ function RosterDiscord({
 
   const save = async (name: string) => {
     const value = (edit[name] ?? "").trim();
-    if (!/^\d{5,}$/.test(value)) {
-      setMsg(`${name}: a Discord user ID is digits only — copy it from Discord with Developer Mode on.`);
+    // 本番の13件は全部18〜19桁。17〜20の外は打ち間違いか別物で、
+    // 保存できてしまうと「設定済みなのに届かない」になる。
+    if (!/^\d{17,20}$/.test(value)) {
+      setMsg(`${name}: a Discord user ID is 17 to 20 digits. Turn on Developer Mode in Discord, right-click the person and choose Copy User ID.`);
       return;
     }
     setBusy(name); setMsg("");
@@ -104,16 +114,26 @@ function RosterDiscord({
     } finally { setBusy(""); }
   };
 
+  const tone = missing.length
+    ? "border-amber-500/30 bg-amber-500/10"
+    : "border-white/10 bg-white/5";
   return (
-    <div className="mb-3 flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-      <p className="text-sm text-amber-200">
-        <strong>{names.join(", ")}</strong> {names.length === 1 ? "has" : "have"} no
-        Discord ID, so no notification is posted for them. They would have to open
-        the page themselves. Set it here.
-      </p>
+    <div className={`mb-3 flex flex-col gap-2 rounded-xl border px-4 py-3 ${tone}`}>
+      {missing.length > 0 ? (
+        <p className="text-sm text-amber-200">
+          <strong>{missing.join(", ")}</strong> {missing.length === 1 ? "has" : "have"} no
+          Discord ID, so no notification is posted for them. They would have to open
+          the page themselves. Set it here.
+        </p>
+      ) : (
+        <p className="text-sm text-zinc-300">
+          Where each owner on the roster is reached. An ID is 17 to 20 digits — check
+          it here if someone says a reminder never arrived.
+        </p>
+      )}
       {names.map((n) => (
         <div key={n} className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="min-w-[180px] text-zinc-200">{n}</span>
+          <span className={`min-w-[180px] ${idOf(n) ? "text-zinc-200" : "text-amber-200"}`}>{n}</span>
           <input
             value={edit[n] ?? idOf(n)}
             onChange={(e) => setEdit({ ...edit, [n]: e.target.value })}
@@ -352,7 +372,13 @@ function OwnerRoster({ city }: { city: string }) {
         </div>
       )}
       <RosterDiscord
-        names={data.missing_discord_id}
+        // 当番表に載っている全員（曜日の担当と、代わりの人）。
+        // 未登録だけに絞ると、登録した瞬間に値が見えなくなる。
+        names={Array.from(new Set([
+          ...Object.values(data.branches).flat(),
+          ...Object.values(data.substitutes),
+        ].map((n) => String(n || "").trim()).filter(Boolean))).sort()}
+        missing={data.missing_discord_id}
         known={data.discord}
         onSaved={() => void load()}
       />
