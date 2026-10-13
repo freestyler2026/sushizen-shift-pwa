@@ -119,6 +119,7 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="nav-item" onclick="show('dtr-upload')"><span class="nav-icon">📋</span><span data-en="DTR Upload & Sync" data-ja="DTRアップロード・同期">DTR Upload & Sync</span></div>
   <div class="nav-item" onclick="show('allowances')"><span class="nav-icon">🍱</span><span data-en="Meal Allowance & PA" data-ja="食事手当・皆勤賞">Meal Allowance & PA</span></div>
   <div class="nav-item" onclick="show('sil')"><span class="nav-icon">🌴</span><span data-en="Service Incentive Leave" data-ja="有給休暇（SIL）">Service Incentive Leave</span></div>
+  <div class="nav-item" onclick="show('maternity')"><span class="nav-icon">🤰</span><span data-en="Maternity &amp; Unpaid Leave" data-ja="産休・無給休暇">Maternity &amp; Unpaid Leave</span></div>
   <div class="nav-item" onclick="show('compute')"><span class="nav-icon">⚙️</span><span data-en="Compute Payroll" data-ja="給与計算">Compute Payroll</span></div>
   <div class="nav-item" onclick="show('approve-publish')"><span class="nav-icon">✅</span><span data-en="Approve & Publish" data-ja="承認・公開">Approve & Publish</span></div>
   <div class="nav-item" onclick="show('remittances')"><span class="nav-icon">🏦</span><span data-en="Gov. Remittances" data-ja="政府拠出金送金">Gov. Remittances</span></div>
@@ -330,7 +331,7 @@ td.muted{color:var(--muted);font-size:12px}
     </table></div>
     <div class="tip info" style="margin-top:10px;margin-bottom:0">
       <span class="tip-icon">ℹ️</span>
-      <span data-en="A cut-off with no pay takes no deduction at all — not SSS, not PhilHealth, not Pag-IBIG, not tax. Somebody who joins on the 13th has nothing to deduct from in the half that ended on the 10th, and a payslip must never come out negative. Before 2026-09-12 it did: a new hire with zero pay in her first half showed a net of −346.19." data-ja="支給がゼロの締めでは、控除は一切かかりません（SSS・PhilHealth・Pag-IBIG・源泉すべて）。13日入社の人には、10日で締まった半期から引くものが無いためです。明細がマイナスになることはあってはなりません。2026-09-12 以前は実際にマイナスが出ており、初回の支給がゼロだった新入社員の net が −346.19 になっていました。">A cut-off with no pay takes no deduction at all — SSS, PhilHealth, Pag-IBIG and tax are all skipped. A payslip must never come out negative.</span>
+      <span data-en="A cut-off with no pay takes no deduction at all — not SSS, not Pag-IBIG, not tax. PhilHealth on MATERNITY leave is the one exception: DOLE requires the premium to be remitted through the leave and its basis is the contractual monthly basic salary, not pay received. Somebody who joins on the 13th has nothing to deduct from in the half that ended on the 10th, and a payslip must never come out negative. Before 2026-09-12 it did: a new hire with zero pay in her first half showed a net of −346.19." data-ja="支給がゼロの締めでは、控除は一切かかりません（SSS・Pag-IBIG・源泉）。例外は産休中の PhilHealth だけで、DOLE が休暇期間中も納付するよう求めており、基礎も受け取った給与ではなく契約上の月額基本給です。13日入社の人には、10日で締まった半期から引くものが無いためです。明細がマイナスになることはあってはなりません。2026-09-12 以前は実際にマイナスが出ており、初回の支給がゼロだった新入社員の net が −346.19 になっていました。">A cut-off with no pay takes no deduction at all — SSS, PhilHealth, Pag-IBIG and tax are all skipped. A payslip must never come out negative.</span>
     </div>
   </div>
 </div>
@@ -419,7 +420,7 @@ td.muted{color:var(--muted);font-size:12px}
     </div>
     <div class="tip info" style="margin-top:10px">
       <span class="tip-icon">👶</span>
-      <span data-en="Maternity leave (Manila): days covered by a Leave Case are not deducted. Open the case on the Absences page — Leave Cases — with the start date, the expected date and, once known, the actual delivery date; the day rows are written from it. RA 11210 allows the 105 days to be split around the birth but at least 60 must fall after it, so the screen shows the split and offers the end date that meets the floor before anything is written. The days carry their own flag, not paid_leave_flag: maternity is paid by SSS plus the employer&apos;s salary differential, not out of the five statutory SIL days, and it must not be counted as SIL taken. A DTR re-sync cannot clear the flag." data-ja="産休（マニラ）：Leave Case で覆われた日は控除されません。Absences ページの Leave Cases でケースを作成し、開始日・出産予定日・（判明後に）実際の出産日を入力すると、日次の行はそこから生成されます。RA 11210 では105日を出産前後に分けられますが、産後は最低60日必要なため、書き込む前に画面が内訳と、下限を満たす終了日を提示します。日には専用のフラグが立ち、paid_leave_flag は使いません。産休はSSS給付＋会社の差額負担で支払われるもので、法定有給5日から消化するものではないためです。DTR の再同期でフラグが消えることはありません。">Maternity leave (Manila): days covered by a Leave Case are not deducted. Create the case on Absences → Leave Cases; at least 60 of the 105 days must fall after the birth, and the screen shows the split before writing. The days carry their own flag, not paid_leave_flag — maternity is not SIL.</span>
+      <span data-en="Maternity leave (Manila): the basic is placed as usual and then taken straight back for the days a Leave Case covers — RA 11210 pays those days once, through the SSS benefit and the salary differential, so payroll must not pay them a second time. Open the case on the Absences page — Leave Cases — with the start date, the expected date and, once known, the actual delivery date; the day rows are written from it. RA 11210 allows the 105 days to be split around the birth but at least 60 must fall after it, so the screen shows the split and offers the end date that meets the floor before anything is written. The days carry their own flag, not paid_leave_flag: maternity is paid by SSS plus the employer&apos;s salary differential, not out of the five statutory SIL days, and it must not be counted as SIL taken. A DTR re-sync cannot clear the flag." data-ja="産休（マニラ）：Leave Case で覆われた日は控除されません。Absences ページの Leave Cases でケースを作成し、開始日・出産予定日・（判明後に）実際の出産日を入力すると、日次の行はそこから生成されます。RA 11210 では105日を出産前後に分けられますが、産後は最低60日必要なため、書き込む前に画面が内訳と、下限を満たす終了日を提示します。日には専用のフラグが立ち、paid_leave_flag は使いません。産休はSSS給付＋会社の差額負担で支払われるもので、法定有給5日から消化するものではないためです。DTR の再同期でフラグが消えることはありません。">Maternity leave (Manila): days covered by a Leave Case are not deducted. Create the case on Absences → Leave Cases; at least 60 of the 105 days must fall after the birth, and the screen shows the split before writing. The days carry their own flag, not paid_leave_flag — maternity is not SIL.</span>
     </div>
     <div class="tip" style="margin-top:10px">
       <span class="tip-icon">⚠️</span>
@@ -797,6 +798,83 @@ td.muted{color:var(--muted);font-size:12px}
   </div>
 </div>
 
+<!-- ══════════ MATERNITY & UNPAID LEAVE ══════════ -->
+<div class="section" id="sec-maternity">
+  <div class="section-hero">
+    <div class="hero-icon">🤰</div>
+    <div>
+      <div class="section-title" data-en="Maternity &amp; Unpaid Leave" data-ja="産休・無給休暇">Maternity &amp; Unpaid Leave</div>
+      <div class="section-path">/admin/absences → Leave Cases</div>
+      <div class="section-desc" data-en="RA 11210 pays the 105 days once. Payroll&apos;s job is to stop the wage and let the benefit through — and to say so on the payslip." data-ja="RA 11210 は105日を一度だけ支払います。給与側の仕事は賃金を止めて給付を通すことと、それを明細に書くことです。">RA 11210 pays the 105 days once. Payroll stops the wage and lets the benefit through.</div>
+    </div>
+  </div>
+
+  <div class="card red-border">
+    <div class="card-title" data-en="What this exists to stop" data-ja="これが防いでいること">What this exists to stop</div>
+    <p style="color:var(--muted);font-size:12.5px;line-height:1.7" data-en="Until 2026-10-13 somebody on maternity leave was paid their ordinary salary AS WELL AS the SSS benefit — the same period paid twice. On a ₱21,000 salary that is ₱10,500 a cut-off across seven cut-offs: ₱73,500, the whole advance a second time. The flag on those days stopped the absence deduction and nothing stopped the basic." data-ja="2026-10-13 までは、産休中の人に SSS 給付とは別に通常の給与も出ていました。同じ期間を二重に払う形です。月給₱21,000 なら1締め₱10,500 × 7締め = ₱73,500 で、前払いした額と同じだけ余計に出ます。日に立つフラグは欠勤控除を止めるだけで、基本給を止めるものが無かったためです。">Maternity leave used to pay the ordinary salary as well as the SSS benefit — ₱73,500 twice on a ₱21,000 salary.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="The lines on the payslip" data-ja="明細に出る行">The lines on the payslip</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Item Code" data-ja="明細コード">Item Code</th><th data-en="What it means" data-ja="意味">What it means</th></tr>
+      <tr><td><code>UNPAID_LEAVE_DEDUCTION</code></td><td class="muted" data-en="Takes the unpaid days back out of the basic. The basic is still placed as a flat half-month; this line removes it." data-ja="無給の日数分を基本給から戻します。基本給は従来どおり半月分の定額で置かれ、この行で戻ります。">Takes the unpaid days back out of the flat half-month basic.</td></tr>
+      <tr><td><code>UNPAID_LEAVE_DAYS</code></td><td class="muted" data-en="A ₱0.00 line that explains the one above — how many days the leave covers, how many were charged, and which case." data-ja="金額0の説明行。休暇が覆う日数・課金した日数・どのケースかを書きます。">A ₱0.00 line explaining the one above.</td></tr>
+      <tr><td><code>MATERNITY_BENEFIT</code></td><td class="muted" data-en="The SSS benefit, advanced by the employer and reimbursed by SSS at 100%. Not compensation: outside the contribution base, the withholding base and the 13th-month base." data-ja="SSS給付。会社が前払いし、SSSが100%償還します。報酬ではないので、拠出基礎・源泉基礎・13か月給与の基礎のいずれにも入りません。">The SSS benefit. Outside every base.</td></tr>
+      <tr><td><code>MATERNITY_SALARY_DIFFERENTIAL</code></td><td class="muted" data-en="The employer&apos;s top-up under RA 11210 s.5. Exempt from income and withholding tax (RMC 105-2019, DOLE DA 01-A s.2019) AND part of basic salary for the 13th month (DOLE Handbook)." data-ja="RA 11210 第5条による会社負担の上乗せ。非課税（RMC 105-2019 / DOLE DA 01-A）で、かつ13か月給与の基礎に入ります（DOLEハンドブック）。">The employer top-up. Tax-exempt, but inside the 13th-month base.</td></tr>
+      <tr><td><code>MATERNITY_BENEFIT_ADVANCED</code></td><td class="muted" data-en="Offsets the two lines above when the cash already went out. The net then matches the money that actually moved, while the bases are computed on figures the system can see." data-ja="現金が既に出ている場合に上の2行を相殺します。手取りは実際に動いた金額に一致し、基礎は正しい数字で計算されます。">Offsets the two above when the cash already went out.</td></tr>
+      <tr><td><code>MATERNITY_NOT_RECORDED</code></td><td class="muted" data-en="There is a maternity case covering this cut-off, the basic has been taken back, and nobody has recorded the benefit or the differential against it. Nothing on the run pays the leave." data-ja="この締めを覆う産休ケースがあり基本給も戻っているのに、給付額も差額給与額も登録されていません。この run には休暇を支払うものが何もありません。">A maternity case that nobody has costed. Nothing pays the leave.</td></tr>
+      <tr><td><code>STATUTORY_UNCOLLECTED</code></td><td class="muted" data-en="The employee share that could not be taken out of a payslip with no pay. The figure is on the line, not only in the sentence." data-ja="0円の給与から引けなかった本人負担分。金額は文章の中だけでなく行そのものに入っています。">The employee share a ₱0.00 payslip could not bear.</td></tr>
+      <tr><td><code>BIR_ANNUAL_UNCOLLECTED</code></td><td class="muted" data-en="The same thing in December. The year-end settlement is capped at what the cut-off pays; a refund is paid in full regardless." data-ja="12月版。年末調整の不足分はその締めが払える額で頭打ちになります。還付は満額支払われます。">December&apos;s version. Refunds are unaffected.</td></tr>
+    </table></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card blue-border">
+      <div class="card-title" data-en="Which days are charged" data-ja="どの日が課金されるか">Which days are charged</div>
+      <ol class="steps">
+        <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="A rostered day off is not charged" data-ja="シフト上の休日は課金しません">A rostered day off is not charged</strong><p data-en="Rest days come from the published roster — the DAY_OFF rows — because the half-month never paid for them. They are NOT read from the DTR: in 2026-10-1H only six of seventy-seven people had one marked there." data-ja="休日は公開シフトの DAY_OFF 行から取ります。半月分の給与はもともと休日を払っていないためです。DTR からは読みません — 2026-10-1H では77名中6名にしか印が付いていませんでした。">Rest days come from the published roster, not the DTR.</p></div></li>
+        <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Where no roster was published, one day in seven" data-ja="シフトが無い期間は7日に1日">Where no roster was published, one day in seven</strong><p data-en="Nobody rosters a person who is on a 105-day leave. The Labour Code gives at least 24 consecutive hours of rest after six consecutive days, so one day in seven is allowed. It errs towards not charging: deducting a day that may have been a rest day is deducting a wage with no basis for it." data-ja="105日の休暇中の人にシフトを組む人はいません。労働法典は6日連続勤務の後に24時間以上の休息を求めるので、7日に1日を認めます。休日だったかもしれない日を引くのは根拠のない賃金控除なので、引かない側に倒します。">The Labour Code floor — one rest day in every seven.</p></div></li>
+        <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="A whole cut-off on leave gives back exactly the basic" data-ja="全日休暇の締めはちょうど基本給を戻します">A whole cut-off on leave gives back exactly the basic</strong><p data-en="Whatever the roster shape, and only when nobody worked. Counting days instead left ₱807.72 of wage on a payslip at three rest days — a 26-day divisor does not describe a 12-working-day half-month." data-ja="シフトの形に関わらず、かつ1日も勤務していないときに限ります。日数で数えると休日3日の締めで₱807.72 の賃金が残りました。26日の除数は、勤務12日の半月を説明できないためです。">Only when nobody worked. Counting days left wage behind.</p></div></li>
+        <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="A day actually worked is paid" data-ja="実際に働いた日は払います">A day actually worked is paid</strong><p data-en="Somebody who comes in during the window is paid for it, overtime and premiums included, and that day is not charged as leave." data-ja="休暇期間中に出勤した日は、残業・割増を含めて支払い、その日は休暇として課金しません。">Work done inside the window is paid, and not charged.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="card green-border">
+      <div class="card-title" data-en="Contributions through the leave" data-ja="休暇中の法定控除">Contributions through the leave</div>
+      <div class="chip-row" style="flex-direction:column;gap:4px;align-items:flex-start">
+        <span class="chip" data-en="PhilHealth — continues, on the contractual rate" data-ja="PhilHealth — 継続（契約レート）">PhilHealth — continues, on the contractual rate</span>
+        <span class="chip" data-en="SSS and Pag-IBIG — follow actual pay, so nothing" data-ja="SSS・Pag-IBIG — 実報酬に従うのでゼロ">SSS and Pag-IBIG — follow actual pay, so nothing</span>
+        <span class="chip" data-en="BIR — follows the pay" data-ja="BIR — 支払いに従う">BIR — follows the pay</span>
+      </div>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7;margin-top:10px" data-en="DOLE&apos;s Handbook on Workers&apos; Statutory Monetary Benefits: &quot;Employers shall ensure that premium contribution of women who are on maternity leave shall be regularly remitted to PhilHealth.&quot; Its basis was never pay received — it is the monthly basic salary. SSS and Pag-IBIG are different: RA 11199&apos;s IRR defines COMPENSATION as all ACTUAL remuneration for employment, so a wholly unpaid month owes neither." data-ja="DOLE ハンドブックに明文があります —「Employers shall ensure that premium contribution of women who are on maternity leave shall be regularly remitted to PhilHealth.」保険料の基礎はもともと受け取った給与ではなく月額基本給です。SSS と Pag-IBIG は別で、RA 11199 の IRR が COMPENSATION を「実際の報酬」と定義しているため、全日無給の月には発生しません。">DOLE requires PhilHealth through the leave. SSS and Pag-IBIG follow actual pay.</p>
+      <div class="tip info" style="margin-top:10px">
+        <span class="tip-icon">🔎</span>
+        <span data-en="Every commentary on this cites SSS Circular 2020-010 as requiring continued SSS remittance at the pre-leave MSC. SSS&apos;s own circular index gives 2020-010 as &quot;Revised List of Documentary Requirements for Retirement and Death Benefits&quot;, and no circular title on that page mentions employees on leave. If SSS rules otherwise, MATERNITY_SSS_CONTINUES=1 turns it on with no deploy." data-ja="この件の解説記事はどれも SSS Circular 2020-010 を「休暇前のMSCで納付を続ける根拠」として引用します。しかし SSS 自身の通達一覧では 2020-010 は「Revised List of Documentary Requirements for Retirement and Death Benefits」で、一覧のどの通達も「休暇中の従業員」に触れていません。SSS の見解が異なれば MATERNITY_SSS_CONTINUES=1 でデプロイ無しに切り替わります。">The circular everyone cites for the other reading is about retirement and death documents.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card orange-border">
+    <div class="card-title" data-en="Two things that must not happen" data-ja="やってはいけないこと2つ">Two things that must not happen</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Do not collect STATUTORY_UNCOLLECTED separately on a maternity cut-off" data-ja="産休の締めの STATUTORY_UNCOLLECTED を別途徴収しないこと">Do not collect STATUTORY_UNCOLLECTED separately on a maternity cut-off</strong><p data-en="DOLE DA 01-19 step 2 already subtracts the employee&apos;s share when computing the salary differential. Collecting it again takes the same money twice. The note on the line says so." data-ja="DOLE DA 01-19 の第2段階が、差額給与の計算の中で本人負担分を既に差し引いています。別途徴収すると同じ金額を二度取ります。行の注記にもその旨が出ます。">The differential already nets it out.</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Do not enter anything when MATERNITY_NOT_RECORDED appears" data-ja="MATERNITY_NOT_RECORDED が出たら自分で入力しないこと">Do not enter anything when MATERNITY_NOT_RECORDED appears</strong><p data-en="There is no screen for the benefit and the differential yet; they are recorded against the leave case. Report it instead. Both figures are required — recording the benefit alone would settle the differential at zero, which is one of the two answers the DOLE formula can give and not a default anybody chose." data-ja="給付額と差額給与額を入れる画面はまだありません。休暇ケースに登録します。見つけたら報告してください。両方の明示が必要です — 給付だけ登録すると差額給与がゼロで確定しますが、それは DOLE の式が出しうる2つの答えの片方で、誰も選んでいない既定値です。">Report it. Both figures are required, not just the benefit.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card violet-border">
+    <div class="card-title" data-en="The money, and the one figure people get wrong" data-ja="金額と、間違えられる1つの数字">The money, and the one figure people get wrong</div>
+    <p style="color:var(--muted);font-size:12.5px;line-height:1.7" data-en="The benefit MSC is capped at ₱20,000, not at the contribution MSC. SSS&apos;s own words: &quot;The computation of benefits under the Regular SSS Program shall be based on contributions up to 20,000 MSC.&quot; Credits above it sit in the Mandatory Provident Fund, which does not pay maternity. A ₱21,000 salary therefore gives ADSC ₱666.67 and a benefit of ₱70,000 for 105 days — NOT ₱73,500. The payslips show the same split: SSS_EE on ₱20,000 plus a separate SSS_WISP_EE noted &quot;WISP (MSC&gt;20k)&quot;." data-ja="給付の MSC は ₱20,000 で頭打ちで、拠出の MSC とは別です。SSS 自身の表現 —「The computation of benefits under the Regular SSS Program shall be based on contributions up to 20,000 MSC.」超過分は Mandatory Provident Fund に入り、MPF は産休給付を払いません。月給₱21,000 なら ADSC は ₱666.67、105日で ₱70,000 であって ₱73,500 ではありません。給与明細にも同じ分割が出ています — ₱20,000 に対する SSS_EE と、別行の SSS_WISP_EE（注記「WISP (MSC&gt;20k)」）。">The benefit MSC caps at ₱20,000 — ₱70,000 for 105 days, not ₱73,500.</p>
+    <div class="formula-label" data-en="DOLE Department Advisory No. 01, s. 2019" data-ja="DOLE Department Advisory No. 01, s. 2019">DOLE Department Advisory No. 01, s. 2019</div>
+    <div class="formula-box">full pay        = monthly salary × days ÷ 30<br>less            = the employee&apos;s own SSS + PhilHealth + Pag-IBIG share for the period<br>less            = SSS benefit = (MSC × 6 ÷ 180) × days<br>= salary differential   [floored at zero — a negative means the benefit already covers full pay]</div>
+    <div class="tip" style="margin-top:10px">
+      <span class="tip-icon">⚠️</span>
+      <span data-en="The statutory day count is the right one, not the case span. leave_case_schedule refuses an end date that would cut the statutory length short, and RA 11210 s.3 makes the optional days beyond it &quot;without pay&quot; — so a case extended to clear the sixty-day postnatal minimum looks like it should pay more and does not." data-ja="使うのは法定日数であって、ケースの期間ではありません。leave_case_schedule は法定日数を下回る終了日を拒否し、RA 11210 第3条は105日を超える任意の日を「無給」と定めています。産後60日の下限を満たすために延長したケースは、多く払うように見えて払いません。">Use the statutory day count, not the case span. Days beyond it are unpaid.</span>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ COMPUTE PAYROLL ══════════ -->
 <div class="section" id="sec-compute">
   <div class="section-hero">
@@ -826,7 +904,7 @@ td.muted{color:var(--muted);font-size:12px}
       <tr><td><code>ER_SSS</code> / <code>ER_PH</code> / <code>ER_PI</code></td><td class="muted" data-en="Employer cost (not deducted from payslip)" data-ja="雇用主負担（給与明細から控除なし）">Employer cost (not deducted)</td><td class="muted">—</td></tr>
       <tr><td><code>WHT</code></td><td class="muted" data-en="Withholding Tax (BIR TRAIN)" data-ja="源泉徴収税（BIR TRAIN）">Withholding Tax (BIR TRAIN)</td><td class="muted" data-en="Deduction" data-ja="控除">Deduction</td></tr>
       <tr><td><code>SIL_EARNED</code></td><td class="muted" data-en="Service Incentive Leave (if paid_leave_flag used)" data-ja="有給休暇（paid_leave_flag使用時）">SIL (if paid_leave_flag used)</td><td class="muted">Yes</td></tr>
-      <tr><td><code>13TH_MONTH_ACCRUAL</code></td><td class="muted" data-en="monthly_basic ÷ 12 — reference only, excluded from gross" data-ja="月次基本 ÷ 12 — 参照のみ、総支給に含まず">monthly_basic ÷ 12 — reference only, excluded from gross</td><td class="muted">No</td></tr>
+      <tr><td><code>13TH_MONTH_ACCRUAL</code></td><td class="muted" data-en="Basic actually EARNED ÷ 12 — the pro-rated basic counts, and absence, late, undertime and unpaid leave come off it first. Reference only, excluded from gross." data-ja="実際に稼いだ基本給 ÷ 12 — 日割りの基本給も数え、欠勤・遅刻・早退・無給休暇を先に引きます。参照のみで総支給には入りません。">Basic actually EARNED ÷ 12 — pro-rated basic counts, unpaid time comes off. Reference only.</td><td class="muted">No</td></tr>
     </table></div>
   </div>
 
@@ -962,9 +1040,9 @@ td.muted{color:var(--muted);font-size:12px}
 
   <div class="card">
     <div class="card-title" data-en="13th Month Pay — December 2H" data-ja="13ヶ月目給与 — 12月2H">13th Month Pay — December 2H</div>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="13th Month accrual is tracked each cutoff (monthly_basic ÷ 12 per half). The full 13th Month pay is disbursed in the December 2H run." data-ja="13ヶ月目の積立は各カットオフで追跡（月次基本 ÷ 12 × 半期）。完全な13ヶ月目給与は12月2Hランで支給。">Accrual tracked each cutoff. Full 13th Month disbursed in December 2H run.</p>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:8px" data-en="The accrual is tracked each cut-off on the basic actually EARNED — PD 851 is one-twelfth of the basic salary earned in the calendar year, and DOLE&apos;s own illustration docks a month with ten days of leave without pay. The full 13th Month is disbursed in the December 2H run. ⚠️ Do not sum the stored accrual column for December: every figure before 2026-10-13 was computed on the flat half-month before deductions and misses the pro-rated basic, and the paid periods cannot be recomputed. Derive December from the items." data-ja="積立は各締めで「実際に稼いだ基本給」に対して行います。PD 851 は暦年に稼いだ基本給の12分の1で、DOLEの計算例も「10日の無給休暇」の月を減額しています。支給は12月2Hです。⚠️ 12月の支給額を、保存された積立欄の合計から出さないでください。2026-10-13 より前の数字は控除前の定額で計算されており、日割りの基本給も数えていません。支払い済み期間は再計算できないので、明細から計算し直してください。">Accrual tracked each cutoff. Full 13th Month disbursed in December 2H run.</p>
     <div class="formula-label" data-en="13th Month calculation" data-ja="13ヶ月目計算">13th Month calculation</div>
-    <div class="formula-box">thirteenth_month = sum(monthly_basic_per_cutoff) / 12 × months_worked_in_year<br>  [excludes OT, allowances, bonuses — basic pay only]</div>
+    <div class="formula-box">thirteenth_month = sum( basic EARNED each cut-off ) / 12<br>  basic earned = MONTHLY_BASIC + MONTHLY_BASIC_PRORATED<br>               − ABSENT − LATE − UNDERTIME − SPECIAL_HOLIDAY_NWNP<br>               − REGULAR_HOLIDAY_UNQUALIFIED − UNPAID_LEAVE<br>  [excludes OT, allowances, bonuses — basic pay only]</div>
     <div class="tip info">
       <span class="tip-icon">ℹ️</span>
       <span data-en="13th Month Pay is tax-exempt up to ₱90,000 under RA 10963 (TRAIN Law). The engine tracks this and only applies WHT on the excess over ₱90,000." data-ja="13ヶ月目給与はRA 10963（TRAIN法）により₱90,000まで非課税。エンジンはこれを追跡し、₱90,000超過分のみ源泉徴収税を適用。">13th Month Pay is tax-exempt up to ₱90,000 (TRAIN Law). WHT applied only on excess over ₱90,000.</span>
