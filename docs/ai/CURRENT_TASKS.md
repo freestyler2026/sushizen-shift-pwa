@@ -1,5 +1,40 @@
 # CURRENT_TASKS.md
 
+## 2026-10-13 Morning Review のマネージャー3名に Discord ID を登録
+
+Yusuke からの依頼。3名とも在籍（マニラ・ACTIVE）で、**当番表
+`management_owner_roster` に計20コマ既に入っていた**。欠けていたのはIDだけ。
+
+| 名前 | Discord ID | 支店 |
+|---|---|---|
+| Roxanne Joy N. Buenaventura | 1554671748463726729 | CUB（当番は CK/CUB） |
+| Ronidel S. Sanciangco | 1556540510183759907 | CUB |
+| Nhazarethe Pinpin | 1556849856486572072 | PAR |
+
+本物のエンドポイント `PUT /api/admin/management/channel-discord` で登録。
+3件とも200、`get_owner_roster("manila")` の **`missing_discord_id` が空**になった。
+
+### 見つけた行き止まり — 直した
+**警告を出す画面に、入れる場所が無かった。**
+`/admin/management/assignments` は「◯◯ には Discord ID がありません」と
+出していたが、`management_channel_discord` に書ける唯一の入力欄は
+**`/admin/procurement/direct-purchases`**（当番表と何の関係もない画面）。
+Yusuke は探して見つけられず、こちらに依頼してきた。**それがこの不具合の全て。**
+
+警告の中に名前ごとの入力欄と Save を足した。
+
+⚠️ **隣の `OwnerDiscord` とは統合しない。** あちらは例外タイプの担当者
+（`bo_assignments`）、こちらは当番表の担当者（`management_channel_discord`）。
+**宛先が違う2つの表**で、片方に寄せると通知が届かなくなる。
+
+数字以外（名前やユーザー名）は名前を出して拒否する。黙って保存すると、
+設定済みに見えて通知が届かないままになる。
+
+### デプロイ
+frontend `97b12f64` / テスト 3,129
+
+---
+
 ## 2026-10-12 Yusuke の3件（CK・Warehouse のデリバリー）— 実装済み
 
 ### ① Store Procurement で受領済みが見えない
