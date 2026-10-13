@@ -101,6 +101,10 @@ type SourceSummaryMonth = {
   received?: number;
   /** 受領記録がまだ無い行の発注額。配送中の分と、記録されなかった分の両方。 */
   awaiting?: number;
+  /** 緊急デリバリー（配送費込み）。別チャンネルなので Ordered には入っていない。 */
+  emergency?: number;
+  /** 実際に届いた合計 = Received + Emergency。 */
+  actual?: number;
 };
 
 type RequestItem = {
@@ -1098,6 +1102,16 @@ export default function StoreProcurementHomePage() {
   const [ckDispatchSectionOpen, setCkDispatchSectionOpen] = useState(true);
   const initRef = useRef(false);
   const storeCodeMountRef = useRef(true);
+  /** 選ばれている支店。**閉包ではなく ref から読む。**
+   *
+   *  `loadMyRequests` は `storeCode` を閉包から読んでいたので、要求が
+   *  「支店は選ばれているのに store_code が付いていない」状態で出ることがあった。
+   *  そうなると件数も一覧もマニラ全体になり、画面には ✓Taft と出たまま
+   *  他店の注文が並ぶ。2026-10-13 に Yusuke が見たのがその状態で、
+   *  Received のチップが 894（マニラ全体）、一覧は窓の中の2件だった
+   *  （実測: store_code なしで RECEIVED=895 / DRAFT=238 / IN_REVIEW=123、
+   *  チップの表示と一致）。 */
+  const storeCodeRef = useRef<string>("");
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
@@ -1222,7 +1236,7 @@ export default function StoreProcurementHomePage() {
     setError("");
     try {
       const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
-      const activeStore = (storeCodeOverride !== undefined ? storeCodeOverride : storeCode).trim();
+      const activeStore = (storeCodeOverride !== undefined ? storeCodeOverride : storeCodeRef.current).trim();
       // open_first: unreceived work ahead of the finished pile. Without it the
       // newest 200 were almost all closed orders — Manila's window held 0
       // In Review out of 169 and 9 Drafts out of 230, so the stage chips
@@ -1360,6 +1374,10 @@ export default function StoreProcurementHomePage() {
       window.localStorage.setItem(RECENT_ACTIVITY_EXPANDED_KEY, showAllRecentActivities ? "1" : "0");
     } catch {}
   }, [RECENT_ACTIVITY_EXPANDED_KEY, showAllRecentActivities]);
+
+  // ref は state より先に合わせる。要求が組み立てられるのは effect の中なので、
+  // 1レンダー遅れると「支店が選ばれているのに送られない」要求が出る。
+  storeCodeRef.current = storeCode;
 
   // Branch switch. The summary has to move with it — leaving it behind shows one
   // branch's spend under another branch's name.
@@ -2686,6 +2704,8 @@ export default function StoreProcurementHomePage() {
                             {/* 発注額の隣。差し替えていないので、Ordered の数字は従来どおり。 */}
                             <th className="pb-2 text-right font-semibold text-emerald-300/90">Received</th>
                             <th className="pb-2 text-right font-semibold text-zinc-400">No receipt yet</th>
+                            <th className="pb-2 text-right font-semibold text-orange-300/90">Emergency</th>
+                            <th className="pb-2 text-right font-semibold text-emerald-200">Actual</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2743,10 +2763,18 @@ export default function StoreProcurementHomePage() {
                                   <td className="py-2 text-right text-zinc-500 tabular-nums">
                                     {row.awaiting == null ? "—" : Number(row.awaiting).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
+                                  {/* 緊急デリバリー。配送費も入れている（実際に払っているため）。 */}
+                                  <td className="py-2 text-right text-orange-300 tabular-nums">
+                                    {Number(row.emergency || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  {/* 実際に届いた合計。Received + Emergency。 */}
+                                  <td className="py-2 text-right font-semibold text-emerald-200 tabular-nums">
+                                    {Number(row.actual || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
                                 </tr>
                                 {isOpen && (
                                   <tr>
-                                    <td colSpan={8} className="pb-2 pt-0">
+                                    <td colSpan={10} className="pb-2 pt-0">
                                       <div className="flex flex-col gap-1 rounded-lg border border-white/8 bg-white/3 p-2">
                                         {/* The month total is the server's; this list is only the
                                             requests loaded on this page. Say so when it is short,
@@ -2824,15 +2852,23 @@ export default function StoreProcurementHomePage() {
                             <td className="pt-2 text-right text-sm font-semibold text-zinc-500 tabular-nums">
                               {sourceSummary.reduce((s, r) => s + (r.awaiting || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
+                            <td className="pt-2 text-right text-sm font-semibold text-orange-300 tabular-nums">
+                              {sourceSummary.reduce((s, r) => s + (r.emergency || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="pt-2 text-right text-sm font-bold text-emerald-200 tabular-nums">
+                              {sourceSummary.reduce((s, r) => s + (r.actual || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
                           </tr>
                         </tfoot>
                       </table>
                       <p className="mt-2 text-[11px] text-zinc-500">
-                        <span className="text-emerald-300">Received</span> counts only lines a
-                        branch confirmed. A line received as 0 keeps its full value under
-                        Ordered — that is the order as approved, not what arrived. Where the two
-                        differ, the shortfall was either replaced separately or not replaced at
-                        all; neither is shown in the Ordered column.
+                        <span className="text-emerald-200">Actual</span> is what this branch
+                        actually got: <span className="text-emerald-300">Received</span> plus{" "}
+                        <span className="text-orange-300">Emergency</span> (the emergency
+                        channel, delivery charge included). <span className="text-violet-300">Ordered</span>{" "}
+                        is the approved order and is left exactly as it was, so a line received
+                        as 0 keeps its full value there. The gap between Ordered and Actual is
+                        what was ordered and never arrived.
                       </p>
                       <p className="mt-3 text-[11px] text-zinc-600">
                         Calculated on the server over every APPROVED, RECEIVED, CLAIMED &amp; CLOSED request for this
