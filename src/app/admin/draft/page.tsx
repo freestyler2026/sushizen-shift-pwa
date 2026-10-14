@@ -47,6 +47,11 @@ import {
   type DayOffDay,
 } from "@/lib/day-off-conflicts";
 import {
+  crossBranchOverlapsFrom,
+  describeCrossBranchOverlap,
+  type CrossBranchOverlap,
+} from "@/lib/cross-branch-overlaps";
+import {
   BADGE_ERROR,
   BADGE_INFO,
   BADGE_SUCCESS,
@@ -1473,10 +1478,21 @@ export default function AdminDraftPage() {
   // change a cell to Day Off and the chip goes on the spot, with no round trip.
   const [dayOffDays, setDayOffDays] = useState<DayOffDay[]>([]);
   const [applyPrepared, setApplyPrepared] = useState<BatchApplyPrepareResult | null>(null);
-  // Set only by a 409 from apply/confirm: the draft rosters somebody on an approved day off.
+  // Set only by a 409 from apply/confirm: the draft rosters somebody on an
+  // approved day off, or at hours they already work at another branch.
   const [applyDayOffBlock, setApplyDayOffBlock] = useState<{
-    branch_name: string; week_start: string; conflicts: DayOffConflict[]; applied_before: number;
+    kind: "day_off" | "cross_branch";
+    branch_name: string; week_start: string;
+    conflicts: DayOffConflict[]; overlaps: CrossBranchOverlap[]; applied_before: number;
   } | null>(null);
+  // Weeks already applied in this run, by confirm token. A token is spent once
+  // it is applied, so "apply anyway" after a refusal must not send the earlier
+  // weeks again -- the server answers 400 and the retry fails on a week that
+  // had gone through.
+  const appliedRef = useRef<Map<string, BatchApplyConfirmResult["items"][number]>>(new Map());
+  // Waivers given in this run. A second refusal of the other kind keeps the
+  // first waiver instead of asking it again.
+  const waiversRef = useRef<{ dayOff: boolean; crossBranch: boolean }>({ dayOff: false, crossBranch: false });
   const [applyResult, setApplyResult] = useState<BatchApplyConfirmResult | null>(null);
   const [published, setPublished] = useState<PublishedWeekResult | null>(null);
   const [pendingRows, setPendingRows] = useState<PendingSheetProposal[]>([]);
@@ -1556,8 +1572,11 @@ export default function AdminDraftPage() {
     const codes = BRANCHES[city].map((b) => b.code);
     // This month is where Manual Shift is being changed; the target month is
     // the one being drafted. Both are brought level.
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    // The store's month, not the browser's: HQ opens this from Japan, where the
+    // 1st arrives hours before it does in Manila or Dubai.
+    const thisMonth = new Intl.DateTimeFormat("en-CA", {
+      timeZone: city === "dubai" ? "Asia/Dubai" : "Asia/Manila", year: "numeric", month: "2-digit",
+    }).format(new Date()).slice(0, 7);
     const months = Array.from(new Set([thisMonth, targetMonth]));
     const links: SheetLink[] = [];
     const errors: string[] = [];
@@ -2297,11 +2316,14 @@ export default function AdminDraftPage() {
     }
   }
 
-  async function confirmApply(allowApprovedDayOff = false) {
+  async function confirmApply(waive?: "day_off" | "cross_branch") {
     setLoading(true);
     setError("");
     setApplyDayOffBlock(null);
     setApplyResult(null);
+    if (!waive) waiversRef.current = { dayOff: false, crossBranch: false };
+    if (waive === "day_off") waiversRef.current.dayOff = true;
+    if (waive === "cross_branch") waiversRef.current.crossBranch = true;
 
     try {
       const prepared = applyPrepared?.items?.length ? applyPrepared : await buildApplyPrepared();
@@ -2309,6 +2331,12 @@ export default function AdminDraftPage() {
       const confirmedItems: BatchApplyConfirmResult["items"] = [];
       let totalRowsCopied = 0;
       for (const item of prepared.items) {
+        const already = appliedRef.current.get(item.confirm_token);
+        if (already) {
+          confirmedItems.push(already);
+          totalRowsCopied += Number(already.rows_copied || 0);
+          continue;
+        }
         let res: ApplyConfirmResult;
         try {
           res = await apiPost<ApplyConfirmResult>(`/api/draft/apply/confirm`, {
@@ -2317,32 +2345,39 @@ export default function AdminDraftPage() {
             pin,
             auto_export: false,
             export_month: applyMonth,
-            allow_approved_day_off: allowApprovedDayOff,
+            allow_approved_day_off: waiversRef.current.dayOff,
+            allow_cross_branch_overlap: waiversRef.current.crossBranch,
           });
         } catch (err) {
+          const is409 = err instanceof ApiError && err.status === 409;
           const conflicts =
-            err instanceof ApiError && err.status === 409 && Array.isArray(err.detail?.day_off_conflicts)
+            is409 && Array.isArray(err.detail?.day_off_conflicts)
               ? (err.detail!.day_off_conflicts as DayOffConflict[])
               : [];
-          if (conflicts.length === 0) throw err;
+          const overlaps = is409 ? crossBranchOverlapsFrom(err.detail) : [];
+          if (conflicts.length === 0 && overlaps.length === 0) throw err;
           // Stop at the branch that was refused. The branches already applied
           // stay applied -- saying otherwise would be the more confusing lie.
           setApplyDayOffBlock({
+            kind: conflicts.length > 0 ? "day_off" : "cross_branch",
             branch_name: item.branch_name,
             week_start: item.week_start,
             conflicts,
+            overlaps,
             applied_before: confirmedItems.length,
           });
           return;
         }
-        confirmedItems.push({
+        const done = {
           branch_code: item.branch_code,
           branch_name: item.branch_name,
           week_start: item.week_start,
           published_version_id: res.published_version_id,
           rows_copied: res.rows_copied,
           warning: res.warning,
-        });
+        };
+        appliedRef.current.set(item.confirm_token, done);
+        confirmedItems.push(done);
         totalRowsCopied += Number(res.rows_copied || 0);
       }
 
@@ -4171,7 +4206,7 @@ export default function AdminDraftPage() {
             </button>
             <button
               type="button"
-              onClick={() => confirmApply(false)}
+              onClick={() => confirmApply()}
               disabled={loading}
               className={`${SECONDARY_BUTTON} disabled:opacity-60`}
             >
@@ -4179,23 +4214,36 @@ export default function AdminDraftPage() {
             </button>
           </div>
 
-          {/* Refused: this draft rosters somebody on a day already approved off. */}
+          {/* Refused: this draft rosters somebody on a day already approved off,
+              or at hours they already work at another branch. */}
           {applyDayOffBlock && (
             <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
               <div className="mb-2 text-sm font-semibold text-rose-300">
-                Not applied — {applyDayOffBlock.branch_name} {applyDayOffBlock.week_start} already
-                given off ({countDayOffConflicts(applyDayOffBlock.conflicts)})
+                {applyDayOffBlock.kind === "day_off" ? (
+                  <>Not applied — {applyDayOffBlock.branch_name} {applyDayOffBlock.week_start} already
+                  given off ({countDayOffConflicts(applyDayOffBlock.conflicts)})</>
+                ) : (
+                  <>Not applied — {applyDayOffBlock.branch_name} {applyDayOffBlock.week_start} rosters{" "}
+                  {applyDayOffBlock.overlaps.length} shift{applyDayOffBlock.overlaps.length === 1 ? "" : "s"} at
+                  hours already published at another branch</>
+                )}
               </div>
               <div className="max-h-40 overflow-y-auto">
-                {applyDayOffBlock.conflicts.map((c, i) => (
-                  <p key={`ado${i}`} className="text-xs text-rose-200/90">{describeDayOffConflict(c)}</p>
-                ))}
+                {applyDayOffBlock.kind === "day_off"
+                  ? applyDayOffBlock.conflicts.map((c, i) => (
+                      <p key={`ado${i}`} className="text-xs text-rose-200/90">{describeDayOffConflict(c)}</p>
+                    ))
+                  : applyDayOffBlock.overlaps.map((o, i) => (
+                      <p key={`axb${i}`} className="text-xs text-rose-200/90">{describeCrossBranchOverlap(o)}</p>
+                    ))}
               </div>
               <p className="mt-2 text-xs text-rose-300/70">
                 {applyDayOffBlock.applied_before > 0
                   ? `${applyDayOffBlock.applied_before} earlier week${applyDayOffBlock.applied_before === 1 ? " was" : "s were"} applied before this one stopped. `
                   : "Nothing has been applied. "}
-                Set those days to Day Off in the draft and Confirm Apply again.
+                {applyDayOffBlock.kind === "day_off"
+                  ? "Set those days to Day Off in the draft and Confirm Apply again."
+                  : "Take them out of this draft, or remove the shift at the other branch in Manual Shift, and Confirm Apply again."}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
@@ -4207,11 +4255,15 @@ export default function AdminDraftPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => confirmApply(true)}
+                  onClick={() => confirmApply(applyDayOffBlock.kind)}
                   disabled={loading}
                   className="rounded-lg border border-rose-400/50 bg-rose-500/20 px-3 py-1.5 text-xs text-rose-100 transition hover:bg-rose-500/30 disabled:opacity-50"
                 >
-                  {loading ? "Applying…" : "Apply anyway — the day off no longer stands"}
+                  {loading
+                    ? "Applying…"
+                    : applyDayOffBlock.kind === "day_off"
+                      ? "Apply anyway — the day off no longer stands"
+                      : "Apply anyway — they are expected at both"}
                 </button>
               </div>
             </div>

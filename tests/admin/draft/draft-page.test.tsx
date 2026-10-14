@@ -748,6 +748,76 @@ describe("AdminDraftPage — Apply section", () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────────
+describe("AdminDraftPage — apply refused for a two-branch clash", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("offers apply anyway, and the retry does not resend weeks already applied", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    let prepared = 0;
+    const confirms: { token: string; allowCross: boolean }[] = [];
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    const base = makeDraftFetch([
+      { match: "/api/auth/verify", body: { ok: true, role: "HQ" } },
+      { match: "/api/draft/generate_month", method: "POST", body: {
+          ok: true, version_id: "v-x", city: "dubai", branch_code: "BB",
+          rows_inserted: 30, days_generated: 31, version_week_start: "2026-05-30", source_days: [],
+          summary: { avg_branch_reliability: 0.9, total_overtime_hours: 0, total_unresolved_hours: 0 },
+        } },
+    ]);
+    vi.stubGlobal("fetch", vi.fn(async (url: string, opts?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/api/draft/apply/prepare")) {
+        prepared += 1;
+        return json({ ok: true, confirm_token: `tok-${prepared}`, preview: { rows_count: 1, staff_count: 1 } });
+      }
+      if (u.includes("/api/draft/apply/confirm")) {
+        const b = JSON.parse(String(opts?.body || "{}"));
+        confirms.push({ token: b.confirm_token, allowCross: !!b.allow_cross_branch_overlap });
+        if (b.confirm_token === "tok-2" && !b.allow_cross_branch_overlap) {
+          return json({ detail: {
+            code: "cross_branch_overlap", message: "clash",
+            cross_branch_overlaps: [{ staff_name: "Sharon Namale", work_date: "2026-10-12",
+              start_hour: 15, end_hour: 24, other_branch: "ARJ", other_start_hour: 15, other_end_hour: 24 }],
+          } }, 409);
+        }
+        return json({ ok: true, published_version_id: "p", rows_copied: 1 });
+      }
+      return base(url, opts);
+    }));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Prepared:.*Dubai stores/i, {}, { timeout: 5000 });
+    const unchecked = screen.getAllByRole("checkbox").find((cb) => !(cb as HTMLInputElement).checked);
+    if (unchecked) fireEvent.click(unchecked);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm Generate/i })).not.toBeDisabled();
+    }, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Confirm Apply/i }, { timeout: 10000 }));
+
+    await screen.findByText(/already published at ARJ 15:00–00:00/i, {}, { timeout: 5000 });
+    expect(screen.getByText(/1 earlier week was applied before this one stopped/i)).toBeInTheDocument();
+    expect(confirms.map((c) => c.token)).toEqual(["tok-1", "tok-2"]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Apply anyway — they are expected at both/i }));
+    await waitFor(() => { expect(confirms.length).toBe(prepared + 1); }, { timeout: 5000 });
+    // tok-1 was spent on the first pass and is not sent again; tok-2 goes with the waiver.
+    expect(confirms.filter((c) => c.token === "tok-1")).toHaveLength(1);
+    expect(confirms.filter((c) => c.token === "tok-2").map((c) => c.allowCross)).toEqual([false, true]);
+    expect(confirms.slice(2).every((c) => c.allowCross)).toBe(true);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────
 describe("AdminDraftPage — error handling", () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 

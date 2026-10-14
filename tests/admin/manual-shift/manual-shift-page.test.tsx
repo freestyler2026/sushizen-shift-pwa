@@ -1306,23 +1306,97 @@ describe("ManualShiftPage — draft persistence (localStorage)", () => {
 describe("ManualShiftPage — hidden rows that still hold shifts", () => {
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
-  it("shows a hidden person who still has published shifts, marked and explained", async () => {
-    const { tuesday } = thisWeek();
-    const fetchMock = makeFetch([
-      { match: "/api/admin/manual-shift/hidden-staff", body: {
-          hidden: [{ staff_name: "Dana Moved", hidden_by: "HQ" }] } },
-      { match: "/api/published/week", body: {
-          rows: [{ work_date: tuesday, staff_name: "Dana Moved", branch_code: "BB",
-                   role: "STAFF", start_hour: 15, end_hour: 24 }] } },
-    ]);
-    await renderPage(fetchMock);
-    await loadStaff();
-    await waitFor(() => {
-      expect(screen.getByText(/still on the published schedule this week/i)).toBeInTheDocument();
-    }, { timeout: 3000 });
-    const row = screen.getAllByText("Dana Moved").find((el) => el.closest("tr"));
-    expect(row).toBeTruthy();
-    expect(within(row!.closest("tr")!).getByText("removed")).toBeInTheDocument();
+  // Monday 2026-10-12, 10:00 in Manila / 06:00 in Dubai: Tuesday is ahead,
+  // Monday is today. Only Date is faked, so waitFor's timers still run.
+  const MONDAY = new Date("2026-10-12T02:00:00Z");
+
+  it("shows a hidden person who still has published shifts ahead, marked and explained", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    try {
+      const fetchMock = makeFetch([
+        { match: "/api/admin/manual-shift/hidden-staff", body: {
+            hidden: [{ staff_name: "Dana Moved", hidden_by: "HQ" }] } },
+        { match: "/api/published/week", body: {
+            rows: [{ work_date: "2026-10-13", staff_name: "Dana Moved", branch_code: "BB",
+                     role: "STAFF", start_hour: 15, end_hour: 24 }] } },
+      ]);
+      await renderPage(fetchMock);
+      await loadStaff();
+      await waitFor(() => {
+        expect(screen.getByText(/still on the published schedule from 2026-10-13/i)).toBeInTheDocument();
+      }, { timeout: 3000 });
+      const row = screen.getAllByText("Dana Moved").find((el) => el.closest("tr"));
+      expect(row).toBeTruthy();
+      expect(within(row!.closest("tr")!).getByText("removed")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a hidden person whose only shift this week is already worked stays visible, with nothing to clear", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    try {
+      const fetchMock = makeFetch([
+        { match: "/api/admin/manual-shift/hidden-staff", body: {
+            hidden: [{ staff_name: "Dana Moved", hidden_by: "HQ" }] } },
+        { match: "/api/published/week", body: {
+            rows: [{ work_date: "2026-10-12", staff_name: "Dana Moved", branch_code: "BB",
+                     role: "STAFF", start_hour: 9, end_hour: 18 }] } },
+      ]);
+      await renderPage(fetchMock);
+      await loadStaff();
+      await waitFor(() => {
+        const row = screen.queryAllByText("Dana Moved").find((el) => el.closest("tr"));
+        expect(row).toBeTruthy();
+      }, { timeout: 3000 });
+      // Today is a day worked: attendance and pay read it. Nothing to tell anyone to delete.
+      expect(screen.queryByText(/still on the published schedule from/i)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Remove from sheet clears only the days from tomorrow; today and earlier stay", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    try {
+      const fetchMock = makeFetch([
+        { match: "/api/published/week", body: {
+            rows: [
+              { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "STAFF", start_hour: 9, end_hour: 18 },
+              { work_date: "2026-10-14", staff_name: "Alice Cohen", branch_code: "BB", role: "STAFF", start_hour: 9, end_hour: 18 },
+            ] } },
+        { match: "/api/admin/shifts/remove_staff_from_branch", method: "POST", body: {
+            ok: true, from_date: "2026-10-13", rows_deleted: 1, weeks: ["2026-10-12"],
+            published_rows: [{ work_date: "2026-10-14", role: "STAFF", branch_code: "BB" }] } },
+        { match: "/api/admin/manual-shift/hidden-staff", method: "POST", body: {
+            hidden: [{ staff_name: "Alice Cohen", hidden_by: "HQ" }] } },
+      ]);
+      await renderPage(fetchMock);
+      await loadStaff();
+      const cell = await screen.findAllByText("Alice Cohen", {}, { timeout: 3000 });
+      const tr = cell.find((el) => el.closest("tr"))!.closest("tr")!;
+      await waitFor(() => { expect(within(tr).getAllByText(/9:00/).length).toBeGreaterThan(0); }, { timeout: 3000 });
+      fireEvent.click(within(tr).getByTitle("Delete all shifts for this staff member"));
+
+      await waitFor(() => {
+        const sent = fetchMock.mock.calls.filter(([u]) => String(u).includes("/api/admin/shifts/week_cells"));
+        expect(sent.length).toBeGreaterThan(0);
+      }, { timeout: 4000 });
+      const dates = fetchMock.mock.calls
+        .filter(([u]) => String(u).includes("/api/admin/shifts/week_cells"))
+        .flatMap(([, o]) => JSON.parse(String((o as RequestInit).body)).edits.map((e: any) => e.work_date));
+      expect(dates).toEqual(["2026-10-14"]);
+      const asked = String((globalThis.confirm as any).mock.calls.at(-1)[0]);
+      expect(asked).toMatch(/From 2026-10-13, 1 published shift/);
+      expect(asked).toMatch(/Today and earlier stay as they are \(1 shift/);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("keeps a hidden person with nothing published this week off the grid", async () => {
@@ -1337,6 +1411,6 @@ describe("ManualShiftPage — hidden rows that still hold shifts", () => {
       expect(screen.queryAllByText("Carol Lee").filter((el) => el.closest("tbody"))).toHaveLength(0);
     }, { timeout: 3000 });
     expect(screen.getByText("Alice Cohen")).toBeInTheDocument();
-    expect(screen.queryByText(/still on the published schedule this week/i)).toBeNull();
+    expect(screen.queryByText(/still on the published schedule from/i)).toBeNull();
   });
 });
