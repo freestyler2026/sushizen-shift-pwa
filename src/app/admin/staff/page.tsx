@@ -966,11 +966,69 @@ export default function AdminStaffPage() {
         )
       );
       await load();
+      if (newStatus !== "ACTIVE") await offerShiftCleanup(dn, newStatus);
     } catch (e: any) {
       setMsg({ kind: "err", text: friendlyErrorText(String(e?.message || e || "")) });
     } finally {
       setLoading(false);
     }
+  };
+
+  // Leaving or going on leave never touched the schedule. Four people marked as
+  // having left kept 84 published rows at their old branches: on the branch's
+  // spreadsheet, in its head count, and -- once their row was hidden -- on no
+  // Manual Shift grid that could delete them. So the moment the status changes,
+  // say what is still published and offer to take it off.
+  const offerShiftCleanup = async (dn: string, newStatus: StaffStatus) => {
+    type Branch = { branch_code: string; rows: number; shifts: number; first_date: string; last_date: string };
+    let info: { from_date: string; branches: Branch[]; can_remove: boolean };
+    try {
+      info = await apiGet(`/api/admin/shifts/future_for_staff${qs({ city, staff_name: dn })}`);
+    } catch (e: any) {
+      setMsg({
+        kind: "err",
+        text: `Status updated, but their remaining shifts could not be checked: ${String(e?.message || e)}. `
+          + `Check Manual Shift for ${dn} from tomorrow.`,
+      });
+      return;
+    }
+    const branches = (info.branches || []).filter((b) => b.rows > 0);
+    if (branches.length === 0) return;
+    const lines = branches
+      .map((b) => `• ${labelOf(city as City, b.branch_code)}: ${b.shifts} shift(s), ${b.first_date} to ${b.last_date}`)
+      .join("\n");
+    const label = newStatus === "SEPARATED" ? "left the company" : "on leave";
+    if (!info.can_remove) {
+      setMsg({
+        kind: "err",
+        text: `${dn} is now ${label} but is still published from ${info.from_date}:\n${lines}\n`
+          + `Ask someone who edits Manual Shift to remove these.`,
+      });
+      return;
+    }
+    if (!window.confirm(
+      `${dn} is now ${label}, but is still on the published schedule from tomorrow:\n\n${lines}\n\n`
+      + `Remove these shifts now? They come off the staff schedule and the spreadsheet. `
+      + `Today and earlier stay as they are.\n\n`
+      + `Cancel keeps them — they will show in red on those Manual Shift sheets.`
+    )) return;
+    const done: string[] = [];
+    const failed: string[] = [];
+    for (const b of branches) {
+      try {
+        const r = await apiPost<{ rows_deleted?: number }>("/api/admin/shifts/remove_staff_from_branch", {
+          city, branch_code: b.branch_code, staff_name: dn, dry_run: false,
+        });
+        done.push(`${b.branch_code} ${r.rows_deleted ?? 0}`);
+      } catch (e: any) {
+        failed.push(`${b.branch_code}: ${String(e?.message || e)}`);
+      }
+    }
+    setMsg({
+      kind: failed.length ? "err" : "ok",
+      text: `${dn}: removed from tomorrow — ${done.join(", ") || "none"}`
+        + (failed.length ? `. Not removed — ${failed.join("; ")}` : ""),
+    });
   };
 
   // Canonical branch codes from branches.ts — single source of truth, no duplicates

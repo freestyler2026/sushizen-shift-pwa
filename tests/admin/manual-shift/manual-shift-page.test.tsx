@@ -1298,3 +1298,45 @@ describe("ManualShiftPage — draft persistence (localStorage)", () => {
     }, { timeout: 3000 });
   });
 });
+
+// Hiding a row never unpublished anything. Sharon Namale was hidden from ARJ
+// with 18 ARJ shifts still published: they stayed on her own schedule and the
+// spreadsheet while this grid -- the one place they could be deleted -- showed
+// nothing. A hidden row with published cells this week must be on the grid.
+describe("ManualShiftPage — hidden rows that still hold shifts", () => {
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
+
+  it("shows a hidden person who still has published shifts, marked and explained", async () => {
+    const { tuesday } = thisWeek();
+    const fetchMock = makeFetch([
+      { match: "/api/admin/manual-shift/hidden-staff", body: {
+          hidden: [{ staff_name: "Dana Moved", hidden_by: "HQ" }] } },
+      { match: "/api/published/week", body: {
+          rows: [{ work_date: tuesday, staff_name: "Dana Moved", branch_code: "BB",
+                   role: "STAFF", start_hour: 15, end_hour: 24 }] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await waitFor(() => {
+      expect(screen.getByText(/still on the published schedule this week/i)).toBeInTheDocument();
+    }, { timeout: 3000 });
+    const row = screen.getAllByText("Dana Moved").find((el) => el.closest("tr"));
+    expect(row).toBeTruthy();
+    expect(within(row!.closest("tr")!).getByText("removed")).toBeInTheDocument();
+  });
+
+  it("keeps a hidden person with nothing published this week off the grid", async () => {
+    const fetchMock = makeFetch([
+      { match: "/api/admin/manual-shift/hidden-staff", body: {
+          hidden: [{ staff_name: "Carol Lee", hidden_by: "HQ" }] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    // The hidden list arrives after the roster, so wait for it to take effect.
+    await waitFor(() => {
+      expect(screen.queryAllByText("Carol Lee").filter((el) => el.closest("tbody"))).toHaveLength(0);
+    }, { timeout: 3000 });
+    expect(screen.getByText("Alice Cohen")).toBeInTheDocument();
+    expect(screen.queryByText(/still on the published schedule this week/i)).toBeNull();
+  });
+});

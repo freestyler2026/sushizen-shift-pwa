@@ -20,6 +20,11 @@ import {
   describeDayOffConflict,
   type DayOffConflict,
 } from "@/lib/day-off-conflicts";
+import {
+  type CrossBranchOverlap,
+  crossBranchOverlapsFrom,
+  describeCrossBranchOverlap,
+} from "@/lib/cross-branch-overlaps";
 
 // ─── White-mode card (overrides global GLASS_CARD for this page only) ────────
 // The shared drive the exports are filed in. Same id as SHIFT_SCHEDULE_DRIVE_ID
@@ -615,6 +620,12 @@ export default function ManualShiftPage() {
   const [error, setError] = useState("");
   // Set only by a 409 from publish: the week rosters somebody on an approved day off.
   const [publishBlockedBy, setPublishBlockedBy] = useState<DayOffConflict[]>([]);
+  // Same idea, other check: the person is already published at another branch
+  // for those hours. Kept apart so each panel says what it is about.
+  const [overlapBlockedBy, setOverlapBlockedBy] = useState<CrossBranchOverlap[]>([]);
+  // Whether the day-off check was already waived for the publish that then hit
+  // the overlap check, so 'publish anyway' does not lose the first answer.
+  const dayOffWaivedRef = useRef(false);
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
 
@@ -849,10 +860,19 @@ export default function ManualShiftPage() {
     // The overlay is the server's answer about this exact week. If it holds a
     // cell for a name, the name belongs on the grid. A row taken out on purpose
     // still stays out.
-    const removedNow = new Set([...removedStaffRef.current, ...hiddenStaffRef.current]);
+    //
+    // A hidden name's edits are still applied to the grid. Hiding a row does
+    // not unpublish anything, and the clears that "Remove from sheet" queues
+    // are exactly what tells the render below that the row is now empty. A
+    // hidden name only gets a line back for a cell that actually holds a shift.
+    const sessionRemoved = new Set(removedStaffRef.current);
+    const hiddenNow = new Set(hiddenStaffRef.current);
     const newNames = Array.from(new Set(
-      changes.map((ch) => ch.staffName)
-        .filter((n) => n && !removedNow.has(n) && !staffListRef.current.includes(n)),
+      changes
+        .filter((ch) => ch.staffName && !sessionRemoved.has(ch.staffName)
+          && !staffListRef.current.includes(ch.staffName)
+          && (!hiddenNow.has(ch.staffName) || ch.value != null))
+        .map((ch) => ch.staffName),
     ));
     if (newNames.length > 0) {
       const merged = Array.from(new Set([...staffListRef.current, ...newNames]))
@@ -865,7 +885,7 @@ export default function ManualShiftPage() {
         const next: GridData = {};
         for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
         for (const ch of changes) {
-          if (removedNow.has(ch.staffName)) continue;
+          if (sessionRemoved.has(ch.staffName)) continue;
           if (!next[ch.staffName]) next[ch.staffName] = {};
           next[ch.staffName][ch.dateStr] = ch.value;
         }
@@ -965,6 +985,7 @@ export default function ManualShiftPage() {
     setError("");
     // A different week's conflicts are not this week's.
     setPublishBlockedBy([]);
+    setOverlapBlockedBy([]);
     try {
       const data = await apiFetch<{ rows?: any[]; state_token?: string; content_hash?: string }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
@@ -1044,11 +1065,19 @@ export default function ManualShiftPage() {
           return !currentStaff.some(s => stripRoleSuffix(s) === stripped);
         });
       if (extraNames.length > 0) {
-        // Both sources need the filter: the roster, and the names pulled in
-        // from the published week. Francis came back through the second one.
-        const removedNow = new Set([...removedStaffRef.current, ...hiddenStaffRef.current]);
+        // A name pulled in from the published week stays on the grid even when
+        // it is hidden from this sheet. Hiding used to drop it here, and the
+        // shifts it still had went on being published, shown to the staff
+        // member, exported to the spreadsheet and fed into next month's draft
+        // -- from the one screen that could no longer show or delete them.
+        // Sharon Namale was hidden from ARJ on 2026-10-11 with 18 ARJ shifts
+        // left, at the same hours as her AB ones; four people who had left kept
+        // 84 published rows between them the same way. The render below drops a hidden
+        // row once its week is empty, so a deliberate removal still disappears.
+        // Only a row taken out in this session is held back here.
+        const sessionRemoved = new Set(removedStaffRef.current);
         const merged = Array.from(new Set([...currentStaff, ...extraNames]))
-          .filter((n) => !removedNow.has(n))
+          .filter((n) => !sessionRemoved.has(n))
           .sort((a, b) => a.localeCompare(b));
         setStaffList(merged);
       }
@@ -1345,7 +1374,7 @@ export default function ManualShiftPage() {
     commitCell(staffName, dateStr, null);
   }
 
-  function deleteStaffFromGrid(staffName: string) {
+  async function deleteStaffFromGrid(staffName: string) {
     const datesWithShifts = weekDates.filter((d) => gridData[staffName]?.[d]);
     const totalShifts = datesWithShifts.length;
 
@@ -1372,13 +1401,71 @@ export default function ManualShiftPage() {
       `Clearing the row deletes those shifts too. Continue?`
     )) return;
 
+    // What they still have published on this sheet after today. Hiding the row
+    // used to leave all of it in place: still on their own schedule, still on
+    // the spreadsheet, still feeding next month's draft -- and no longer on
+    // this grid, the one place it could be deleted.
+    type AheadRow = { work_date: string; role: string; branch_code?: string | null };
+    let ahead: AheadRow[] = [];
+    try {
+      const d = await apiFetch<{ published_rows?: AheadRow[] }>(
+        "/api/admin/shifts/remove_staff_from_branch",
+        { method: "POST", body: JSON.stringify({
+            city, branch_code: branchCode, staff_name: staffName, dry_run: true }) },
+      );
+      ahead = d.published_rows || [];
+    } catch (e: unknown) {
+      setError(
+        `Could not check ${stripRoleSuffix(staffName)}'s other weeks, so nothing was removed. `
+        + (e instanceof Error ? e.message : String(e)),
+      );
+      return;
+    }
+    const isOff = (role: string) => /^(DAY_?OFF|OFF|REST(_?DAY)?)$/i.test((role || "").trim());
+    const aheadWork = ahead.filter((r) => !isOff(r.role));
+    const lastDay = ahead.length > 0 ? ahead[ahead.length - 1].work_date : "";
+    const aheadElsewhere = Array.from(new Set(
+      aheadWork
+        .map((r) => (r.branch_code || "").toUpperCase())
+        .filter((b) => b && b !== branchCode.toUpperCase()),
+    ));
+    const aheadText = ahead.length === 0 ? "" : (
+      `\n\nFrom tomorrow they still have ${aheadWork.length} shift(s) on this sheet, ` +
+      `through ${lastDay}. Those are taken off the published schedule now, so they ` +
+      `stop showing on their own schedule and on the spreadsheet.` +
+      (aheadElsewhere.length > 0
+        ? ` Some are written for ${aheadElsewhere.join(", ")} — those go too.`
+        : "")
+    );
+
     if (!window.confirm(
       `Remove "${stripRoleSuffix(staffName)}" from the ${branchCode} sheet?\n\n` +
       `${totalShifts} shift(s) this week will be cleared, and they leave the published ` +
-      `schedule when you publish.\n\n` +
+      `schedule when you publish.` + aheadText + `\n\n` +
       `They stay off this sheet from now on — not just this week. Their other ` +
       `branches are unaffected, and you can put them back from the list above the grid.`
     )) return;
+    if (ahead.length > 0) {
+      try {
+        const r = await apiFetch<{ rows_deleted?: number; weeks?: string[] }>(
+          "/api/admin/shifts/remove_staff_from_branch",
+          { method: "POST", body: JSON.stringify({
+              city, branch_code: branchCode, staff_name: staffName, dry_run: false }) },
+        );
+        setNotice(
+          `${stripRoleSuffix(staffName)}: ${r.rows_deleted ?? 0} published row(s) from tomorrow `
+          + `removed from ${branchCode} (${(r.weeks || []).length} week(s)).`,
+        );
+      } catch (e: unknown) {
+        // The rest still goes ahead. The week on screen is cleared as before, and
+        // the weeks that still hold shifts will show the row in red with the count.
+        setError(
+          `This week was cleared, but the later weeks were not: `
+          + (e instanceof Error ? e.message : String(e))
+          + ` — open those weeks and clear the row there.`,
+        );
+      }
+    }
     if (datesWithShifts.length > 0) {
       commitCells(datesWithShifts.map((d) => ({ staffName, dateStr: d, value: null })));
     }
@@ -1660,9 +1747,12 @@ export default function ManualShiftPage() {
     return rows;
   }, [gridData]);
 
-  async function handlePublish(allowApprovedDayOff = false) {
+  async function handlePublish(opts: { allowApprovedDayOff?: boolean; allowCrossBranch?: boolean } = {}) {
+    const allowApprovedDayOff = Boolean(opts.allowApprovedDayOff);
+    const allowCrossBranch = Boolean(opts.allowCrossBranch);
     setError("");
     setPublishBlockedBy([]);
+    setOverlapBlockedBy([]);
     // Everything typed must be on the server before the server is asked to publish
     // it -- the browser no longer sends the week, so an unsent edit would simply
     // not be published.
@@ -1702,6 +1792,7 @@ export default function ManualShiftPage() {
             auto_export: true,
             export_month: weekStart.slice(0, 7),
             allow_approved_day_off: allowApprovedDayOff,
+            allow_cross_branch_overlap: allowCrossBranch,
           }),
         }
       );
@@ -1721,10 +1812,14 @@ export default function ManualShiftPage() {
       const blocked = err?.status === 409 && Array.isArray(err?.detail?.day_off_conflicts)
         ? (err.detail!.day_off_conflicts as DayOffConflict[])
         : [];
+      const overlaps = err?.status === 409 ? crossBranchOverlapsFrom(err?.detail) : [];
       if (blocked.length > 0) {
         // Not an error the person caused by publishing — a day off that was
         // approved while this week was being edited. Name it, and leave the way out.
         setPublishBlockedBy(blocked);
+      } else if (overlaps.length > 0) {
+        dayOffWaivedRef.current = allowApprovedDayOff;
+        setOverlapBlockedBy(overlaps);
       } else {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -1904,6 +1999,28 @@ export default function ManualShiftPage() {
   // ─── White-mode input overrides ───────────────────────────────────────────
   const W_INPUT = "w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
   const W_SELECT = "w-full appearance-none cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
+
+  // Hidden from this sheet, but still holding shifts this week. Hiding a row
+  // only ever meant "do not list them here when they have nothing" -- it never
+  // removed a published shift, and a shift that is published has to be visible
+  // on the one screen that can change it. Otherwise this grid and everything
+  // that reads the published schedule (the staff's own week, the spreadsheet,
+  // next month's draft) disagree, and nothing here says why.
+  const hiddenSet = useMemo(() => new Set(hiddenStaff.map((h) => h.staff_name)), [hiddenStaff]);
+  const hiddenButScheduled = useMemo(
+    () => staffList
+      .filter((n) => hiddenSet.has(n))
+      .map((n) => ({
+        name: n,
+        days: weekDates.filter((d) => cellsOf(gridData[n]?.[d]).length > 0).length,
+      }))
+      .filter((x) => x.days > 0),
+    [staffList, hiddenSet, weekDates, gridData],
+  );
+  const gridStaff = useMemo(() => {
+    const keep = new Set(hiddenButScheduled.map((x) => x.name));
+    return staffList.filter((n) => !hiddenSet.has(n) || keep.has(n));
+  }, [staffList, hiddenSet, hiddenButScheduled]);
 
   // Derive the shifts in the cell currently being edited (for delete button + segment list)
   const editingCellRaw = editTarget ? (gridData[editTarget.staffName]?.[editTarget.dateStr] ?? null) : null;
@@ -2307,6 +2424,10 @@ export default function ManualShiftPage() {
               <button
                 type="button"
                 onClick={async () => {
+                  // Same order as the week-change load: the hidden list first, or
+                  // this first load showed hidden rows as ordinary ones and only a
+                  // week change applied it.
+                  await loadHiddenStaff();
                   const staffOk = await loadStaff();
                   if (!staffOk) return; // staff load failed — error is already displayed, do not clear it
                   await refreshWeek();
@@ -2356,7 +2477,7 @@ export default function ManualShiftPage() {
           {staffList.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <p className="text-xs text-gray-400">
-                {staffList.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
+                {gridStaff.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
               </p>
               {outboxSize > 0 ? (
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
@@ -2582,6 +2703,25 @@ export default function ManualShiftPage() {
               </div>
             )}
 
+            {hiddenButScheduled.length > 0 && (
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-900">
+                <div className="font-semibold">
+                  Removed from the {branchCode} sheet, but still on the published schedule this week:
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                  {hiddenButScheduled.map((x) => (
+                    <span key={x.name}>
+                      <strong>{stripRoleSuffix(x.name)}</strong> — {x.days} day{x.days === 1 ? "" : "s"}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-1 text-red-800/80">
+                  They still see these shifts on their own schedule, and the spreadsheet still shows them here.
+                  Clear them with 🗑 on their row and publish, or put them back on the sheet if they still work here.
+                </div>
+              </div>
+            )}
+
             <div className={`${W_CARD} overflow-hidden p-0`} style={paintMode ? { cursor: "cell" } : {}}>
               {/* The header was already `sticky top-0`, but sticky resolves against the
                   nearest scrollport — here the horizontal-scroll wrapper, which grew to
@@ -2604,11 +2744,21 @@ export default function ManualShiftPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {staffList.map((name, idx) => (
+                    {gridStaff.map((name, idx) => (
                       <tr key={name} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
                         <td className="px-3 py-2 text-xs font-medium text-gray-700">
                           <div className="flex items-center justify-between gap-1">
-                            <span>{stripRoleSuffix(name)}</span>
+                            <span>
+                              {stripRoleSuffix(name)}
+                              {hiddenSet.has(name) && (
+                                <span
+                                  className="ml-1 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-700"
+                                  title="Removed from this sheet, but these shifts are still published"
+                                >
+                                  removed
+                                </span>
+                              )}
+                            </span>
                             <button
                               type="button"
                               title="Delete all shifts for this staff member"
@@ -2823,7 +2973,7 @@ export default function ManualShiftPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handlePublish(true)}
+                    onClick={() => handlePublish({ allowApprovedDayOff: true })}
                     disabled={saving}
                     className="rounded-lg border border-rose-400 bg-rose-100 px-3 py-1.5 text-xs text-rose-700 transition hover:bg-rose-200 disabled:opacity-50"
                   >
@@ -2833,11 +2983,51 @@ export default function ManualShiftPage() {
               </div>
             )}
 
+            {overlapBlockedBy.length > 0 && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                <p className="text-sm font-semibold text-rose-700">
+                  Not published — already working at another branch ({overlapBlockedBy.length})
+                </p>
+                <div className="mt-2 max-h-40 overflow-y-auto">
+                  {overlapBlockedBy.map((o, i) => (
+                    <p key={`ob${i}`} className="text-xs text-rose-700/90">
+                      {describeCrossBranchOverlap(o)}
+                    </p>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-rose-600/80">
+                  Moving someone here does not take them off the other branch. Remove those shifts on
+                  the other branch&apos;s sheet first, or clear them here. Nothing has been published yet,
+                  so the rest of your changes are still here.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOverlapBlockedBy([])}
+                    className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                  >
+                    Let me fix it
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePublish({
+                      allowApprovedDayOff: dayOffWaivedRef.current,
+                      allowCrossBranch: true,
+                    })}
+                    disabled={saving}
+                    className="rounded-lg border border-rose-400 bg-rose-100 px-3 py-1.5 text-xs text-rose-700 transition hover:bg-rose-200 disabled:opacity-50"
+                  >
+                    {saving ? "Publishing…" : "Publish anyway — they really work both"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Publish footer */}
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => handlePublish(false)}
+                onClick={() => handlePublish()}
                 disabled={saving || unpublishedCells.size === 0}
                 className={`${PRIMARY_BUTTON} min-w-[180px]`}
               >
