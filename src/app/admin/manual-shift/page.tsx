@@ -1424,12 +1424,19 @@ export default function ManualShiftPage() {
     type AheadRow = { work_date: string; role: string; branch_code?: string | null };
     let ahead: AheadRow[] = [];
     try {
-      const d = await apiFetch<{ published_rows?: AheadRow[] }>(
+      const d = await apiFetch<{ published_rows?: AheadRow[]; payroll_blocker?: string | null }>(
         "/api/admin/shifts/remove_staff_from_branch",
         { method: "POST", body: JSON.stringify({
             city, branch_code: branchCode, staff_name: staffName, dry_run: true }) },
       );
       ahead = d.published_rows || [];
+      // Somebody who has left but is still on payroll: clearing their scheduled
+      // days turns recorded absences into paid rest days. Nothing is removed --
+      // not this week either -- until their payroll has stopped.
+      if (d.payroll_blocker) {
+        setError(`${stripRoleSuffix(staffName)} was not removed. ${d.payroll_blocker}`);
+        return;
+      }
     } catch (e: unknown) {
       setError(
         `Could not check ${stripRoleSuffix(staffName)}'s other weeks, so nothing was removed. `

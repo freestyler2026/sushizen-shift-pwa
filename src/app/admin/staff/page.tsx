@@ -981,7 +981,7 @@ export default function AdminStaffPage() {
   // say what is still published and offer to take it off.
   const offerShiftCleanup = async (dn: string, newStatus: StaffStatus) => {
     type Branch = { branch_code: string; rows: number; shifts: number; first_date: string; last_date: string };
-    let info: { from_date: string; branches: Branch[]; can_remove: boolean };
+    let info: { from_date: string; branches: Branch[]; can_remove: boolean; payroll_blocker?: string | null };
     try {
       info = await apiGet(`/api/admin/shifts/future_for_staff${qs({ city, staff_name: dn })}`);
     } catch (e: any) {
@@ -998,6 +998,18 @@ export default function AdminStaffPage() {
       .map((b) => `• ${labelOf(city as City, b.branch_code)}: ${b.shifts} shift(s), ${b.first_date} to ${b.last_date}`)
       .join("\n");
     const label = newStatus === "SEPARATED" ? "left the company" : "on leave";
+    // Still on payroll: a scheduled day with no clock-in is an absence and is
+    // deducted; the same day unscheduled is a paid rest day. So the schedule
+    // stays until payroll has stopped (Manila: last working day on the payroll
+    // profile).
+    if (info.payroll_blocker) {
+      setMsg({
+        kind: "err",
+        text: `${dn} is now ${label} and still published from ${info.from_date}:\n${lines}\n`
+          + `These were NOT removed. ${info.payroll_blocker}`,
+      });
+      return;
+    }
     if (!info.can_remove) {
       setMsg({
         kind: "err",
