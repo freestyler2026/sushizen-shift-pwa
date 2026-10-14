@@ -1531,7 +1531,73 @@ export default function AdminDraftPage() {
   const [autoExportErrors, setAutoExportErrors] = useState<Record<string, string>>({}); // branch_code → error msg
   const [autoExportRan, setAutoExportRan] = useState(false); // true once auto-export was triggered
 
+  // ── Open the spreadsheet only after bringing it level with Manual Shift ────
+  // The tabs were written at three moments and nowhere else, so opening the
+  // sheet showed whatever the last of them had left -- Sharon Namale still at
+  // Arjan three weeks after she was moved. Now the server knows which branch
+  // tabs the schedule has changed under (app/sheet_sync.py); those are written
+  // first, one branch per request, and then the sheet opens on the month's tab.
+  type SheetLink = { month: string; branch_code: string; url: string };
+  const [sheetSyncBusy, setSheetSyncBusy] = useState(false);
+  const [sheetSyncProgress, setSheetSyncProgress] = useState("");
+  const [sheetSyncLinks, setSheetSyncLinks] = useState<SheetLink[]>([]);
+  const [sheetSyncErrors, setSheetSyncErrors] = useState<string[]>([]);
+
   const canOperate = myRole === "HQ" || myRole === "ADMIN";
+
+  async function openSyncedSheet() {
+    const base = city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL;
+    // Opened inside the click, so the browser treats it as the user's own tab;
+    // a window opened after the awaits below would be blocked as a pop-up.
+    const win = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
+    setSheetSyncBusy(true);
+    setSheetSyncErrors([]);
+    setSheetSyncLinks([]);
+    const codes = BRANCHES[city].map((b) => b.code);
+    // This month is where Manual Shift is being changed; the target month is
+    // the one being drafted. Both are brought level.
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const months = Array.from(new Set([thisMonth, targetMonth]));
+    const links: SheetLink[] = [];
+    const errors: string[] = [];
+    try {
+      type Status = { branch_code: string; stale: boolean; has_data: boolean; url?: string | null; last_error?: string | null };
+      const work: { month: string; code: string }[] = [];
+      for (const m of months) {
+        const st = await apiGet<{ branches: Status[] }>(
+          `/api/admin/sheets/sync_status${qs({ city, month: m, branches: codes.join(",") })}`,
+        );
+        for (const b of st.branches || []) {
+          if (!b.has_data) continue;
+          if (b.stale || !b.url) work.push({ month: m, code: b.branch_code });
+          else links.push({ month: m, branch_code: b.branch_code, url: b.url });
+        }
+      }
+      for (let i = 0; i < work.length; i++) {
+        const w = work[i];
+        setSheetSyncProgress(`Updating ${labelOf(city, w.code)} ${w.month} (${i + 1}/${work.length})…`);
+        try {
+          const r = await apiPost<{ main_url?: string }>("/api/admin/sheets/sync", {
+            city, branch_code: w.code, month: w.month,
+          });
+          if (r.main_url) links.push({ month: w.month, branch_code: w.code, url: r.main_url });
+        } catch (e) {
+          errors.push(`${labelOf(city, w.code)} ${w.month}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    } catch (e) {
+      errors.push(`Could not check which tabs are out of date: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      links.sort((a, b) => (a.month === b.month ? a.branch_code.localeCompare(b.branch_code) : a.month < b.month ? 1 : -1));
+      setSheetSyncLinks(links);
+      setSheetSyncErrors(errors);
+      setSheetSyncProgress("");
+      setSheetSyncBusy(false);
+      const target = links.find((l) => l.month === targetMonth) ?? links.find((l) => l.month === thisMonth);
+      if (win) win.location.href = target?.url || base;
+    }
+  }
 
   // The export walks every branch with a 300ms gap between them, so it is still
   // running long after the click that started it. Two copies of that loop had
@@ -3288,15 +3354,39 @@ export default function AdminDraftPage() {
                   </span>
                 </div>
               )}
-              <a
-                href={city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm no-underline shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60`}
+              <button
+                type="button"
+                onClick={() => void openSyncedSheet()}
+                disabled={sheetSyncBusy}
+                className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60 disabled:opacity-60`}
               >
-                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-                {city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
-              </a>
+                {sheetSyncBusy
+                  ? <RefreshCw className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                  : <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />}
+                {sheetSyncBusy
+                  ? (sheetSyncProgress || "Checking which tabs are out of date…")
+                  : city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
+              </button>
+              <p className="text-xs text-zinc-400">
+                Brings each branch tab level with Manual Shift first — only tabs the schedule has changed under are rewritten.
+                Published weeks show the published schedule; unpublished weeks show the draft.
+              </p>
+              {sheetSyncLinks.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {sheetSyncLinks.map((l) => (
+                    <a key={`${l.month}-${l.branch_code}`} href={l.url} target="_blank" rel="noopener noreferrer"
+                      className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1 text-xs text-violet-200 no-underline hover:bg-violet-500/20">
+                      {labelOf(city, l.branch_code)} · {l.month}
+                    </a>
+                  ))}
+                </div>
+              )}
+              {sheetSyncErrors.length > 0 && (
+                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                  <div className="font-semibold">Not updated — these tabs may be out of date:</div>
+                  {sheetSyncErrors.map((e) => <div key={e}>{e}</div>)}
+                </div>
+              )}
             </div>
           )}
         </div>

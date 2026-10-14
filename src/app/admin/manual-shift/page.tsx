@@ -563,6 +563,21 @@ export default function ManualShiftPage() {
     } catch { /* private mode: the banner just will not persist */ }
   }, [city, publishedMonthLabel]);
 
+  // The server's answer, which covers every way the schedule changes and every
+  // browser -- the local flag above only knows what this browser published.
+  type ExcelStatus = { stale: boolean | null; exported_at?: string | null; exported_by?: string;
+                       file_name?: string; changed_branches?: string[] };
+  const [excelStatus, setExcelStatus] = useState<ExcelStatus | null>(null);
+  const loadExcelStatus = useCallback(async () => {
+    try {
+      const d = await apiFetch<ExcelStatus>(
+        `/api/admin/shifts/excel_export_status?city=${encodeURIComponent(city)}&month=${encodeURIComponent(publishedMonthLabel)}`,
+      );
+      setExcelStatus(d);
+    } catch { setExcelStatus(null); }
+  }, [city, publishedMonthLabel]);
+  useEffect(() => { void loadExcelStatus(); }, [loadExcelStatus]);
+
   const markNeedsExport = useCallback(() => {
     setNeedsExport(true);
     try { window.localStorage.setItem(exportFlagKey(city, publishedMonthLabel), "1"); } catch {}
@@ -588,6 +603,7 @@ export default function ManualShiftPage() {
         notShown: Array.isArray(data?.not_shown) ? data.not_shown : [],
       });
       setShowExportDone(true);
+      void loadExcelStatus();
       if (exportMonth === publishedMonthLabel) {
         setNeedsExport(false);
         setShowExportPrompt(false);
@@ -598,7 +614,7 @@ export default function ManualShiftPage() {
     } finally {
       setExporting(false);
     }
-  }, [city, exportMonth, publishedMonthLabel]);
+  }, [city, exportMonth, publishedMonthLabel, loadExcelStatus]);
 
   const [gridData, setGridData] = useState<GridData>({});
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
@@ -1452,6 +1468,7 @@ export default function ManualShiftPage() {
           { method: "POST", body: JSON.stringify({
               city, branch_code: branchCode, staff_name: staffName, dry_run: false }) },
         );
+        void loadExcelStatus();
         setNotice(
           `${stripRoleSuffix(staffName)}: ${r.rows_deleted ?? 0} published row(s) from tomorrow `
           + `removed from ${branchCode} (${(r.weeks || []).length} week(s)).`,
@@ -1806,6 +1823,7 @@ export default function ManualShiftPage() {
       setView("published");
       // The schedule just changed, so the workbook on Drive is now out of date.
       markNeedsExport();
+      void loadExcelStatus();
       setShowExportPrompt(true);
     } catch (e: unknown) {
       const err = e as ApiError;
@@ -2089,13 +2107,20 @@ export default function ManualShiftPage() {
         {/* Stays until the export actually happens. A message that can be waved
             away is waved away; this one has the button in it and only the
             export clears it. */}
-        {needsExport && (
+        {(needsExport || excelStatus?.stale === true) && (
           <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-amber-900">
                 <span className="font-semibold">The Excel on Drive is out of date.</span>{" "}
-                {publishedMonthLabel} was published after the last export — export again so the
-                stores read the schedule that is live.
+                {publishedMonthLabel} changed after the last export
+                {excelStatus?.stale && excelStatus.file_name
+                  ? ` (${excelStatus.file_name}${excelStatus.exported_by ? `, by ${excelStatus.exported_by}` : ""})`
+                  : ""}
+                {excelStatus?.stale && (excelStatus.changed_branches?.length ?? 0) > 0
+                  ? ` — ${excelStatus.changed_branches!.join(", ")}`
+                  : ""}
+                . Export again, and post the new schedule image where the stores look — the one already
+                posted still shows the old shifts.
               </p>
               <button
                 type="button"

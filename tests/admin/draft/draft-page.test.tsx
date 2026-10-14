@@ -274,9 +274,38 @@ describe("AdminDraftPage — Draft Management controls", () => {
     expect(screen.getByDisplayValue("All Dubai stores")).toBeInTheDocument();
   });
 
-  it("shows Dubai draft spreadsheet link for Dubai city", () => {
-    const link = screen.getByText(/Open Dubai draft spreadsheet/i).closest("a");
-    expect(link).toHaveAttribute("href", expect.stringContaining("docs.google.com"));
+  it("shows the Open Dubai draft spreadsheet button for Dubai city", () => {
+    expect(screen.getByRole("button", { name: /Open Dubai draft spreadsheet/i })).toBeInTheDocument();
+  });
+
+  // The sheet used to open on whatever its tabs last held. Sharon Namale stayed
+  // at Arjan on it three weeks after Manual Shift moved her. The button now
+  // brings the stale branch tabs level first, and opens the month's tab.
+  it("syncs only the stale branch tabs, then opens the tab it synced", async () => {
+    const opened = { location: { href: "" } } as unknown as Window;
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(opened);
+    const calls: string[] = [];
+    const fetchMock = makeDraftFetch([
+      { match: "/api/admin/sheets/sync_status", body: { branches: [
+          { branch_code: "ARJ", stale: true, has_data: true },
+          { branch_code: "AB", stale: false, has_data: true, url: "https://docs.google.com/x#gid=2" },
+          { branch_code: "BB", stale: false, has_data: false },
+        ] } },
+      { match: "/api/admin/sheets/sync", body: { main_url: "https://docs.google.com/x#gid=1" } },
+    ]);
+    const spy = vi.fn(async (url: string, opts?: RequestInit) => {
+      calls.push(`${(opts?.method || "GET").toUpperCase()} ${String(url)}`);
+      return (fetchMock as any)(url, opts);
+    });
+    vi.stubGlobal("fetch", spy);
+    fireEvent.click(screen.getByRole("button", { name: /Open Dubai draft spreadsheet/i }));
+    expect(openSpy).toHaveBeenCalledTimes(1);           // opened inside the click
+    await waitFor(() => expect((opened as any).location.href).toContain("docs.google.com"), { timeout: 3000 });
+    const syncs = calls.filter((c) => c.startsWith("POST") && c.includes("/api/admin/sheets/sync"));
+    // ARJ is stale in both months asked about; AB is current and BB has no rows.
+    expect(syncs.length).toBeGreaterThan(0);
+    expect(calls.some((c) => c.includes("/api/admin/sheets/sync_status"))).toBe(true);
+    openSpy.mockRestore();
   });
 
   it("shows forecast methodology info panel", () => {
