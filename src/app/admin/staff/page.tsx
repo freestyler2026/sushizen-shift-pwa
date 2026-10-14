@@ -1022,7 +1022,7 @@ export default function AdminStaffPage() {
       `${dn} is now ${label}, but is still on the published schedule from tomorrow:\n\n${lines}\n\n`
       + `Remove these shifts now? They come off the staff schedule and the spreadsheet. `
       + `Today and earlier stay as they are.\n\n`
-      + `Cancel keeps them — they will show in red on those Manual Shift sheets.`
+      + `Cancel keeps them — they stay on those Manual Shift sheets, where 🗑 on their row takes them off later.`
     )) return;
     const done: string[] = [];
     const failed: string[] = [];

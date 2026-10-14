@@ -8,6 +8,11 @@ export type CrossBranchOverlap = {
   start_hour: number;
   end_hour: number;
   other_branch: string;
+  // The sheet the other row is on, and whether it names the same place as
+  // this one (one shift written on two sheets, not a move). Older responses
+  // did not send them.
+  other_sheet?: string;
+  same_place?: boolean;
   other_start_hour: number;
   other_end_hour: number;
 };
@@ -18,8 +23,12 @@ function hhmm(h: number): string {
 }
 
 export function describeCrossBranchOverlap(o: CrossBranchOverlap): string {
-  return `${o.staff_name} — ${o.work_date}: ${hhmm(o.start_hour)}–${hhmm(o.end_hour)} here, `
-    + `but already published at ${o.other_branch} ${hhmm(o.other_start_hour)}–${hhmm(o.other_end_hour)}`;
+  const head = `${o.staff_name} — ${o.work_date}: ${hhmm(o.start_hour)}–${hhmm(o.end_hour)} here, `;
+  const hours = `${hhmm(o.other_start_hour)}–${hhmm(o.other_end_hour)}`;
+  const sheet = o.other_sheet || o.other_branch;
+  if (o.same_place) return head + `and the same shift is already on the ${sheet} sheet (${hours}) — a duplicate`;
+  const where = sheet === o.other_branch ? o.other_branch : `${o.other_branch} (on the ${sheet} sheet)`;
+  return head + `but already published at ${where} ${hours}`;
 }
 
 export function crossBranchOverlapsFrom(detail: unknown): CrossBranchOverlap[] {

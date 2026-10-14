@@ -239,6 +239,7 @@ type ApplyPrepareResult = {
     delta_minutes: number;
   } | null;
   day_off_conflicts?: DayOffConflict[];
+  cross_branch_overlaps?: CrossBranchOverlap[];
 };
 
 type ApplyConfirmResult = {
@@ -289,6 +290,7 @@ type BatchApplyPrepareResult = {
     preview: ApplyPrepareResult["preview"];
     conflict?: ApplyPrepareResult["conflict"];
     day_off_conflicts?: DayOffConflict[];
+    cross_branch_overlaps?: CrossBranchOverlap[];
   }>;
   total_rows_count: number;
   total_staff_count: number;
@@ -1482,6 +1484,7 @@ export default function AdminDraftPage() {
   // approved day off, or at hours they already work at another branch.
   const [applyDayOffBlock, setApplyDayOffBlock] = useState<{
     kind: "day_off" | "cross_branch";
+    confirm_token: string;
     branch_name: string; week_start: string;
     conflicts: DayOffConflict[]; overlaps: CrossBranchOverlap[]; applied_before: number;
   } | null>(null);
@@ -1490,9 +1493,11 @@ export default function AdminDraftPage() {
   // weeks again -- the server answers 400 and the retry fails on a week that
   // had gone through.
   const appliedRef = useRef<Map<string, BatchApplyConfirmResult["items"][number]>>(new Map());
-  // Waivers given in this run. A second refusal of the other kind keeps the
-  // first waiver instead of asking it again.
-  const waiversRef = useRef<{ dayOff: boolean; crossBranch: boolean }>({ dayOff: false, crossBranch: false });
+  // Waivers given in this run, per week (confirm token). "Apply anyway" is an
+  // answer about the clashes that were shown -- one branch, one week. Kept
+  // run-wide, one click waived every later week's clashes too, unseen. A
+  // second refusal of the other kind for the same week keeps the first waiver.
+  const waiversRef = useRef<Map<string, { dayOff: boolean; crossBranch: boolean }>>(new Map());
   const [applyResult, setApplyResult] = useState<BatchApplyConfirmResult | null>(null);
   const [published, setPublished] = useState<PublishedWeekResult | null>(null);
   const [pendingRows, setPendingRows] = useState<PendingSheetProposal[]>([]);
@@ -1566,6 +1571,9 @@ export default function AdminDraftPage() {
     // Opened inside the click, so the browser treats it as the user's own tab;
     // a window opened after the awaits below would be blocked as a pop-up.
     const win = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
+    // The old link had rel="noopener"; a window opened by script keeps a
+    // handle back to this page unless it is dropped.
+    if (win) win.opener = null;
     setSheetSyncBusy(true);
     setSheetSyncErrors([]);
     setSheetSyncLinks([]);
@@ -1609,6 +1617,7 @@ export default function AdminDraftPage() {
       errors.push(`Could not check which tabs are out of date: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       links.sort((a, b) => (a.month === b.month ? a.branch_code.localeCompare(b.branch_code) : a.month < b.month ? 1 : -1));
+      if (!win) errors.push("The browser blocked the new tab. Open the sheet from the links below.");
       setSheetSyncLinks(links);
       setSheetSyncErrors(errors);
       setSheetSyncProgress("");
@@ -2287,6 +2296,7 @@ export default function AdminDraftPage() {
           preview: res.preview,
           conflict: res.conflict,
           day_off_conflicts: res.day_off_conflicts || [],
+          cross_branch_overlaps: res.cross_branch_overlaps || [],
         });
         totalRowsCount += Number(res.preview?.rows_count || 0);
         totalStaffCount += Number(res.preview?.staff_count || 0);
@@ -2305,6 +2315,11 @@ export default function AdminDraftPage() {
     setError("");
     setApplyPrepared(null);
     setApplyResult(null);
+    // New tokens: nothing from an earlier run -- a refusal panel, a waiver, a
+    // week marked applied -- belongs to them.
+    setApplyDayOffBlock(null);
+    appliedRef.current = new Map();
+    waiversRef.current = new Map();
 
     try {
       const prepared = await buildApplyPrepared();
@@ -2321,9 +2336,14 @@ export default function AdminDraftPage() {
     setError("");
     setApplyDayOffBlock(null);
     setApplyResult(null);
-    if (!waive) waiversRef.current = { dayOff: false, crossBranch: false };
-    if (waive === "day_off") waiversRef.current.dayOff = true;
-    if (waive === "cross_branch") waiversRef.current.crossBranch = true;
+    const block = applyDayOffBlock;
+    if (!waive) waiversRef.current = new Map();
+    else if (block?.confirm_token) {
+      const w = waiversRef.current.get(block.confirm_token) ?? { dayOff: false, crossBranch: false };
+      if (waive === "day_off") w.dayOff = true;
+      if (waive === "cross_branch") w.crossBranch = true;
+      waiversRef.current.set(block.confirm_token, w);
+    }
 
     try {
       const prepared = applyPrepared?.items?.length ? applyPrepared : await buildApplyPrepared();
@@ -2345,8 +2365,8 @@ export default function AdminDraftPage() {
             pin,
             auto_export: false,
             export_month: applyMonth,
-            allow_approved_day_off: waiversRef.current.dayOff,
-            allow_cross_branch_overlap: waiversRef.current.crossBranch,
+            allow_approved_day_off: !!waiversRef.current.get(item.confirm_token)?.dayOff,
+            allow_cross_branch_overlap: !!waiversRef.current.get(item.confirm_token)?.crossBranch,
           });
         } catch (err) {
           const is409 = err instanceof ApiError && err.status === 409;
@@ -2359,6 +2379,7 @@ export default function AdminDraftPage() {
           // Stop at the branch that was refused. The branches already applied
           // stay applied -- saying otherwise would be the more confusing lie.
           setApplyDayOffBlock({
+            confirm_token: item.confirm_token,
             kind: conflicts.length > 0 ? "day_off" : "cross_branch",
             branch_name: item.branch_name,
             week_start: item.week_start,
@@ -2431,6 +2452,13 @@ export default function AdminDraftPage() {
         items,
         total_rows_copied: totalRowsCopied,
       });
+      // Every token is spent. Kept, a later Confirm Apply -- after fixing a row
+      // in the draft -- skipped every week as "already applied" and reported
+      // success having sent nothing. Cleared, the next Confirm prepares afresh
+      // and applies the draft as it is then.
+      appliedRef.current = new Map();
+      waiversRef.current = new Map();
+      setApplyPrepared(null);
 
       const pr = await apiGet<PublishedWeekResult>(
         `/api/published/week${qs({ city, week_start: applyWeekStarts[0] })}`
@@ -4275,6 +4303,29 @@ export default function AdminDraftPage() {
                 <div>jobs_ready: <span className="text-neutral-200">{fmtNum(applyPrepared.items.length)}</span></div>
                 <div>preview: {fmtNum(applyPrepared.total_rows_count)} rows / {fmtNum(applyPrepared.total_staff_count)} staff</div>
               </div>
+              {applyPrepared.items.some(i => (i.cross_branch_overlaps?.length ?? 0) > 0) && (
+                <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
+                  <div className="mb-2 text-sm font-semibold text-rose-300">
+                    Already published at another branch —{" "}
+                    {applyPrepared.items.reduce((n, i) => n + (i.cross_branch_overlaps?.length ?? 0), 0)} shift(s)
+                  </div>
+                  <p className="mb-2 text-xs text-rose-200/70">
+                    Confirm Apply will stop at these weeks and ask, one week at a time.
+                  </p>
+                  <div className="max-h-40 space-y-1 overflow-y-auto">
+                    {applyPrepared.items.filter(i => (i.cross_branch_overlaps?.length ?? 0) > 0).map(i => (
+                      <div key={`pxb-${i.branch_code}-${i.week_start}`} className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-2">
+                        <div className="text-xs font-semibold text-rose-200">
+                          {i.branch_name} <span className="ml-2 font-normal text-rose-400/60">{i.week_start}</span>
+                        </div>
+                        {(i.cross_branch_overlaps || []).map((o, k) => (
+                          <p key={`pxbo${k}`} className="mt-1 text-[11px] text-rose-200/70">{describeCrossBranchOverlap(o)}</p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {applyPrepared.items.some(i => (i.day_off_conflicts?.length ?? 0) > 0) && (
                 <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
                   <div className="mb-2 text-sm font-semibold text-rose-300">

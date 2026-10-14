@@ -1324,7 +1324,7 @@ describe("ManualShiftPage — hidden rows that still hold shifts", () => {
       await renderPage(fetchMock);
       await loadStaff();
       await waitFor(() => {
-        expect(screen.getByText(/still on the published schedule from 2026-10-13/i)).toBeInTheDocument();
+        expect(screen.getByText(/still scheduled here from 2026-10-13/i)).toBeInTheDocument();
       }, { timeout: 3000 });
       const row = screen.getAllByText("Dana Moved").find((el) => el.closest("tr"));
       expect(row).toBeTruthy();
@@ -1352,7 +1352,7 @@ describe("ManualShiftPage — hidden rows that still hold shifts", () => {
         expect(row).toBeTruthy();
       }, { timeout: 3000 });
       // Today is a day worked: attendance and pay read it. Nothing to tell anyone to delete.
-      expect(screen.queryByText(/still on the published schedule from/i)).toBeNull();
+      expect(screen.queryByText(/still scheduled here from/i)).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -1382,17 +1382,59 @@ describe("ManualShiftPage — hidden rows that still hold shifts", () => {
       await waitFor(() => { expect(within(tr).getAllByText(/9:00/).length).toBeGreaterThan(0); }, { timeout: 3000 });
       fireEvent.click(within(tr).getByTitle("Delete all shifts for this staff member"));
 
+      // The server removes from tomorrow; the page mirrors it without queuing
+      // cell edits (which would come back as unpublished edits for nothing).
       await waitFor(() => {
-        const sent = fetchMock.mock.calls.filter(([u]) => String(u).includes("/api/admin/shifts/week_cells"));
-        expect(sent.length).toBeGreaterThan(0);
+        const real = fetchMock.mock.calls.filter(([u, o]) => String(u).includes("remove_staff_from_branch")
+          && JSON.parse(String((o as RequestInit).body)).dry_run === false);
+        expect(real.length).toBe(1);
       }, { timeout: 4000 });
-      const dates = fetchMock.mock.calls
-        .filter(([u]) => String(u).includes("/api/admin/shifts/week_cells"))
-        .flatMap(([, o]) => JSON.parse(String((o as RequestInit).body)).edits.map((e: any) => e.work_date));
-      expect(dates).toEqual(["2026-10-14"]);
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.some(([u, o]) => String(u).includes("/api/admin/manual-shift/hidden-staff")
+          && (o as RequestInit)?.method === "POST")).toBe(true);
+      }, { timeout: 4000 });
+      expect(fetchMock.mock.calls.filter(([u]) => String(u).includes("/api/admin/shifts/week_cells"))).toHaveLength(0);
       const asked = String((globalThis.confirm as any).mock.calls.at(-1)[0]);
       expect(asked).toMatch(/From 2026-10-13, 1 published shift/);
-      expect(asked).toMatch(/Today and earlier stay as they are \(1 shift/);
+      expect(asked).toMatch(/Today and earlier stay as they are \(1 day\(s\) on the week shown/);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a refused removal hides nothing and clears nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    try {
+      const calls: { dry: boolean }[] = [];
+      const base = makeFetch([
+        { match: "/api/published/week", body: {
+            rows: [{ work_date: "2026-10-14", staff_name: "Alice Cohen", branch_code: "BB", role: "STAFF", start_hour: 9, end_hour: 18 }] } },
+      ]);
+      const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+        if (String(url).includes("remove_staff_from_branch")) {
+          const dry = JSON.parse(String(opts?.body)).dry_run;
+          calls.push({ dry });
+          if (dry) return new Response(JSON.stringify({ ok: true, from_date: "2026-10-13", weeks: ["2026-10-12"],
+            published_rows: [{ work_date: "2026-10-14", role: "STAFF" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ detail: { code: "payroll_still_live", message: "still on payroll" } }),
+            { status: 409, headers: { "Content-Type": "application/json" } });
+        }
+        return base(url, opts);
+      });
+      await renderPage(fetchMock as any);
+      await loadStaff();
+      const cell = await screen.findAllByText("Alice Cohen", {}, { timeout: 3000 });
+      const tr = cell.find((el) => el.closest("tr"))!.closest("tr")!;
+      await waitFor(() => { expect(within(tr).getAllByText(/9:00/).length).toBeGreaterThan(0); }, { timeout: 3000 });
+      fireEvent.click(within(tr).getByTitle("Delete all shifts for this staff member"));
+      await waitFor(() => { expect(calls.filter((c) => !c.dry)).toHaveLength(1); }, { timeout: 4000 });
+      await screen.findByText(/was not fully removed/i, {}, { timeout: 3000 });
+      expect(fetchMock.mock.calls.some(([u, o]) => String(u).includes("/api/admin/manual-shift/hidden-staff")
+        && (o as RequestInit)?.method === "POST")).toBe(false);
+      expect(within(tr).getAllByText(/9:00/).length).toBeGreaterThan(0);
     } finally {
       vi.useRealTimers();
       vi.unstubAllGlobals();
@@ -1411,6 +1453,6 @@ describe("ManualShiftPage — hidden rows that still hold shifts", () => {
       expect(screen.queryAllByText("Carol Lee").filter((el) => el.closest("tbody"))).toHaveLength(0);
     }, { timeout: 3000 });
     expect(screen.getByText("Alice Cohen")).toBeInTheDocument();
-    expect(screen.queryByText(/still on the published schedule from/i)).toBeNull();
+    expect(screen.queryByText(/still scheduled here from/i)).toBeNull();
   });
 });

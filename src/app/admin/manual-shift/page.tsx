@@ -166,6 +166,16 @@ function stripRoleSuffix(name: string): string {
   return name.replace(/(\s*\([^)]*\))+\s*$/, "").trim();
 }
 
+/** A cell that is work, by the roster's own rule (app/db_approved_day_off._is_work):
+ *  not a day-off or leave marker, and hours that are not empty. Kept to the
+ *  server's list so this screen and the Staff page count the same shifts. */
+const NOT_WORKING_ROLES = /^(DAY_?OFF|OFF|REST(_?DAY)?|VL|SL|EL|ML|UL|LEAVE|ABSENT|AWOL|SUSPENDED)$/i;
+function isWorkCell(role: string | undefined | null, start?: number, end?: number): boolean {
+  if (NOT_WORKING_ROLES.test(String(role || "").trim().replace(/ /g, "_"))) return false;
+  if (start === undefined || end === undefined) return true;
+  return Number(end) > Number(start);
+}
+
 function fmtHour(h: number): string {
   const mins = (h % 1) === 0.5 ? "30" : "00";
   const base = Math.floor(h);
@@ -685,6 +695,14 @@ export default function ManualShiftPage() {
   hiddenStaffRef.current = hiddenStaff.map((h) => h.staff_name);
   const [showHidden, setShowHidden] = useState(false);
   const removedStaffRef = useRef<string[]>([]);
+  // The week and sheet on screen now -- read after an await, where the
+  // closure's own city/branch/week are still the ones from the click.
+  const viewKeyRef = useRef("");
+  viewKeyRef.current = `${city}|${branchCode}|${weekStart}`;
+  // One removal at a time: a second click during the first one's awaits
+  // started a second dry run against a half-removed row.
+  const removingRef = useRef(false);
+  const [removingStaff, setRemovingStaff] = useState<string | null>(null);
   removedStaffRef.current = removedStaff;
   const [approvedDayOffs, setApprovedDayOffs] = useState<Set<string>>(new Set());
   // Day-off requests the staff filed, against what this roster still says.
@@ -1391,6 +1409,23 @@ export default function ManualShiftPage() {
   }
 
   async function deleteStaffFromGrid(staffName: string) {
+    if (removingRef.current) return;
+    removingRef.current = true;
+    setRemovingStaff(staffName);
+    try {
+      await removeStaffFromGridInner(staffName);
+    } finally {
+      removingRef.current = false;
+      setRemovingStaff(null);
+    }
+  }
+
+  async function removeStaffFromGridInner(staffName: string) {
+    // Where the page was when this began. The removal awaits the server for
+    // seconds; moving to another week or branch meanwhile used to apply the
+    // local half (hiding the row, dropping its cells) to whatever was then on
+    // screen.
+    const startedFor = `${city}|${branchCode}|${weekStart}`;
     const datesWithShifts = weekDates.filter((d) => gridData[staffName]?.[d]);
 
     // A sheet is often where a rotating person's whole schedule is written,
@@ -1420,17 +1455,33 @@ export default function ManualShiftPage() {
     // used to leave all of it in place: still on their own schedule, still on
     // the spreadsheet, still feeding next month's draft -- and no longer on
     // this grid, the one place it could be deleted.
-    type AheadRow = { work_date: string; role: string; branch_code?: string | null };
+    type AheadRow = { work_date: string; role: string; branch_code?: string | null;
+                      start_hour?: number; end_hour?: number };
+    // Anything typed for this person and still queued in this browser goes to
+    // the server first, so the removal below sees it -- otherwise the queue
+    // would send it afterwards and bring the cell back as a pending edit.
+    await flushOutbox();
+    if (Array.from(outboxRef.current.values()).some(
+      (e) => e.staff_name === staffName && e.city === city && e.branch_code === branchCode)) {
+      setError(`${stripRoleSuffix(staffName)}'s latest edits have not reached the server yet, so nothing `
+        + `was removed. Wait for them to save, then try again.`);
+      return;
+    }
     let ahead: AheadRow[] = [];
     let fromDate = "";
+    let pendingCount = 0;
+    let serverWeeks: string[] = [];
     try {
-      const d = await apiFetch<{ published_rows?: AheadRow[]; payroll_blocker?: string | null; from_date?: string }>(
+      const d = await apiFetch<{ published_rows?: AheadRow[]; payroll_blocker?: string | null; from_date?: string;
+                                 pending_edits?: number; weeks?: string[] }>(
         "/api/admin/shifts/remove_staff_from_branch",
         { method: "POST", body: JSON.stringify({
             city, branch_code: branchCode, staff_name: staffName, dry_run: true }) },
       );
       ahead = d.published_rows || [];
       fromDate = d.from_date || "";
+      pendingCount = Number(d.pending_edits || 0);
+      serverWeeks = d.weeks || [];
       // Somebody who has left but is still on payroll: clearing their scheduled
       // days turns recorded absences into paid rest days. Nothing is removed --
       // not this week either -- until their payroll has stopped.
@@ -1445,9 +1496,8 @@ export default function ManualShiftPage() {
       );
       return;
     }
-    const isOff = (role: string) => /^(DAY_?OFF|OFF|REST(_?DAY)?)$/i.test((role || "").trim());
-    const aheadWork = ahead.filter((r) => !isOff(r.role));
-    const lastDay = ahead.length > 0 ? ahead[ahead.length - 1].work_date : "";
+    const aheadWork = ahead.filter((r) => isWorkCell(r.role, r.start_hour, r.end_hour));
+    const lastDay = aheadWork.length > 0 ? aheadWork[aheadWork.length - 1].work_date : "";
     const aheadElsewhere = Array.from(new Set(
       aheadWork
         .map((r) => (r.branch_code || "").toUpperCase())
@@ -1460,15 +1510,16 @@ export default function ManualShiftPage() {
     // week too, once somebody published.
     const toClear = fromDate ? datesWithShifts.filter((d) => d >= fromDate) : [];
     const keptPast = datesWithShifts.length - toClear.length;
-    const futureText = aheadWork.length > 0
+    const futureText = (aheadWork.length > 0
       ? `From ${fromDate}, ${aheadWork.length} published shift(s) through ${lastDay} come off ` +
         `the published schedule now, so they stop showing on their own schedule and on ` +
         `the spreadsheet.` +
         (aheadElsewhere.length > 0 ? ` Some are written for ${aheadElsewhere.join(", ")} — those go too.` : "")
-      : `They have no published shifts on this sheet from ${fromDate || "tomorrow"}.`;
+      : `They have no published shifts on this sheet from ${fromDate || "tomorrow"}.`)
+      + (pendingCount > 0 ? ` ${pendingCount} unpublished edit(s) for them from that day are dropped too.` : "");
     const pastText = keptPast > 0
-      ? `\n\nToday and earlier stay as they are (${keptPast} shift(s) this week) — attendance ` +
-        `and pay read them.`
+      ? `\n\nToday and earlier stay as they are (${keptPast} day(s) on the week shown) — ` +
+        `attendance and pay read them.`
       : "";
 
     if (!window.confirm(
@@ -1477,7 +1528,12 @@ export default function ManualShiftPage() {
       `They stay off this sheet from now on — not just this week. Their other ` +
       `branches are unaffected, and you can put them back from the list above the grid.`
     )) return;
-    if (ahead.length > 0) {
+    // The server removes everything from tomorrow -- published rows and
+    // pending edits, every week -- and marks each emptied cell as applied. The
+    // page only mirrors that. Clearing the cells through the edit queue as
+    // well rewrote them as *unpublished* edits: an "N unpublished" count and a
+    // Publish button for nothing, on a row that was no longer on screen.
+    if (serverWeeks.length > 0) {
       try {
         const r = await apiFetch<{ rows_deleted?: number; weeks?: string[] }>(
           "/api/admin/shifts/remove_staff_from_branch",
@@ -1490,43 +1546,59 @@ export default function ManualShiftPage() {
           + `removed from ${branchCode} (${(r.weeks || []).length} week(s)).`,
         );
       } catch (e: unknown) {
-        // The rest still goes ahead. The week on screen is cleared as before, and
-        // the weeks that still hold shifts will show the row in red with the count.
+        // Nothing more is done here -- not the hiding, not the local clear --
+        // so the screen does not claim a removal the server refused (a status
+        // change since the check, say). Weeks are removed one at a time, so
+        // some may already be gone; the reload shows which.
         setError(
-          `This week was cleared, but the later weeks were not: `
+          `${stripRoleSuffix(staffName)} was not fully removed: `
           + (e instanceof Error ? e.message : String(e))
-          + ` — open those weeks and clear the row there.`,
+          + ` — reload the week to see what is still published, and try again.`,
         );
+        return;
       }
     }
-    if (toClear.length > 0) {
-      commitCells(toClear.map((d) => ({ staffName, dateStr: d, value: null })));
+    const sameView = startedFor === viewKeyRef.current;
+    const sameSheet = startedFor.split("|").slice(0, 2).join("|")
+      === viewKeyRef.current.split("|").slice(0, 2).join("|");
+    if (sameView && toClear.length > 0) {
+      const gone = new Set(toClear.map((d) => cellKey(staffName, d)));
+      setGridData((prev) => {
+        const next: GridData = { ...prev, [staffName]: { ...(prev[staffName] ?? {}) } };
+        for (const d of toClear) next[staffName][d] = null;
+        return next;
+      });
+      setUnpublishedCells((prev) => new Set(Array.from(prev).filter((k) => !gone.has(k))));
     }
     // With days already worked this week the row stays listed -- marked as
     // removed -- so those days remain visible here; it drops out by itself in
     // the next week, which has nothing for it.
-    if (keptPast === 0) {
+    if (sameView && keptPast === 0) {
       setStaffList((prev) => prev.filter((n) => n !== staffName));
       setRemovedStaff((prev) => (prev.includes(staffName) ? prev : [...prev, staffName]));
-    }
-    // Store it, or the row is back as soon as the week changes.
-    void (async () => {
-      try {
-        const d = await apiFetch<{ hidden?: { staff_name: string; hidden_by: string }[] }>(
-          "/api/admin/manual-shift/hidden-staff",
-          { method: "POST", body: JSON.stringify({
-              city, branch_code: branchCode, staff_name: staffName, hidden: true }) });
-        if (d.hidden) { setHiddenStaff(d.hidden); hiddenStaffRef.current = d.hidden.map((h) => h.staff_name); }
-      } catch { /* the row is already gone from the page; the next load restores it */ }
-    })();
-    // The days kept (today and earlier) stay on screen; the row then shows as
-    // removed, with what it still holds, until the week has nothing left.
-    if (keptPast === 0) {
       setGridData((prev) => {
         const next = { ...prev };
         delete next[staffName];
         return next;
       });
+    }
+    // Store it, or the row is back as soon as the week changes.
+    try {
+      const d = await apiFetch<{ hidden?: { staff_name: string; hidden_by: string }[] }>(
+        "/api/admin/manual-shift/hidden-staff",
+        { method: "POST", body: JSON.stringify({
+            city: startedFor.split("|")[0], branch_code: startedFor.split("|")[1],
+            staff_name: staffName, hidden: true }) });
+      // The list is this sheet's; another sheet on screen keeps its own.
+      if (d.hidden && sameSheet) {
+        setHiddenStaff(d.hidden); hiddenStaffRef.current = d.hidden.map((h) => h.staff_name);
+      }
+    } catch (e: unknown) {
+      setError(
+        `${stripRoleSuffix(staffName)}'s shifts from tomorrow were removed, but they could not be kept `
+        + `off this sheet: ${e instanceof Error ? e.message : String(e)}. Their row will show again on the `
+        + `next load — remove it again then.`,
+      );
     }
     if (editTarget?.staffName === staffName) closeEdit();
   }
@@ -2056,20 +2128,25 @@ export default function ManualShiftPage() {
   // Tomorrow in the store's time -- the first day "Remove from sheet" takes
   // off. Today and earlier are days worked: they stay on the grid (attendance
   // and pay read them) and are nothing to clear.
-  const storeTomorrow = useMemo(() => {
+  // Worked out on every render, not memoised on the city: a page left open
+  // past the store's midnight kept yesterday's "tomorrow".
+  const storeTomorrow = (() => {
     const today = new Intl.DateTimeFormat("en-CA", {
       timeZone: city === "dubai" ? "Asia/Dubai" : "Asia/Manila",
       year: "numeric", month: "2-digit", day: "2-digit",
     }).format(new Date());
     const [y, m, d] = today.split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
-  }, [city]);
+  })();
   const hiddenButScheduled = useMemo(
     () => staffList
       .filter((n) => hiddenSet.has(n))
       .map((n) => {
         const held = weekDates.filter((d) => cellsOf(gridData[n]?.[d]).length > 0);
-        return { name: n, any: held.length, days: held.filter((d) => d >= storeTomorrow).length };
+        // The banner counts shifts still to come; a day off is not one.
+        const work = held.filter((d) => d >= storeTomorrow && cellsOf(gridData[n]?.[d])
+          .some((c) => isWorkCell(c.role, c.start_hour, c.end_hour)));
+        return { name: n, any: held.length, days: work.length };
       })
       .filter((x) => x.any > 0),
     [staffList, hiddenSet, weekDates, gridData, storeTomorrow],
@@ -2261,8 +2338,11 @@ export default function ManualShiftPage() {
                 return (
                   <div className="mt-3 max-h-80 overflow-y-auto overscroll-contain rounded-xl border border-gray-100">
                     {shown.map((r, i) => {
-                      const onGrid = staffList.includes(r.name) && !removedStaff.includes(r.name);
-                      const hidden = removedStaff.includes(r.name);
+                      // A hidden person can still be listed (a red row with shifts left), so
+                      // "on the grid" means shown and not hidden -- else they read as already
+                      // there and could not be put back from here.
+                      const hidden = removedStaff.includes(r.name) || hiddenSet.has(r.name);
+                      const onGrid = gridStaff.includes(r.name) && !hidden;
                       const prevHere = i > 0 ? shown[i - 1].here : null;
                       return (
                         <div key={r.name}>
@@ -2775,7 +2855,7 @@ export default function ManualShiftPage() {
             {hiddenWithShiftsAhead.length > 0 && (
               <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-900">
                 <div className="font-semibold">
-                  Removed from the {branchCode} sheet, but still on the published schedule from {storeTomorrow}:
+                  Removed from the {branchCode} sheet, but still scheduled here from {storeTomorrow}:
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                   {hiddenWithShiftsAhead.map((x) => (
@@ -2785,8 +2865,8 @@ export default function ManualShiftPage() {
                   ))}
                 </div>
                 <div className="mt-1 text-red-800/80">
-                  They still see these shifts on their own schedule, and the spreadsheet still shows them here.
-                  Clear them with 🗑 on their row and publish, or put them back on the sheet if they still work here.
+                  Published shifts still show on their own schedule and on the spreadsheet.
+                  Use 🗑 on their row to take them off from tomorrow, or put them back on the sheet if they still work here.
                 </div>
               </div>
             )}
@@ -2832,6 +2912,7 @@ export default function ManualShiftPage() {
                               type="button"
                               title="Delete all shifts for this staff member"
                               onClick={() => deleteStaffFromGrid(name)}
+                              disabled={removingStaff !== null}
                               className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-100 disabled:opacity-40 transition"
                             >
                               🗑
