@@ -1,5 +1,29 @@
 # CURRENT_TASKS.md
 
+## 2026-10-14 Manual Shift とシート・スタッフ画面の食い違い（Sharon Namale の件）— 実装・デプロイ済み
+
+**原因:** シートは正しく、Manual Shift が公開行を隠していた。「Remove from sheet」は表示中の週だけ消して全週で非表示にするため、ARJ の 10/12〜31（AB と同時刻）が本人画面・シート・11月ドラフトに残り、Manual Shift だけが見せなかった。ドバイで5名（Sharon・退職4名）。教訓186。
+
+### 入れたもの（backend 149cb685 0b97c9fc 78e29911 / frontend `cde22d88`, `c422ac6d`）
+1. **Manual Shift:** 非表示でも公開行がある人は表示（`removed` タグ＋赤バナー）。最初の Load でも非表示リストを先に読む
+2. **二重登録の拒否:** 公開・Draft Apply で同じ人が別店舗に同時刻 → 409 `cross_branch_overlap`（`app/db_cross_branch.py`）。「publish anyway」あり
+3. **Remove from sheet:** 明日以降のその店舗の公開シフトも同時に削除（`POST /api/admin/shifts/remove_staff_from_branch`、他人の未公開編集は公開しない）
+4. **退職・休職時:** Staff ページで残りの公開シフトを店舗別に出し、削除を提案（`GET /api/admin/shifts/future_for_staff`）
+5. **シート同期:** DB トリガーで全書き込みを検知（`app/sheet_sync.py`、`sheet_sync_state`）。書き出しは同じタブを書き換え（gid 維持）、公開週＝公開シフト・未公開週＝ドラフト、上部に同期時刻・未公開編集件数。Draft の Open は古いタブだけ同期して開く。worker 10分おき（`SHEET_SYNC_ENABLED=0` で停止）。公開時は週がまたぐ両月を書く
+6. **シートからの修正案:** 公開済みの週は取り込まず、承認時も却下（理由付き）
+7. **Excel:** 最後の書き出し以降に公開シフトが変わったかをサーバーで判定（`excel_export_status`）、Manual Shift に表示
+8. 既存の不具合も修正: Revised 欄の引き継ぎが各日の先頭1人分だけだった
+
+### 本番確認
+- トリガー6本・状態テーブル作成済み。全24タブ同期済み（失敗0、1タブ4〜5秒）
+- 二重登録判定・削除の dry-run を本番データで確認（Sharon の ARJ 明日以降17行）
+
+### 未了
+- **5名の公開シフト削除（データ修正）— オーナーの最終確認待ち。** Sharon は ARJ を 10/12 から（DTR は AB の予定を使用済みで金額影響なし）、退職4名は 10/15 から（過去日は欠勤記録として残す）。計 **88行**（Sharon 20・Jessica 24・Man Bahadur 18・Ashik 13・Sandesh 13）
+- 画面の目視確認（本番のログインが切れていた。PIN は入力しない）
+- Draft Apply で二重登録を「それでも適用」するボタンは未実装（エラー文で理由は出る）
+- 削除後、ARJ・AB・CK・JLT の10月の勤務表画像の貼り直しが必要
+
 ## 2026-10-13 Yusuke の追加指摘（①② 表示されない / ③ 受領額で合計したい）
 
 ### ①② 「Received 894 なのに表示されない」の原因は、支店が送られていなかったこと
