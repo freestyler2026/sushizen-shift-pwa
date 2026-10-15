@@ -1,5 +1,12 @@
 # CURRENT_TASKS.md
 
+
+## 2026-10-15 OS Attendance の Staff Report が HR_STAFF に 403（Camilla）— 修正・デプロイ済み
+- 原因: `/api/admin/attendance/staff-report` だけがロール名の固定リストで判定していた（教訓25の型）。他のタブは `_assert_os_attendance_access`（ロール or `channel.admin.os_attendance.view`）
+- 修正: 旧リスト OR 共通判定。在籍者で照合して +3（Camilla・Jasmine Sadoval・Sherileene Santiago）/ −0（DUBAI_MANAGEMENT の Rafael は維持）。拒否時は理由を表示（以前は `{"detail":"Forbidden"}` の生JSON）
+- 本番確認: Camilla・Rafael とも 200（Richard S. Gante 10/1〜15）
+- 残: 共通判定 `_assert_os_attendance_access` は DUBAI_MANAGEMENT を含まない（Rafael は他タブで止まる可能性）。報告のみ・未変更
+
 ## 2026-10-14 Manual Shift とシート・スタッフ画面の食い違い（Sharon Namale の件）— 実装・デプロイ済み
 
 **原因:** シートは正しく、Manual Shift が公開行を隠していた。「Remove from sheet」は表示中の週だけ消して全週で非表示にするため、ARJ の 10/12〜31（AB と同時刻）が本人画面・シート・11月ドラフトに残り、Manual Shift だけが見せなかった。ドバイで5名（Sharon・退職4名）。教訓186。
