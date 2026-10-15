@@ -1,5 +1,6 @@
 "use client";
 
+import { readError } from "@/lib/image-compress";
 import { isoToday, isoDate } from "@/lib/date";
 import {
   AlertTriangle, BarChart2, CheckCircle, ChevronDown, ChevronRight,
@@ -319,7 +320,8 @@ function StaffReportTab({ city }: { city: string }) {
     try {
       const params = new URLSearchParams({ city, staff_name: name, from_date: fromDate, to_date: toDate });
       const r = await apiFetch(`${API}/staff-report?${params}`);
-      if (!r.ok) { setErr(await r.text()); return; }
+      // The reason, not the raw body: a 403 showed {"detail":"Forbidden"}.
+      if (!r.ok) { setErr(await readError(r, `Could not load the report (HTTP ${r.status}).`)); return; }
       setReport(await r.json() as StaffReport);
     } catch (e) { setErr(String(e)); }
     finally { setLoading(false); }
