@@ -34732,3 +34732,10 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
 - 222件の backfill（PIN）: `GET → POST /api/admin/procurement/maintenance/po-receipt-drift`
 - ④ Store Procurement の5段階表示（stage は API が返している）
 - 承認者側への通知（今回の依頼は「作成者へ」なので作っていない）
+
+## 2026-10-16 — Meal allowance: 15-minute grace on the six-hour line
+- Staff asked whether late days still cost ₱50 under v2. They do not: 152/164 late days in the 2026-10 payout are paid; the 12 unpaid are days whose actual worked time (after the scheduled break) was under 6h.
+- Owner decisions: keep measuring actual worked time (not the scheduled shift); a shortfall of 15 minutes or less is still paid (`MEAL_SHORT_GRACE_MIN`, env-overridable, exactly 15:00 paid / 15:01 not).
+- Backend `app/manila_allowance_engine.py:_is_short_shift`; tests `tests/test_meal_short_grace.py` (7). Deployed.
+- 2026-10 recomputed (backup `_meal_allow_bk_20261016`): only change Keven Jhon A. Ayubong 9/16 (5h57m) → +₱50 (₱950→₱1,000); meal total ₱62,600→₱62,650; PA unchanged; flags unchanged. Renz Erick Matudan 9/29 is 15m12s short → still excluded.
+- No meal allowance had been entered into any payroll run yet, so nothing downstream to correct. Payroll Manual republished (v29).
