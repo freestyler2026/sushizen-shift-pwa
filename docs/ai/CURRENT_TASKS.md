@@ -1,6 +1,19 @@
 # CURRENT_TASKS.md
 
 
+
+## 2026-10-16 Management Inbox の2件（Yusuke）— 修正・デプロイ・本番確認済み
+**① PO Price Variance に詳細が無い**
+- 原因: 当番宛てに即送信されるタスクは `sent_message` を誰も書かず、Inbox は `sent_message` しか表示しない。PO価格差48件すべてが「タイトルとボタンだけ」だった。コンテキストにも仕入先・PO番号・店舗が無かった
+- 修正: 検知が仕入先・PO番号・店舗・請求書番号・単位・リンクを持ち、文面を作る。単位が違う行は「単位違いの確認」を添える。即送信で文面が空なら、テンプレートの文面を使う（全種類共通の安全網）。Inbox はテンプレートの題名とリンクを表示。PO Match は `?tab=records&check=&city=` でその請求書チェックの明細を上部に出す
+- 既存48件に文面とリンクを付け直し（退避: `_mgmt_tasks_pv_bk_20261016`）。空のまま残っているもの0件
+- 気づいた点: Nobashi Ebi は PO 8,950/BOX・請求 298.33/BOX（−97%）。単位は同じなので入力誤りの可能性。Yusuke 確認待ち
+**② 納品書（Delivery Note）作成後に数量を直せない**
+- 現状: 納品書の明細は PENDING のとき削除だけ、それ以降は単価しか変えられない。単価0にしても受領確定時にカタログ単価で埋め直される。原価は 数量×単価（受領数量ではない）、発注明細は ₱30,600 のまま
+- 修正: `PATCH /api/store/ck-delivery/deliveries/{id}/items/{item}/qty`（確定前のみ・理由必須・単価編集と同じ権限）。元の発注明細と発注合計も同時に直し、明細と監査ログに残す。画面は Delivery Note の「Edit Qty / Prices」
+- 本番で #202 TAFT Gyoza Wrapper を 510→10 pkt、単価 0→60（発注の単価）に修正。発注合計 ₱67,380.51→₱37,380.51
+- 未対応: 確定後の納品書は直せない（受領数量が記録）。CK納品の原価集計は数量×単価で、受領数量を見ていない（金額の扱いの変更なので未変更）
+
 ## 2026-10-15 OS Attendance の Staff Report が HR_STAFF に 403（Camilla）— 修正・デプロイ済み
 - 原因: `/api/admin/attendance/staff-report` だけがロール名の固定リストで判定していた（教訓25の型）。他のタブは `_assert_os_attendance_access`（ロール or `channel.admin.os_attendance.view`）
 - 修正: 旧リスト OR 共通判定。在籍者で照合して +3（Camilla・Jasmine Sadoval・Sherileene Santiago）/ −0（DUBAI_MANAGEMENT の Rafael は維持）。拒否時は理由を表示（以前は `{"detail":"Forbidden"}` の生JSON）
