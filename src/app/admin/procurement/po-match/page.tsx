@@ -1952,7 +1952,7 @@ function DiscrepancyQueueTab() {
 
 // ─── Tab 3: All Records ───────────────────────────────────────────────────────
 
-function AllRecordsTab() {
+function AllRecordsTab({ focusCheck = "" }: { focusCheck?: string }) {
   const city = useCity();
   const currency = getCurrency(city);
   const [rows, setRows] = useState<CheckRow[]>([]);
@@ -1979,6 +1979,18 @@ function AllRecordsTab() {
   }, [vendorFilter, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Opened from a Manager Inbox price alert: show that check and its lines
+  // first. The alert names the item; this is where the PO, the invoice and the
+  // photo are.
+  const [focusLines, setFocusLines] = useState<CheckLine[] | null>(null);
+  useEffect(() => {
+    if (!focusCheck) return;
+    apiFetch(`/procurement/po-match/${encodeURIComponent(focusCheck)}/lines`)
+      .then((d: any) => setFocusLines(d?.lines || []))
+      .catch(() => setFocusLines([]));
+  }, [focusCheck]);
+  const focusRow = focusCheck ? rows.find(r => String(r.id) === focusCheck) : undefined;
 
   const handleDelete = async (id: string, vendorName: string) => {
     if (!confirm(`Delete this record?\n\n${vendorName}\n\nThis cannot be undone.`)) return;
@@ -2017,6 +2029,32 @@ function AllRecordsTab() {
         </button>
       </div>
 
+      {focusCheck && (
+        <div className={`${GLASS_CARD} border border-violet-500/40 p-4`}>
+          <p className={T_LABEL}>From the Manager Inbox</p>
+          {focusRow ? (
+            <p className="mt-1 text-sm text-zinc-200">
+              <span className="font-semibold">{focusRow.vendor_name}</span>
+              {" · "}{focusRow.po_no || "no PO no."}
+              {focusRow.branch ? <> · {focusRow.branch}</> : null}
+              {" · invoice "}{focusRow.invoice_no || "—"}
+              {" · "}{focusRow.created_at?.slice(0, 10)}
+            </p>
+          ) : !loading ? (
+            <p className="mt-1 text-sm text-amber-300">
+              This invoice check is not in the dates shown. Widen From / To and search again.
+            </p>
+          ) : null}
+          {focusLines === null ? (
+            <p className="mt-2 text-xs text-zinc-500">Loading lines…</p>
+          ) : focusLines.length > 0 ? (
+            <div className="mt-3 overflow-x-auto"><CheckLinesTable lines={focusLines} currency={currency} /></div>
+          ) : (
+            <p className="mt-2 text-xs text-zinc-500">No lines recorded on this check.</p>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-3">
         <div className={KPI_CARD}><p className={KPI_LABEL}>Total Checks</p><p className="mt-1 text-2xl font-bold text-white">{rows.length}</p></div>
         <div className={KPI_CARD}><p className={KPI_LABEL}>Match Rate</p><p className={`mt-1 text-2xl font-bold ${matchRate >= 90 ? "text-emerald-400" : matchRate >= 70 ? "text-amber-400" : "text-red-400"}`}>{matchRate}%</p></div>
@@ -2043,7 +2081,7 @@ function AllRecordsTab() {
               <tr><td colSpan={9} className="py-8 text-center text-sm text-zinc-500">{loading ? "Loading…" : "No records found."}</td></tr>
             )}
             {rows.map(row => (
-              <tr key={row.id} className={TABLE_ROW}>
+              <tr key={row.id} className={`${TABLE_ROW} ${focusCheck && String(row.id) === focusCheck ? "bg-violet-500/10" : ""}`}>
                 <td className={`${TABLE_CELL} pl-4 text-zinc-400`}>{row.created_at?.slice(0, 10)}</td>
                 <td className={`${TABLE_CELL} pr-3 font-medium text-zinc-200`}>
                   {row.vendor_name}
@@ -2334,6 +2372,18 @@ type Tab = "entry" | "queue" | "records" | "scorecard" | "settings";
 
 export default function PoMatchPage() {
   const [tab, setTab] = useState<Tab>("entry");
+  // ?tab=records&check=<id>&city=<city> -- the link a Manager Inbox price alert
+  // carries. Read after mount (the HTML is prerendered for everyone).
+  const [focusCheck, setFocusCheck] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get("tab");
+    if (t === "entry" || t === "queue" || t === "records" || t === "scorecard" || t === "settings") setTab(t);
+    const c = (q.get("city") || "").toLowerCase();
+    if (c === "manila" || c === "dubai") setCity(c);
+    setFocusCheck(q.get("check") || "");
+  }, []);
   const [discrepancyCount, setDiscrepancyCount] = useState(0);
   const [settings, setSettings] = useState<MatchSettings | null>(null);
   const [city, setCity] = useState<string>(getInitialCity);
@@ -2435,7 +2485,7 @@ export default function PoMatchPage() {
 
           {tab === "entry" && <QuickEntryTab key={`entry-${city}`} onSaved={refreshBadge} settings={settings} />}
           {tab === "queue" && <DiscrepancyQueueTab key={`queue-${city}`} />}
-          {tab === "records" && <AllRecordsTab key={`records-${city}`} />}
+          {tab === "records" && <AllRecordsTab key={`records-${city}`} focusCheck={focusCheck} />}
           {tab === "scorecard" && <SupplierScorecardTab key={`scorecard-${city}`} />}
           {tab === "settings" && <SettingsTab key={`settings-${city}`} onSettingsChange={setSettings} />}
         </div>
