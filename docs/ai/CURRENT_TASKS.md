@@ -34739,3 +34739,10 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
 - Backend `app/manila_allowance_engine.py:_is_short_shift`; tests `tests/test_meal_short_grace.py` (7). Deployed.
 - 2026-10 recomputed (backup `_meal_allow_bk_20261016`): only change Keven Jhon A. Ayubong 9/16 (5h57m) → +₱50 (₱950→₱1,000); meal total ₱62,600→₱62,650; PA unchanged; flags unchanged. Renz Erick Matudan 9/29 is 15m12s short → still excluded.
 - No meal allowance had been entered into any payroll run yet, so nothing downstream to correct. Payroll Manual republished (v29).
+
+## 2026-10-16 — Meal allowance: Cutoff 2's 11th–15th were not in the DTR
+- Marithel: Abegail A. Dalida worked 13 days in 10/1–10/15, paid 9. Her 4 late days (10/4, 7, 8, 10) were already paid; the missing 4 were 10/11, 12, 14, 15 — DTR only ran to 10/10 (end of 10-1H). 264 worked days / 66 staff missing.
+- Synced 10/11–10/15 from OS Attendance (backups `_mad_bk_20261016_1011_1015`, `_meal_allow_bk_20261016b`/`c`): 294 rows + 21 absences; 1 skipped (Alex Delgado 10/11, 21.4h session). Recomputed: meal ₱62,650→₱76,250.
+- Bug fixed: PA hire date fell back to nothing when the payroll profile was missing → 7 people hired mid-period drew ₱500. Now `COALESCE(official_hire_date, staff_master.hired_at)`. PA ₱13,000→₱9,500. Final 2026-10: 81 rows, ₱85,750.
+- Page: amber box + "Sync these days and recompute" (`unsynced_attendance()` in engine; `unsynced` in GET/compute). Test `tests/payroll/allowances-unsynced.test.tsx`. Payroll Manual v30.
+- OPEN: 7 staff have no manila_staff_profiles row (Ronidel S. Sanciangco 10/5, Nhazarethe Pinpin 10/6, Al-Jhon N. Boado 10/12, Maryson S. Galvez 10/12, Ariana Clarice T. Sto. Domingo 10/14, Julia Reign C. Cadavos 10/14, Bob Stephen Rubido SEPARATED) — none is in the 10-1H run (55 runs). Louiela Chica gets ₱500 PA after being off 9/16–10/10 (not AWOL) — owner policy question.
