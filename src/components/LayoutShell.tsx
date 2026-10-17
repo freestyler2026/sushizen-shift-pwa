@@ -6,6 +6,11 @@ import AutoReload from "@/components/AutoReload";
 import ActivityBeacon from "@/components/ActivityBeacon";
 import SessionGuard from "@/components/SessionGuard";
 import ImpersonationBanner from "@/components/ImpersonationBanner";
+import { installFetchRefresh } from "@/lib/fetch-refresh";
+
+// Before any page effect runs: a page that calls fetch("/api/...") directly
+// gets the same refresh-and-retry on 401 that apiGet has.
+installFetchRefresh();
 
 // /apply is reached by people who do not work here yet. Staff navigation and
 // SessionGuard both assume a logged-in user, and a job applicant seeing a
