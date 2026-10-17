@@ -616,7 +616,11 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                 <button onClick={openOrderModal} className="rounded-lg border border-red-400/40 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25">
                   Generate Purchase Request
                 </button>
-                {Object.keys(dpOrderGroups).length > 0 && (
+                {/* Not in Dubai: Generate Purchase Request already makes one request per
+                    supplier there, and this path sends the branch name as the store
+                    code (BUSINESS_BAY, not BB) with price 0. Never used in either
+                    city (2026-10-17). */}
+                {city !== "dubai" && Object.keys(dpOrderGroups).length > 0 && (
                   <button onClick={openDpModal}
                     className="rounded-lg border border-sky-400/40 bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/25">
                     Create Direct Purchase ({Object.keys(dpOrderGroups).length} supplier{Object.keys(dpOrderGroups).length > 1 ? "s" : ""})
