@@ -34746,3 +34746,10 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
 - Bug fixed: PA hire date fell back to nothing when the payroll profile was missing → 7 people hired mid-period drew ₱500. Now `COALESCE(official_hire_date, staff_master.hired_at)`. PA ₱13,000→₱9,500. Final 2026-10: 81 rows, ₱85,750.
 - Page: amber box + "Sync these days and recompute" (`unsynced_attendance()` in engine; `unsynced` in GET/compute). Test `tests/payroll/allowances-unsynced.test.tsx`. Payroll Manual v30.
 - OPEN: 7 staff have no manila_staff_profiles row (Ronidel S. Sanciangco 10/5, Nhazarethe Pinpin 10/6, Al-Jhon N. Boado 10/12, Maryson S. Galvez 10/12, Ariana Clarice T. Sto. Domingo 10/14, Julia Reign C. Cadavos 10/14, Bob Stephen Rubido SEPARATED) — none is in the 10-1H run (55 runs). Louiela Chica gets ₱500 PA after being off 9/16–10/10 (not AWOL) — owner policy question.
+
+## 2026-10-17 — Raw 401 on pages that call fetch("/api/...") directly
+- Manager Checklist ("HTTP 401") and Request → Inbox ({"detail":"Authentication required"}). Backend fine (200 with a valid token). apiGet/apiPost refresh + retry on 401; ~100 pages used bare fetch and did not.
+- Manager Checklist moved to apiGet/apiPost (`tests/store/manager-checklist-401.test.tsx`).
+- Global: `src/lib/fetch-refresh.ts` patches window.fetch once (installed from LayoutShell): same-origin /api/ (not /api/auth/), 401 → one shared tryRefreshAccessToken → retry. Skips impersonation and stream bodies. `tests/lib/fetch-refresh.test.ts`. Verified in served layout chunk.
+- Not root-caused: no 401 appears in os_activity_log for the owner in 24h, so the failing requests carried no valid session; the proxy-side refresh (X-Session-Id only, HQ idle 30 min) fails where the client refresh (expired JWT, 1h grace) succeeds — consistent with the symptom, not proven.
+- Leave approvals: Admin Dashboard → Request Check (manager + HQ stages), or Request → Inbox (one answer settles both stages, deducts leave). Same table (shift_change_requests). 4 Manila day_off pending as of 10/17.
