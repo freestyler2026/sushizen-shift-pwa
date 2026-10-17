@@ -34781,3 +34781,9 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
 - 13 par cells ÷1000 (grams under KG/L, against the other branches).
 - Warehouse-section lines now ordered from "Warehouse" (`_order_vendor`): Dubai sheets name the brand (Sushi ZEN…); food cost excludes Warehouse lines.
 - Simulated order at par: Business Bay 2.32M → 20k AED; 17 items left for Rafael in `docs/exports/DUBAI_remaining_20261017.xlsx` (+5 prices).
+
+## 2026-10-17（続き2）Review of the Dubai fix — store-side catalogue rows switched off
+- Two independent code reviews + data: the 253 store-side rows (239 of 10/12 + 14 of 10/17) appeared in Store Procurement Request (no order_type filter), BO edit (all rows) and Direct Purchase (order_type match) — legal-name supplier groups and per-gram prices beside the price lists; 9 real order lines used them since 10/12 (Wasabi Powder ×6, Suhinori, Avocado, Shrimp). Switched off (backup `_dubai_catalog_bk_20261017c`); prices copied to `daily_inv_report_items.unit_cost` (117 changed, backup `_dubai_di_cost_bk_20261017c`). `order_price()`: Dubai prices from unit_cost first, catalogue fallback; Manila unchanged. 270/274 items priced; simulated orders unchanged.
+- CK dispatch pending/record authorised with target_city='manila' → Dubai CK users refused (empty list). Now the request's city.
+- "Create Direct Purchase" in Daily Inventory hidden for Dubai (store_code BUSINESS_BAY, price 0; never used in either city).
+- Open: 9 supplier items counted in G/L (Chives, Cream Cheese, Corn Starch, Shichimi, Bonito, Aonori, Misoshiru, Sesame Oil, Soy Sauce) would go to the supplier in count units — PO vs invoice/receiving will read as unit mismatch. Warehouse lines from Daily Inventory are not flagged is_wh_order (same as Manila's 110 approved). Per-gram unit prices display as 0.02 (toFixed(2)) on Hub/CK screens; unit_cost NUMERIC(10,4) rounds 0.00875→0.0088. Old templates still saying KG would revert units on import.
