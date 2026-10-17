@@ -52,6 +52,10 @@ export function installFetchRefresh(): void {
     try { if (getImpersonationInfo()) return res; } catch { /* treat as not impersonating */ }
 
     const ok = await refreshOnce();
-    return ok ? original(again, init) : res;
+    if (ok) return original(again, init);
+    // Could not refresh: let SessionGuard decide whether this browser is still
+    // signed in at all, and send it to the login screen if not.
+    try { window.dispatchEvent(new Event("zen:session-lost")); } catch { /* old browsers */ }
+    return res;
   };
 }
