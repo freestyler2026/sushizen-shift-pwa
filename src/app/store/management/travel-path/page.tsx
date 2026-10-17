@@ -283,7 +283,7 @@ export default function ManagerChecklistPage() {
       setData(await apiGet<Payload>(
         `/api/store/management/checklist?city=${encodeURIComponent(city)}&branch=${encodeURIComponent(branch)}`));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError((e instanceof Error ? e.message : String(e)).slice(0, 200));
     } finally {
       setLoading(false);
     }
@@ -300,7 +300,7 @@ export default function ManagerChecklistPage() {
       });
       await load();
     } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : String(e));
+      setFormError((e instanceof Error ? e.message : String(e)).slice(0, 200));
     }
   };
 
@@ -327,7 +327,7 @@ export default function ManagerChecklistPage() {
       setEditing((p) => { const n = new Set(p); n.delete(item.seq); return n; });
       await load();
     } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : String(e));
+      setFormError((e instanceof Error ? e.message : String(e)).slice(0, 200));
     }
   };
 

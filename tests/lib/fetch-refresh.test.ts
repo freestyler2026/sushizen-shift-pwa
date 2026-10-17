@@ -56,3 +56,21 @@ describe("installFetchRefresh", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 });
+
+describe("installFetchRefresh — a path that keeps refusing", () => {
+  it("stops refreshing for a path that is still 401 after a good refresh", async () => {
+    await new Promise(r => setTimeout(r, 1));
+    seen.length = 0; refresh.mockClear();
+    const always401 = vi.fn(async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return new Response("{}", { status: 401 });
+    });
+    // reuse the installed wrapper over a base that never succeeds
+    failFirst = true;
+    base.mockImplementation(always401 as never);
+    await window.fetch("/api/ai/camera/status");
+    await new Promise(r => setTimeout(r, 1));
+    await window.fetch("/api/ai/camera/status");
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});

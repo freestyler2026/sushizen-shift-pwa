@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sessionToken } from "@/lib/proxy-auth";
+import { sessionToken, IMPERSONATION_COOKIE } from "@/lib/proxy-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +39,18 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: "GE
     res.cookies.set("sz_access", "", { ...cookieOpts(), maxAge: 0 });
     res.cookies.set("sz_session", "", { ...cookieOpts(), maxAge: 0 });
     return res;
+  }
+
+  // No refresh while viewing as somebody else. The Bearer would be the sz_imp
+  // token, the backend would mint a full 16-hour token for that person, and it
+  // would be written into the admin's own sz_access -- so after Exit the
+  // admin's browser kept acting as the other person (found 2026-10-17; the
+  // SessionGuard keepalive hit this every 20 minutes).
+  if (method === "POST" && slug === "refresh" && req.cookies.get(IMPERSONATION_COOKIE)?.value) {
+    return NextResponse.json(
+      { ok: false, detail: "Not refreshed while viewing as another person." },
+      { status: 409, headers: { "cache-control": "no-store" } },
+    );
   }
 
   const apiBase = getApiBase();

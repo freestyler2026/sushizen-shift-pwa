@@ -1,5 +1,6 @@
 // src/lib/api.ts
 import { getAuthHeaders, tryRefreshAccessToken } from "@/lib/auth";
+import { fetchRetriesOn401 } from "@/lib/fetch-refresh";
 
 export type ShiftRow = {
   work_date: string;
@@ -84,7 +85,9 @@ export async function apiGet<T>(path: string, approverPin?: string): Promise<T> 
 
   let res = await doFetch();
   // Retry on 401 (expired token) — backend also returns 401 when no valid token is present
-  if (res.status === 401) {
+  // The global fetch wrapper (src/lib/fetch-refresh.ts) already refreshed and
+  // retried; doing it again here only doubled the calls.
+  if (res.status === 401 && !fetchRetriesOn401()) {
     const refreshed = await tryRefreshAccessToken();
     if (refreshed) res = await doFetch();
   }
@@ -109,7 +112,9 @@ export async function apiPost<T>(path: string, body: any, approverPin?: string):
     });
 
   let res = await doFetch();
-  if (res.status === 401) {
+  // The global fetch wrapper (src/lib/fetch-refresh.ts) already refreshed and
+  // retried; doing it again here only doubled the calls.
+  if (res.status === 401 && !fetchRetriesOn401()) {
     const refreshed = await tryRefreshAccessToken();
     if (refreshed) res = await doFetch();
   }

@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({ usePathname: () => "/request", useRouter: () => ({ replace }) }));
 const clearAuth = vi.fn();
+vi.mock("@/lib/impersonation", () => ({ getImpersonationInfo: () => null }));
 vi.mock("@/lib/auth", () => ({
   getAuth: () => ({ staffName: "Yukihiro Nishimura", role: "HQ", hasSession: true, accessToken: "" }),
   setAuth: vi.fn(), clearAuth: () => clearAuth(),
@@ -60,5 +61,22 @@ describe("SessionGuard — no session at all", () => {
     refreshStatus = 401;
     await act(async () => { window.dispatchEvent(new Event("zen:session-lost")); await vi.advanceTimersByTimeAsync(10); });
     expect(screen.getByRole("alert")).toBeTruthy();
+  });
+});
+
+describe("SessionGuard — many lost signals at once", () => {
+  it("asks the server once for a burst of lost-session events", async () => {
+    refreshStatus = 200;
+    render(<SessionGuard />);
+    await run(2100);
+    const before = (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .filter(c => String(c[0]).includes("/api/auth/refresh")).length;
+    await act(async () => {
+      for (let i = 0; i < 15; i++) window.dispatchEvent(new Event("zen:session-lost"));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    const after = (global.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .filter(c => String(c[0]).includes("/api/auth/refresh")).length;
+    expect(after - before).toBe(1);
   });
 });

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getAuth, setAuth, clearAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
+import { getImpersonationInfo } from "@/lib/impersonation";
 
 const POLL_MS = 5 * 60 * 1000;
 const KEEPALIVE_MS = 20 * 60 * 1000;
@@ -119,7 +120,11 @@ export default function SessionGuard() {
   // still showed him signed in, and each page printed its own raw 401. Ask the
   // server whether it can still sign this browser in; only an explicit 401
   // counts -- a network error is not a reason to log anybody out.
+  const lostCheck = useRef<Promise<void> | null>(null);
   const stillSignedIn = async (): Promise<boolean> => {
+    // Viewing as somebody else: the refresh is refused on purpose, and logging
+    // out from here would sign the admin out of their own account.
+    try { if (getImpersonationInfo()) return true; } catch { /* treat as not impersonating */ }
     try {
       // A login that keeps its token in localStorage rather than the cookie
       // must be asked with that token, or it would be signed out by mistake.
@@ -200,7 +205,14 @@ export default function SessionGuard() {
 
     const init = setTimeout(check, 2000);
     // A page's own call came back 401 and the retry could not refresh.
-    const onLost = () => { void (async () => { if (!(await stillSignedIn())) kick("expired"); })(); };
+    // Fifteen badge calls failing together ask once, not fifteen times.
+    const onLost = () => {
+      if (kicked.current || lostCheck.current || !getAuth()?.staffName) return;
+      lostCheck.current = (async () => {
+        try { if (!(await stillSignedIn())) kick("expired"); }
+        finally { setTimeout(() => { lostCheck.current = null; }, 30_000); }
+      })();
+    };
     window.addEventListener("zen:session-lost", onLost);
     polling.current = setInterval(check, POLL_MS);
     keepalive.current = setInterval(refreshSession, KEEPALIVE_MS);

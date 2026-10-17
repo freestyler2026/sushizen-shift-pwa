@@ -26,14 +26,19 @@ const ITEM = {
   pa_late_count: 7, pa_late_minutes: 85, pa_awol_days: 1, pa_eligible: false, pa_disqualify_reasons: "Absent 1d", pa_amount: 0,
   total_amount: 1050, computed_at: "2026-10-16T03:32:00Z", computed_by: "x", payout_month: "2026-10",
 };
-const empty = { days: 0, staff: 0, date_from: null, date_to: null, by_staff: {} };
+const empty = { days: 0, staff: 0, date_from: null, date_to: null, by_staff: {}, sync_ranges: [], in_paid_period: [] };
 const calls: string[] = [];
 global.fetch = vi.fn((url: string, init?: RequestInit) => {
   const u = String(url);
   calls.push(`${init?.method || "GET"} ${u} ${init?.body || ""}`);
   const body = u.includes("/allowances?month")
     ? { items: [ITEM], cutoff1: { start: "2026-09-16", end: "2026-09-30" }, cutoff2: { start: "2026-10-01", end: "2026-10-15" },
-        unsynced: { cutoff1: empty, cutoff2: { days: 264, staff: 66, date_from: "2026-10-11", date_to: "2026-10-15", by_staff: { "Abegail A. Dalida": 4 } } } }
+        unsynced: { cutoff1: empty, cutoff2: { days: 264, staff: 66, date_from: "2026-10-11", date_to: "2026-10-15", by_staff: { "Abegail A. Dalida": 4 },
+          sync_ranges: [
+            { date_from: "2026-10-11", date_to: "2026-10-12", period_id: 10, period_label: "2026-10-2H" },
+            { date_from: "2026-10-14", date_to: "2026-10-15", period_id: 10, period_label: "2026-10-2H" },
+          ],
+          in_paid_period: ["2026-09-18"] } } }
     : u.includes("/allowances/compute") ? { staff_count: 81, cutoff1: "a", cutoff2: "b", removed_stale: [] }
     : { synced: 294 };
   return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -51,11 +56,16 @@ describe("Allowances — days not in the DTR yet", () => {
     expect(await screen.findByText(/4 more not in the DTR yet/)).toBeTruthy();
     fireEvent.click(screen.getByText("Sync these days and recompute"));
     await waitFor(() => expect(calls.some(c => c.includes("/allowances/compute"))).toBe(true));
-    const sync = calls.findIndex(c => c.includes("/sync-dtr-os"));
+    const syncs = calls.filter(c => c.includes("/sync-dtr-os"));
     const comp = calls.findIndex(c => c.includes("/allowances/compute"));
-    expect(sync).toBeGreaterThan(-1);
-    expect(calls[sync]).toContain('"date_from":"2026-10-11"');
-    expect(calls[sync]).toContain('"date_to":"2026-10-15"');
+    const sync = calls.findIndex(c => c.includes("/sync-dtr-os"));
+    // Only the missing dates, one call per range, with the period — never 10/13.
+    expect(syncs).toHaveLength(2);
+    expect(syncs[0]).toContain('"date_from":"2026-10-11"');
+    expect(syncs[0]).toContain('"date_to":"2026-10-12"');
+    expect(syncs[0]).toContain('"period_id":10');
+    expect(syncs[1]).toContain('"date_from":"2026-10-14"');
+    expect(screen.getByText(/already paid/)).toBeTruthy();
     expect(sync).toBeLessThan(comp);
   });
 });

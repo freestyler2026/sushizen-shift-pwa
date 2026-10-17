@@ -16,6 +16,9 @@ interface UnsyncedCutoff {
   date_from: string | null;
   date_to: string | null;
   by_staff: Record<string, number>;
+  // Only the missing dates, split by payroll period. Paid periods are left out.
+  sync_ranges?: { date_from: string; date_to: string; period_id: number | null; period_label: string | null }[];
+  in_paid_period?: string[];
 }
 type Unsynced = { cutoff1: UnsyncedCutoff; cutoff2: UnsyncedCutoff } | null;
 
@@ -141,20 +144,48 @@ export default function ManilaAllowancesPage() {
     finally { setComputing(false); }
   }
 
-  // Pull the missing days from OS Attendance into the DTR with the same sync the
-  // DTR Upload page runs, then recompute so the new days are counted.
+  // Pull the missing days from OS Attendance into the DTR, then recompute.
+  //
+  // Only the missing dates are sent, one payroll period at a time: the sync
+  // rebuilds every unapproved row on a date it is given, so one range from the
+  // first gap to the last would rewrite weeks of other people's DTR. Dates in a
+  // paid period are never sent.
   async function syncMissingAndRecompute() {
-    const ranges = [unsynced?.cutoff1, unsynced?.cutoff2].filter(
-      (c): c is UnsyncedCutoff => !!c && c.days > 0 && !!c.date_from && !!c.date_to,
-    );
+    const ranges = [unsynced?.cutoff1, unsynced?.cutoff2].flatMap(c => c?.sync_ranges ?? []);
     if (ranges.length === 0) return;
-    const from = ranges.map(r => r.date_from as string).sort()[0];
-    const to = ranges.map(r => r.date_to as string).sort().slice(-1)[0];
-    if (!confirm(`Sync attendance for ${fmtDate(from)} → ${fmtDate(to)} into the DTR, then recompute ${month}?`)) return;
+    const label = ranges
+      .map(r => (r.date_from === r.date_to ? fmtDate(r.date_from) : `${fmtDate(r.date_from)} → ${fmtDate(r.date_to)}`))
+      .join(", ");
+    if (!confirm(
+      `Sync attendance into the DTR for ${label}, then recompute ${month}?\n\n` +
+      "On those dates every DTR row that is not yet approved is rebuilt from the clock-ins and the published shift, " +
+      "and open payroll runs of anyone whose days change are recomputed.",
+    )) return;
     setSyncing(true); setError(""); setSuccess("");
+    let synced = 0, absent = 0, skipped = 0, recomputed = 0, heldBack = 0;
     try {
-      await apiPost(`${API}/sync-dtr-os`, { date_from: from, date_to: to });
+      for (const r of ranges) {
+        const res = await apiPost<{
+          synced?: number; synced_absent?: number;
+          skipped_suspicious?: unknown[]; skipped_no_shift?: unknown[];
+          recompute?: { recomputed?: unknown[]; held_back?: unknown[] } | null;
+        }>(`${API}/sync-dtr-os`, {
+          date_from: r.date_from, date_to: r.date_to,
+          ...(r.period_id ? { period_id: r.period_id } : {}),
+        });
+        synced += res.synced ?? 0;
+        absent += res.synced_absent ?? 0;
+        skipped += (res.skipped_suspicious?.length ?? 0) + (res.skipped_no_shift?.length ?? 0);
+        recomputed += res.recompute?.recomputed?.length ?? 0;
+        heldBack += res.recompute?.held_back?.length ?? 0;
+      }
       await compute(true);
+      setSuccess(prev =>
+        `Synced ${synced} day${synced === 1 ? "" : "s"} (+${absent} absences) for ${label}.` +
+        (skipped ? ` ${skipped} skipped by the sync — open DTR Upload to see why.` : "") +
+        (recomputed ? ` ${recomputed} payroll run${recomputed === 1 ? "" : "s"} recomputed.` : "") +
+        (heldBack ? ` ${heldBack} held back.` : "") +
+        (prev ? ` ${prev}` : ""));
     } catch (e: any) { setError(e?.message || String(e)); }
     finally { setSyncing(false); }
   }
@@ -255,11 +286,18 @@ export default function ManilaAllowancesPage() {
           </ul>
           <p className="text-xs text-amber-200/70">
             Cutoff 2 runs to the 15th, but the 11th–15th belong to the next payroll period, which is normally synced after the 25th.
-            Sync those days before paying the allowance. A day that stays here after syncing was skipped by the DTR sync — open DTR Upload to see why.
+            Sync those days before paying the allowance. Only the missing dates are synced. A day that stays here after syncing was skipped by the DTR sync — open DTR Upload to see why.
           </p>
+          {[unsynced.cutoff1, unsynced.cutoff2].some(u => (u?.in_paid_period?.length ?? 0) > 0) && (
+            <p className="text-xs text-amber-200/70">
+              Not synced from here, because the payroll period is already paid:{" "}
+              {[unsynced.cutoff1, unsynced.cutoff2].flatMap(u => u?.in_paid_period ?? []).map(fmtDate).join(", ")}.
+            </p>
+          )}
           <button
             onClick={() => void syncMissingAndRecompute()}
-            disabled={syncing || computing || loading}
+            disabled={syncing || computing || loading ||
+              ![unsynced.cutoff1, unsynced.cutoff2].some(u => (u?.sync_ranges?.length ?? 0) > 0)}
             className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-900 transition hover:bg-amber-400 disabled:opacity-50"
           >
             {syncing ? "Syncing…" : "Sync these days and recompute"}
@@ -525,7 +563,7 @@ export default function ManilaAllowancesPage() {
       {monthIsV2 ? (
         <p className="text-xs text-zinc-600">
           Meal allowance: ₱50 for every day worked. A shift under 6 hours (punch span minus the scheduled break) does not
-          count as a day. Back Office staff hired after the policy change do not receive it. Nothing else removes it.
+          count as a day; 15 minutes short or less still counts. Back Office staff hired after the policy change do not receive it. Nothing else removes it.
           <br />
           Perfect attendance ₱500, lost by: any absence without pay, being late twice or more, more than 30 minutes
           late in total, an unapproved shift change, or no advance notice of tardiness — the last must be flagged
