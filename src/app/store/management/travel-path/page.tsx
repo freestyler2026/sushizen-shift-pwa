@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, ChevronRight, RefreshCw, X } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
+import { apiGet, apiPost } from "@/lib/api";
 import {
   GLASS_CARD, INPUT_CLASS, SMALL_BUTTON, TEXTAREA_CLASS,
   T_PAGE_TITLE, T_LABEL, T_CAPTION, T_BODY,
@@ -277,11 +278,10 @@ export default function ManagerChecklistPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `/api/store/management/checklist?city=${encodeURIComponent(city)}&branch=${encodeURIComponent(branch)}`,
-        { headers: getAuthHeaders(), cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setData(await res.json());
+      // apiGet refreshes an expired session and retries. A bare fetch showed
+      // "HTTP 401" whenever the access token had lapsed (2026-10-17).
+      setData(await apiGet<Payload>(
+        `/api/store/management/checklist?city=${encodeURIComponent(city)}&branch=${encodeURIComponent(branch)}`));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -294,15 +294,10 @@ export default function ManagerChecklistPage() {
   const saveOwner = async (which: "opening" | "closing", name: string) => {
     setFormError("");
     try {
-      const res = await fetch("/api/store/management/checklist/owners", {
-        method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          city, branch,
-          [which === "opening" ? "opening_owner" : "closing_owner"]: name,
-        }),
+      await apiPost("/api/store/management/checklist/owners", {
+        city, branch,
+        [which === "opening" ? "opening_owner" : "closing_owner"]: name,
       });
-      if (!res.ok) throw new Error((await res.text()).slice(0, 200));
       await load();
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : String(e));
@@ -324,21 +319,11 @@ export default function ManagerChecklistPage() {
       return;
     }
     try {
-      const res = await fetch("/api/store/management/checklist/answer", {
-        method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          city, branch, seq: item.seq, result,
-          issue_outcome: result === "issue" ? d.outcome : "",
-          note: d.note,
-        }),
+      await apiPost("/api/store/management/checklist/answer", {
+        city, branch, seq: item.seq, result,
+        issue_outcome: result === "issue" ? d.outcome : "",
+        note: d.note,
       });
-      if (!res.ok) {
-        const t = await res.text();
-        let detail = t;
-        try { detail = JSON.parse(t)?.detail || t; } catch { /* text/plain */ }
-        throw new Error(String(detail).slice(0, 200));
-      }
       setEditing((p) => { const n = new Set(p); n.delete(item.seq); return n; });
       await load();
     } catch (e: unknown) {
