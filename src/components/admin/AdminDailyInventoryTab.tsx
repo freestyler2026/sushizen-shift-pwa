@@ -233,7 +233,8 @@ function cityFromBranch(branch: string): CityKey {
   return STORE_BRANCHES.dubai.some((d) => b.includes(d)) ? "dubai" : "manila";
 }
 
-type GeneratedPR = { type: string; request_no: string; case_no: string; request_id: string };
+// `supplier` is set in Dubai, where each supplier gets its own request.
+type GeneratedPR = { type: string; request_no: string; case_no: string; request_id: string; supplier?: string };
 
 // The reverse of _PROC_STORE_TO_BRANCH on the backend. Only the branches that
 // place supplier orders of their own appear: WH has no Daily Inventory branch to
@@ -775,7 +776,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                 )}
                 {generatedPRs.map((pr) => (
                   <div key={pr.request_id} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/5 px-4 py-3">
-                    <div><p className="text-xs font-semibold text-zinc-300">{pr.type} Order</p><p className="text-xs text-zinc-500">{pr.request_no}</p></div>
+                    <div><p className="text-xs font-semibold text-zinc-300">{pr.type} Order{pr.supplier ? ` — ${pr.supplier}` : ""}</p><p className="text-xs text-zinc-500">{pr.request_no}</p></div>
                     <a href="/admin/procurement/hub" className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/25">Review →</a>
                   </div>
                 ))}
