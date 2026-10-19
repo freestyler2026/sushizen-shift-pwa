@@ -15,11 +15,11 @@ interface Loan {
   staff_name: string;
   loan_type: LoanType;
   loan_no: string;
-  monthly_amortization: number;
+  monthly_amortization: number | null;
   first_month: string;
   last_month: string;
   months_total: number;
-  total_amount: number;
+  total_amount: number | null;
   authority_to_deduct: boolean;
   balance_at_separation: number | null;
   status: "active" | "stopped";
@@ -29,9 +29,12 @@ interface Loan {
   sss_number: string | null;
   pagibig_mid: string | null;
   last_working_date: string | null;
-  paid_amount: number;
+  paid_amount: number | null;
   paid_months: number;
-  draft_amount: number;
+  draft_amount: number | null;
+  final_period?: string | null;
+  final_period_status?: string;
+  final_taken?: number | null;
 }
 
 interface StaffRow { staff_name: string; sss_number: string | null; pagibig_mid: string | null }
@@ -43,11 +46,11 @@ interface RemitRow {
   loan_no: string;
   sss_number: string | null;
   pagibig_mid: string | null;
-  monthly_amortization: number;
-  deducted_1h: number;
-  deducted_2h: number;
-  deducted: number;
-  not_collected: number;
+  monthly_amortization: number | null;
+  deducted_1h: number | null;
+  deducted_2h: number | null;
+  deducted: number | null;
+  not_collected: number | null;
 }
 
 interface Remit {
@@ -55,13 +58,24 @@ interface Remit {
   periods: { id: number; period_label: string; period_half: number; status: string }[];
   final: boolean;
   rows: RemitRow[];
-  totals: Record<LoanType, number>;
+  totals: { total_sss_loans: number | null; total_pagibig_loans: number | null };
   due: { SSS: string | null; PAGIBIG: string | null };
 }
 
 const TYPE_LABEL: Record<LoanType, string> = { SSS: "SSS Loan", PAGIBIG: "Pag-IBIG Loan" };
-const peso = (n: number) =>
-  `₱${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Amounts come back null when the viewer may not read pay (the salary mask).
+const peso = (n: number | null | undefined) =>
+  n == null ? "—" : `₱${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const num = (n: number | null | undefined) => (n == null ? "" : n.toFixed(2));
+
+/** The payroll month a day belongs to. The 1st cut-off runs from the 26th, so
+ * from the 26th on it is next month's payroll — the same rule as
+ * payroll_month() in app/manila_gov_loans.py. */
+function payrollMonth(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (d >= 26) return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
 
 /** "2026-10" + n months → "YYYY-MM". Plain arithmetic, no Date: a Date built
  * from a month string slips a day through UTC in Manila. */
@@ -83,7 +97,7 @@ function monthName(ym: string): string {
 const STOP_REASONS = ["Paid off early", "Separated", "Entered by mistake"];
 
 export default function GovLoansPage() {
-  const thisMonth = isoToday().slice(0, 7);
+  const thisMonth = payrollMonth(isoToday());
   const [loans, setLoans] = useState<Loan[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -163,11 +177,21 @@ export default function GovLoansPage() {
     if (!fStaff) throw new Error("Pick who the loan belongs to.");
     if (!(Number(fMonthly) > 0)) throw new Error("Enter the monthly amortization from the loan statement.");
     if (fMonths < 1) throw new Error("The last month is before the first month.");
-    await apiPost(API, {
+    const body = {
       staff_name: fStaff, loan_type: fType, monthly_amortization: Number(fMonthly),
       first_month: fFirst, last_month: fLast, loan_no: fNo,
       authority_to_deduct: fType === "PAGIBIG" ? fAuth : false,
-    });
+    };
+    try {
+      await apiPost(API, body);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.startsWith("Overlap — ")) throw e;
+      if (!window.confirm(msg.slice("Overlap — ".length) + "\n\nRegister it as a second loan?")) {
+        throw new Error("Not registered. To change the amount of the existing loan, use Edit on it.");
+      }
+      await apiPost(API, { ...body, allow_overlap: true });
+    }
     setShowAdd(false); setFStaff(""); setFMonthly(""); setFNo(""); setFAuth(false);
     return `${fStaff}: ${TYPE_LABEL[fType]} registered — ${peso(Number(fMonthly))} a month, `
       + `${monthName(fFirst)} to ${monthName(fLast)}. Recompute any draft period in those months to apply it.`;
@@ -175,7 +199,7 @@ export default function GovLoansPage() {
 
   function openEdit(l: Loan) {
     setStopId(null);
-    setEditId(l.id); setEMonthly(String(l.monthly_amortization)); setELast(l.last_month);
+    setEditId(l.id); setEMonthly(l.monthly_amortization == null ? "" : String(l.monthly_amortization)); setELast(l.last_month);
     setENo(l.loan_no); setEAuth(l.authority_to_deduct);
     setEBal(l.balance_at_separation == null ? "" : String(l.balance_at_separation));
   }
@@ -207,7 +231,9 @@ export default function GovLoansPage() {
   const doDelete = (l: Loan) => run(async () => {
     if (!window.confirm(`Delete ${l.staff_name}'s ${TYPE_LABEL[l.loan_type]}? Nothing was deducted in paid payroll.`)) return "";
     await apiDelete(`${API}/${l.id}`);
-    return `${l.staff_name}: deleted. Recompute any draft period that already deducted it.`;
+    return `${l.staff_name}: deleted.` + ((l.draft_amount ?? 0) > 0
+      ? ` ${peso(l.draft_amount)} is still on draft payslips — recompute those periods (they show "needs recompute").`
+      : "");
   });
 
   const active = loans.filter(l => l.status === "active" && l.last_month >= thisMonth);
@@ -218,10 +244,15 @@ export default function GovLoansPage() {
     const head = ["Type", "Staff", "SSS no.", "Pag-IBIG MID", "Loan no.", "Monthly", "1st cut-off", "2nd cut-off", "Deducted", "Not collected"];
     const lines = remit.rows.map(r => [
       TYPE_LABEL[r.loan_type], r.staff_name, r.sss_number ?? "", r.pagibig_mid ?? "", r.loan_no,
-      r.monthly_amortization.toFixed(2), r.deducted_1h.toFixed(2), r.deducted_2h.toFixed(2),
-      r.deducted.toFixed(2), r.not_collected.toFixed(2),
+      num(r.monthly_amortization), num(r.deducted_1h), num(r.deducted_2h),
+      num(r.deducted), num(r.not_collected),
     ]);
-    return [head, ...lines].map(l => l.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    // A cell that starts with = + - @ is run as a formula by spreadsheets.
+    const cell = (c: unknown) => {
+      const v = String(c);
+      return `"${(/^[=+\-@]/.test(v) && isNaN(Number(v)) ? "'" + v : v).replace(/"/g, '""')}"`;
+    };
+    return [head, ...lines].map(l => l.map(cell).join(",")).join("\n");
   }, [remit]);
 
   function downloadCsv() {
@@ -262,7 +293,7 @@ export default function GovLoansPage() {
         <summary className="cursor-pointer text-zinc-200">How it deducts</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-zinc-400">
           <li>1st cut-off takes half the monthly amortization; the 2nd takes the rest of the month. The month always adds up to the amortization.</li>
-          <li>It comes after SSS / PhilHealth / Pag-IBIG contributions and tax, and before staff house and other company deductions. It never takes the payslip below zero — whatever could not be taken is shown on the run as &ldquo;Loan Amortization Not Fully Collected&rdquo;.</li>
+          <li>It takes what is left after contributions, tax, and staff house and other company deductions, and never takes the payslip below zero. Whatever could not be taken is shown on the run as &ldquo;Loan Amortization Not Fully Collected&rdquo;, with how much staff house took first — lower that and recompute to let the loan through.</li>
           <li>Pag-IBIG: if pay is short, the employee pays Pag-IBIG directly for that month. SSS: the unpaid part carries a 1% a month penalty.</li>
           <li>Final pay: SSS requires the whole remaining balance to come off final pay. Pag-IBIG allows it only if the employee signed the Authority to Deduct on the loan form. Enter the balance from the agency statement (Edit → Balance at separation) — until you do, the last cut-off takes just the month and the payslip is flagged &ldquo;loan balance?&rdquo;.</li>
           <li>Changes reach draft periods when they are recomputed. Paid periods never change.</li>
@@ -366,7 +397,7 @@ export default function GovLoansPage() {
             </div>
           ) : active.length === 0 ? (
             <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-400">
-              No loans registered. Use <b>+ Register a loan</b> for anyone repaying an SSS or Pag-IBIG loan.
+              {ended.length ? "No loan is being deducted now." : "No loans registered."} Use <b>+ Register a loan</b> for anyone repaying an SSS or Pag-IBIG loan.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-white/10">
@@ -432,15 +463,16 @@ export default function GovLoansPage() {
                         <td className="pr-3 text-right">{peso(r.deducted_1h)}</td>
                         <td className="pr-3 text-right">{peso(r.deducted_2h)}</td>
                         <td className="pr-3 text-right text-zinc-100">{peso(r.deducted)}</td>
-                        <td className={`text-right ${r.not_collected > 0 ? "text-amber-300" : "text-zinc-600"}`}>
-                          {r.not_collected > 0 ? peso(r.not_collected) : "—"}
+                        <td className={`text-right ${(r.not_collected ?? 0) > 0 ? "text-amber-300" : "text-zinc-600"}`}>
+                          {(r.not_collected ?? 0) > 0 ? peso(r.not_collected) : "—"}
                         </td>
                       </tr>
                     ))}
-                    {(["SSS", "PAGIBIG"] as LoanType[]).filter(t => remit.totals[t] > 0).map(t => (
+                    {([["SSS", remit.totals.total_sss_loans], ["PAGIBIG", remit.totals.total_pagibig_loans]] as [LoanType, number | null][])
+                      .filter(([t]) => remit.rows.some(r => r.loan_type === t)).map(([t, v]) => (
                       <tr key={t} className="border-t border-white/10 text-zinc-100">
                         <td className="py-1.5 pr-3 font-medium" colSpan={5}>{TYPE_LABEL[t]} total</td>
-                        <td className="pr-3 text-right font-medium">{peso(remit.totals[t])}</td><td />
+                        <td className="pr-3 text-right font-medium">{peso(v)}</td><td />
                       </tr>
                     ))}
                   </tbody>
@@ -481,6 +513,15 @@ export default function GovLoansPage() {
           <td className="px-3 py-2">
             {l.staff_name}
             {l.last_working_date && <span className="ml-2 rounded bg-rose-900/40 px-1.5 py-0.5 text-[10px] text-rose-200">last day {l.last_working_date}</span>}
+            {l.last_working_date && (l.loan_type === "SSS" || l.authority_to_deduct) && (
+              <span className="mt-1 block max-w-xs text-[10px] leading-snug text-rose-200/80">
+                {l.final_period
+                  ? `Final pay ${l.final_period} (${l.final_period_status}) took ${peso(l.final_taken)}. `
+                  : "No payroll period holds the last day yet. "}
+                {l.balance_at_separation == null ? "Enter the balance from the statement (Edit) so final pay takes it. " : ""}
+                {l.final_period_status === "paid" ? "If the balance was not taken, report it to the agency." : ""}
+              </span>
+            )}
           </td>
           <td className="px-3">
             {TYPE_LABEL[l.loan_type]}{l.loan_no ? <span className="text-zinc-500"> {l.loan_no}</span> : null}
@@ -498,7 +539,7 @@ export default function GovLoansPage() {
           <td className="px-3 text-right">
             {peso(l.paid_amount)}
             <span className="block text-[10px] text-zinc-500">
-              {l.paid_months} of {l.months_total} months{l.draft_amount > 0 ? ` · ${peso(l.draft_amount)} in drafts` : ""}
+              {l.paid_months} of {l.months_total} months{(l.draft_amount ?? 0) > 0 ? ` · ${peso(l.draft_amount)} in drafts` : ""}
             </span>
           </td>
           <td className="whitespace-nowrap px-3 text-right">
