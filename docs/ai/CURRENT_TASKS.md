@@ -34813,3 +34813,7 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
   - Cards instead of a table: at phone width the table pushed the buttons off-screen (seen in the browser).
   - Live UI test as HQ in the browser pane passed: register, edit (focus kept), stop, undo, overlap confirm, delete. Test rows hard-deleted by id (manila_gov_loans = 0 rows).
   - Manual v33.
+
+## 2026-10-19 — Draft Apply no longer wipes the neighbouring month (lesson 190)
+- Backend `32d5f12f`, frontend `46ca8ec4`: `limit_to_draft_month` / `draft_month_window()`; prepare returns `apply_window`; preview shows "Week of …: Only … is applied". Prod check: week 10-26 → 11-01 only; 11-02 → full week; 11-30 → 11-30 only (all 5 branches).
+- Pending (owner said only this item so far): ① editable Staff Roster, ② Sync dedupe + approve replaces the person-day (current Nov drafts have ~half duplicate rows: CK 317/499, CUB 559/1074, PAR 455/960, TAFT 534/1040), ③ the worker rewrites DRAFT-month tabs every 10 min and wipes inputs typed during the rewrite (October edits also re-mark November via `_mark_next`).
