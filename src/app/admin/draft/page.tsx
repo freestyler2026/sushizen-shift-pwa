@@ -240,6 +240,8 @@ type ApplyPrepareResult = {
   } | null;
   day_off_conflicts?: DayOffConflict[];
   cross_branch_overlaps?: CrossBranchOverlap[];
+  /** Set when the week runs into another month: only these days are applied. */
+  apply_window?: { date_from: string; date_to: string; message: string } | null;
 };
 
 type ApplyConfirmResult = {
@@ -291,6 +293,7 @@ type BatchApplyPrepareResult = {
     conflict?: ApplyPrepareResult["conflict"];
     day_off_conflicts?: DayOffConflict[];
     cross_branch_overlaps?: CrossBranchOverlap[];
+    apply_window?: ApplyPrepareResult["apply_window"];
   }>;
   total_rows_count: number;
   total_staff_count: number;
@@ -2297,6 +2300,7 @@ export default function AdminDraftPage() {
           conflict: res.conflict,
           day_off_conflicts: res.day_off_conflicts || [],
           cross_branch_overlaps: res.cross_branch_overlaps || [],
+          apply_window: res.apply_window ?? null,
         });
         totalRowsCount += Number(res.preview?.rows_count || 0);
         totalStaffCount += Number(res.preview?.staff_count || 0);
@@ -4303,6 +4307,20 @@ export default function AdminDraftPage() {
                 <div>jobs_ready: <span className="text-neutral-200">{fmtNum(applyPrepared.items.length)}</span></div>
                 <div>preview: {fmtNum(applyPrepared.total_rows_count)} rows / {fmtNum(applyPrepared.total_staff_count)} staff</div>
               </div>
+              {(() => {
+                // Weeks that run into the neighbouring month: say which days are
+                // applied, once per week rather than once per branch.
+                const seen = new Map<string, string>();
+                for (const i of applyPrepared.items) {
+                  if (i.apply_window && !seen.has(i.week_start)) seen.set(i.week_start, i.apply_window.message);
+                }
+                if (!seen.size) return null;
+                return (
+                  <div className="mt-3 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200">
+                    {[...seen.entries()].map(([w, m]) => <div key={w}>Week of {w}: {m}</div>)}
+                  </div>
+                );
+              })()}
               {applyPrepared.items.some(i => (i.cross_branch_overlaps?.length ?? 0) > 0) && (
                 <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
                   <div className="mb-2 text-sm font-semibold text-rose-300">
