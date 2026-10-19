@@ -1295,3 +1295,67 @@ describe("AdminDraftPage — Excel import onto an approved day off", () => {
     expect(screen.getByRole("button", { name: /Import anyway/i })).toBeInTheDocument();
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Yusuke, 2026-10-19: the Staff Roster Check could not be edited — wrong branch
+// for CK/Cubao staff, current staff missing, no way to add, move or reorder.
+describe("AdminDraftPage — editable Staff Roster Check", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  async function openRoster(fetchMock: ReturnType<typeof makeDraftFetch>) {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled(), { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText("Ana", {}, { timeout: 5000 });
+  }
+
+  const ROSTER = {
+    saved: false,
+    branches: {
+      BB: [
+        { staff_name: "Ana", days: 20, home_branch: "BB", included: true, note: "" },
+        { staff_name: "Ben", days: 18, home_branch: "JLT", included: true, note: "" },
+      ],
+    },
+    available: [{ staff_name: "Cara", home_branch: "BB" }],
+  };
+
+  it("reorders, moves, unticks and saves the roster", async () => {
+    const fetchMock = makeDraftFetch([
+      { match: "/api/draft/roster", body: ROSTER, method: "GET" },
+      { match: "/api/draft/roster", body: { ok: true, saved: 2 }, method: "PUT" },
+    ]);
+    await openRoster(fetchMock);
+    // Ben's staff record says JLT: shown so the mismatch is visible
+    expect(screen.getByText("staff record: JLT")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Move Ben up" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include Ana" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Branch for Ben" }), { target: { value: "JLT" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save roster" }));
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(([u, o]) => String(u).includes("/api/draft/roster") && (o as RequestInit)?.method === "PUT");
+      expect(put).toBeTruthy();
+    });
+    const put = fetchMock.mock.calls.find(([u, o]) => String(u).includes("/api/draft/roster") && (o as RequestInit)?.method === "PUT")!;
+    const body = JSON.parse(String((put[1] as RequestInit).body));
+    expect(body.entries).toEqual(expect.arrayContaining([
+      { staff_name: "Ana", branch_code: "BB", sort_order: 0, included: false },
+      { staff_name: "Ben", branch_code: "JLT", sort_order: 0, included: true },
+    ]));
+    await screen.findByText(/Saved 2 staff/);
+  });
+
+  it("removing someone puts them back in the add list", async () => {
+    const fetchMock = makeDraftFetch([{ match: "/api/draft/roster", body: ROSTER, method: "GET" }]);
+    await openRoster(fetchMock);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Ana" }));
+    expect(screen.queryByRole("checkbox", { name: "Include Ana" })).toBeNull();
+  });
+});

@@ -488,6 +488,30 @@ class ApiError extends Error {
   }
 }
 
+async function apiPut<T = any>(path: string, body?: any): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text || `PUT ${path} failed`;
+    try {
+      const d = JSON.parse(text)?.detail;
+      if (d) msg = typeof d === "object" ? String((d as Record<string, unknown>).message || msg) : String(d);
+    } catch { /* non-JSON */ }
+    throw new ApiError(res.status, msg);
+  }
+  return text ? (JSON.parse(text) as T) : ({} as T);
+}
+
+/** "19/10/2026, 18:04" in the reader's clock — the timestamp carries its zone. */
+function fmtDateTimeShort(iso: string): string {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+}
+
 async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -1541,12 +1565,19 @@ export default function AdminDraftPage() {
   const [xlsxApplyBusy, setXlsxApplyBusy] = useState(false);
   const xlsxFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Staff Roster Check — pre-generate preview
-  type RosterEntry = { name: string; days: number; is_excluded: boolean };
-  const [rosterPreview, setRosterPreview] = useState<Record<string, RosterEntry[]>>({});
+  // Staff Roster Check — the month's roster, editable and saved (app/draft_roster.py)
+  type RosterRow = { staff_name: string; days: number; home_branch: string; included: boolean; note: string };
+  type RosterData = {
+    saved: boolean; saved_by?: string; saved_at?: string | null;
+    branches: Record<string, RosterRow[]>;
+    available: { staff_name: string; home_branch: string }[];
+  };
+  const [roster, setRoster] = useState<RosterData | null>(null);
   const [rosterLoading, setRosterLoading] = useState(false);
-  // unchecked[branchCode] = Set of staff names to exclude for this run
-  const [rosterUnchecked, setRosterUnchecked] = useState<Record<string, Set<string>>>({});
+  const [rosterError, setRosterError] = useState("");
+  const [rosterDirty, setRosterDirty] = useState(false);
+  const [rosterSaving, setRosterSaving] = useState(false);
+  const [rosterMessage, setRosterMessage] = useState("");
   const [rosterOpen, setRosterOpen] = useState(true);
 
   // Auto-export state: triggered right after Confirm Generate
@@ -1898,23 +1929,85 @@ export default function AdminDraftPage() {
   }, [canOperate, approverName, pin, applyMonth, syncBranchCode]);
 
 
-  async function fetchRosterPreview(branchCodes: string[], targetMon: string, cityVal: string) {
+  async function fetchRoster(branchCodes: string[], targetMon: string, cityVal: string) {
     setRosterLoading(true);
-    setRosterUnchecked({});
-    const results: Record<string, RosterEntry[]> = {};
-    await Promise.allSettled(
-      branchCodes.map(async (bc) => {
-        try {
-          const qs = new URLSearchParams({ city: cityVal, branch_code: bc, target_month: targetMon });
-          const data = await apiGet<{ staff: RosterEntry[] }>(`/api/draft/staff_preview?${qs}`);
-          results[bc] = data.staff || [];
-        } catch {
-          results[bc] = [];
-        }
-      })
-    );
-    setRosterPreview(results);
-    setRosterLoading(false);
+    setRosterError("");
+    setRosterMessage("");
+    setRosterDirty(false);
+    try {
+      const data = await apiGet<RosterData>(`/api/draft/roster${qs({
+        city: cityVal, target_month: targetMon, branch_codes: branchCodes.join(","),
+      })}`);
+      const branches: Record<string, RosterRow[]> = {};
+      for (const bc of branchCodes) branches[bc] = Array.isArray(data?.branches?.[bc]) ? data.branches[bc] : [];
+      // Every field defaulted: a partial answer must not take the page down.
+      setRoster({ saved: !!data?.saved, saved_by: data?.saved_by, saved_at: data?.saved_at ?? null,
+        branches, available: Array.isArray(data?.available) ? data.available : [] });
+      // A suggestion has not been saved yet: saving it is a change to make.
+      setRosterDirty(!data?.saved);
+    } catch (e: any) {
+      setRoster(null);
+      setRosterError(String(e?.message || e || "Could not load the roster."));
+    } finally {
+      setRosterLoading(false);
+    }
+  }
+
+  function rosterEdit(fn: (r: RosterData) => RosterData) {
+    setRoster((prev) => (prev ? fn(prev) : prev));
+    setRosterDirty(true);
+    setRosterMessage("");
+  }
+  const rosterToggle = (bc: string, i: number) => rosterEdit((r) => ({
+    ...r, branches: { ...r.branches, [bc]: r.branches[bc].map((s, j) => (j === i ? { ...s, included: !s.included } : s)) },
+  }));
+  const rosterMove = (bc: string, i: number, d: -1 | 1) => rosterEdit((r) => {
+    const list = [...r.branches[bc]];
+    const j = i + d;
+    if (j < 0 || j >= list.length) return r;
+    [list[i], list[j]] = [list[j], list[i]];
+    return { ...r, branches: { ...r.branches, [bc]: list } };
+  });
+  const rosterChangeBranch = (bc: string, i: number, to: string) => rosterEdit((r) => {
+    if (to === bc) return r;
+    const moving = r.branches[bc][i];
+    return { ...r, branches: { ...r.branches, [bc]: r.branches[bc].filter((_, j) => j !== i),
+      [to]: [...(r.branches[to] || []), moving] } };
+  });
+  const rosterRemove = (bc: string, i: number) => rosterEdit((r) => {
+    const gone = r.branches[bc][i];
+    return { ...r, branches: { ...r.branches, [bc]: r.branches[bc].filter((_, j) => j !== i) },
+      available: [...r.available, { staff_name: gone.staff_name, home_branch: gone.home_branch }]
+        .sort((a, b) => a.staff_name.localeCompare(b.staff_name)) };
+  });
+  const rosterAdd = (bc: string, name: string) => rosterEdit((r) => {
+    const a = r.available.find((x) => x.staff_name === name);
+    if (!a) return r;
+    return { ...r, available: r.available.filter((x) => x.staff_name !== name),
+      branches: { ...r.branches, [bc]: [...(r.branches[bc] || []),
+        { staff_name: name, days: 0, home_branch: a.home_branch, included: true, note: "added" }] } };
+  });
+
+  async function saveRoster(): Promise<boolean> {
+    if (!roster || !prepared) return false;
+    setRosterSaving(true);
+    setRosterMessage("");
+    try {
+      const entries = prepared.branch_codes.flatMap((bc) =>
+        (roster.branches[bc] || []).map((s, i) => ({ staff_name: s.staff_name, branch_code: bc, sort_order: i, included: s.included })));
+      const res = await apiPut<{ ok: boolean; saved: number }>(`/api/draft/roster`, {
+        city: prepared.city, target_month: prepared.target_month, entries,
+      });
+      setRoster((r) => (r ? { ...r, saved: true, saved_by: approverName || r.saved_by, saved_at: new Date().toISOString() } : r));
+      setRosterDirty(false);
+      setRosterMessage(`Saved ${res.saved} staff.`);
+      return true;
+    } catch (e: any) {
+      setRosterMessage(String(e?.message || e || "Save failed"));
+      return false;
+    } finally {
+      setRosterSaving(false);
+    }
   }
 
   function prepareDraft() {
@@ -1930,7 +2023,7 @@ export default function AdminDraftPage() {
     setApplyResult(null);
     setPublished(null);
     setRosterOpen(true);
-    fetchRosterPreview(draftBranches, targetMonth, city);
+    fetchRoster(draftBranches, targetMonth, city);
   }
 
   async function confirmGenerate() {
@@ -1947,6 +2040,15 @@ export default function AdminDraftPage() {
     setEditingRow(null);
     setApplyMonth(prepared.target_month);
 
+    // Generation follows the saved roster, so save what is on screen first.
+    if (roster && rosterDirty) {
+      const ok = await saveRoster();
+      if (!ok) {
+        setError("The roster could not be saved, so nothing was generated. Fix the roster and try again.");
+        setLoading(false);
+        return;
+      }
+    }
     try {
       const nextVersions: BatchDraftVersion[] = [];
       const failedBranches: Array<{ branch_code: string; detail: string }> = [];
@@ -1958,7 +2060,8 @@ export default function AdminDraftPage() {
       const blockedBranches: string[] = [];
       for (const code of prepared.branch_codes) {
         try {
-          const extraExcluded = Array.from(rosterUnchecked[code] || new Set<string>());
+          // Unticked people are saved as left out; nothing extra to send.
+          const extraExcluded: string[] = [];
           const res = (await apiPost(`/api/draft/generate_month`, {
             city: prepared.city,
             branch_code: code,
@@ -2058,7 +2161,7 @@ export default function AdminDraftPage() {
     let totalRowsInserted = 0;
     for (const code of replaceGuard.branch_codes) {
       try {
-        const extraExcluded = Array.from(rosterUnchecked[code] || new Set<string>());
+        const extraExcluded: string[] = [];   // the saved roster decides
         const res = (await apiPost(`/api/draft/generate_month`, {
           city: replaceGuard.city,
           branch_code: code,
@@ -3518,7 +3621,7 @@ export default function AdminDraftPage() {
           </p>
         ) : null}
 
-        {/* ── Staff Roster Check ── */}
+        {/* ── Staff Roster Check — editable, saved per month (app/draft_roster.py) ── */}
         {prepared && (
           <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/5">
             <button
@@ -3526,96 +3629,93 @@ export default function AdminDraftPage() {
               className="flex w-full items-center justify-between px-5 py-3"
               onClick={() => setRosterOpen((p) => !p)}
             >
-              <span className="flex items-center gap-2 font-semibold text-sky-300 text-sm">
+              <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-sky-300">
                 <ClipboardList className="h-4 w-4" />
                 Staff Roster Check
-                <span className="ml-1 text-xs font-normal text-sky-400/70">
-                  — uncheck staff to exclude from this generation
+                <span className="text-xs font-normal text-sky-400/70">
+                  {roster?.saved
+                    ? `— saved${roster.saved_by ? ` by ${roster.saved_by}` : ""}${roster.saved_at ? ` · ${fmtDateTimeShort(roster.saved_at)}` : ""}`
+                    : "— suggested from last month; edit and save"}
+                  {rosterDirty ? " · unsaved changes" : ""}
                 </span>
               </span>
-              <span className="text-neutral-400 text-xs">{rosterOpen ? "▲" : "▼"}</span>
+              <span className="text-xs text-neutral-400">{rosterOpen ? "▲" : "▼"}</span>
             </button>
 
             {rosterOpen && (
-              <div className="px-5 pb-5 space-y-4">
+              <div className="space-y-4 px-5 pb-5">
+                <p className="text-xs text-neutral-400">
+                  Who is in this month&apos;s draft, at which branch, in which order. The order is the row order in the
+                  spreadsheet. Untick to leave someone out this month; Confirm Generate saves the roster first.
+                </p>
                 {rosterLoading ? (
-                  <p className="text-xs text-neutral-500 flex items-center gap-1.5">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading previous month roster…
+                  <p className="flex items-center gap-1.5 text-xs text-neutral-500">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading roster…
                   </p>
+                ) : !roster ? (
+                  <p className="text-xs text-red-300">{rosterError || "Could not load the roster."}</p>
                 ) : (
                   prepared.branch_codes.map((bc) => {
-                    const staff = rosterPreview[bc] || [];
-                    const unchecked = rosterUnchecked[bc] || new Set<string>();
-                    const activeStaff = staff.filter((s) => !s.is_excluded);
-                    const excludedByDb = staff.filter((s) => s.is_excluded);
-                    const uncheckedCount = activeStaff.filter((s) => unchecked.has(s.name)).length;
-
-                    function toggleStaff(name: string) {
-                      setRosterUnchecked((prev) => {
-                        const next = { ...prev };
-                        const set = new Set(next[bc] || []);
-                        if (set.has(name)) set.delete(name);
-                        else set.add(name);
-                        next[bc] = set;
-                        return next;
-                      });
-                    }
-
+                    const list = roster.branches[bc] || [];
+                    const out = list.filter((s) => !s.included).length;
                     return (
                       <div key={bc}>
-                        {prepared.branch_codes.length > 1 && (
-                          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">
-                            {labelOf(city as City, bc as BranchCode)}
-                          </p>
-                        )}
-                        {staff.length === 0 ? (
-                          <p className="text-xs text-neutral-500">No previous month data found for this branch.</p>
-                        ) : (
-                          <div className="space-y-0.5">
-                            {activeStaff.map((s) => {
-                              const isUnchecked = unchecked.has(s.name);
-                              return (
-                                <label
-                                  key={s.name}
-                                  className={`flex items-center gap-2.5 cursor-pointer rounded px-2 py-1 text-sm transition-colors ${
-                                    isUnchecked
-                                      ? "text-red-400/70 line-through"
-                                      : "text-zinc-200 hover:bg-white/5"
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={!isUnchecked}
-                                    onChange={() => toggleStaff(s.name)}
-                                    className="accent-sky-500 h-3.5 w-3.5 rounded shrink-0"
-                                  />
-                                  <span className="flex-1">{s.name}</span>
-                                  <span className="text-xs text-neutral-500 shrink-0">{s.days}d</span>
-                                </label>
-                              );
-                            })}
-                            {excludedByDb.length > 0 && (
-                              <div className="mt-2 pt-2 border-t border-white/10">
-                                <p className="text-xs text-neutral-500 mb-1">Already excluded (Exclusion Manager):</p>
-                                {excludedByDb.map((s) => (
-                                  <div key={s.name} className="flex items-center gap-2.5 px-2 py-0.5 text-xs text-neutral-600">
-                                    <span className="h-3.5 w-3.5 shrink-0 flex items-center justify-center text-neutral-600">✕</span>
-                                    <span className="line-through">{s.name}</span>
-                                    <span className="shrink-0">{s.days}d</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {uncheckedCount > 0 && (
-                          <p className="mt-2 text-xs text-amber-400">
-                            {uncheckedCount} staff will be excluded from this generation run.
-                          </p>
-                        )}
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                          {labelOf(city as City, bc as BranchCode)} <span className="text-neutral-600">({list.length - out})</span>
+                        </p>
+                        {list.length === 0 && <p className="mb-2 text-xs text-neutral-500">Nobody yet — add staff below.</p>}
+                        <div className="space-y-0.5">
+                          {list.map((s, i) => (
+                            <div key={s.staff_name}
+                              className={`flex flex-wrap items-center gap-2 rounded px-2 py-1 text-sm ${s.included ? "text-zinc-200 hover:bg-white/5" : "text-red-400/70"}`}>
+                              <input type="checkbox" checked={s.included} onChange={() => rosterToggle(bc, i)}
+                                aria-label={`Include ${s.staff_name}`} className="h-3.5 w-3.5 shrink-0 rounded accent-sky-500" />
+                              <span className={`min-w-0 flex-1 ${s.included ? "" : "line-through"}`}>
+                                {s.staff_name}
+                                {s.home_branch && s.home_branch !== bc && (
+                                  <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">staff record: {s.home_branch}</span>
+                                )}
+                                {s.note && <span className="ml-1.5 text-[10px] text-neutral-500">{s.note}</span>}
+                              </span>
+                              <span className="shrink-0 text-xs text-neutral-500">{s.days ? `${s.days}d` : ""}</span>
+                              <button type="button" disabled={i === 0} onClick={() => rosterMove(bc, i, -1)}
+                                aria-label={`Move ${s.staff_name} up`} className="px-1 text-xs text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
+                              <button type="button" disabled={i === list.length - 1} onClick={() => rosterMove(bc, i, 1)}
+                                aria-label={`Move ${s.staff_name} down`} className="px-1 text-xs text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
+                              <select value={bc} onChange={(e) => rosterChangeBranch(bc, i, e.target.value)}
+                                aria-label={`Branch for ${s.staff_name}`}
+                                className="rounded border border-white/10 bg-neutral-900 px-1.5 py-0.5 text-xs text-neutral-300">
+                                {prepared.branch_codes.map((b) => <option key={b} value={b}>{b}</option>)}
+                              </select>
+                              <button type="button" onClick={() => rosterRemove(bc, i)}
+                                aria-label={`Remove ${s.staff_name}`} className="px-1 text-xs text-neutral-500 hover:text-red-300">✕</button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 max-w-xs">
+                          <SelectDark
+                            value=""
+                            onChange={(name) => name && rosterAdd(bc, name)}
+                            options={roster.available.map((a) => ({
+                              value: a.staff_name,
+                              label: a.home_branch ? `${a.staff_name} (${a.home_branch})` : a.staff_name,
+                            }))}
+                            placeholder="+ Add staff"
+                            aria-label={`Add staff to ${bc}`}
+                          />
+                        </div>
                       </div>
                     );
                   })
+                )}
+                {roster && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={() => void saveRoster()} disabled={rosterSaving || !rosterDirty}
+                      className={`${SECONDARY_BUTTON} disabled:opacity-50`}>
+                      {rosterSaving ? "Saving…" : "Save roster"}
+                    </button>
+                    {rosterMessage && <span className="text-xs text-neutral-300">{rosterMessage}</span>}
+                  </div>
                 )}
               </div>
             )}
