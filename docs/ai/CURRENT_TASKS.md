@@ -34817,3 +34817,18 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
 ## 2026-10-19 — Draft Apply no longer wipes the neighbouring month (lesson 190)
 - Backend `32d5f12f`, frontend `46ca8ec4`: `limit_to_draft_month` / `draft_month_window()`; prepare returns `apply_window`; preview shows "Week of …: Only … is applied". Prod check: week 10-26 → 11-01 only; 11-02 → full week; 11-30 → 11-30 only (all 5 branches).
 - Pending (owner said only this item so far): ① editable Staff Roster, ② Sync dedupe + approve replaces the person-day (current Nov drafts have ~half duplicate rows: CK 317/499, CUB 559/1074, PAR 455/960, TAFT 534/1040), ③ the worker rewrites DRAFT-month tabs every 10 min and wipes inputs typed during the rewrite (October edits also re-mark November via `_mark_next`).
+
+## 2026-10-19 — Yusuke's 3 draft issues fixed (lessons 190–192)
+1. Sheet rewrites (backend `bf3b71ad`): the worker skips DRAFT months (`SHEET_SYNC_DRAFT_MONTHS=1` restores). The export reads a tab's inputs right before clearing it; the other mode's inputs are stashed before that tab is deleted.
+2. Duplicates (backend `173d1452`, frontend `a0175835`):
+   - Sync: month guard; skips no-op revisions; SUPERSEDED for older pending proposals of the same shift; fallback draft = the one the export shows.
+   - Approve: dedupe; no blind INSERT; day-off works; monthly transfer; returns `not_applied`.
+   - The month's draft is now chosen by days, not rows.
+   - The frontend syncs only this branch's tab and draft.
+3. Roster (backend `e1167980`/`e8828aed`, frontend `04c388c3`):
+   - Table `draft_roster`; GET/PUT `/api/draft/roster` (sign-in required).
+   - Generation uses the saved roster; the sheet's row order follows it.
+   - Planner seeds added people whose profile has no days.
+   - Prod check (read-only): suggestion places Daisy/Richard in CK (flagged "staff record: CUB"), Jonathan as new hire; Lynde B. Ore = maternity leave (0 shifts correct).
+- Not fixed, found on the way: `/api/draft/*` (staff_preview, generate_month, …) has no sign-in gate (not under `_AUTH_GATES`).
+- Current Nov drafts still hold the duplicates; Yusuke regenerates (the new version wins by days, then newest).
