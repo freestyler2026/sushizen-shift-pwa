@@ -192,9 +192,11 @@ export default function GovLoansPage() {
       }
       await apiPost(API, { ...body, allow_overlap: true });
     }
-    setShowAdd(false); setFStaff(""); setFMonthly(""); setFNo(""); setFAuth(false);
-    return `${fStaff}: ${TYPE_LABEL[fType]} registered — ${peso(Number(fMonthly))} a month, `
+    const done = `${fStaff}: ${TYPE_LABEL[fType]} registered — ${peso(Number(fMonthly))} a month, `
       + `${monthName(fFirst)} to ${monthName(fLast)}. Recompute any draft period in those months to apply it.`;
+    setShowAdd(false); setFStaff(""); setFMonthly(""); setFNo(""); setFAuth(false);
+    setFType("SSS"); setFFirst(thisMonth); setFLast(addMonths(thisMonth, 23));
+    return done;
   });
 
   function openEdit(l: Loan) {
@@ -236,7 +238,9 @@ export default function GovLoansPage() {
       : "");
   });
 
-  const active = loans.filter(l => l.status === "active" && l.last_month >= thisMonth);
+  // Grouped by whether months are left to deduct, not by status: a loan
+  // stopped after a future month still deducts until then.
+  const active = loans.filter(l => l.last_month >= thisMonth);
   const ended = loans.filter(l => !active.includes(l));
 
   const csv = useMemo(() => {
@@ -400,18 +404,14 @@ export default function GovLoansPage() {
               {ended.length ? "No loan is being deducted now." : "No loans registered."} Use <b>+ Register a loan</b> for anyone repaying an SSS or Pag-IBIG loan.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-white/10">
-              {renderTable(active)}
-            </div>
+            renderList(active)
           )}
       </section>
 
       {ended.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium text-zinc-300">Finished or stopped <span className="text-zinc-500">({ended.length})</span></h2>
-          <div className="overflow-x-auto rounded-xl border border-white/10">
-            {renderTable(ended)}
-          </div>
+          {renderList(ended)}
         </section>
       )}
 
@@ -488,73 +488,77 @@ export default function GovLoansPage() {
   // Render functions, not components: a component declared inside this one is
   // a new type on every render, so React remounts it and the input being typed
   // in loses focus after each keystroke.
-  function renderTable(rows: Loan[]) {
-    return (
-      <table className="w-full text-sm tabular-nums">
-        <thead className="bg-white/5 text-left text-[11px] uppercase tracking-wide text-zinc-500">
-          <tr>
-            <th className="px-3 py-2">Staff</th><th className="px-3">Loan</th>
-            <th className="px-3 text-right">Monthly</th><th className="px-3">Months</th>
-            <th className="px-3 text-right">Deducted (paid)</th><th className="px-3" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(l => <Fragment key={l.id}>{renderRow(l)}</Fragment>)}
-        </tbody>
-      </table>
-    );
+  //
+  // Cards, not a table: at phone width the six-column table pushed Edit / Stop /
+  // Delete off the right edge and squeezed the edit form into one cell
+  // (checked in the browser 2026-10-19).
+  function renderList(rows: Loan[]) {
+    return <div className="space-y-2">{rows.map(l => <Fragment key={l.id}>{renderCard(l)}</Fragment>)}</div>;
   }
 
-  function renderRow(l: Loan) {
-    const ended = !(l.status === "active" && l.last_month >= thisMonth);
+  function renderCard(l: Loan) {
+    const finished = l.last_month < thisMonth;
     return (
-      <>
-        <tr className="border-t border-white/5 text-zinc-300">
-          <td className="px-3 py-2">
-            {l.staff_name}
-            {l.last_working_date && <span className="ml-2 rounded bg-rose-900/40 px-1.5 py-0.5 text-[10px] text-rose-200">last day {l.last_working_date}</span>}
-            {l.last_working_date && (l.loan_type === "SSS" || l.authority_to_deduct) && (
-              <span className="mt-1 block max-w-xs text-[10px] leading-snug text-rose-200/80">
-                {l.final_period
-                  ? `Final pay ${l.final_period} (${l.final_period_status}) took ${peso(l.final_taken)}. `
-                  : "No payroll period holds the last day yet. "}
-                {l.balance_at_separation == null ? "Enter the balance from the statement (Edit) so final pay takes it. " : ""}
-                {l.final_period_status === "paid" ? "If the balance was not taken, report it to the agency." : ""}
-              </span>
-            )}
-          </td>
-          <td className="px-3">
-            {TYPE_LABEL[l.loan_type]}{l.loan_no ? <span className="text-zinc-500"> {l.loan_no}</span> : null}
-            {l.loan_type === "PAGIBIG" && (
-              <span className="block text-[10px] text-zinc-500">{l.authority_to_deduct ? "Authority to Deduct signed" : "No Authority to Deduct"}</span>
-            )}
-          </td>
-          <td className="px-3 text-right">{peso(l.monthly_amortization)}</td>
-          <td className="px-3">
-            {monthName(l.first_month)} – {monthName(l.last_month)}
-            <span className="block text-[10px] text-zinc-500">
-              {l.months_total} months{l.status === "stopped" ? ` · stopped: ${l.stop_reason}` : ended ? " · finished" : ""}
-            </span>
-          </td>
-          <td className="px-3 text-right">
-            {peso(l.paid_amount)}
-            <span className="block text-[10px] text-zinc-500">
-              {l.paid_months} of {l.months_total} months{(l.draft_amount ?? 0) > 0 ? ` · ${peso(l.draft_amount)} in drafts` : ""}
-            </span>
-          </td>
-          <td className="whitespace-nowrap px-3 text-right">
-            <button onClick={() => (editId === l.id ? setEditId(null) : openEdit(l))} className="px-1.5 text-xs text-violet-300 hover:text-violet-100">Edit</button>
-            {l.status === "active" && (
-              <button onClick={() => (stopId === l.id ? setStopId(null) : openStop(l))} className="px-1.5 text-xs text-amber-300 hover:text-amber-100">Stop</button>
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-zinc-300">
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+          <div className="min-w-0">
+            <div className="font-medium text-zinc-100">
+              {l.staff_name}
+              {l.last_working_date && <span className="ml-2 rounded bg-rose-900/40 px-1.5 py-0.5 text-[10px] font-normal text-rose-200">last day {l.last_working_date}</span>}
+            </div>
+            <div className="text-xs text-zinc-400">
+              {TYPE_LABEL[l.loan_type]}{l.loan_no ? ` · ${l.loan_no}` : ""}
+              {l.loan_type === "PAGIBIG" && (l.authority_to_deduct ? " · Authority to Deduct signed" : " · No Authority to Deduct")}
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <button onClick={() => (editId === l.id ? setEditId(null) : openEdit(l))}
+                    className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-violet-300 hover:text-violet-100">Edit</button>
+            {!finished && (
+              <button onClick={() => (stopId === l.id ? setStopId(null) : openStop(l))}
+                      className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-amber-300 hover:text-amber-100">Stop</button>
             )}
             {l.paid_amount === 0 && (
-              <button disabled={busy} onClick={() => doDelete(l)} className="px-1.5 text-xs text-rose-300 hover:text-rose-100">Delete</button>
+              <button disabled={busy} onClick={() => doDelete(l)}
+                      className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-rose-300 hover:text-rose-100">Delete</button>
             )}
-          </td>
-        </tr>
+          </div>
+        </div>
+
+        <div className="mt-2 grid grid-cols-3 gap-2 tabular-nums">
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Monthly</div>
+            <div>{peso(l.monthly_amortization)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Months</div>
+            <div>{monthName(l.first_month)} – {monthName(l.last_month)}</div>
+            <div className="text-[10px] text-zinc-500">
+              {l.months_total} months{l.status === "stopped" ? ` · stopped: ${l.stop_reason}` : finished ? " · finished" : ""}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Deducted (paid)</div>
+            <div>{peso(l.paid_amount)}</div>
+            <div className="text-[10px] text-zinc-500">
+              {l.paid_months} of {l.months_total} months{(l.draft_amount ?? 0) > 0 ? ` · ${peso(l.draft_amount)} in drafts` : ""}
+            </div>
+          </div>
+        </div>
+
+        {l.last_working_date && (l.loan_type === "SSS" || l.authority_to_deduct) && (
+          <p className="mt-2 rounded-lg bg-rose-900/20 px-2.5 py-1.5 text-[11px] leading-snug text-rose-200/90">
+            {l.final_period
+              ? `Final pay ${l.final_period} (${l.final_period_status}) took ${peso(l.final_taken)}. `
+              : "No payroll period holds the last day yet. "}
+            {l.balance_at_separation == null ? "Enter the balance from the statement (Edit) so final pay takes it. " : ""}
+            {l.final_period_status === "paid" ? "If the balance was not taken, report it to the agency." : ""}
+          </p>
+        )}
+
         {editId === l.id && (
-          <tr className="bg-violet-600/5"><td colSpan={6} className="px-3 py-3">
-            <div className="grid gap-3 sm:grid-cols-5">
+          <div className="mt-3 rounded-lg bg-violet-600/10 p-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-xs text-zinc-400">Monthly
                 <input type="number" min="0.01" step="0.01" value={eMonthly} onChange={e => setEMonthly(e.target.value)} className={input} /></label>
               <label className="text-xs text-zinc-400">Last month
@@ -564,40 +568,40 @@ export default function GovLoansPage() {
               <label className="text-xs text-zinc-400">Balance at separation
                 <input type="number" min="0" step="0.01" value={eBal} onChange={e => setEBal(e.target.value)} className={input} placeholder="from the statement" />
                 <span className="mt-1 block text-[10px] text-zinc-500">Only when leaving, from the agency statement. Empty = the last cut-off takes just the month.</span></label>
-              {l.loan_type === "PAGIBIG" ? (
-                <label className="flex items-center gap-2 pt-5 text-xs text-zinc-300">
+              {l.loan_type === "PAGIBIG" && (
+                <label className="flex items-center gap-2 text-xs text-zinc-300">
                   <input type="checkbox" checked={eAuth} onChange={e => setEAuth(e.target.checked)} /> Authority to Deduct signed</label>
-              ) : <div />}
+              )}
             </div>
             <div className="mt-3 flex gap-2">
               <button disabled={busy} onClick={() => saveEdit(l)} className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm text-white hover:bg-violet-500 disabled:opacity-50">Save</button>
               <button onClick={() => setEditId(null)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-zinc-400">Cancel</button>
             </div>
-          </td></tr>
+          </div>
         )}
+
         {stopId === l.id && (
-          <tr className="bg-amber-500/5"><td colSpan={6} className="px-3 py-3">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="text-xs text-zinc-400">Why
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {STOP_REASONS.map(r => (
-                    <button key={r} type="button" onClick={() => setSReason(r)}
-                      className={`rounded-full border px-3 py-1 text-xs ${sReason === r ? "border-amber-400/60 bg-amber-500/20 text-amber-100" : "border-white/10 text-zinc-400"}`}>{r}</button>
-                  ))}
-                </div>
-              </div>
+          <div className="mt-3 rounded-lg bg-amber-500/10 p-3">
+            <div className="text-xs text-zinc-400">Why</div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {STOP_REASONS.map(r => (
+                <button key={r} type="button" onClick={() => setSReason(r)}
+                  className={`rounded-full border px-3 py-1 text-xs ${sReason === r ? "border-amber-400/60 bg-amber-500/20 text-amber-100" : "border-white/10 text-zinc-400"}`}>{r}</button>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap items-end gap-2">
               <label className="text-xs text-zinc-400">Last month deducted
                 <input type="month" value={sLast} min={l.first_month} max={l.last_month} onChange={e => setSLast(e.target.value)} className={input} /></label>
               <button disabled={busy || !sReason} onClick={() => doStop(l)} className="rounded-lg bg-amber-600 px-3 py-2 text-sm text-white hover:bg-amber-500 disabled:opacity-50">Stop</button>
               <button onClick={() => setStopId(null)} className="rounded-lg border border-white/10 px-3 py-2 text-sm text-zinc-400">Cancel</button>
             </div>
             <p className="mt-2 text-[11px] text-zinc-500">
-              {sReason === "Separated" ? "For final pay, leave it running instead: the last cut-off takes the balance automatically. " : ""}
+              {sReason === "Separated" ? "For a resignation, leave it running and enter the balance from the statement (Edit) — the last cut-off then takes it. " : ""}
               Months after {sLast ? monthName(sLast) : "this"} are not deducted. To undo, Edit and move the last month back.
             </p>
-          </td></tr>
+          </div>
         )}
-      </>
+      </div>
     );
   }
 }

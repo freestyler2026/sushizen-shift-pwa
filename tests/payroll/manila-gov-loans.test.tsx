@@ -124,6 +124,18 @@ describe("SSS & Pag-IBIG loans", () => {
     conf.mockRestore();
   });
 
+  it("a stopped loan with months left is still under 'Being deducted'", async () => {
+    const stopped = { ...LOAN, status: "stopped", stop_reason: "Paid off early", last_month: "2026-12", months_total: 3 };
+    global.fetch = vi.fn((url: string) => Promise.resolve(new Response(JSON.stringify(
+      String(url).includes("/remittance")
+        ? { month: "2026-09", periods: [], final: false, rows: [], totals: { total_sss_loans: 0, total_pagibig_loans: 0 }, due: { SSS: null, PAGIBIG: null } }
+        : { loans: [stopped], staff: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))) as unknown as typeof fetch;
+    render(<Page />);
+    expect(await screen.findByText("Being deducted")).toBeTruthy();
+    expect(screen.getByText("(1)")).toBeTruthy();
+    expect(screen.queryByText(/Finished or stopped/)).toBeNull();
+  });
+
   it("asks why before stopping", async () => {
     render(<Page />);
     fireEvent.click(await screen.findByText("Stop"));
