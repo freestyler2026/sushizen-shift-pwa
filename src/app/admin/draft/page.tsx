@@ -1579,6 +1579,9 @@ export default function AdminDraftPage() {
   const [rosterSaving, setRosterSaving] = useState(false);
   const [rosterMessage, setRosterMessage] = useState("");
   const [rosterOpen, setRosterOpen] = useState(true);
+  // Only the latest roster request may land: preparing another month or city
+  // while one is loading must not show (and then save) the old one.
+  const rosterReq = useRef(0);
 
   // Auto-export state: triggered right after Confirm Generate
   const [autoExportBusy, setAutoExportBusy] = useState(false);
@@ -1930,6 +1933,7 @@ export default function AdminDraftPage() {
 
 
   async function fetchRoster(branchCodes: string[], targetMon: string, cityVal: string) {
+    const ticket = ++rosterReq.current;
     setRosterLoading(true);
     setRosterError("");
     setRosterMessage("");
@@ -1938,6 +1942,7 @@ export default function AdminDraftPage() {
       const data = await apiGet<RosterData>(`/api/draft/roster${qs({
         city: cityVal, target_month: targetMon, branch_codes: branchCodes.join(","),
       })}`);
+      if (ticket !== rosterReq.current) return;
       const branches: Record<string, RosterRow[]> = {};
       for (const bc of branchCodes) branches[bc] = Array.isArray(data?.branches?.[bc]) ? data.branches[bc] : [];
       // Every field defaulted: a partial answer must not take the page down.
@@ -1946,10 +1951,11 @@ export default function AdminDraftPage() {
       // A suggestion has not been saved yet: saving it is a change to make.
       setRosterDirty(!data?.saved);
     } catch (e: any) {
+      if (ticket !== rosterReq.current) return;
       setRoster(null);
       setRosterError(String(e?.message || e || "Could not load the roster."));
     } finally {
-      setRosterLoading(false);
+      if (ticket === rosterReq.current) setRosterLoading(false);
     }
   }
 
@@ -2153,6 +2159,11 @@ export default function AdminDraftPage() {
   // Called when user confirms "Replace All" in the 409 guard modal
   async function handleForceReplace() {
     if (!replaceGuard) return;
+    // Same rule as Confirm Generate: generation follows the saved roster.
+    if (roster && rosterDirty && !(await saveRoster())) {
+      setError("The roster could not be saved, so nothing was regenerated. Fix the roster and try again.");
+      return;
+    }
     setReplaceGuard(null);
     setLoading(true);
     setError("");
@@ -3647,6 +3658,7 @@ export default function AdminDraftPage() {
                 <p className="text-xs text-neutral-400">
                   Who is in this month&apos;s draft, at which branch, in which order. The order is the row order in the
                   spreadsheet. Untick to leave someone out this month; Confirm Generate saves the roster first.
+                  {city === "dubai" ? " In Dubai staff can still be placed at any branch they worked at last month; here the roster only leaves people out and sets the order." : ""}
                 </p>
                 {rosterLoading ? (
                   <p className="flex items-center gap-1.5 text-xs text-neutral-500">
@@ -3682,11 +3694,14 @@ export default function AdminDraftPage() {
                                 aria-label={`Move ${s.staff_name} up`} className="px-1 text-xs text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
                               <button type="button" disabled={i === list.length - 1} onClick={() => rosterMove(bc, i, 1)}
                                 aria-label={`Move ${s.staff_name} down`} className="px-1 text-xs text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
-                              <select value={bc} onChange={(e) => rosterChangeBranch(bc, i, e.target.value)}
-                                aria-label={`Branch for ${s.staff_name}`}
-                                className="rounded border border-white/10 bg-neutral-900 px-1.5 py-0.5 text-xs text-neutral-300">
-                                {prepared.branch_codes.map((b) => <option key={b} value={b}>{b}</option>)}
-                              </select>
+                              <div className="w-24 shrink-0">
+                                <SelectDark
+                                  value={bc}
+                                  onChange={(v) => v && rosterChangeBranch(bc, i, v)}
+                                  options={prepared.branch_codes}
+                                  aria-label={`Branch for ${s.staff_name}`}
+                                />
+                              </div>
                               <button type="button" onClick={() => rosterRemove(bc, i)}
                                 aria-label={`Remove ${s.staff_name}`} className="px-1 text-xs text-neutral-500 hover:text-red-300">✕</button>
                             </div>

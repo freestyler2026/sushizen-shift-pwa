@@ -1337,7 +1337,8 @@ describe("AdminDraftPage — editable Staff Roster Check", () => {
     expect(screen.getByText("staff record: JLT")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Move Ben up" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Include Ana" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Branch for Ben" }), { target: { value: "JLT" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Branch for Ben" }));
+    fireEvent.click(await screen.findByRole("option", { name: "JLT" }));
     fireEvent.click(screen.getByRole("button", { name: "Save roster" }));
     await waitFor(() => {
       const put = fetchMock.mock.calls.find(([u, o]) => String(u).includes("/api/draft/roster") && (o as RequestInit)?.method === "PUT");
