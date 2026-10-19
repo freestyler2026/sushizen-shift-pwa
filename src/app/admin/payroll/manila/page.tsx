@@ -166,6 +166,12 @@ export default function ManilaPayrollPage() {
               🍱 Allowances
             </Link>
             <Link
+              href="/admin/payroll/manila/loans"
+              className="flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2 text-sm text-sky-300 hover:bg-sky-500/20"
+            >
+              SSS / Pag-IBIG Loans
+            </Link>
+            <Link
               href="/admin/payroll/manila/sil"
               className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-300 hover:bg-emerald-500/20"
             >

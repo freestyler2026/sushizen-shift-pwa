@@ -101,6 +101,34 @@ export async function apiGet<T>(path: string, approverPin?: string): Promise<T> 
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+/** PATCH / DELETE with the same auth, refresh and error handling as apiPost. */
+async function apiSend<T>(method: "PATCH" | "DELETE", path: string, body?: unknown): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const doFetch = () =>
+    fetch(url, {
+      method,
+      credentials: "same-origin",
+      headers: getAuthHeaders(),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  let res = await doFetch();
+  if (res.status === 401 && !fetchRetriesOn401()) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) res = await doFetch();
+  }
+  const text = await res.text();
+  if (!res.ok) throw new Error(_extractErrorMessage(text, res.status));
+  return (text ? JSON.parse(text) : {}) as T;
+}
+
+export function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  return apiSend<T>("PATCH", path, body);
+}
+
+export function apiDelete<T>(path: string): Promise<T> {
+  return apiSend<T>("DELETE", path);
+}
+
 export async function apiPost<T>(path: string, body: any, approverPin?: string): Promise<T> {
   const url = `${API_BASE}${path}`;
   const doFetch = () =>

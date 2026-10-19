@@ -213,6 +213,27 @@ const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: 
          + "— decide whether to collect it next cut-off or have the member pay "
          + "the agency directly.",
   },
+  LOAN_UNCOLLECTED: {
+    label: "loan short",
+    cls: "text-amber-300 bg-amber-900/25 border-amber-500/40",
+    title: "The pay in this cut-off would not cover the loan amortization, so only "
+         + "what it covers was taken. Pag-IBIG: the employee pays the rest to the "
+         + "Fund directly. SSS: the unpaid part carries a 1% a month penalty.",
+  },
+  LOAN_MANUAL_DUPLICATE: {
+    label: "loan twice?",
+    cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
+    title: "This loan is registered under Gov Loans and deducted automatically, and "
+         + "a hand-entered deduction here also reads like a loan. Delete the "
+         + "hand-entered one unless it is a different loan.",
+  },
+  LOAN_BALANCE_NEEDED: {
+    label: "loan balance?",
+    cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
+    title: "Last cut-off: the remaining loan balance has to come off final pay, but "
+         + "none is entered, so only the month was taken. Enter the balance from the "
+         + "SSS / Pag-IBIG statement on Gov Loans and recompute this payslip.",
+  },
   BIR_ANNUAL_INCOMPLETE: {
     label: "year incomplete",
     cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
@@ -1037,16 +1058,13 @@ function AdjustmentModal({
               >
                 <MinusCircle size={12}/> Income Tax
               </button>
-              <button
-                onClick={() => setNewType("LOAN_DEDUCTION")}
-                className={`flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
-                  newType === "LOAN_DEDUCTION"
-                    ? "border-orange-500/40 bg-orange-900/30 text-orange-300"
-                    : "border-white/10 bg-slate-800 text-slate-500 hover:text-slate-300"
-                }`}
+              <Link
+                href="/admin/payroll/manila/loans"
+                className="flex items-center justify-center gap-1 rounded-lg border border-white/10 bg-slate-800 py-2 text-xs font-medium text-slate-400 hover:text-slate-200"
+                title="SSS and Pag-IBIG loans are registered once and deducted on every cut-off automatically"
               >
-                <MinusCircle size={12}/> Loan Repayment
-              </button>
+                SSS / Pag-IBIG loan →
+              </Link>
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
