@@ -34807,3 +34807,9 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
   - Store labour cost still nets staff-house and manual deductions (pre-existing).
 - Payroll Manual v32: new section "SSS & Pag-IBIG Loans"; Loans section now says Dubai/company only; Remittances generator warning.
 - `/code-review ultra` target (money + law).
+- 2026-10-19 later: review fixes (backend `dc394362`/`604ac840`, frontend `07d768ca`/`f4970580`):
+  - The loan now comes from what is left after company recoveries. Placed before them, it took a payslip from +500 to −1,500.
+  - Masking of loan amounts; remittance shortfall no longer counted twice; soft delete plus needs-recompute; overlap confirm; savepoint; manual run lines with loan codes refused; payroll month from the 26th.
+  - Cards instead of a table: at phone width the table pushed the buttons off-screen (seen in the browser).
+  - Live UI test as HQ in the browser pane passed: register, edit (focus kept), stop, undo, overlap confirm, delete. Test rows hard-deleted by id (manila_gov_loans = 0 rows).
+  - Manual v33.
