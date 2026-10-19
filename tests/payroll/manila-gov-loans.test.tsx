@@ -80,6 +80,14 @@ describe("SSS & Pag-IBIG loans", () => {
     expect(await screen.findByText(/Pag-IBIG Loan registered/)).toBeTruthy();
   });
 
+  it("a refused load does not say there are no loans", async () => {
+    global.fetch = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ detail: "Payroll admin access required" }),
+      { status: 403, headers: { "Content-Type": "application/json" } }))) as unknown as typeof fetch;
+    render(<Page />);
+    expect(await screen.findByText(/Payroll admin access required/)).toBeTruthy();
+    expect(screen.queryByText(/No loans registered/)).toBeNull();
+  });
+
   it("asks why before stopping", async () => {
     render(<Page />);
     fireEvent.click(await screen.findByText("Stop"));

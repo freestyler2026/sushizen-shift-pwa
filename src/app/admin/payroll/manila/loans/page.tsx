@@ -87,6 +87,8 @@ export default function GovLoansPage() {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // A refused or failed load must not read as "no loans" (lesson 169).
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -120,8 +122,9 @@ export default function GovLoansPage() {
     setLoading(true);
     try {
       const r = await apiGet<{ loans: Loan[]; staff: StaffRow[] }>(API);
-      setLoans(r.loans); setStaff(r.staff);
+      setLoans(r.loans); setStaff(r.staff); setLoaded(true);
     } catch (e) {
+      setLoaded(false);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
@@ -357,7 +360,11 @@ export default function GovLoansPage() {
           Being deducted <span className="text-zinc-500">({active.length})</span>
         </h2>
         {loading ? <div className="text-sm text-zinc-500">Loading…</div>
-          : active.length === 0 ? (
+          : !loaded ? (
+            <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-400">
+              Could not load the loans (see the message above). Nothing is shown rather than an empty list.
+            </div>
+          ) : active.length === 0 ? (
             <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-400">
               No loans registered. Use <b>+ Register a loan</b> for anyone repaying an SSS or Pag-IBIG loan.
             </div>
