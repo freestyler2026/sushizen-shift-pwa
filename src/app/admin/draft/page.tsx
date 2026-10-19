@@ -2537,7 +2537,8 @@ export default function AdminDraftPage() {
     setPendingBusy(true);
     setPendingMessage("");
     try {
-      const res = await apiPost<{ ok: boolean; updated: number; decision: string; draft_rows_applied: number }>(
+      const res = await apiPost<{ ok: boolean; updated: number; decision: string; draft_rows_applied: number;
+        already_applied?: number; not_applied?: { staff_name: string; work_date: string; reason: string }[] }>(
         `/api/draft/sheet/decide`,
         {
           proposal_ids: selectedProposalIds,
@@ -2547,9 +2548,16 @@ export default function AdminDraftPage() {
           note: decisionNote,
         }
       );
+      const notApplied = res.not_applied || [];
       setPendingMessage(
         `${res.decision}: updated ${res.updated} rows` +
-          (decision === "APPROVE" ? `, draft applied ${res.draft_rows_applied}` : "")
+          (decision === "APPROVE" ? `, draft applied ${res.draft_rows_applied}` : "") +
+          (res.already_applied ? ` · ${res.already_applied} already in the draft (nothing added)` : "") +
+          (notApplied.length
+            ? ` · ⚠️ ${notApplied.length} not applied — change these in the draft editor: `
+              + notApplied.slice(0, 8).map((n) => `${n.staff_name} ${n.work_date} (${n.reason})`).join("; ")
+              + (notApplied.length > 8 ? " …" : "")
+            : "")
       );
       setSelectedProposalIds([]);
       await loadPendingProposals();
@@ -2900,12 +2908,13 @@ export default function AdminDraftPage() {
       const branchPrefix = syncBranchCode.toUpperCase() + "_";
       // First: tab that matches both this branch AND this month (e.g. "BB_2026-9_DRAFT_MAIN")
       // Fallback: any MAIN tab for this month (single-branch spreadsheets or different naming)
+      // This branch's tab for this month only. Falling back to "any MAIN tab"
+      // imported another branch's edits under this branch.
       const tabMain =
-        mains.find((t) => t.toUpperCase().startsWith(branchPrefix) && monthVariants.some((m) => t.includes(m))) ||
-        mains.find((t) => monthVariants.some((m) => t.includes(m))) ||
-        mains[0];
+        mains.find((t) => t.toUpperCase().startsWith(branchPrefix) && monthVariants.some((m) => t.includes(m)));
       if (!tabMain) {
-        setPendingMessage("No MAIN tab found in spreadsheet. Make sure tabs ending in _MAIN exist.");
+        setPendingMessage(`No ${syncBranchCode.toUpperCase()} tab for ${applyMonth} in the spreadsheet. `
+          + "Open the draft spreadsheet once so the tab is created, then sync again.");
         return;
       }
       setSyncSkipped([]);
@@ -2919,7 +2928,10 @@ export default function AdminDraftPage() {
         spreadsheet_id: "",
         tab_main: tabMain,
         a1_range: "A1:CL2000",
-        draft_version_id: version?.version_id || "",
+        // The draft of the branch being synced. The one open in the editor may
+        // be another branch's, and approving would write this branch's staff
+        // into it. Empty = the server picks this branch's draft for the month.
+        draft_version_id: versions.find((v) => v.branch_code === syncBranchCode)?.version_id || "",
         approver_name: approverName,
         pin,
       });
