@@ -296,9 +296,9 @@
   <h2><span lang="ja">先に知っておくこと</span><span lang="en" hidden>Know these first</span></h2>
   <div class="rules">
     <div class="rule">
-      <b lang="ja">人と店舗は、作る前に決める</b><b lang="en" hidden>Decide people and stores before generating</b>
-      <p lang="ja">シートでは人の出し入れも店舗の変更もできません。行を消しても足しても読まれず、シートを描き直すと元に戻ります。</p>
-      <p lang="en" hidden>The sheet cannot add a person, remove one or move them to another store. Deleted or added rows are not read, and the next redraw puts everything back.</p>
+      <b lang="ja">店舗を移すのは Transfer Branch で</b><b lang="en" hidden>Move people with Transfer Branch</b>
+      <p lang="ja">行を消したり足したりしても読まれず、描き直すと元に戻ります。店舗を移すときは Transfer Branch で <code>CUB (whole month)</code> のように選びます（1行選べば、その人の月全部が移ります）。</p>
+      <p lang="en" hidden>Deleting or adding rows is not read, and the next redraw puts it back. To move someone, pick e.g. <code>CUB (whole month)</code> in Transfer Branch (one row is enough; their whole month moves).</p>
     </div>
     <div class="rule">
       <b lang="ja">作り直しは全店舗まとめて</b><b lang="en" hidden>Regenerating redoes every store</b>
@@ -460,6 +460,8 @@
             <td lang="ja">Swap With Staff に代わる人。時間も変えるときだけ Swap Start ＋ Swap End</td><td lang="en" hidden>The other person in Swap With Staff; Swap Start + Swap End only if the time changes too</td><td><code>Ben Cruz</code></td></tr>
         <tr><td class="what" lang="ja">その日だけ他店へ応援</td><td class="what" lang="en" hidden>Help another store for that day</td>
             <td lang="ja">Transfer Branch に応援先。その日のそのシフトだけが移ります</td><td lang="en" hidden>The other store in Transfer Branch; only that day's shift moves</td><td><code>CUB</code></td></tr>
+        <tr><td class="what" lang="ja">その月ずっと別の店舗にする</td><td class="what" lang="en" hidden>Move them to another store for the month</td>
+            <td lang="ja">その人の<b>どれか1行</b>の Transfer Branch で「（店舗） (whole month)」。その人の勤務日が全部、時間ごと移ります。同じ人の別の行に入れた時間の変更も一緒に移ります</td><td lang="en" hidden>"(store) (whole month)" in Transfer Branch on <b>any one</b> of their rows. Every working day of theirs moves with its time, including time changes typed on their other rows</td><td><code>CUB (whole month)</code></td></tr>
         <tr><td class="what" lang="ja">理由を残す</td><td class="what" lang="en" hidden>Leave a reason</td>
             <td lang="ja">Note。承認の画面に出ます</td><td lang="en" hidden>Note; it shows on the approval screen</td><td><code>doctor</code></td></tr>
       </tbody>
@@ -480,7 +482,7 @@
       <tbody>
         <tr><td class="ng" lang="ja">行を消す・行を足す</td><td class="ng" lang="en" hidden>Delete or insert rows</td>
             <td lang="ja">読まれません。描き直すと元に戻ります</td><td lang="en" hidden>Not read; the next redraw puts it back</td>
-            <td lang="ja">人の出し入れ・店舗の変更は HQ に伝える</td><td lang="en" hidden>Tell HQ who to add, remove or move</td></tr>
+            <td lang="ja">店舗を移すのは Transfer Branch の <code>(whole month)</code>。案にいない人を足す・外すのは HQ に伝える</td><td lang="en" hidden>Move people with <code>(whole month)</code> in Transfer Branch; tell HQ who to add or remove</td></tr>
         <tr><td class="ng" lang="ja">Date・Staff・Current Shift を書き換える</td><td class="ng" lang="en" hidden>Overwrite Date, Staff or Current Shift</td>
             <td lang="ja">飛ばされるか、別の人の変更として取り込まれます</td><td lang="en" hidden>Skipped, or imported as a change for the wrong person</td>
             <td lang="ja">人を代えるのは Swap With Staff</td><td lang="en" hidden>Use Swap With Staff to change the person</td></tr>
@@ -538,6 +540,15 @@
         <tr><td><span class="msg">Skipped N rows due to unknown staff names</span></td>
             <td lang="ja">在籍スタッフにない名前</td><td lang="en" hidden>A name that is not an active staff member</td>
             <td lang="ja">選択欄から選び直す</td><td lang="en" hidden>Re-pick the name from the dropdown</td></tr>
+        <tr><td><span class="msg">Row N: NAME DATE shows 'Vacation Leave' — not moved to CUB; move it in Branch Edit.</span></td>
+            <td lang="ja">月ごと移す人の休暇の日。休暇の行は移せません</td><td lang="en" hidden>A leave day of someone moved for the month; leave rows cannot be moved</td>
+            <td lang="ja">Branch Edit で移す</td><td lang="en" hidden>Move it in Branch Edit</td></tr>
+        <tr><td><span class="msg">NAME: two different branches chosen for the whole month — not moved; keep one and sync again.</span></td>
+            <td lang="ja">同じ人に (whole month) が2つの店舗で選ばれている</td><td lang="en" hidden>Two different stores picked as (whole month) for one person</td>
+            <td lang="ja">1つ残して消し、もう一度 Sync</td><td lang="en" hidden>Keep one, clear the other, sync again</td></tr>
+        <tr><td><span class="msg">Transfer Branch ignored for XYZ — pick another branch from the list.</span></td>
+            <td lang="ja">店舗の名前が正しくない（自分の店舗を選んだ場合も）</td><td lang="en" hidden>Not another store of the city (or your own store)</td>
+            <td lang="ja">選択欄から選び直す</td><td lang="en" hidden>Re-pick from the dropdown</td></tr>
         <tr><td><span class="msg">No CK tab for 2026-11 in the spreadsheet. Open the draft spreadsheet once so the tab is created, then sync again.</span></td>
             <td lang="ja">タブがまだない</td><td lang="en" hidden>The tab does not exist yet</td>
             <td lang="ja"><b>Open Manila draft spreadsheet</b> を押してから再度 Sync</td><td lang="en" hidden>Press <b>Open Manila draft spreadsheet</b>, then Sync again</td></tr>
@@ -548,8 +559,8 @@
 
 <section id="s5">
   <h2><span class="no">5</span><span lang="ja">承認する</span><span lang="en" hidden>Approve</span> <span class="who hq">HQ</span></h2>
-  <p lang="ja">承認待ちの表は、<code>Before</code>（取り消し線）が今の案、<code>After</code>（緑）がシートの入力です。<code>By</code> に入力した人と、タブ名・行番号（<code>#123</code>）が出ます。</p>
-  <p lang="en" hidden>In the pending table <code>Before</code> (struck through) is the current draft and <code>After</code> (green) is what the sheet asks for. <code>By</code> shows who typed it, with the tab and row number (<code>#123</code>).</p>
+  <p lang="ja">承認待ちの表は、<code>Before</code>（取り消し線）が今の案、<code>After</code>（緑）がシートの入力です。<code>By</code> に入力した人と、タブ名・行番号（<code>#123</code>）が出ます。店舗を移す提案は、<code>Branch</code> に <code>CK</code> <code>→ Cubao</code> のように移動先が出ます。</p>
+  <p lang="en" hidden>In the pending table <code>Before</code> (struck through) is the current draft and <code>After</code> (green) is what the sheet asks for. <code>By</code> shows who typed it, with the tab and row number (<code>#123</code>). A move to another store shows the target in <code>Branch</code>, e.g. <code>CK</code> <code>→ Cubao</code>.</p>
   <ol class="steps">
     <li lang="ja">承認する行にチェックを入れます（見出しのチェックで全部）。</li>
     <li lang="en" hidden>Tick the rows (the header box ticks them all).</li>
@@ -575,6 +586,9 @@
         <tr><td><span class="msg">⚠️ N not applied — change these in the draft editor: NAME DATE (the draft now has 12-21, not 9-18 as the sheet shows; the sheet is out of date — open it again, or change the draft directly)</span></td>
             <td lang="ja">シートが古く、案はもう別の時間になっています。<b>反映していません</b>（承認待ちのまま残ります）。<b>Open Manila draft spreadsheet</b> で描き直して、店長にその行を入れ直してもらい、もう一度 Sync・承認します。1日だけなら Branch Edit で直接直しても構いません。</td>
             <td lang="en" hidden>The tab is out of date; the draft already shows a different time. <b>Not applied</b> (stays pending). Redraw with <b>Open Manila draft spreadsheet</b>, have the store type that row again, then Sync and approve. For a single day you can change it in Branch Edit instead.</td></tr>
+        <tr><td><span class="msg">… (already works at CUB that day (14-23); keep one of the two in Branch Edit)</span></td>
+            <td lang="ja">移す先の店舗でも、その日に勤務が入っています。移すと同じ日に2回勤務になるので、<b>移していません</b>。Branch Edit でどちらか一方を消してから、もう一度承認します。</td>
+            <td lang="en" hidden>They already work at the other store that day; moving would give them two shifts, so it was <b>not moved</b>. Delete one of the two in Branch Edit, then approve again.</td></tr>
         <tr><td><span class="msg">… (no CUB draft for this month)</span></td>
             <td lang="ja">応援先の店舗に、その月の案がありません。</td><td lang="en" hidden>The store in Transfer Branch has no draft for the month.</td></tr>
         <tr><td><span class="msg">… (no draft attached to this proposal; sync again)</span></td>
@@ -625,16 +639,20 @@
 
   <details>
     <summary><span lang="ja">案を作った後で、店舗が違う人に気づいた</span><span lang="en" hidden>After generating, someone is at the wrong store</span></summary>
-    <p lang="ja">シートでは直りません（行を消しても足しても、描き直すと戻ります）。状況で分けます。</p>
-    <p lang="en" hidden>The sheet cannot fix this (deleted or added rows come back on the next redraw). It depends on where you are:</p>
-    <ul>
-      <li lang="ja"><b>まだ誰も入力していない</b> — Staff Roster Check で店舗を直して Save roster、作り直す（全店舗が作り直されます）。</li>
-      <li lang="en" hidden><b>Nobody has typed yet</b> — fix the store in Staff Roster Check, Save roster, and regenerate (every store is regenerated).</li>
-      <li lang="ja"><b>数日だけ</b> — Draft ページの <b>Branch Edit</b> で、元の店舗のタブでその人の行を <code>Delete</code> し、移す先の店舗のタブで <code>Add Row</code>（Date・Staff・Role・Start・End）。その日だけの応援ならシートの Transfer Branch で足ります。</li>
-      <li lang="en" hidden><b>A few days</b> — in <b>Branch Edit</b> on the Draft page, <code>Delete</code> their rows in the old store's tab and <code>Add Row</code> (Date, Staff, Role, Start, End) in the new store's tab. For a one-day help shift, Transfer Branch in the sheet is enough.</li>
-      <li lang="ja"><b>入力が進んでいて、月の大半</b> — 作り直さず、名前と正しい店舗を管理者に伝える。入力済みの時間ごと移します。</li>
-      <li lang="en" hidden><b>Most of the month, and stores have typed a lot</b> — do not regenerate; send the names and the right store to the system owner, who moves them with their times.</li>
-    </ul>
+    <p lang="ja">シートで直せます。行を消したり足したりするのではなく、Transfer Branch を使います。</p>
+    <p lang="en" hidden>Fix it in the sheet with Transfer Branch, not by deleting or adding rows.</p>
+    <ol>
+      <li lang="ja">今いる店舗のタブで、その人の<b>どれか1行</b>の Transfer Branch に「（移す先） (whole month)」を選ぶ。</li>
+      <li lang="en" hidden>In the tab of the store they are in now, pick "(new store) (whole month)" in Transfer Branch on <b>any one</b> of their rows.</li>
+      <li lang="ja">その店舗を Sync する。承認待ちに、その人の勤務日が1日ずつ <code>→ （移す先）</code> 付きで並ぶ。</li>
+      <li lang="en" hidden>Sync that store. Their working days appear as pending rows, each marked <code>→ (new store)</code>.</li>
+      <li lang="ja">HQ がまとめて承認し、店長に一声かけてから <b>Open Manila draft spreadsheet</b> を押す。その人は元のタブから消え、移す先のタブに出る。</li>
+      <li lang="en" hidden>HQ approves them, tells the stores, and presses <b>Open Manila draft spreadsheet</b>. The person leaves the old tab and appears in the new one.</li>
+      <li lang="ja">以後の時間の変更は、移す先のタブで入力する。</li>
+      <li lang="en" hidden>Type later time changes in the new store's tab.</li>
+    </ol>
+    <p lang="ja">1日だけの応援なら、その日の行で店舗名だけ（<code>CUB</code>）を選びます。移す先にもその日の勤務がある日は移らず、承認の結果に名前が出ます。休暇の行は移らないので、Branch Edit で移します。</p>
+    <p lang="en" hidden>For a single day, pick just the store (<code>CUB</code>) on that day's row. Days they already work at the other store are not moved and are named in the approval result. Leave rows do not move; move those in Branch Edit.</p>
     <p lang="ja">店舗を間違えたまま時間を入れないでください。その店舗のシフトとして公開されます。</p>
     <p lang="en" hidden>Do not type times while the store is wrong: they are published as that store's shifts.</p>
   </details>
