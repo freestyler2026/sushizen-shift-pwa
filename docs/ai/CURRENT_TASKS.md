@@ -34832,3 +34832,18 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
    - Prod check (read-only): suggestion places Daisy/Richard in CK (flagged "staff record: CUB"), Jonathan as new hire; Lynde B. Ore = maternity leave (0 shifts correct).
 - Not fixed, found on the way: `/api/draft/*` (staff_preview, generate_month, …) has no sign-in gate (not under `_AUTH_GATES`).
 - Current Nov drafts still hold the duplicates; Yusuke regenerates (the new version wins by days, then newest).
+
+## 2026-10-19 — November draft cleaned; review fixes (backend `8c4f7c47`, frontend `914e4c2a`)
+- Cleanup of the 5 Nov draft versions (backup `_nov_draft_rows_bk_20261019`, 3,790 rows):
+  - 1,863 duplicate rows deleted: CK 499→184, CUB 1074→515, PAR 960→505, TAFT 1040→506, BO unchanged.
+  - Where a sheet revision overlapped the generated shift, the revision was kept.
+  - 23 "0-0" rows removed; 444 + 293 roles restored.
+  - Result: 0 exact duplicates. The CK/CUB/PAR/TAFT Nov tabs were redrawn.
+- Left for Yusuke (ambiguous):
+  - Day off typed (00(+1)/00(+1)) on a row the draft has 7-16: PAR Nhazarethe Pinpin 11-02; CUB Nicko Villacorte 11-08/15/22/29, Ronidel S. Sanciangco 11-09, Mary Jane Tegerero 11-16/23.
+  - CK Ricardo Lamis III 11-21 and 11-28: 7-16 plus 00(+1)-01(+1).
+- Review fixes:
+  - approve: statuses written after the draft; newest wins; stale-tab fallback narrowed; transfers idempotent.
+  - sync: draft validated against branch/month; no-op judged by the draft; decided proposals not re-created; tab-wide supersede.
+  - Publish paths skip DRAFT months.
+  - roster: lock Manila only; empty branch skipped; Exclusion Manager note; shift-row names accepted; frontend race guard; save before Replace All.
