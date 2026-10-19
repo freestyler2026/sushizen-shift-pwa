@@ -123,6 +123,7 @@ td.muted{color:var(--muted);font-size:12px}
   <div class="nav-item" onclick="show('compute')"><span class="nav-icon">⚙️</span><span data-en="Compute Payroll" data-ja="給与計算">Compute Payroll</span></div>
   <div class="nav-item" onclick="show('approve-publish')"><span class="nav-icon">✅</span><span data-en="Approve & Publish" data-ja="承認・公開">Approve & Publish</span></div>
   <div class="nav-item" onclick="show('remittances')"><span class="nav-icon">🏦</span><span data-en="Gov. Remittances" data-ja="政府拠出金送金">Gov. Remittances</span></div>
+  <div class="nav-item" onclick="show('gov-loans')"><span class="nav-icon">🏛️</span><span data-en="SSS &amp; Pag-IBIG Loans" data-ja="SSS・Pag-IBIGローン">SSS &amp; Pag-IBIG Loans</span></div>
 
   <div class="sidebar-label" data-en="Dubai Admin" data-ja="ドバイ管理">Dubai Admin</div>
   <div class="nav-item" onclick="show('salary-configs')"><span class="nav-icon">💼</span><span data-en="Salary Configs" data-ja="給与設定">Salary Configs</span></div>
@@ -1061,6 +1062,11 @@ td.muted{color:var(--muted);font-size:12px}
     </div>
   </div>
 
+  <div class="tip danger" style="margin-bottom:10px">
+    <span class="tip-icon">⚠️</span>
+    <span data-en="Generate from period does not work at the moment: it reads a table that no longer exists, and no remittance record has ever been created. For loan amortizations use SSS &amp; Pag-IBIG Loans → To remit." data-ja="「期間から生成」は現在動きません。存在しない表を読んでおり、納付記録はこれまで1件も作られていません。ローン返済の納付は「SSS・Pag-IBIGローン」の「To remit」を使ってください。">Generate from period does not work at the moment: it reads a table that no longer exists, and no remittance record has ever been created. For loan amortizations use SSS &amp; Pag-IBIG Loans → To remit.</span>
+  </div>
+
   <div class="card blue-border">
     <div class="card-title" data-en="Remittance Workflow" data-ja="送金ワークフロー">Remittance Workflow</div>
     <ol class="steps">
@@ -1093,6 +1099,51 @@ td.muted{color:var(--muted);font-size:12px}
     <div class="card">
       <div class="card-title" data-en="SIL Monetization / Cash Conversion" data-ja="SIL現金化">SIL Monetization / Cash Conversion</div>
       <p style="color:var(--muted);font-size:12px" data-en="Unused SIL at year-end (or upon separation) can be converted to cash at the daily rate. Admin generates a SIL conversion record; this is added as a manual addition to the next payroll run." data-ja="年末または退職時に未使用SILを日給レートで現金化可能。管理者がSIL換算記録を作成；次回給与ランへの手動加算として追加。">Unused SIL converted to cash at daily rate. Admin generates SIL conversion → added as manual addition to next run.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ SSS / PAG-IBIG LOANS ══════════ -->
+<div class="section" id="sec-gov-loans">
+  <div class="section-hero">
+    <div class="hero-icon">🏛️</div>
+    <div>
+      <div class="section-title" data-en="SSS &amp; Pag-IBIG Loans (Manila)" data-ja="SSS・Pag-IBIGローン（マニラ）">SSS &amp; Pag-IBIG Loans (Manila)</div>
+      <div class="section-path">/admin/payroll/manila/loans</div>
+      <div class="section-desc" data-en="Register an employee's SSS or Pag-IBIG loan once. Every payroll run then deducts the amortization — nothing to type on each cut-off." data-ja="従業員のSSS・Pag-IBIGローンを1回登録すれば、毎回の給与計算が自動で返済額を引きます。締めごとの入力は不要です。">Register an employee's SSS or Pag-IBIG loan once. Every payroll run then deducts the amortization — nothing to type on each cut-off.</div>
+    </div>
+  </div>
+
+  <div class="card blue-border">
+    <div class="card-title" data-en="Register a loan" data-ja="ローンを登録する">Register a loan</div>
+    <ol class="steps">
+      <li class="step"><span class="step-num">1</span><div class="step-body"><strong data-en="Manila Payroll → SSS / Pag-IBIG Loans → + Register a loan" data-ja="Manila Payroll → SSS / Pag-IBIG Loans → + Register a loan">Manila Payroll → SSS / Pag-IBIG Loans → + Register a loan</strong><p data-en="Pick the staff member and the type (SSS Loan / Pag-IBIG Loan)." data-ja="スタッフと種類（SSS Loan / Pag-IBIG Loan）を選びます。">Pick the staff member and the type (SSS Loan / Pag-IBIG Loan).</p></div></li>
+      <li class="step"><span class="step-num">2</span><div class="step-body"><strong data-en="Monthly amortization, first and last month" data-ja="月額・開始月・終了月">Monthly amortization, first and last month</strong><p data-en="Copy the monthly amortization from the loan statement. SSS starts the 2nd month after approval and runs 24 months (the last month fills in automatically). Pag-IBIG MPL starts after a 2-month grace period." data-ja="月額はローン明細の金額をそのまま入れます。SSSは承認の翌々月から24か月（終了月は自動で入ります）。Pag-IBIG MPLは2か月の猶予の後から始まります。">Copy the monthly amortization from the loan statement. SSS starts the 2nd month after approval and runs 24 months (the last month fills in automatically). Pag-IBIG MPL starts after a 2-month grace period.</p></div></li>
+      <li class="step"><span class="step-num">3</span><div class="step-body"><strong data-en="Loan no. and, for Pag-IBIG, the Authority to Deduct" data-ja="ローン番号と、Pag-IBIGは同意書の有無">Loan no. and, for Pag-IBIG, the Authority to Deduct</strong><p data-en="The loan number goes on the remittance list. Tick Authority to Deduct only if the employee signed it on the Pag-IBIG form — it decides what final pay may take." data-ja="ローン番号は納付一覧に出ます。Authority to Deduct は、本人がPag-IBIGの申込書に署名している場合だけチェックします。退職時に残高を引けるかがこれで決まります。">The loan number goes on the remittance list. Tick Authority to Deduct only if the employee signed it on the Pag-IBIG form — it decides what final pay may take.</p></div></li>
+      <li class="step"><span class="step-num">4</span><div class="step-body"><strong data-en="Recompute the open periods" data-ja="下書きの期間を再計算する">Recompute the open periods</strong><p data-en="Draft periods pick the loan up when they are computed again. Paid periods never change. If the 1st cut-off is not recomputed, the 2nd takes the whole month." data-ja="下書きの期間は再計算したときに反映されます。支払済みの期間は変わりません。1Hを再計算しない場合は、2Hが1か月分をまとめて引きます。">Draft periods pick the loan up when they are computed again. Paid periods never change. If the 1st cut-off is not recomputed, the 2nd takes the whole month.</p></div></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="card-title" data-en="How it deducts" data-ja="引き方">How it deducts</div>
+    <div class="table-wrap"><table>
+      <tr><th data-en="Case" data-ja="場面">Case</th><th data-en="What payroll does" data-ja="給与計算の動き">What payroll does</th></tr>
+      <tr><td data-en="Normal month" data-ja="通常の月">Normal month</td><td class="muted" data-en="1st cut-off: half the monthly amortization. 2nd cut-off: the month less what the 1st actually took — the month always equals the amortization." data-ja="1H：月額の半分。2H：月額から1Hで実際に引いた額を差し引いた残り。月の合計は必ず月額になります。">1st cut-off: half the monthly amortization. 2nd cut-off: the month less what the 1st actually took — the month always equals the amortization.</td></tr>
+      <tr><td data-en="Order" data-ja="引く順番">Order</td><td class="muted" data-en="After SSS / PhilHealth / Pag-IBIG contributions and tax, before staff house and other company deductions." data-ja="法定控除と源泉の後、寮費など会社への返済の前。">After SSS / PhilHealth / Pag-IBIG contributions and tax, before staff house and other company deductions.</td></tr>
+      <tr><td data-en="Pay too low" data-ja="給与が足りない">Pay too low</td><td class="muted" data-en="Takes what the pay can bear and shows Loan Amortization Not Fully Collected (badge: loan short). Pag-IBIG: the employee pays the rest to Pag-IBIG directly. SSS: the unpaid part carries a 1% a month penalty." data-ja="引ける分だけ引き、Loan Amortization Not Fully Collected（バッジ：loan short）を出します。Pag-IBIGは本人が不足分を直接払います。SSSは未納分に月1%の延滞金が付きます。">Takes what the pay can bear and shows Loan Amortization Not Fully Collected (badge: loan short). Pag-IBIG: the employee pays the rest to Pag-IBIG directly. SSS: the unpaid part carries a 1% a month penalty.</td></tr>
+      <tr><td data-en="Final pay" data-ja="退職時の最終給与">Final pay</td><td class="muted" data-en="SSS requires the whole remaining balance to come off final pay. Pag-IBIG allows it only with the signed Authority to Deduct. Enter the balance from the agency statement (Edit → Balance at separation); until then only the month is taken and the run is flagged loan balance?." data-ja="SSSは残高を最終給与から一括で引く義務があります。Pag-IBIGは同意書がある場合だけ引けます。機関の明細にある残高を入れてください（Edit → Balance at separation）。入れるまでは月額だけを引き、loan balance? の印が付きます。">SSS requires the whole remaining balance to come off final pay. Pag-IBIG allows it only with the signed Authority to Deduct. Enter the balance from the agency statement (Edit → Balance at separation); until then only the month is taken and the run is flagged loan balance?.</td></tr>
+      <tr><td data-en="Typed by hand as well" data-ja="手入力もされている">Typed by hand as well</td><td class="muted" data-en="The Loan Repayment button on the period page is gone. If a hand-entered deduction reads like a loan for someone with a registered loan, the run shows loan twice? — delete the hand-entered one." data-ja="期間画面の Loan Repayment ボタンは廃止しました。登録済みの人にローンらしき手入力の控除があると loan twice? が出ます。手入力の方を消してください。">The Loan Repayment button on the period page is gone. If a hand-entered deduction reads like a loan for someone with a registered loan, the run shows loan twice? — delete the hand-entered one.</td></tr>
+    </table></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" data-en="Stop, edit, delete" data-ja="停止・修正・削除">Stop, edit, delete</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Stop: pick why (Paid off early / Separated / Entered by mistake) and the last month deducted. To undo, Edit and move the last month back. Delete is only offered while nothing has been deducted in paid payroll. For a resignation, leave the loan running — the last cut-off handles the balance." data-ja="停止：理由（Paid off early / Separated / Entered by mistake）と最後に引く月を選びます。取り消すときは Edit で終了月を後ろに戻します。削除は、支払済みの給与でまだ1度も引いていない間だけできます。退職の場合は止めずにそのままにしてください。最終の締めが残高を処理します。">Stop: pick why and the last month deducted. To undo, Edit and move the last month back. Delete only while nothing was deducted in paid payroll. For a resignation, leave the loan running — the last cut-off handles the balance.</p>
+    </div>
+    <div class="card">
+      <div class="card-title" data-en="To remit" data-ja="納付">To remit</div>
+      <p style="color:var(--muted);font-size:12px" data-en="Bottom of the page: pick the payroll month to see what was deducted per person (1st, 2nd, total, not collected) and Download CSV. SSS: pay with the PRN and the Loan Collection List by the last day of the following month. Pag-IBIG: by the date on the Fund's billing. Figures are final only when both cut-offs are paid." data-ja="ページ下部で給与月を選ぶと、人別に引いた額（1H・2H・合計・未徴収）が出ます。CSVで出力できます。SSSはPRNとLoan Collection Listで翌月末までに納付。Pag-IBIGは機関の請求の期日までに納付。両方の締めが支払済みになるまでは確定値ではありません。">Bottom of the page: pick the payroll month to see what was deducted per person and Download CSV. SSS: PRN + Loan Collection List by the last day of the following month. Pag-IBIG: by the date on the Fund's billing. Final only when both cut-offs are paid.</p>
     </div>
   </div>
 </div>
@@ -1439,7 +1490,7 @@ td.muted{color:var(--muted);font-size:12px}
     <div>
       <div class="section-title" data-en="Loans" data-ja="ローン管理">Loans</div>
       <div class="section-path">/admin/payroll/loans</div>
-      <div class="section-desc" data-en="Manage staff salary loans and advance deductions for both Manila and Dubai. Approved loans are automatically deducted each payroll cycle." data-ja="マニラとドバイ両方のスタッフ給与ローンと前払い控除を管理。承認されたローンは毎給与サイクルに自動控除されます。">Manage staff loans for Manila and Dubai. Approved loans auto-deduct each payroll cycle.</div>
+      <div class="section-desc" data-en="Company loans and salary advances on the Dubai payroll cycles. SSS and Pag-IBIG loans for Manila are not here — see SSS &amp; Pag-IBIG Loans." data-ja="ドバイの給与サイクルでの会社ローン・給与前払い。マニラのSSS・Pag-IBIGローンはここではなく「SSS・Pag-IBIGローン」を使います。">Company loans and salary advances on the Dubai payroll cycles. SSS and Pag-IBIG loans for Manila are not here — see SSS &amp; Pag-IBIG Loans.</div>
     </div>
   </div>
 

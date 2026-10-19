@@ -34792,3 +34792,18 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
 - `daily_inv_report_items.unit_cost` (Dubai): Egg 0.8167/PC (Sunberry 24.5 per tray ÷ 30), Chicken momo 0.23/PC (6.9 per portion of 30 pcs), Carrot namul 0.0095/G (9.48 per kg; the 4-dp column rounds 0.00948). Suhsi Vinegar 5.88/L confirmed. Thermal Paper Small `is_active=FALSE` (not used in Dubai, 0 count entries ever). Backup `_dubai_di_cost_bk_20261019` (4 rows).
 - Price coverage: 269/269 active Dubai count items now have a unit_cost.
 - Yusuke said the file he got was the original price file. `DUBAI_remaining_20261017.xlsx` was correct, but its name was nearly the same as `DUBAI_remaining_20261012.xlsx`. Resent as `docs/exports/DUBAI_PAR_17items_for_Rafael_20261019.xlsx` (sheet 1 = 17 par items, sheet 2 = prices applied). Pending: Rafael's par values → apply them and re-simulate the per-branch orders.
+
+## 2026-10-19 — SSS / Pag-IBIG loans in Manila payroll (Peter's request)
+- Backend `4e9abc2a` (Heroku): `app/manila_gov_loans.py`, engine step 4.5 `_gov_loan_items`, `RECOVERY_CODES` (one set for both base readers), labour cost excludes `LOAN_SSS`/`LOAN_PAGIBIG`, API `/api/admin/manila-payroll/gov-loans` (list/create/patch/stop/delete/remittance). Manual `LOAN_DEDUCTION` adjustments now return 400. Table `manila_gov_loans` (created, 0 rows).
+- Frontend `3c54aee4` (Vercel): `/admin/payroll/manila/loans`, a link on Manila Payroll, the Loan Repayment chip on the period page replaced by a link, badges `loan short` / `loan twice?` / `loan balance?`.
+- Verified on prod: A/B compute in a rolled-back transaction (Patrick, Renzy; 10-1H and 10-2H). With no loan the result is identical to the stored run, and only the loan lines change. The final-pay balance comes from the statement only. HTTP round trip as HQ and as Marithel (ADMIN) → 200; Peter John Villafuerte → 403 (STAFF, no payroll permission at all).
+- Pending (needs people):
+  - Marithel to register Patrick (Pag-IBIG MPL, ₱448.36/month?) and Renzy (SSS — ₱1,048.31 in Sep 2H vs ₱250 "half" in Oct 1H do not agree). We need the monthly amount, loan no., first month, and whether Authority to Deduct is signed.
+  - Then delete their hand-entered 10-1H rows and recompute 10-1H.
+- Known, not fixed:
+  - The Remittances "Generate from period" reads the nonexistent `manila_payroll_run_items` (`manila_remittances` has 0 rows). The manual now says so.
+  - Company deductions (staff house) have no cap, so a thin final pay can go negative after the loan (same order as statutory).
+  - `employee_loans` holds 24 test rows (Pedro Reyes / Rosa Flores, not in staff_master), with ₱120,000 in `payroll_adjustments` on cycles 2/34 — propose a backup + delete.
+  - Store labour cost still nets staff-house and manual deductions (pre-existing).
+- Payroll Manual v32: new section "SSS & Pag-IBIG Loans"; Loans section now says Dubai/company only; Remittances generator warning.
+- `/code-review ultra` target (money + law).
