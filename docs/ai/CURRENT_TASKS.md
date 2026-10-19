@@ -34787,3 +34787,8 @@ d.rows.filter(r=>String(r.action_key||'').includes('receipt_reconcile'))
 - CK dispatch pending/record authorised with target_city='manila' → Dubai CK users refused (empty list). Now the request's city.
 - "Create Direct Purchase" in Daily Inventory hidden for Dubai (store_code BUSINESS_BAY, price 0; never used in either city).
 - Open: 9 supplier items counted in G/L (Chives, Cream Cheese, Corn Starch, Shichimi, Bonito, Aonori, Misoshiru, Sesame Oil, Soy Sauce) would go to the supplier in count units — PO vs invoice/receiving will read as unit mismatch. Warehouse lines from Daily Inventory are not flagged is_wh_order (same as Manila's 110 approved). Per-gram unit prices display as 0.02 (toFixed(2)) on Hub/CK screens; unit_cost NUMERIC(10,4) rounds 0.00875→0.0088. Old templates still saying KG would revert units on import.
+
+## 2026-10-19 — Yusuke's answers on the last 5 Dubai prices applied
+- `daily_inv_report_items.unit_cost` (Dubai): Egg 0.8167/PC (Sunberry 24.5 per tray ÷ 30), Chicken momo 0.23/PC (6.9 per portion of 30 pcs), Carrot namul 0.0095/G (9.48 per kg; the 4-dp column rounds 0.00948). Suhsi Vinegar 5.88/L confirmed. Thermal Paper Small `is_active=FALSE` (not used in Dubai, 0 count entries ever). Backup `_dubai_di_cost_bk_20261019` (4 rows).
+- Price coverage: 269/269 active Dubai count items now have a unit_cost.
+- Yusuke said the file he got was the original price file. `DUBAI_remaining_20261017.xlsx` was correct, but its name was nearly the same as `DUBAI_remaining_20261012.xlsx`. Resent as `docs/exports/DUBAI_PAR_17items_for_Rafael_20261019.xlsx` (sheet 1 = 17 par items, sheet 2 = prices applied). Pending: Rafael's par values → apply them and re-simulate the per-branch orders.
