@@ -70,6 +70,7 @@
 | Recruitment系（Applicants / Requisitions / Hiring Plans / 面接結果記録） | **Recruitment Guide**（HRスタッフ向け・英語） | `docs/manuals/recruitment-guide.html` |
 | **音声一次面接**（`/apply` / `/voice/[token]` / Voice screening タブ / 招待送信 / SMS / 判断3ボタン） | **Voice Interview Runbook**（日英切替・HR向け） | `docs/manuals/voice-interview-guide.html` |
 | **スタッフ登録**（`/admin/staff/create` / Setup Code / `/setup-pin` / Onboarding & Setup / マニラのPosition・Hire Date・Company） | **新しいスタッフを登録する**（日本語・店長/HR向け） | `docs/manuals/staff-create-guide.html` |
+| **月次シフト案**（`/admin/draft`：Staff Roster Check / Draft Exclusions / Generate / Pending Sheet Proposals の Sync・承認 / Apply Draft To Published / Branch Edit）と Google シートの `*_DRAFT_MAIN` タブの入力列 | **月次シフト案の作り方**（日英切替・HQと店長向け） | `docs/manuals/shift-draft-manual.html` |
 
 **Republish 手順:**
 ```
@@ -140,6 +141,13 @@
      入社日の欄は COE の印字とシフト自動生成の両方に効くので、**どちらかの仕様が
      変わったら必ず直す**。`max/wk` `max/cons` は現在「表示のみ・編集欄なし」と
      書いてある — 編集欄を作ったらこの記述が嘘になる。
+
+   - file_path: docs/manuals/shift-draft-manual.html
+   - url: https://claude.ai/artifact/J7cZxaPGUEdeFEzvqfH1Xt   ← 月次シフト案の作り方（日英切替・既定は日本語）
+   - favicon: 📅
+   ※ 読者は HQ（Yusuke）とマニラの店長。**シートでは人・店舗を変えられない**ことと、
+     Sync／承認／公開のメッセージ原文を表で載せている。**メッセージ文言を変えたら表も直す**
+     （`propose_sync` の warnings・`decide` の not_applied reason・Apply の apply_window）。
 
    - file_path: docs/manuals/receipt-log-manual.html
    - url: https://claude.ai/code/artifact/2ca823ce-1649-4a06-b8cd-eb832c88bf33   ← Receipt Log（日英切替）
