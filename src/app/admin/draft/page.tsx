@@ -349,6 +349,8 @@ type PendingSheetProposal = {
   proposed_start_hour?: number | null;
   proposed_end_hour?: number | null;
   swap_with_staff?: string;
+  /** Transfer Branch: the day moves to this branch on approval. */
+  proposed_branch_code?: string | null;
   note?: string;
   source_tab?: string;
   source_row_number?: number;
@@ -4300,6 +4302,11 @@ export default function AdminDraftPage() {
                       <td className={`${TABLE_CELL} px-4`}>{r.work_date}</td>
                       <td className={`${TABLE_CELL} px-4`}>
                         <span className={BADGE_INFO}>{labelOf(city, r.branch_code as BranchCode) || r.branch_code}</span>
+                        {r.proposed_branch_code && r.proposed_branch_code !== r.branch_code ? (
+                          <span className={`${BADGE_WARNING} ml-1`}>
+                            → {labelOf(city, r.proposed_branch_code as BranchCode) || r.proposed_branch_code}
+                          </span>
+                        ) : null}
                       </td>
                       <td className={`${TABLE_CELL} px-4 text-zinc-500 line-through text-xs`}>
                         {r.staff_name} {rangeText(Number(r.start_hour || 0), Number(r.end_hour || 0))}
