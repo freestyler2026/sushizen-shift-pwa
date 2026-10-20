@@ -301,9 +301,9 @@
       <p lang="en" hidden>Deleting or adding rows is not read, and the next redraw puts it back. To move someone, pick e.g. <code>CUB (whole month)</code> in Transfer Branch (one row is enough; their whole month moves).</p>
     </div>
     <div class="rule">
-      <b lang="ja">作り直しは全店舗まとめて</b><b lang="en" hidden>Regenerating redoes every store</b>
-      <p lang="ja">1店舗だけの作り直しはできません。作り直すと、それまでに承認した変更は新しい案に入りません。</p>
-      <p lang="en" hidden>There is no single-store regenerate. A new draft does not carry the changes approved into the old one.</p>
+      <b lang="ja">作り直すと、承認した変更は消える</b><b lang="en" hidden>Regenerating drops the approved changes</b>
+      <p lang="ja">作り直した店舗では、それまでに承認した変更は新しい案に入りません。<code>Branches to generate</code> で、作り直す店舗だけにチェックを入れてください。</p>
+      <p lang="en" hidden>A regenerated store's new draft does not carry the changes approved into the old one. Tick only the stores to rebuild in <code>Branches to generate</code>.</p>
     </div>
     <div class="rule">
       <b lang="ja">公開した週はシートでは直らない</b><b lang="en" hidden>Published weeks are not changed from the sheet</b>
@@ -357,9 +357,12 @@
         <tr><td class="what"><code>new hire 2026-10-19</code></td>
             <td lang="ja">先月以降の入社で、スタッフ登録の店舗に置かれています。</td>
             <td lang="en" hidden>Hired since the start of last month; placed at the store in their staff record.</td></tr>
-        <tr><td class="what"><code>in Draft Exclusions — left out until removed there</code></td>
-            <td lang="ja">下の <b>Draft Exclusions</b> に登録されています。ここでチェックを入れても<b>案には入りません</b>。入れるなら Draft Exclusions から外してください。</td>
-            <td lang="en" hidden>Listed in <b>Draft Exclusions</b> below. Ticking the box here does <b>not</b> put them in the draft; remove them from Draft Exclusions first.</td></tr>
+        <tr><td class="what"><code>in Draft Exclusions — tick to include this month</code></td>
+            <td lang="ja">下の <b>Draft Exclusions</b> に登録されているので、チェックが外れています。<b>チェックを入れれば、その月の案に入ります</b>（マニラ）。今後も毎月入れるなら、Draft Exclusions からも外してください。</td>
+            <td lang="en" hidden>Listed in <b>Draft Exclusions</b> below, so unticked. <b>Tick to put them in this month's draft</b> (Manila). If they are back for good, remove them from Draft Exclusions too.</td></tr>
+        <tr><td class="what"><code>in Draft Exclusions — ticked, so in this month's draft</code></td>
+            <td lang="ja">Draft Exclusions に登録されていますが、チェックが入っているので、その月の案に入ります。</td>
+            <td lang="en" hidden>Listed in Draft Exclusions, but ticked, so they are in this month's draft.</td></tr>
       </tbody>
     </table>
   </div>
@@ -375,13 +378,19 @@
 <section id="s2">
   <h2><span class="no">2</span><span lang="ja">案を作る</span><span lang="en" hidden>Generate the draft</span> <span class="who hq">HQ</span></h2>
   <ol class="steps">
+    <li lang="ja"><code>Branches to generate</code> で作る店舗を選びます（最初は全店舗）。すでに案がある店舗には <code>(has a draft)</code> と出ます。<b>作り直したくない店舗はチェックを外してください。</b></li>
     <li lang="ja"><code>I confirm generating a new monthly draft.</code> にチェックを入れ、<b>Confirm Generate</b> を押します。押した時点のスタッフ一覧が先に保存され、それを使って作られます。</li>
+    <li lang="en" hidden>Under <code>Branches to generate</code> pick the stores to build (all at first). A store that already has a draft shows <code>(has a draft)</code>. <b>Untick any store you do not want rebuilt.</b></li>
     <li lang="en" hidden>Tick <code>I confirm generating a new monthly draft.</code> and press <b>Confirm Generate</b>. The staff list as it stands is saved first and used for the draft.</li>
-    <li lang="ja">全店舗分が一度にでき、シートへの書き出しが始まります。終わると店舗ごとに <code>Open CK — 2026-11</code> のようなリンクが出ます。これを店長に送ります。</li>
-    <li lang="en" hidden>Every store is generated at once and written to the sheet. When it finishes, a link per store appears, such as <code>Open CK — 2026-11</code>. Send these to the store managers.</li>
+    <li lang="ja">選んだ店舗の案ができ、シートへの書き出しが始まります。終わると店舗ごとに <code>Open CK — 2026-11</code> のようなリンクが出ます。これを店長に送ります。</li>
+    <li lang="ja"><b>失敗した店舗があったら：</b>その店舗だけにチェックが残り、「still ticked」と出ます。もう一度 Confirm Generate を押すと、その店舗だけが作られます。うまくいった店舗はそのままです。</li>
+    <li lang="en" hidden>The chosen stores are generated and written to the sheet. When it finishes, a link per store appears, such as <code>Open CK — 2026-11</code>. Send these to the store managers.</li>
+    <li lang="en" hidden><b>If a store failed:</b> only that store stays ticked and the page says "still ticked". Press Confirm Generate again and only that store is built; the others keep their drafts.</li>
   </ol>
-  <div class="warn" lang="ja"><b>作り直す前に</b>もう一度 Confirm Generate を押すと、全店舗が作り直されます。それまでに承認した変更は新しい案に入りません。店長の入力が始まった後は作り直さず、直したい日は <a href="#faq">困ったとき</a> の方法で直してください。<br>すでに Manual Shift に送った月だと <code>Draft already sent to Manual Shift</code> と出ます。<b>Replace All &amp; Regenerate</b> を押すと、Manual Shift で直した内容が上書きされます。迷ったら Cancel を押してください。</div>
-  <div class="warn" lang="en" hidden><b>Before regenerating</b>Pressing Confirm Generate again regenerates every store, and the changes approved so far are not carried into the new draft. Once stores have started typing, do not regenerate; fix single days as described in <a href="#faq">Problems</a>.<br>For a month already sent to Manual Shift the page shows <code>Draft already sent to Manual Shift</code>. <b>Replace All &amp; Regenerate</b> overwrites the corrections made in Manual Shift. If in doubt, press Cancel.</div>
+  <p class="note" lang="ja"><b>画面を開き直しても大丈夫です</b>Draft ページを開くと、その月の各店舗の案（シートや Sync と同じもの）が読み込まれ、Schedule View・Apply・Branch Edit が使えます。</p>
+  <p class="note" lang="en" hidden><b>Reloading is safe</b>Opening the Draft page loads each store's draft for the month (the same one the sheet and Sync use), so Schedule View, Apply and Branch Edit are there.</p>
+  <div class="warn" lang="ja"><b>作り直す前に</b>チェックを入れた店舗は作り直され、それまでに承認した変更は新しい案に入りません。店長の入力が始まった後は作り直さず、直したい日は <a href="#faq">困ったとき</a> の方法で直してください。<br>すでに Manual Shift に送った月だと <code>Draft already sent to Manual Shift</code> と出ます。<b>Replace All &amp; Regenerate</b> を押すと、Manual Shift で直した内容が上書きされます。迷ったら Cancel を押してください。</div>
+  <div class="warn" lang="en" hidden><b>Before regenerating</b>Every ticked store is rebuilt, and the changes approved into its old draft are not carried over. Once stores have started typing, do not regenerate; fix single days as described in <a href="#faq">Problems</a>.<br>For a month already sent to Manual Shift the page shows <code>Draft already sent to Manual Shift</code>. <b>Replace All &amp; Regenerate</b> overwrites the corrections made in Manual Shift. If in doubt, press Cancel.</div>
 </section>
 
 <section id="s3">
@@ -662,8 +671,8 @@
     <ul>
       <li lang="ja"><b>Draft Exclusions</b> に登録されていないか見ます。<code>Active until</code> が空だと無期限で外れたままです。</li>
       <li lang="en" hidden>Check <b>Draft Exclusions</b>. With <code>Active until</code> blank they stay out indefinitely.</li>
-      <li lang="ja">案を作った後に入社登録した人は入っていません。少ない日数なら Branch Edit で足します。</li>
-      <li lang="en" hidden>Someone registered after the draft was made is not in it. For a few days, add them in Branch Edit.</li>
+      <li lang="ja"><b>案を作った後で足したい人（新入社員など）は、スタッフ一覧に入れて Save roster を押します。</b>その店舗のタブに、全日 DAY_OFF の行で出ます（シートを描き直したとき）。時間を入れて Sync・承認すれば入ります。作り直しは要りません（マニラ）。</li>
+      <li lang="en" hidden><b>To add someone after generating (a new hire, say), put them in the staff list and press Save roster.</b> They appear on their store's tab with a DAY_OFF row every day (after the tab is redrawn). Type their times, Sync and approve. No regenerating needed (Manila).</li>
       <li lang="ja">休暇・産休の期間に当たっている人は、勤務が0日で正しいことがあります。</li>
       <li lang="en" hidden>Someone on leave (maternity leave and so on) can correctly have no shifts.</li>
     </ul>
