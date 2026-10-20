@@ -937,6 +937,32 @@ describe("AdminDraftPage — drafts that already exist (2026-10-20)", () => {
     await waitFor(() => {
       expect(screen.queryByText("No shift data yet")).toBeNull();
     }, { timeout: 5000 });
+    // Publishing is reachable without generating again.
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Apply Draft To Published", {}, { timeout: 5000 });
+  });
+
+  it("Prepare leaves a branch that already has a draft unticked", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", makeDraftFetch([
+      { match: "/api/auth/verify", body: { ok: true, role: "HQ" } },
+      { match: "/api/draft/month_versions", body: { ok: true, items: [
+        { branch_code: "BB", version_id: "v-bb", version_week_start: "2026-10-26", rows: 194, days: 30 },
+      ] } },
+    ]));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Apply Draft To Published", {}, { timeout: 5000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Branches to generate/i, {}, { timeout: 5000 });
+    const bb = screen.getByText(/\(has a draft\)/).closest("label")!.querySelector("input") as HTMLInputElement;
+    expect(bb.checked).toBe(false);
   });
 
   it("after one branch fails, only that branch stays ticked for the retry", async () => {

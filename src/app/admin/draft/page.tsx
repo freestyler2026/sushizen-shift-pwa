@@ -470,7 +470,11 @@ function sleep(ms: number) {
 function readableError(msg: string): string {
   const m = String(msg || "").trim();
   if (/^<!doctype html|^<html/i.test(m)) {
-    return "The server did not answer in time. Nothing was saved for this step — try again.";
+    return "The server did not answer in time. It may still have finished: reload the page and check "
+      + "whether this branch now has a draft before trying again.";
+  }
+  if (/FUNCTION_INVOCATION_TIMEOUT|An error occurred with your deployment/i.test(m)) {
+    return "The request timed out. It may still have finished: reload the page and check before trying again.";
   }
   return m;
 }
@@ -1868,8 +1872,13 @@ export default function AdminDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city, targetMonth]);
 
+  // A branch that already has a draft starts unticked: regenerating it throws
+  // away what was approved into it, so that has to be a deliberate tick.
   useEffect(() => {
-    setGenBranches(prepared ? [...prepared.branch_codes] : []);
+    setGenBranches(prepared
+      ? prepared.branch_codes.filter((b) => !versions.some((v) => v.branch_code === b))
+      : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prepared]);
 
   // Reset export state when branch changes
@@ -2088,9 +2097,8 @@ export default function AdminDraftPage() {
     setLoading(true);
     setError("");
     setGenerateResult(null);
-    setVersions([]);
-    setActiveBranchCode("");
-    setRows([]);
+    // The month's drafts stay listed: clearing them here left Schedule View,
+    // Apply and Branch Edit empty whenever generation stopped early.
     setApplyPrepared(null);
     setApplyResult(null);
     setPublished(null);
@@ -2255,6 +2263,8 @@ export default function AdminDraftPage() {
           force_replace: true,
           extra_excluded_names: extraExcluded,
         })) as DraftGenerateMonthResult;
+        // A skipped branch made no draft: it must not replace the one it has.
+        if ((res as { skipped?: boolean }).skipped || !res.version_id) continue;
         nextVersions.push({
           branch_code: res.branch_code,
           branch_name: labelOf("dubai", res.branch_code),
@@ -3538,7 +3548,7 @@ export default function AdminDraftPage() {
             <label className={`${T_LABEL} block mb-1.5`}>City</label>
             <SelectDark
               value={city}
-              onChange={(v) => setCity(v === "manila" ? "manila" : "dubai")}
+              onChange={(v) => { if (!loading) setCity(v === "manila" ? "manila" : "dubai"); }}
               className={SELECT_CLASS}
               options={[
                 { value: "dubai", label: "Dubai" },
@@ -3561,7 +3571,8 @@ export default function AdminDraftPage() {
               className={INPUT_CLASS}
               value={targetMonth}
               min={monthKey(new Date())}
-              onChange={(e) => { if (e.target.value) setTargetMonth(e.target.value); }}
+              disabled={loading}
+              onChange={(e) => { if (e.target.value && !loading) setTargetMonth(e.target.value); }}
             />
           </div>
           <div>
