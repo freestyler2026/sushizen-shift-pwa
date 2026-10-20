@@ -2,6 +2,17 @@
 
 
 
+## 2026-10-20 毎回DDLを出す `ensure_*` を全部1回化（教訓197）— デプロイ・本番確認済み
+- backend `e93b5b19`（Heroku へ 12:35 UTC にデプロイ）。`app/schema_once.py` の `@once_per_process` を57関数に。4関数は DDL とデータ処理を分割（データ処理は毎回のまま）
+- `ensure_letter_columns` が DDL をコミットするように（以前は nte_case の ACCESS EXCLUSIVE を PDF 生成の間ずっと保持）
+- 本番確認: 11分の比較で、起動回数を超えた DDL 実行 3,408回 → 0回。起動ログにエラーなし、`/api/admin/overview` 401
+- テスト: 1997 passed / 20 skipped（増えた3件の skip は worktree にフロントが隣に無いための既存条件）
+- **未了・別件:**
+  - `app/incident_api.py` の `async def` 21本が同期DBをイベントループ上で呼んでいる（badge 含む）。DDL は消えたが、遅いクエリ1本で全体が止まる形は残る（教訓195と同型）
+  - `/api/admin/procurement/kpi/summary?city=dubai` が 12:39/12:42/12:46 に H12（30秒）。調達リクエスト一覧のクエリが平均4.7秒・最大15.6秒（8月以降1,868回）。今回の変更とは無関係（呼び出し経路に触った関数なし）
+  - `_ensure_discord_alert_tables(cur)` は呼び出し元の取引内で走るため未変更（理由はテストの許可リストに記載）
+  - `ensure_late_alert_tables` は ALTER の失敗を握りつぶす。列が既にある今は無害だが、新しい列を足した初回に失敗すると、そのプロセスの間は列が無いまま
+
 ## 2026-10-16 Management Inbox の2件（Yusuke）— 修正・デプロイ・本番確認済み
 **① PO Price Variance に詳細が無い**
 - 原因: 当番宛てに即送信されるタスクは `sent_message` を誰も書かず、Inbox は `sent_message` しか表示しない。PO価格差48件すべてが「タイトルとボタンだけ」だった。コンテキストにも仕入先・PO番号・店舗が無かった
