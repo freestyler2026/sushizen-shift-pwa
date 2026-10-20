@@ -465,6 +465,16 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** A proxy or router error page arrives as HTML. Showing the HTML says nothing;
+ *  say what happened and what to do instead. */
+function readableError(msg: string): string {
+  const m = String(msg || "").trim();
+  if (/^<!doctype html|^<html/i.test(m)) {
+    return "The server did not answer in time. Nothing was saved for this step — try again.";
+  }
+  return m;
+}
+
 async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
   const text = await res.text();
@@ -1476,6 +1486,11 @@ export default function AdminDraftPage() {
   } | null>(null);
 
   const [versions, setVersions] = useState<BatchDraftVersion[]>([]);
+  /** Which branches Confirm Generate builds. All by default; after a failure
+   *  only the failed ones stay ticked, so a retry does not regenerate (and
+   *  throw away the approved changes of) the branches that worked. */
+  const [genBranches, setGenBranches] = useState<string[]>([]);
+  const monthVersionsReq = useRef(0);
   const [activeBranchCode, setActiveBranchCode] = useState<string>("");
   // Upcoming suspensions — fetched for the shift planner banner
   const [upcomingSuspensions, setUpcomingSuspensions] = useState<{
@@ -1823,6 +1838,40 @@ export default function AdminDraftPage() {
     }
   }, [versions, activeBranchCode]);
 
+  /** The draft each branch uses this month -- the same one the sheet and Sync
+   *  use. Without it the page only knew drafts made in this visit: after a
+   *  reload Schedule View, Apply and Branch Edit were gone. */
+  async function fetchMonthVersions(c: string, month: string): Promise<BatchDraftVersion[]> {
+    const res = await apiGet<{ items?: { branch_code: string; version_id: string; version_week_start: string; rows: number; days: number }[] }>(
+      `/api/draft/month_versions${qs({ city: c, month })}`);
+    return (res.items || []).map((v) => ({
+      branch_code: v.branch_code,
+      branch_name: labelOf(c as City, v.branch_code as BranchCode) || v.branch_code,
+      version_id: v.version_id,
+      version_week_start: v.version_week_start,
+      rows_inserted: v.rows,
+      days_generated: v.days,
+    }));
+  }
+
+  useEffect(() => {
+    const ticket = ++monthVersionsReq.current;
+    (async () => {
+      try {
+        const list = await fetchMonthVersions(city, targetMonth);
+        if (ticket !== monthVersionsReq.current) return;
+        setVersions((cur) => (cur.length ? cur : list));
+      } catch {
+        /* Generate still works; the drafts just are not listed until then. */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, targetMonth]);
+
+  useEffect(() => {
+    setGenBranches(prepared ? [...prepared.branch_codes] : []);
+  }, [prepared]);
+
   // Reset export state when branch changes
   useEffect(() => {
     setSheetExportResult(null);
@@ -1955,7 +2004,7 @@ export default function AdminDraftPage() {
     } catch (e: any) {
       if (ticket !== rosterReq.current) return;
       setRoster(null);
-      setRosterError(String(e?.message || e || "Could not load the roster."));
+      setRosterError(readableError(String(e?.message || e || "Could not load the roster.")));
     } finally {
       if (ticket === rosterReq.current) setRosterLoading(false);
     }
@@ -2011,7 +2060,7 @@ export default function AdminDraftPage() {
       setRosterMessage(`Saved ${res.saved} staff.`);
       return true;
     } catch (e: any) {
-      setRosterMessage(String(e?.message || e || "Save failed"));
+      setRosterMessage(readableError(String(e?.message || e || "Save failed")));
       return false;
     } finally {
       setRosterSaving(false);
@@ -2066,7 +2115,12 @@ export default function AdminDraftPage() {
       let totalUnresolvedHours = 0;
 
       const blockedBranches: string[] = [];
-      for (const code of prepared.branch_codes) {
+      const toGenerate = prepared.branch_codes.filter((b) => genBranches.includes(b));
+      if (!toGenerate.length) {
+        throw new Error("Tick at least one branch to generate.");
+      }
+      monthVersionsReq.current += 1;   // a load still in flight must not overwrite this run
+      for (const code of toGenerate) {
         try {
           // Unticked people are saved as left out; nothing extra to send.
           const extraExcluded: string[] = [];
@@ -2103,17 +2157,31 @@ export default function AdminDraftPage() {
           } else {
             failedBranches.push({
               branch_code: code,
-              detail: String(branchError?.message || branchError || "Failed"),
+              detail: readableError(String(branchError?.message || branchError || "Failed")),
             });
           }
         }
       }
 
+      // Every branch's draft for the month: the ones just made, and the ones
+      // this run did not touch (they keep their approved changes).
+      let merged: BatchDraftVersion[] = nextVersions;
+      try {
+        const loaded = await fetchMonthVersions(prepared.city, prepared.target_month);
+        merged = [...nextVersions, ...loaded.filter((l) => !nextVersions.some((n) => n.branch_code === l.branch_code))];
+      } catch {
+        /* keep what was generated */
+      }
+      setVersions(merged);
+      if (failedBranches.length) setGenBranches(failedBranches.map((b) => b.branch_code));
+
       // If any branches were blocked by SENT_TO_MANUAL guard, show confirm modal
       if (blockedBranches.length > 0) {
         setReplaceGuard({
           city: prepared.city,
-          branch_codes: prepared.branch_codes,
+          // Only the branches that were refused -- Replace All used to rebuild
+          // every branch, including the ones that had just been generated.
+          branch_codes: blockedBranches,
           target_month: prepared.target_month,
           blockedBranches,
         });
@@ -2122,10 +2190,12 @@ export default function AdminDraftPage() {
       }
 
       if (!nextVersions.length) {
-        throw new Error(`Failed to generate monthly drafts for ${city === "dubai" ? "Dubai" : "Manila"} branches.`);
+        throw new Error(failedBranches.length
+          ? failedBranches.map((b) => `${b.branch_code}: ${b.detail}`).join("\n")
+            + "\n\nNothing was generated. The failed branches are still ticked — press Confirm Generate to retry."
+          : `Failed to generate monthly drafts for ${city === "dubai" ? "Dubai" : "Manila"} branches.`);
       }
 
-      setVersions(nextVersions);
       setActiveBranchCode(nextVersions[0]?.branch_code || "");
       setGenerateResult({
         ok: failedBranches.length === 0,
@@ -2145,6 +2215,8 @@ export default function AdminDraftPage() {
           failedBranches
             .map((item) => `${item.branch_code}: ${item.detail}`)
             .join("\n")
+          + `\n\nOnly ${failedBranches.map((b) => b.branch_code).join(", ")} ${failedBranches.length === 1 ? "is" : "are"} still ticked. `
+          + "Press Confirm Generate again to retry just those; the other branches keep their drafts."
         );
       }
 
@@ -2196,12 +2268,12 @@ export default function AdminDraftPage() {
       } catch (branchError: any) {
         failedBranches.push({
           branch_code: code,
-          detail: String(branchError?.message || branchError || "Failed"),
+          detail: readableError(String(branchError?.message || branchError || "Failed")),
         });
       }
     }
     if (nextVersions.length) {
-      setVersions(nextVersions);
+      setVersions((cur) => [...nextVersions, ...cur.filter((c) => !nextVersions.some((n) => n.branch_code === c.branch_code))]);
       setActiveBranchCode(nextVersions[0]?.branch_code || "");
       setGenerateResult({
         ok: failedBranches.length === 0,
@@ -3632,6 +3704,30 @@ export default function AdminDraftPage() {
           <p className={`${T_CAPTION} mt-3`}>
             Prepared: All {city === "dubai" ? "Dubai" : "Manila"} stores • {prepared.target_month}
           </p>
+        ) : null}
+        {prepared ? (
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className={T_LABEL}>Branches to generate</span>
+            {prepared.branch_codes.map((bc) => {
+              const has = versions.some((v) => v.branch_code === bc);
+              return (
+                <label key={bc} className="flex cursor-pointer select-none items-center gap-1.5 text-sm text-zinc-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded accent-violet-500"
+                    checked={genBranches.includes(bc)}
+                    onChange={(e) => setGenBranches((cur) => e.target.checked ? [...cur, bc] : cur.filter((x) => x !== bc))}
+                  />
+                  {labelOf(city as City, bc as BranchCode) || bc}
+                  {has && <span className="text-[11px] text-amber-300/80">(has a draft)</span>}
+                </label>
+              );
+            })}
+            <p className={`${T_CAPTION} basis-full`}>
+              A ticked branch that already has a draft gets a new one, and the changes approved into the old
+              draft are not carried over. Untick the branches you want to keep.
+            </p>
+          </div>
         ) : null}
 
         {/* ── Staff Roster Check — editable, saved per month (app/draft_roster.py) ── */}

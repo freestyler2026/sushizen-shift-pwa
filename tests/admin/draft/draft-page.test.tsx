@@ -914,7 +914,78 @@ describe("AdminDraftPage — error handling", () => {
     }, { timeout: 2000 });
     // Confirm → all branch API calls fail → error message rendered
     fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
-    await screen.findByText(/Failed to generate monthly drafts/i, {}, { timeout: 10000 });
+    // Each branch's reason is named, and the retry is spelled out.
+    await screen.findByText(/Nothing was generated\. The failed branches are still ticked/i, {}, { timeout: 10000 });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────
+describe("AdminDraftPage — drafts that already exist (2026-10-20)", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("lists the month's existing drafts on open, so Schedule View is not empty after a reload", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", makeDraftFetch([
+      { match: "/api/draft/month_versions", body: { ok: true, items: [
+        { branch_code: "BB", version_id: "v-bb", version_week_start: "2026-10-26", rows: 194, days: 30 },
+      ] } },
+    ]));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    await waitFor(() => {
+      expect(screen.queryByText("No shift data yet")).toBeNull();
+    }, { timeout: 5000 });
+  });
+
+  it("after one branch fails, only that branch stays ticked for the retry", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    const base = makeDraftFetch([{ match: "/api/auth/verify", body: { ok: true, role: "HQ" } }]);
+    let failCode = "";
+    const generated: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/draft/generate_month")) {
+        const body = JSON.parse(String(opts?.body || "{}"));
+        generated.push(body.branch_code);
+        if (!failCode) failCode = body.branch_code;          // the first branch fails
+        if (body.branch_code === failCode) {
+          return new Response("<!DOCTYPE html><html><head><title>Application Error</title></head></html>",
+            { status: 503, headers: { "Content-Type": "text/html" } });
+        }
+        return new Response(JSON.stringify({ ok: true, branch_code: body.branch_code, version_id: `v-${body.branch_code}`,
+          version_week_start: "2026-10-26", rows_inserted: 10, days_generated: 30, summary: {} }),
+          { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    }));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Branches to generate/i, {}, { timeout: 5000 });
+    fireEvent.click(screen.getByText(/I confirm generating a new monthly draft/i));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm Generate/i })).not.toBeDisabled();
+    }, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+    // The router's HTML page is not dumped on screen.
+    await screen.findByText(/still ticked/i, {}, { timeout: 10000 });
+    expect(screen.queryByText(/Application Error/)).toBeNull();
+    const n = generated.length;
+    expect(n).toBeGreaterThan(1);
+    // Retry: only the failed branch is sent.
+    fireEvent.click(screen.getByText(/I confirm generating a new monthly draft/i));
+    fireEvent.click(screen.getByText(/I confirm generating a new monthly draft/i));
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+    await waitFor(() => { expect(generated.length).toBe(n + 1); }, { timeout: 10000 });
+    expect(generated[n]).toBe(failCode);
   });
 });
 
