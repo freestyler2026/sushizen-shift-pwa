@@ -187,11 +187,22 @@ type MonthHistoryRow = {
   net_sales: number;
   days: number;
   avg_net_per_order: number;
-  /** What the customer actually paid, per order, before the platform's cut.
-   *  A different question from the one above: on GrabFood the platform keeps
-   *  about half. Null before August 2026, when the gross columns start. */
+  /** Gross ÷ orders. Not shown any more: on GrabFood "gross" is the menu
+   *  price before the promotion (about twice what the customer paid), so it
+   *  is neither what the customer paid nor what the business keeps. */
   avg_gross_per_order?: number | null;
   gross_sales?: number | null;
+  /** Average per order of what customers paid for the food: Dine-in bill incl.
+   *  VAT, GrabFood net sales (after promotions, before Grab's commission),
+   *  Foodpanda order value. Null where a month lacks the data. */
+  avg_customer_paid_per_order?: number | null;
+  customer_paid?: number | null;
+  /** Average per order of what reached the business: Dine-in takings plus the
+   *  Grab and Foodpanda payouts for the days of the month. */
+  avg_received_per_order?: number | null;
+  received?: number | null;
+  /** Days a platform took orders and has paid nothing for yet. */
+  unpaid_days?: { grab: number; foodpanda: number } | null;
   mom_orders: number | null;
   mom_net_sales: number | null;
   /** The month total is whole; its per-channel split is not, for this many
@@ -704,8 +715,9 @@ export function ManilaOrderCountsTab({
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-neutral-400">Monthly History — Last 12 Complete Months</p>
               <p className="text-[10px] text-neutral-600 mt-0.5">
                 Orders + net sales from manila_daily_sales · complete months only ·
-                {" "}Net/Order is what the business keeps; Gross/Order is what the customer paid,
-                and on GrabFood the platform takes about half of it
+                {" "}The two per-order columns are the average spend per order (sales ÷ orders), not order counts:
+                {" "}Customer paid = Dine-in bill incl. VAT + GrabFood sales after promotions + Foodpanda order value;
+                {" "}Received = Dine-in takings + what Grab and Foodpanda actually paid out (about 31% less than GrabFood sales after promotions).
               </p>
             </div>
             {historyLoading ? <Spinner size="sm" /> : null}
@@ -721,9 +733,9 @@ export function ManilaOrderCountsTab({
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Orders</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">MoM (orders)</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500"
-                        title="Net sales ÷ orders — what the business keeps per order, after the platform's commission.">Net/Order</th>
+                        title="Average spend per order: what customers paid for the food ÷ orders. Dine-in incl. VAT, GrabFood after promotions, Foodpanda order value. From August 2026.">Avg / order<br /><span className="normal-case tracking-normal font-normal">customer paid</span></th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500"
-                        title="What the customer paid, per order, before the platform's commission. Recorded from August 2026 onwards.">Gross/Order</th>
+                        title="What reached the business per order: Dine-in takings plus Grab and Foodpanda payouts, ÷ orders. From August 2026.">Avg / order<br /><span className="normal-case tracking-normal font-normal">received</span></th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Days</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500 w-24">Bar</th>
                   </tr>
@@ -769,13 +781,29 @@ export function ManilaOrderCountsTab({
                           <td className="px-4 py-2.5 text-right">
                             {momCell(momOrd)}
                           </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-400">
-                            {formatPhp(row.avg_net_per_order)}
+                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-300">
+                            {row.avg_customer_paid_per_order != null ? formatPhp(row.avg_customer_paid_per_order) : (
+                              <span className="text-neutral-600"
+                                    title="Dine-in's bill incl. VAT is recorded from August 2026. Before that what customers paid cannot be worked out without guessing.">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-300">
-                            {row.avg_gross_per_order != null ? formatPhp(row.avg_gross_per_order) : (
+                            {row.avg_received_per_order != null ? (
+                              <>
+                                {formatPhp(row.avg_received_per_order)}
+                                {row.unpaid_days && (row.unpaid_days.grab + row.unpaid_days.foodpanda) > 0 ? (
+                                  <span className="ml-1 text-[10px] text-amber-400/80"
+                                        title={`Not paid out yet for ${[
+                                          row.unpaid_days.grab ? `${row.unpaid_days.grab} GrabFood day(s)` : "",
+                                          row.unpaid_days.foodpanda ? `${row.unpaid_days.foodpanda} Foodpanda day(s)` : "",
+                                        ].filter(Boolean).join(" and ")} with orders, so this reads a little low.`}>
+                                    short
+                                  </span>
+                                ) : null}
+                              </>
+                            ) : (
                               <span className="text-neutral-600"
-                                    title="The gross figures start in August 2026. Before that only the net was kept, so what the customer paid cannot be worked out.">—</span>
+                                    title="Needs Dine-in's takings (recorded from August 2026) and the platform payouts.">—</span>
                             )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-500">{row.days}</td>
