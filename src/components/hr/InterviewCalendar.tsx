@@ -259,6 +259,8 @@ export default function InterviewCalendar({ onOpenInterview }: {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  // A result belongs to the day it was about; opening another day clears it.
+  useEffect(() => { setBlockMsg(""); }, [openDay]);
 
   const addBlock = async (date: string) => {
     if (blockBusy) return;
@@ -272,6 +274,7 @@ export default function InterviewCalendar({ onOpenInterview }: {
       const text = await res.text();
       let j: Record<string, unknown> = {};
       try { j = JSON.parse(text); } catch { /* text/plain */ }
+      if (res.status === 403) { setBlockMsg("You can see the calendar but not block times. Ask HR to block it."); return; }
       if (!res.ok) { setBlockMsg(String(j.detail || text || "Could not block that time.").slice(0, 200)); return; }
       const clash = (j.already_booked as { time: string; full_name: string; interviewer: string }[] | undefined) || [];
       setBlockMsg(clash.length
@@ -291,8 +294,9 @@ export default function InterviewCalendar({ onOpenInterview }: {
     setBlockBusy(true); setBlockMsg("");
     try {
       const res = await fetch(`/api/admin/hr/interviews/blocks/${id}`, { method: "DELETE" });
-      if (!res.ok) { setBlockMsg("Could not open that time again. Refresh and try again."); return; }
-      setBlockMsg("Opened again. Applicants can book it.");
+      if (res.status === 403) { setBlockMsg("You can see the calendar but not open blocked times. Ask HR."); return; }
+      if (!res.ok) { setBlockMsg("Could not remove that block. Refresh and try again."); return; }
+      setBlockMsg("Block removed.");
       await load();
     } catch {
       setBlockMsg("Could not reach the server.");
@@ -397,6 +401,7 @@ export default function InterviewCalendar({ onOpenInterview }: {
                   <div className="mt-0.5 truncate rounded bg-zinc-500/25 px-1 text-[10px] leading-4 text-zinc-200"
                        title={day.blocks!.map((b) => `${b.from}–${b.to} blocked${b.reason ? ` — ${b.reason}` : ""}`).join("\n")}>
                     {day.blocks![0].from}–{day.blocks![0].to} blocked
+                    {day.blocks!.length > 1 ? ` +${day.blocks!.length - 1}` : ""}
                   </div>
                 )}
                 {day.interviews.length > 2 && (
@@ -485,6 +490,9 @@ export default function InterviewCalendar({ onOpenInterview }: {
                   Block this time
                 </button>
               </div>
+            )}
+            {!selected.is_past && blockTo <= blockFrom && (
+              <p className="mt-1.5 text-xs text-amber-300">The end time must be after the start time.</p>
             )}
             {blockMsg && <p className="mt-1.5 text-xs text-zinc-300">{blockMsg}</p>}
           </div>
