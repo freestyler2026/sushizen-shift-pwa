@@ -40,6 +40,17 @@ export interface DriveInvoice {
   matched_po_no: string | null;
   matched_po_vendor: string | null;
   matched_po_amount: number | null;
+  /** Fields two readings disagreed on, and -- on an approved invoice -- where the
+   *  re-reading disagrees with what was approved ("reviewed value"). */
+  review_fields?: ReviewField[];
+}
+
+export interface ReviewField {
+  field: string;
+  "reviewed value"?: string | number | null;
+  "re-reading"?: string | number | null;
+  first?: unknown;
+  second?: unknown;
 }
 
 export interface LineItem {
@@ -95,6 +106,9 @@ const STATUSES = [
   { key: "pending_review", label: "Pending" },
   { key: "archived", label: "Archived" },
   { key: "approved", label: "Approved" },
+  // Approved, but the re-reading disagrees with what was approved. Of six
+  // checked against the photograph, the approved value was wrong on five.
+  { key: "reading_differs", label: "Reading differs" },
   { key: "not_supplier_invoice", label: "Not an invoice" },
   { key: "rejected", label: "Rejected" },
 ] as const;

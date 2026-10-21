@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { DriveInvoice, LineItem } from "./DriveInvoiceInbox";
+import type { DriveInvoice, LineItem, ReviewField } from "./DriveInvoiceInbox";
 import PhotoLoupe from "./PhotoLoupe";
 import { money } from "@/lib/currency";
 
@@ -26,6 +26,54 @@ interface POCandidate {
   city?: string;
   /** How many POs match, against however many are being shown. */
   total_matches?: number;
+}
+
+const DIFF_LABEL: Record<string, string> = {
+  total_amount: "Total", tax_amount: "Tax", amount_excl_tax: "Before tax",
+  invoice_number: "Invoice number", vendor_name: "Supplier", tin_or_trn: "Supplier TRN / TIN",
+};
+
+/** Where the re-reading disagrees with what was approved. Nothing changes until
+ *  someone picks the right value and approves again; approving clears the list. */
+function ReadingDiffers({ fields, use }: {
+  fields?: ReviewField[];
+  use: Record<string, (v: string) => void>;
+}) {
+  const diffs = (fields || []).filter((f) => f && "reviewed value" in f);
+  if (diffs.length === 0) return null;
+  return (
+    <div className="mb-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-2">
+      <p className="mb-1 text-xs font-semibold text-sky-200">The re-reading disagrees with what was approved</p>
+      <p className="mb-2 text-[11px] text-sky-200/70">
+        Check the photo. Use the re-reading where it is right, then press Approve to save. Approving clears this list.
+      </p>
+      <div className="space-y-1">
+        {diffs.map((d, i) => {
+          const set = use[d.field];
+          const reread = d["re-reading"];
+          return (
+            <div key={`${d.field}-${i}`} className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="w-28 shrink-0 text-white/60">{DIFF_LABEL[d.field] || d.field}</span>
+              <span className="font-mono text-white/50 line-through">{String(d["reviewed value"] ?? "")}</span>
+              <span className="text-white/40">→</span>
+              <span className="font-mono text-white">{String(reread ?? "")}</span>
+              {set ? (
+                <button
+                  type="button"
+                  onClick={() => set(String(reread ?? ""))}
+                  className="rounded border border-sky-400/40 px-1.5 py-0.5 text-[11px] text-sky-200 hover:bg-sky-500/20"
+                >
+                  Use re-reading
+                </button>
+              ) : (
+                <span className="text-[11px] text-white/40">not editable here</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function ConfidenceWarnings({ notes }: { notes: string[] }) {
@@ -1021,6 +1069,16 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
           {/* Right: form */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <ConfidenceWarnings notes={invoice.confidence_notes} />
+            <ReadingDiffers
+              fields={invoice.review_fields}
+              use={{
+                total_amount: (v) => setTotalAmount(v),
+                tax_amount: (v) => setTaxAmount(v),
+                amount_excl_tax: (v) => setAmountExclTax(v),
+                invoice_number: (v) => setInvoiceNumber(v),
+                vendor_name: (v) => setVendorName(v),
+              }}
+            />
 
             {/* Core fields */}
             <div className="grid grid-cols-2 gap-3">
