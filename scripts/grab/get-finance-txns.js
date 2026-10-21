@@ -22,7 +22,8 @@
  * Env:
  *   GRAB_STORE_CODE            PAR | TAFT | CUB
  *   GRAB_SESSION_STATE         base64 session (CI) — or SESSION_PATH (local)
- *   DATE_FROM / DATE_TO        default: the last 3 days (PHT), so a dead night is caught up
+ *   DATE_FROM / DATE_TO        default: the last 3 days (PHT). The daily workflow passes its
+ *                              30-day window, which also catches Grab's late changes
  *   WEBHOOK_URL                backend; unset = print counts only
  *   GRAB_FINANCE_INGEST_TOKEN  required when WEBHOOK_URL is set (lesson 199)
  *

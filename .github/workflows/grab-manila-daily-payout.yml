@@ -140,8 +140,11 @@ jobs:
       # ── Finance transactions (VAT plan Phase 0-4) ─────────────────────────
       # One row per transaction with its breakdown: who funded the discount,
       # commission and its VAT, withholding, and the rows that are not orders
-      # (compensations, deductions, ads). Last 3 days; only new or changed
-      # transactions get a detail call. Token-protected (lesson 199).
+      # (compensations, deductions, ads). The window is the job's DATE_FROM /
+      # DATE_TO (30 days, exported above): re-listing a month is cheap and picks
+      # up Grab's late changes, and only new or changed transactions get a detail
+      # call (measured: first run 2,233 for Paranaque, then ~80 a day).
+      # Token-protected (lesson 199).
       - name: Finance transactions — Paranaque
         if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque') }}
         run: node scripts/grab/get-finance-txns.js
