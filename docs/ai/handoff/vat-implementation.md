@@ -245,6 +245,13 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
 
 - [ ] **1-1 StoreHub の `tax` / `serviceCharge` を取込に足す** — `app/services/storehub_api.py` の
       `_map_to_pos_transaction_row`。8月の VAT 列が全件ゼロだった件（付録 C）
+      - 2026-10-21 コード済み・デプロイ済み: 取引に `vat_12pct`（StoreHub が記録した VAT＝印字額）・SC/PWD・選手・勲章の割引・配達料、
+        日次に `tax` / `service_charge` / `shipping_fee`。`tests/test_storehub_vat_fields.py`
+      - **取込後に取り消された注文が売上に残っていた**: 日次の同期（Heroku Scheduler 17:00 UTC）は終わった1日を1回だけ読む。
+        7/1〜10/20 で **43件・₱38,262.39**（Q3 ₱28,869.39／10月 ₱9,393.00、ほぼ GrabFood）。売上税額で約 ₱4,100 の過大。
+        他の 30,784件は API と完全一致・欠落0
+      - 直し方: 同期を**直近7日の読み直し**にする（`STOREHUB_RESYNC_DAYS`、既定7）。**オーナー承認まで config で 1 に固定中**
+      - [ ] 承認後: 退避 → 7/1〜10/20 を読み直し（43件が取消に・日次合計 −₱38,262.39・VAT 列が埋まる）→ config を外す
 - [ ] **1-2 四半期の箱** — `vat_quarter(year, q)` が売上を店内飲食・Grab・foodpanda・その他に分けて返す。
       基礎は storehub_api の割引後売上。**課税対象 = 税込 ÷ 1.12 × 0.12**（端数は集計後に丸める）
 - [ ] **1-3 SC/PWD 免税売上** — Cashier Log から。店内飲食の課税対象から差し引き、別行で出す
