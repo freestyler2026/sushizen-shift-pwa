@@ -209,8 +209,8 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
 - [ ] **0-8【オーナー】Grab サポートへの問い合わせ** — 約3割の注文で「お客様の支払額が定価のまま」の件。
       文面は下の「付録 A」
 - [ ] **0-10【オーナー＋会計事務所】StoreHub の foodpanda の税設定**（Phase 1 冒頭の表）。Taft・Cubao は割引前に課税、
-      Paranaque は0。配達注文にレシート番号が振られていない件も合わせて確認する。紙の確認は Taft 10/19 の
-      foodpanda 注文 `ryqc-2643-gwpw`（₱299.01、StoreHub の税額 ₱45.77・正しくは ₱32.04）の印字を1枚撮る
+      Paranaque は0。Paranaque の foodpanda 用レジ（Register #3）が NON-VAT で印字している件と、
+      PTU・MIN・Serial が空欄の件も合わせて確認する。Taft・Cubao の紙は未確認（写真に StoreHub のレシートが無い）
 - [ ] **0-9【オーナー】foodpanda QC の手数料率 18%**（他店 12%）を契約と照合。VAT ではないがお金が動く
       （10/19 の1日分から推定すると月 約 ₱10万の差）
 
@@ -234,9 +234,14 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
 >
 > - foodpanda の `discount` は**当店負担の割引**: foodpanda 日次請求書の Discount Paid By Vendor と注文単位で
 >   1,403/1,418 件一致（9/24〜10/20）。`total` ＝料理代金−当店負担割引＝お客様の支払額。**基礎は `total`**
-> - **配達アプリの注文には固有のレシート番号が無い**（10/1〜20: Grab・foodpanda 6,137件中6,089件が他の取引と番号を共有。
->   Cubao は1番号に最大101件）。StoreHub が配達注文に BIR の請求書を発行していない可能性が高い（未確認）
-> - API で見えるのは記録で、**印字された紙は見えない**。紙の確認は店舗で1枚撮る（0-10）
+> - **印字されたレシートは API の記録と一致する**（2026-10-21、Product Scoring のキッチン写真で確認）。
+>   Paranaque の StoreHub レシート3枚（foodpanda FP2456・FP2471、Grab GF-382）は合計・VAT とも API と1円まで同じ。
+>   - **Paranaque の foodpanda レシートは「NON-VAT REG TIN:（空欄）」と印字され、VAT Amount 0.00**（Register #3・SALES INVOICE）。
+>     同じ店の Grab のレシートは VAT 53.46 と正しく出る
+>   - 3枚とも **PTU #・MIN・Serial # が空欄**で、末尾に「THIS DOCUMENT IS NOT VALID FOR CLAIM OF INPUT TAX」。会計事務所に確認
+>   - Taft・Cubao のキッチンは foodpanda の伝票（"This is not a receipt"・金額なし）しか撮っておらず、StoreHub のレシートの写真は無い
+> - ⚠️ **訂正: API の `invoiceNumber` は印字の SI # ではない**（FP2456: API 00200002924 / 印字 SI # 00200005754）。
+>   「配達注文に固有のレシート番号が無い」は API の番号を読んだ誤りで、取り下げる
 
 - [ ] **1-1 StoreHub の `tax` / `serviceCharge` を取込に足す** — `app/services/storehub_api.py` の
       `_map_to_pos_transaction_row`。8月の VAT 列が全件ゼロだった件（付録 C）
