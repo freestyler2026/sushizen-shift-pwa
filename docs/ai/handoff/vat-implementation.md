@@ -22,7 +22,7 @@
 
 ## 現在地
 
-**Phase 0（準備とデータの取込）— 進行中。次は 0-3**
+**Phase 0（準備とデータの取込）— 進行中。0-3 は 10/28 の確認待ち。次は 0-4**
 
 目標: **2026年第4四半期（10〜12月）の 2550Q を、この台帳から作る。期限 2027-01-25。**
 ⚠️ 第3四半期（期限 2026-10-25）には間に合わない。第3四半期はこれまでの方法で申告し、
@@ -30,7 +30,7 @@ Phase 1 が動いたら、その申告額と台帳の数字を突き合わせる
 
 | 段階 | 内容 | 目安 | 状態 |
 |---|---|---|---|
-| 0 | 準備とデータの取込 | 〜2026-10-31 | 進行中（0-1・0-2 済） |
+| 0 | 準備とデータの取込 | 〜2026-10-31 | 進行中（0-1・0-2 済・0-3 は10/28確認） |
 | 1 | 売上税額 | 〜11-15 | — |
 | 2 | 仕入税額と要件チェック | 〜11-30 | — |
 | 3 | 源泉税の記録 | 〜12-05 | — |
@@ -109,6 +109,17 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
         宛先 TIN・注文別の「料理代金／当店負担の割引／手数料の基準額／手数料／VAT／源泉」
       - `.github/workflows/foodpanda-manila-daily-payout.yml` に3店舗とも載せ、各店舗 `if: always()`（教訓89）
       - 完了条件: 3店舗×7日連続で欠けずに入る。10/19 の手数料 VAT が Paranaque ₱710・Taft ₱2,673・QC ₱1,205 と一致
+      - 🟡 2026-10-21 実装・遡り取込済み（backend `app/fp_invoices.py`・`POST /api/foodpanda/invoice-archive`、
+        script `get-payouts.js` が入金ごとに `RequestPayouts` → zip を送る。保存済みの入金は `/known` で飛ばす）。
+        **残りは「日次ジョブで7日連続」の確認だけ → 2026-10-28 に `fp_sales_invoices` を店舗×入金日で数える**
+        - 遡り（入金 9/25〜10/20・3店舗・42入金・54通）: 全通が当社 TIN 宛て・発行元 TIN 1種・AC 番号あり・
+          **VAT と明細の差は全通 0.00**。注文 1,436行、手数料の基準は全行が割引前の料理代金。10/19 の3通は報告値と一致
+        - **2種類の請求書がある**: 手数料（注文明細つき・Appendix A）と**広告 Organic Placement (CPC)**（Appendix B）。
+          広告も VAT 12% の Sales Invoice で、4週で純額 ₱45,891.64・VAT ₱5,507。どちらも仕入税額
+        - 手数料率は全期間で Paranaque・Taft 12% / **QC 18%（343件すべて）**
+        - ⚠️ **名義は個人**: 宛名は `OMACHI JANINE THERESE DIAZ`（Business Style: Sushi Zen - 各店）。3店舗とも同じ TIN
+        - 認証: zip の取得には portal の認証ヘッダーが要る（Cookie だけでは 401）
+        - webhook は既存の入金取込と同じく無認証。保存するのは zip から読んだ値だけで、宛名 TIN は保存時に判定して返す
 - [ ] **0-4 Grab 財務明細の取込** — 一覧 `/mex/finances/v2/transactions`（limit ≤ 50・status は大文字 `COMPLETED`）と
       明細 `/mex/finances/v2/stores/{store_id}/transactions/{transaction_id}` から、注文ごとに
       `mex_fund_discount`・`fee_breakdown` の DISCOUNT_FUNDED・`gf_total_commission`・`gf_total_commission_tax`・`withholding_tax` を保存する
@@ -126,6 +137,7 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
       - 完了条件: 1店舗を意図的に止めた想定のクエリで欠測として出る（本番の取込は止めない）
 - [ ] **0-7【オーナー】Grab の月次請求書** — オーナー権限のアカウントで Finance → Invoices を開き、
       手数料の VAT 請求書が**当社 TIN 宛てに**出ているか確認する（店長アカウントは 403 UP216・3店舗とも default_manager）。
+      **foodpanda の請求書の宛名は個人名（OMACHI JANINE THERESE DIAZ）だった。Grab の請求書の宛名も同じ名義か見る。**
       注文別の VAT 明細（`.../transactions/orders/{long_order_id}/invoice`）は店長でも取れるが、
       **tax_id と entity_address が空**で、BIR の適格請求書としては使えない見込み。
       **これが無いと Grab 手数料の仕入税額（推定 四半期 ₱23万〜47万）が控除できない**
@@ -243,10 +255,12 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
 | # | 内容 | 担当 | 影響 | 状態 |
 |---|---|---|---|---|
 | 1 | Grab の約3割の注文で、注文詳細の割引欄に品目割引が入っていない。お客様の支払額の欄は品目割引を引かない仕様なので、**定価で払った証拠ではない**。財務明細は当店負担の割引と記録 | オーナー（0-8） | もし定価なら割引額×12/112。Paranaque 10/19 で ₱2,318 | 問い合わせ前（可能性は低くなった） |
-| 2 | Grab の手数料 VAT 請求書が当社宛てに出ているか | オーナー（0-7） | 仕入税額 推定 四半期 ₱23万〜47万 | 未確認 |
+| 2 | Grab の手数料 VAT 請求書が当社宛てに出ているか | オーナー（0-7） | 仕入税額 推定 四半期 ₱23万〜47万（1店1日の幅から。foodpanda の推定は実測で約4.5分の1に下がったので、こちらも過大の可能性がある） | 未確認 |
+| 2b | foodpanda の手数料・広告の仕入税額（実測） | — | 9/23〜10/19 の約4週で VAT ₱28,568（手数料 ₱23,061＋広告 ₱5,507）→ 四半期 約₱9.5万 | 取込済み（0-3） |
 | 3 | foodpanda QC の手数料率 18% | オーナー（0-9） | 月 約 ₱10万（1日分からの推定） | 未確認 |
 | 4 | SLSP 仕入の現行の基準額 | Claude（5-2 で一次資料） | 当社は超えるので作る結論は変わらない | 未確認 |
 | 5 | Form 2307 の受け取り方 | Claude（Phase 3） | 源泉が0円のうちは影響なし | 未確認 |
+| 7 | foodpanda の手数料に対する 2% EWT（明細の列 AE）が全件0円。当社が源泉義務者（Top Withholding Agent 等）なら、手数料の支払時に 2% を源泉して 2307 を出す側になる | オーナー → 会計事務所 | 4週の手数料 約₱19.2万 × 2% ≈ ₱3,800 | 未確認（VAT とは別の税目） |
 | 6 | PO Match のマニラ VAT 表示の修正（印字どおりの VAT 額・総額＝請求額・6行の修正） | オーナー承認待ち | 照合画面の表示。台帳の計算には使わない | 承認待ち |
 
 ---
@@ -285,7 +299,7 @@ Thank you.
 - 割引は全件当店負担（Discount Paid By Vendor）。当店売上 =「料理代金 − 当店負担の割引」。当店負担の割引 計 ₱88,414
 - 手数料の請求書は Delivery Hero Philippines（TIN 008-767-585-0000）の Sales Invoice。
   BIR Acknowledgement Certificate 番号あり。宛先は当社 TIN。VAT は手数料に12%の外税
-- 10/19 の手数料 VAT: Paranaque ₱710・Taft ₱2,673・QC ₱1,205
+- 10/19 の手数料 VAT: Paranaque ₱710・Taft ₱2,673・QC ₱1,205（**この1通に 10/16〜19 の注文が入っている。1日分ではない**）
 - 手数料は**割引前**の料理代金に掛かる（277件全件一致）
 - 手数料率: Paranaque・Taft 12% / QC 18%（請求書の標準料率は12%）
 
