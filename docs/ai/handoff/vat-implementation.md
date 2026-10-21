@@ -22,7 +22,7 @@
 
 ## 現在地
 
-**Phase 0（準備とデータの取込）— 未着手**
+**Phase 0（準備とデータの取込）— 進行中。次は 0-2**
 
 目標: **2026年第4四半期（10〜12月）の 2550Q を、この台帳から作る。期限 2027-01-25。**
 ⚠️ 第3四半期（期限 2026-10-25）には間に合わない。第3四半期はこれまでの方法で申告し、
@@ -30,7 +30,7 @@ Phase 1 が動いたら、その申告額と台帳の数字を突き合わせる
 
 | 段階 | 内容 | 目安 | 状態 |
 |---|---|---|---|
-| 0 | 準備とデータの取込 | 〜2026-10-31 | 未着手 |
+| 0 | 準備とデータの取込 | 〜2026-10-31 | 進行中（0-1 済） |
 | 1 | 売上税額 | 〜11-15 | — |
 | 2 | 仕入税額と要件チェック | 〜11-30 | — |
 | 3 | 源泉税の記録 | 〜12-05 | — |
@@ -85,10 +85,16 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
 
 **目的:** 計算に使う数字が、毎日、人の手を介さずに入ってくる状態にする。
 
-- [ ] **0-1 TIN を登録** — `own_tax_numbers` に `manila / 457994635000000 / SUSHIZEN JAPANESE RESTAURANT (自社)`。
+- [x] **0-1 TIN を登録** — `own_tax_numbers` に `manila / 457994635000000 / SUSHIZEN JAPANESE RESTAURANT (自社)`。
       既存の登録経路（`app/db.py` の own_tax_numbers 関数群）を使う。DB に直接入れない
       - 完了条件: `GET /api/admin/finance/own-tax-numbers?city=manila` が1行返す。id 3252 の
         「仕入先 TIN = 当社」が自社番号として弾かれる
+      - ✅ 2026-10-21 完了（backend `b167a9a9`）。既存の登録関数が**全都市を UAE の15桁で検査**しており、
+        マニラの番号は登録できなかった → `app/tax_numbers.py` に都市別の規則（PH: 9/12/14桁）と
+        自社判定（PH は先頭9桁で一致＝支店コード違いも自社、ドバイは完全一致）を置き、`add_own_tax_number` と
+        `seed_vendor_master_from_invoices` がそれを使う。自社判定は全都市の自社番号を見る（drive_invoices は全都市を読むため）。
+        本番: POST 200 → GET manila 1行（`45799463500000`・added_by Yukihiro Nishimura）。id 3252 は自社と判定。
+        マニラの TIN 入り請求書53枚のうち自社番号の誤読は1枚（id 3252）だけ。テスト `tests/test_tax_numbers.py` 8件
 - [ ] **0-2 割引前後の並存を再確認** — `GET /api/admin/vat/source-uniqueness?city=manila`（2026-03〜直近）
       - 完了条件: 名寄せ不能な店舗名 0。比率が 1.9 前後（＝割引率）のまま。変わっていたら止めて報告
 - [ ] **0-3 foodpanda 日次請求書の取込** — Payments 画面の日次請求書（pdf・xls）。
@@ -191,6 +197,9 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
 - [ ] **4-6 マニュアル** — 税務・証憑マニュアル（`docs/manuals/tax-filing-manual.html`）に章を足して republish。
       CLAUDE.md のマニュアル表の「税務・証憑系」の行に VAT Ledger を足す
 - [ ] **4-7 スマホ幅で確認** — 375px で横スクロールが出ない
+- [ ] **4-8 Vendors 画面の自社番号の欄を都市別に** — `src/app/admin/finance/vendors/page.tsx` は
+      自社番号の取得・追加・削除と再シードを `city=dubai` 固定で呼んでいる。**マニラの自社番号は画面に出ず、画面から足せない**
+      （0-1 は API から登録した）
 
 **完了条件:** CLAUDE.md の判定表（件数は開いた瞬間・一番古い案件は5秒・判断は3タップ）を実測で満たす。
 
