@@ -226,9 +226,10 @@ async function main() {
 
   // 3. Which ones are new or changed. "Unchanged" needs a stored version that
   //    equals the listed one — two blanks are not a match (lesson 156).
+  // The first call is also this store's heartbeat (VAT plan 0-6).
   const known = {};
   for (let i = 0; i < all.length; i += 2000) {
-    const j = await post('/api/grab/finance-txns/known', { ids: all.slice(i, i + 2000).map(keyOf) });
+    const j = await post('/api/grab/finance-txns/known', { store_code: STORE_CODE, ids: all.slice(i, i + 2000).map(keyOf) });
     Object.assign(known, j.known || {});
   }
   // Both sides are local wall-clock times; compare them as instants, not text

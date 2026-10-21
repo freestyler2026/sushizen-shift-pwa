@@ -212,13 +212,13 @@ const REQUEST_PAYOUTS_QUERY = `query RequestPayouts($params: DownloadPayoutsRequ
 const INGEST_TOKEN = process.env.FP_INVOICE_INGEST_TOKEN || '';
 const ingestHeaders = () => ({ 'Content-Type': 'application/json', 'X-Ingest-Token': INGEST_TOKEN });
 
-async function knownInvoicePayouts(ids) {
-  if (ids.length === 0) return new Set();
+async function knownInvoicePayouts(ids, storeCode) {
   try {
+    // Also the job's heartbeat (VAT plan 0-6), so it is sent even with no ids.
     const r = await fetch(`${WEBHOOK_URL}/api/foodpanda/invoice-archive/known`, {
       method: 'POST',
       headers: ingestHeaders(),
-      body: JSON.stringify({ payout_ids: ids }),
+      body: JSON.stringify({ payout_ids: ids, store_code: storeCode }),
       signal: AbortSignal.timeout(15_000),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -242,7 +242,7 @@ async function fetchInvoiceArchives(context, listReq, payouts, acct) {
   const invoicesOf = p => (Array.isArray(p.invoices) ? p.invoices : []);
   const filesOf = inv => (Array.isArray(inv?.invoiceAttachments) ? inv.invoiceAttachments : []);
   const inWindow = payouts.filter(p => (p.at || '') >= DATE_FROM && (p.at || '') <= DATE_TO);
-  const known = await knownInvoicePayouts(inWindow.map(p => String(p.payoutId)));
+  const known = await knownInvoicePayouts(inWindow.map(p => String(p.payoutId)), acct.storeCode);
   const todo = inWindow.filter(p => !known.has(String(p.payoutId)));
   console.log(`\nInvoices: ${inWindow.length} payout(s) in window, ${known.size} stored cleanly, ${todo.length} to fetch`);
   let ok = 0, failed = 0;
