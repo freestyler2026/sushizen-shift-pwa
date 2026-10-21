@@ -2,6 +2,12 @@
 
 
 
+## 2026-10-21 VAT 1-6 判断の反映（配達アプリはプラットフォームに合わせる）— デプロイ・本番確認済み
+
+- オーナー承認: 取消補償は課税売上／チャージバックは引かない／取消・金額違いはプラットフォームに合わせる。「プラットフォームに記録が無い StoreHub 売上」は引かない（Claude 判断・Q4 2件 ₱1,126）
+- `app/vat_output.py` の `platform_adjustments`（`app/vat_delivery_check.py` の APPLIED / NOT_APPLIED）。Q3 売上税額 ₱1,650,305.82 → **₱1,660,592.30**（+₱10,286.48）
+- **ultra レビュー対象**（金額・法令）。残り: 1-6 の Paranaque 欠落期間の埋め合わせと、申告済み Q3 2550Q との比較（申告額待ち）
+
 ## 2026-10-21 VAT 1-1 StoreHub の VAT 列・取消の取り直し・net_sales の二重引き — デプロイ・本番確認済み
 
 - 取込が StoreHub の記録 VAT（＝印字額）・SC/PWD 割引・配達料・サービス料を保存（`app/services/storehub_api.py`）
