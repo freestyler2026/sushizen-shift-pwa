@@ -10,6 +10,7 @@
 - 印字レシートは API と一致（Paranaque の foodpanda は NON-VAT・VAT 0 で印字）。StoreHub の税設定はオーナーが確認を指示済み
 - **10/22 確認**: 17:00 UTC の同期の `storehub_api_sync_log.from_date` が 10/15 か（Scheduler が引数付きなら効かない）
 - 詳細は `docs/ai/handoff/vat-implementation.md` の 1-1
+- 同日 1-2（四半期の箱 `app/vat_output.py`）と点検修正。**承認待ち: 日次P&Lキャッシュの再構築・4/22〜6/30 の読み直し**
 
 ## 2026-10-20 毎回DDLを出す `ensure_*` を全部1回化（教訓197）— デプロイ・本番確認済み
 - backend `e93b5b19`（Heroku へ 12:35 UTC にデプロイ）。`app/schema_once.py` の `@once_per_process` を57関数に。4関数は DDL とデータ処理を分割（データ処理は毎回のまま）
