@@ -166,27 +166,40 @@ async function main() {
   //    short one — Grab could cap below the limit we ask for).
   const listed = [];
   for (const day of window) {
-    let n = 0, pages = 0;
-    for (; pages < MAX_PAGES_PER_DAY; pages++) {
-      const j = await get(`https://merchant.grab.com/mex/finances/v2/transactions?${Q}&from=${day}&to=${day}&limit=${PAGE}&offset=${pages * PAGE}`,
-                          { authFatal: true });
-      // Past the last page Grab answers either [] or `results: null` with
-      // total_count 0 (both seen 2026-10-21). Only a reply with no `data` at all
-      // is a problem.
-      const rows = Array.isArray(j?.data?.results) ? j.data.results
-        : (j?.data && j.data.results == null ? [] : null);
-      if (rows === null) {
-        problems++;
-        console.error(`  ❌ ${day}: unexpected list response: ${JSON.stringify(j).slice(0, 120)}`);
-        break;
+    let n = 0, pages = 0, total = null;
+    try {
+      for (; pages < MAX_PAGES_PER_DAY; pages++) {
+        const offset = pages * PAGE;
+        const j = await get(`https://merchant.grab.com/mex/finances/v2/transactions?${Q}&from=${day}&to=${day}&limit=${PAGE}&offset=${offset}`,
+                            { authFatal: true });
+        if (Number.isFinite(j?.data?.total_count) && j.data.total_count > 0) total = j.data.total_count;
+        let rows = Array.isArray(j?.data?.results) ? j.data.results : null;
+        // Past the last page Grab answers [] or `results: null, total_count: 0`
+        // (both seen 2026-10-21). null is the end only when the count agrees;
+        // a null with rows still owed is a failed page, not an empty day.
+        if (rows === null && j?.data && j.data.results == null
+            && (j.data.total_count === 0 || (total !== null && offset >= total))) rows = [];
+        if (rows === null) {
+          problems++;
+          console.error(`  ❌ ${day}: unexpected list response at offset ${offset}: ${JSON.stringify(j).slice(0, 120)}`);
+          break;
+        }
+        listed.push(...rows);
+        n += rows.length;
+        if (rows.length === 0) break;
       }
-      listed.push(...rows);
-      n += rows.length;
-      if (rows.length === 0) break;
+    } catch (e) {
+      if (e.fatal) throw e;                 // a dead session ends the run
+      problems++;                           // one bad day does not stop the others (lesson 17)
+      console.error(`  ❌ ${day}: list failed — ${e.message}`);
     }
     if (pages >= MAX_PAGES_PER_DAY) {
       problems++;
       console.error(`  ❌ ${day}: stopped at ${MAX_PAGES_PER_DAY} pages — the day may be cut short`);
+    }
+    if (total !== null && n !== total) {
+      problems++;
+      console.error(`  ❌ ${day}: read ${n} of the ${total} Grab says it has`);
     }
     console.log(`  ${day}: ${n} transaction(s)`);
   }
@@ -205,11 +218,22 @@ async function main() {
   }
 
   // 2. Every row must be this store's (one session = one store).
-  const wrong = all.filter(t => !MARKERS[STORE_CODE].some(m => String(t.store_name || '').toLowerCase().includes(m)));
-  if (wrong.length) {
-    console.error(`❌ ${wrong.length} transaction(s) belong to ${[...new Set(wrong.map(t => t.store_name))].join(', ')}, not ${STORE_CODE}.`);
-    console.error('   Refusing to run — it would file one branch\'s money under another (lesson 86).');
+  const isOurs = t => MARKERS[STORE_CODE].some(m => String(t.store_name || '').toLowerCase().includes(m));
+  const wrong = all.filter(t => !isOurs(t));
+  if (wrong.length && wrong.length === all.length) {
+    // Every row is another branch's: the session is the wrong store (lesson 86).
+    console.error(`❌ This session sees ${[...new Set(wrong.map(t => t.store_name))].join(', ')}, not ${STORE_CODE}.`);
+    console.error('   Refusing to run — it would file one branch\'s money under another.');
     process.exit(1);
+  }
+  if (wrong.length) {
+    // A few odd names (an account-level adjustment, say) must not stop the
+    // store for a month: they are left out and named, the rest goes in.
+    problems += wrong.length;
+    console.error(`  ❌ ${wrong.length} row(s) not named ${STORE_CODE} left out: `
+      + wrong.slice(0, 5).map(t => `${keyOf(t)} (${t.store_name || 'no name'})`).join(', '));
+    for (const t of wrong) byKey.delete(keyOf(t));
+    all.length = 0; all.push(...byKey.values());
   }
   const cats = {};
   for (const t of all) {
@@ -235,10 +259,14 @@ async function main() {
   // Both sides are local wall-clock times; compare them as instants, not text
   // (the backend's isoformat and Grab's string differ in "Z" and fractions).
   const ms = s => { const v = Date.parse(`${String(s || '').trim().replace(/Z$/, '')}Z`); return Number.isNaN(v) ? null : v; };
+  // Unchanged = same updated_at AND same status. Grab may settle a
+  // transaction without moving updated_at (unmeasured), so status counts too.
   const todo = all.filter(t => {
-    const stored = ms(known[keyOf(t)]);
+    const k = known[keyOf(t)];
+    const stored = ms(k?.updated_at);
     const listedAt = ms(t.updated_at);
-    return !(stored !== null && listedAt !== null && stored === listedAt);
+    return !(stored !== null && listedAt !== null && stored === listedAt
+             && String(k?.status || '') === String(t.transaction_status || ''));
   });
   console.log(`  ${todo.length} new or changed, ${all.length - todo.length} unchanged since last run`);
 
@@ -275,6 +303,11 @@ async function main() {
       rows: chunk.map(t => ({ listed: t, detail: details.get(keyOf(t)) || null })),
     });
     for (const k of ['inserted', 'updated', 'unchanged', 'stale', 'without_detail', 'id_less']) tot[k] += j[k] || 0;
+    const outcomes = (j.inserted || 0) + (j.updated || 0) + (j.unchanged || 0) + (j.stale || 0) + (j.refused || []).length;
+    if (outcomes !== chunk.length) {
+      problems++;
+      console.error(`  ❌ sent ${chunk.length}, the backend accounted for ${outcomes}`);
+    }
     tot.refused.push(...(j.refused || []));
   }
 
@@ -282,7 +315,8 @@ async function main() {
     + `${tot.stale} stale, ${tot.id_less} without an id (canceled/incomplete), `
     + `${tot.without_detail} without detail, ${tot.refused.length} refused`);
   for (const r of tot.refused.slice(0, 10)) console.error(`  ❌ refused ${r.transaction_id}: ${r.problem}`);
-  if (tot.stale) console.error(`  ❌ ${tot.stale} row(s) older than what is stored — not applied; look before trusting the table`);
+  if (tot.stale) console.error(`  ❌ ${tot.stale} row(s) not applied: either the stored version is newer, or this one `
+    + 'came without its detail (see the ⚠ detail lines above) and would have replaced one that has it');
   if (problems || detailFailed || tot.refused.length || tot.without_detail || tot.stale) process.exitCode = 1;
 }
 
