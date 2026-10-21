@@ -65,6 +65,9 @@ function OcrStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     pending:    { label: "OCR pending",    cls: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
     processing: { label: "Processing…",   cls: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+    // Past invoices read together at half price (backend app/services/invoice_reread.py);
+    // read within a few hours, then "OCR done".
+    batch_queued: { label: "Queued for reading", cls: "bg-yellow-500/10 text-yellow-200 border-yellow-500/20" },
     done:       { label: "OCR done",       cls: "bg-green-500/20 text-green-300 border-green-500/30" },
     skipped:    { label: "Manual entry",   cls: "bg-white/10 text-white/50 border-white/10" },
     error:      { label: "OCR error",      cls: "bg-red-500/20 text-red-300 border-red-500/30" },
