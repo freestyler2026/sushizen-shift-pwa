@@ -256,6 +256,19 @@ async function fetchInvoiceArchives(context, listReq, payouts, acct) {
     if (attachments.length === 0) {
       failed++;
       console.error(`  ❌ ${payoutId} ${p.at}: no invoice files listed yet (${missing.join(', ') || 'no invoices'})`);
+      // Recorded, so the 16:00 feed check can say so (before, nothing knew).
+      const a0 = p.payoutAccount || {};
+      try {
+        const r0 = await fetch(`${WEBHOOK_URL}/api/foodpanda/invoice-archive/no-files`, {
+          method: 'POST', headers: ingestHeaders(),
+          body: JSON.stringify({ payout_id: payoutId, payment_date: p.at,
+                                 store_code: acct.gridToStore[a0.grid] || acct.storeCode, invoices: missing }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!r0.ok) console.warn(`    ⚠ could not record it: HTTP ${r0.status} ${(await r0.text()).slice(0, 200)}`);
+      } catch (err) {
+        console.warn(`    ⚠ could not record it: ${err.message}`);
+      }
       continue;
     }
     const a = p.payoutAccount || {};

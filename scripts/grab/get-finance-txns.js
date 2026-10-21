@@ -167,6 +167,7 @@ async function main() {
   const listed = [];
   for (const day of window) {
     let n = 0, pages = 0, total = null;
+    const dayKeys = new Set();
     try {
       for (; pages < MAX_PAGES_PER_DAY; pages++) {
         const offset = pages * PAGE;
@@ -186,6 +187,7 @@ async function main() {
         }
         listed.push(...rows);
         n += rows.length;
+        for (const t of rows) { const k = keyOf(t); if (k) dayKeys.add(k); }
         if (rows.length === 0) break;
       }
     } catch (e) {
@@ -197,9 +199,12 @@ async function main() {
       problems++;
       console.error(`  ❌ ${day}: stopped at ${MAX_PAGES_PER_DAY} pages — the day may be cut short`);
     }
-    if (total !== null && n !== total) {
+    // Distinct keys, not raw rows: offset paging over a list that re-sorts can
+    // return one row twice and skip another, which a raw count would not see.
+    const distinctN = dayKeys.size + listed.slice(listed.length - n).filter(t => !keyOf(t)).length;
+    if (total !== null && distinctN !== total) {
       problems++;
-      console.error(`  ❌ ${day}: read ${n} of the ${total} Grab says it has`);
+      console.error(`  ❌ ${day}: read ${distinctN} distinct of the ${total} Grab says it has (${n} rows)`);
     }
     console.log(`  ${day}: ${n} transaction(s)`);
   }
@@ -271,7 +276,7 @@ async function main() {
   console.log(`  ${todo.length} new or changed, ${all.length - todo.length} unchanged since last run`);
 
   // 4. Fetch detail and post, a chunk at a time.
-  const tot = { inserted: 0, updated: 0, unchanged: 0, stale: 0, without_detail: 0, id_less: 0, refused: [] };
+  const tot = { inserted: 0, updated: 0, unchanged: 0, stale: 0, undated: 0, without_detail: 0, id_less: 0, refused: [] };
   let detailFailed = 0;
   for (let c = 0; c < todo.length; c += CHUNK) {
     const chunk = todo.slice(c, c + CHUNK);
@@ -302,8 +307,9 @@ async function main() {
       store_code: STORE_CODE,
       rows: chunk.map(t => ({ listed: t, detail: details.get(keyOf(t)) || null })),
     });
-    for (const k of ['inserted', 'updated', 'unchanged', 'stale', 'without_detail', 'id_less']) tot[k] += j[k] || 0;
-    const outcomes = (j.inserted || 0) + (j.updated || 0) + (j.unchanged || 0) + (j.stale || 0) + (j.refused || []).length;
+    for (const k of ['inserted', 'updated', 'unchanged', 'stale', 'undated', 'without_detail', 'id_less']) tot[k] += j[k] || 0;
+    const outcomes = (j.inserted || 0) + (j.updated || 0) + (j.unchanged || 0) + (j.stale || 0)
+      + (j.undated || 0) + (j.refused || []).length;
     if (outcomes !== chunk.length) {
       problems++;
       console.error(`  ❌ sent ${chunk.length}, the backend accounted for ${outcomes}`);
@@ -312,9 +318,10 @@ async function main() {
   }
 
   console.log(`✓ stored: ${tot.inserted} new, ${tot.updated} updated, ${tot.unchanged} unchanged, `
-    + `${tot.stale} stale, ${tot.id_less} without an id (canceled/incomplete), `
+    + `${tot.stale} stale, ${tot.undated} undated, ${tot.id_less} without an id (canceled/incomplete), `
     + `${tot.without_detail} without detail, ${tot.refused.length} refused`);
   for (const r of tot.refused.slice(0, 10)) console.error(`  ❌ refused ${r.transaction_id}: ${r.problem}`);
+  if (tot.undated) console.log(`  ⚠ ${tot.undated} row(s) Grab lists without any updated_at — stored, but changes to them cannot be tracked`);
   if (tot.stale) console.error(`  ❌ ${tot.stale} row(s) not applied: either the stored version is newer, or this one `
     + 'came without its detail (see the ⚠ detail lines above) and would have replaced one that has it');
   if (problems || detailFailed || tot.refused.length || tot.without_detail || tot.stale) process.exitCode = 1;
