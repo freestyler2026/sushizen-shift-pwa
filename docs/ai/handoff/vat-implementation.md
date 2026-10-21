@@ -259,8 +259,20 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
         9/26〜10/20 の foodpanda で ₱519,632 → ₱925,720
       - [ ] **10/22 確認**: 今夜 17:00 UTC の同期が7日分読んだか（`storehub_api_sync_log` の from_date が 10/15 になっているか）。
         Heroku Scheduler のコマンドは CLI から読めないので、引数付きで登録されていれば効かない
-- [ ] **1-2 四半期の箱** — `vat_quarter(year, q)` が売上を店内飲食・Grab・foodpanda・その他に分けて返す。
+- [x] **1-2 四半期の箱** — `vat_quarter(year, q)` が売上を店内飲食・Grab・foodpanda・その他に分けて返す。
       基礎は storehub_api の割引後売上。**課税対象 = 税込 ÷ 1.12 × 0.12**（端数は集計後に丸める）
+      - ✅ 2026-10-21 `app/vat_output.py :: vat_output_quarter()`／`GET /api/admin/vat/output-quarter?year=&quarter=`
+        （HQ または `channel.admin.mgmt_accounting.view`）。基礎は `manila_pos_transactions`（取引単位・取消除外）。
+        法定割引の付いた取引は別枠（1-3）。StoreHub の税額は並べて出すだけで使わない。前日までを数える
+      - 見えないものを返す: StoreHub に無い期間（Q3 は Paranaque の foodpanda 68日・Grab 52日）／売上0の日／
+        読み直しが済んでいない日（直近7日）
+      - 本番（Q3 確定）: 税込売上 ₱15,402,960.22・**売上税額 ₱1,650,317.17**（StoreHub の記録 ₱1,785,679.64、差 −₱135,362.47）。
+        Paranaque の Grab・foodpanda の欠けた期間を含まない値で、1-6 で埋める
+      - 検算: Taft・Cubao・Paranaque の foodpanda の差は、取引ごとに API から計算した値と端数の範囲で一致
+        （Q3 Taft +102,694.14 対 +102,694.23 など）。Grab は全店で差が ₱1 未満
+      - ⚠️ SC/PWD: StoreHub に法定割引として入っているのは8月 29件、Cashier Log は 109件（付録 C）。
+        **StoreHub で一般の割引として打たれた SC/PWD は店内飲食に満額で入っている** → 1-3 で Cashier Log から差し引く。
+        Taft の PWD は 7月3件 → 8月19 → 9月27 → 10月（20日間）59件と急増
 - [ ] **1-3 SC/PWD 免税売上** — Cashier Log から。店内飲食の課税対象から差し引き、別行で出す
 - [ ] **1-4 配達アプリの照合** — storehub の Grab・foodpanda チャネルの月額を、
       Grab 財務明細の当店売上・foodpanda 日次請求書の「料理代金−当店負担の割引」と月次で突き合わせる。
