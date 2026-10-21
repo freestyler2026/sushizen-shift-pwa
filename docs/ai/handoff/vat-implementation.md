@@ -107,7 +107,9 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
       足せるか先に読む（新しいスクリプトを増やさない）
       - 保存するもの: 請求書番号・発行元 TIN（008-767-585-0000）・BIR Acknowledgement Certificate 番号・
         宛先 TIN・注文別の「料理代金／当店負担の割引／手数料の基準額／手数料／VAT／源泉」
-      - `.github/workflows/foodpanda-manila-daily-payout.yml` に3店舗とも載せ、各店舗 `if: always()`（教訓89）
+      - ⚠️ **foodpanda の日次取込は GitHub ではなくこの Mac の launchd**（`~/Library/LaunchAgents/com.sushizen.foodpanda-payouts.plist`
+        → `scripts/foodpanda/run-payout-local.sh`、毎日 9:00、3店舗を順に・直近30日）。GitHub の workflow は 2026-08 から
+        `disabled_manually`。**Mac が止まっていると請求書も入金も入らない** → 0-6 の欠測検知が必須。ログは `~/Library/Logs/sushizen-foodpanda-payouts.log`
       - 完了条件: 3店舗×7日連続で欠けずに入る。10/19 の手数料 VAT が Paranaque ₱710・Taft ₱2,673・QC ₱1,205 と一致
       - 🟡 2026-10-21 実装・遡り取込済み（backend `app/fp_invoices.py`・`POST /api/foodpanda/invoice-archive`、
         script `get-payouts.js` が入金ごとに `RequestPayouts` → zip を送る。保存済みの入金は `/known` で飛ばす）。
