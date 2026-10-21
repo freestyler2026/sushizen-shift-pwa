@@ -39,6 +39,7 @@ import {
   type ShiftViolation,
 } from "@/lib/shiftMasterData";
 import { fmtNum } from "@/lib/formatters";
+import DayOffRequestsList from "./DayOffRequestsList";
 import {
   countDayOffConflicts,
   dayOffIndex,
@@ -3509,6 +3510,8 @@ export default function AdminDraftPage() {
                   )}
                 </div>
               )}
+
+              <DayOffRequestsList days={dayOffDays} rows={rows} month={targetMonth} />
 
               <ShiftScheduleView
                 rows={rows}
