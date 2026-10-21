@@ -5,35 +5,42 @@
  * transaction: who funded the discount, the commission and its VAT, the
  * withholding tax, and the rows that are not orders (Compensation - Orders,
  * Deduction - Eater Compensation, Compensation - Commission (taxable),
- * advertisement). Stored by the backend in grab_finance_txns.
+ * Withholding Tax Remittance, advertisement). Stored by the backend in
+ * grab_finance_txns (app/grab_finance.py).
  *
  *   GET merchant.grab.com/mex/finances/v2/transactions?from=&to=&limit=50&offset=
  *       -> list (id, category, net_total, created_at/updated_at; no breakdown)
  *   GET merchant.grab.com/mex/finances/v2/stores/{store_id}/transactions/{id}
  *       -> the breakdown (memory grab-finance-vat-api)
  *
- * No status filter on the list: canceled rows and adjustments matter too.
- * Detail is fetched only for transactions new to the backend or whose Grab
- * updated_at moved (POST /api/grab/finance-txns/known).
+ * No status filter on the list: canceled rows and adjustments matter too. Rows
+ * Grab lists without a transaction id are kept under their order
+ * (canceled:/incomplete:<long_order_id>) and have no detail to fetch.
  *
- * One Grab session sees one store (lesson 86/89): GRAB_STORE_CODE must match the
- * session, every row's store name is checked here and again by the backend.
+ * Only transactions new to the backend, or whose Grab updated_at moved, get a
+ * detail call (POST /api/grab/finance-txns/known). They are fetched and posted
+ * in chunks, so a run cut short by its timeout keeps what it finished and the
+ * next run carries on (review 2026-10-21).
+ *
+ * One Grab session sees one store (lessons 86/89): GRAB_STORE_CODE must match the
+ * session; every row's store name is checked here and again by the backend.
  *
  * Env:
  *   GRAB_STORE_CODE            PAR | TAFT | CUB
  *   GRAB_SESSION_STATE         base64 session (CI) — or SESSION_PATH (local)
- *   DATE_FROM / DATE_TO        default: the last 3 days (PHT). The daily workflow passes its
- *                              30-day window, which also catches Grab's late changes
- *   WEBHOOK_URL                backend; unset = print counts only
+ *   DATE_FROM / DATE_TO        YYYY-MM-DD; default the last 3 days (PHT). The daily
+ *                              workflow passes its 30-day window, which also
+ *                              catches Grab's late changes
+ *   WEBHOOK_URL                backend; unset = read and count only
  *   GRAB_FINANCE_INGEST_TOKEN  required when WEBHOOK_URL is set (lesson 199)
  *
- * Exits non-zero when the session is dead, a detail could not be read, or the
- * backend refused a row — a run that stored less than it read is not a success
- * (lesson 47).
+ * Exits non-zero whenever something was read but not stored: dead session, a
+ * detail that could not be read, a row the backend refused or found stale, a
+ * row with no key, a list that hit the paging cap, or a window that returned
+ * nothing at all (lesson 47).
  */
 
 const fs = require('fs');
-const path = require('path');
 const zlib = require('zlib');
 
 const MERCHANT_GROUP = 'PHMG20250807052040017951';
@@ -42,11 +49,13 @@ const STORE_CODE = (process.env.GRAB_STORE_CODE || '').toUpperCase();
 const MARKERS = { PAR: ['paranaque', 'parañaque'], TAFT: ['taft'], CUB: ['quezon', 'cubao'] };
 const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
 const TOKEN = process.env.GRAB_FINANCE_INGEST_TOKEN || '';
-const BATCH = 200;
+const CHUNK = 100;           // details fetched, then posted, per chunk
+const WORKERS = 4;
+const PAGE = 50;
+const MAX_PAGES_PER_DAY = 100;
 
 function phtDay(offsetDays) {
-  const d = new Date(Date.now() + 8 * 3600_000 + offsetDays * 86400_000);
-  return d.toISOString().slice(0, 10);   // shifted to PHT first, so this is the PHT date
+  return new Date(Date.now() + 8 * 3600_000 + offsetDays * 86400_000).toISOString().slice(0, 10);
 }
 const DATE_FROM = process.env.DATE_FROM || phtDay(-3);
 const DATE_TO = process.env.DATE_TO || phtDay(0);
@@ -65,6 +74,11 @@ function loadSession() {
 }
 
 function days(from, to) {
+  const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+  if (!ok(from) || !ok(to) || from > to) {
+    console.error(`❌ Bad window ${from} → ${to} (YYYY-MM-DD, from ≤ to).`);
+    process.exit(1);
+  }
   const out = [];
   for (let d = new Date(`${from}T00:00:00Z`); d <= new Date(`${to}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
     out.push(d.toISOString().slice(0, 10));
@@ -74,13 +88,14 @@ function days(from, to) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Canceled orders are listed with an empty transaction_id (net 0, no detail
-// endpoint). Keyed by their order so they are kept, same rule as the backend's
-// grab_finance.key_of.
+// Same rule as app/grab_finance.key_of.
 function keyOf(t) {
-  if (t.transaction_id) return String(t.transaction_id);
-  if (t.long_order_id && String(t.transaction_status || '').toLowerCase() === 'canceled') return `canceled:${t.long_order_id}`;
-  return null;
+  const tid = String(t.transaction_id || '').trim();
+  if (tid) return tid;
+  const oid = String(t.long_order_id || '').trim();
+  if (!oid) return null;
+  if (String(t.transaction_status || '').trim().toLowerCase() === 'canceled') return `canceled:${oid}`;
+  return `incomplete:${oid}`;
 }
 
 function makeGet(cookie) {
@@ -89,14 +104,17 @@ function makeGet(cookie) {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
     Referer: 'https://merchant.grab.com/', Origin: 'https://merchant.grab.com',
   };
-  // Grab occasionally answers with a page instead of JSON; try three times.
-  return async function get(url) {
+  // `authFatal`: only the list call proves a session dead. A 401/403 on one
+  // detail is that row's problem (the manager role is refused some finance
+  // endpoints — memory grab-finance-vat-api).
+  return async function get(url, { authFatal }) {
     let last = '';
     for (let i = 0; i < 3; i++) {
       try {
         const r = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) });
         if (r.status === 401 || r.status === 403) {
-          const e = new Error(`SESSION_EXPIRED (HTTP ${r.status})`); e.fatal = true; throw e;
+          const e = new Error(authFatal ? `SESSION_EXPIRED (HTTP ${r.status})` : `HTTP ${r.status}`);
+          e.fatal = authFatal; e.noRetry = true; throw e;
         }
         const t = await r.text();
         if (r.status === 200) {
@@ -105,7 +123,7 @@ function makeGet(cookie) {
           last = `HTTP ${r.status}`;
         }
       } catch (e) {
-        if (e.fatal) throw e;
+        if (e.noRetry) throw e;
         last = e.message;
       }
       await sleep(1500 * (i + 1));
@@ -135,33 +153,52 @@ async function main() {
     console.error('❌ GRAB_FINANCE_INGEST_TOKEN is not set — nothing would be accepted.');
     process.exit(1);
   }
+  const window = days(DATE_FROM, DATE_TO);
   console.log(`\nGrab finance transactions — ${STORE_CODE}  ${DATE_FROM} → ${DATE_TO}`);
   const session = loadSession();
   const cookie = (session.cookies || [])
     .filter(c => String(c.domain || '').includes('grab.com'))
     .map(c => `${c.name}=${c.value}`).join('; ');
   const get = makeGet(cookie);
+  let problems = 0;
 
-  // 1. List every transaction of every day.
+  // 1. List every transaction of every day. Stop on an empty page (not on a
+  //    short one — Grab could cap below the limit we ask for).
   const listed = [];
-  for (const day of days(DATE_FROM, DATE_TO)) {
-    let n = 0;
-    for (let offset = 0; offset < 5000; offset += 50) {
-      const j = await get(`https://merchant.grab.com/mex/finances/v2/transactions?${Q}&from=${day}&to=${day}&limit=50&offset=${offset}`);
-      const rows = j?.data?.results || [];
+  for (const day of window) {
+    let n = 0, pages = 0;
+    for (; pages < MAX_PAGES_PER_DAY; pages++) {
+      const j = await get(`https://merchant.grab.com/mex/finances/v2/transactions?${Q}&from=${day}&to=${day}&limit=${PAGE}&offset=${pages * PAGE}`,
+                          { authFatal: true });
+      const rows = Array.isArray(j?.data?.results) ? j.data.results : null;
+      if (rows === null) {
+        problems++;
+        console.error(`  ❌ ${day}: unexpected list response: ${JSON.stringify(j).slice(0, 120)}`);
+        break;
+      }
       listed.push(...rows);
       n += rows.length;
-      if (rows.length < 50) break;
+      if (rows.length === 0) break;
+    }
+    if (pages >= MAX_PAGES_PER_DAY) {
+      problems++;
+      console.error(`  ❌ ${day}: stopped at ${MAX_PAGES_PER_DAY} pages — the day may be cut short`);
     }
     console.log(`  ${day}: ${n} transaction(s)`);
   }
+
   const unkeyed = listed.filter(t => !keyOf(t));
   if (unkeyed.length) {
-    console.error(`  ⚠ ${unkeyed.length} row(s) with no transaction id and not a canceled order — not stored:`);
-    for (const t of unkeyed.slice(0, 5)) console.error(`    ${JSON.stringify(t).slice(0, 200)}`);
+    problems += unkeyed.length;
+    console.error(`  ❌ ${unkeyed.length} row(s) with no transaction id and no order id — not stored:`);
+    for (const t of unkeyed.slice(0, 5)) console.error(`    ${JSON.stringify(t).slice(0, 300)}`);
   }
-  const byId = new Map(listed.filter(keyOf).map(t => [keyOf(t), t]));
-  const all = [...byId.values()];
+  const byKey = new Map(listed.filter(keyOf).map(t => [keyOf(t), t]));
+  const all = [...byKey.values()];
+  if (all.length === 0) {
+    console.error(`❌ Nothing listed for ${DATE_FROM} → ${DATE_TO}. A store's sales window is never empty.`);
+    process.exit(1);
+  }
 
   // 2. Every row must be this store's (one session = one store).
   const wrong = all.filter(t => !MARKERS[STORE_CODE].some(m => String(t.store_name || '').toLowerCase().includes(m)));
@@ -177,55 +214,71 @@ async function main() {
   }
   console.log(`  ${all.length} distinct:`, cats);
 
-  // 3. Fetch detail only where it is new or changed.
-  let known = {};
-  if (WEBHOOK_URL && all.length) {
-    for (let i = 0; i < all.length; i += 2000) {
-      const j = await post('/api/grab/finance-txns/known', { ids: all.slice(i, i + 2000).map(keyOf) });
-      Object.assign(known, j.known || {});
-    }
-  }
-  const strip = s => String(s || '').replace(/Z$/, '').replace(/\.\d+$/, '');
-  const todo = all.filter(t => strip(known[keyOf(t)]) !== strip(t.updated_at));
-  console.log(`  detail: ${todo.length} to fetch, ${all.length - todo.length} unchanged since last run`);
-
-  const details = new Map();
-  let failed = 0, cursor = 0;
-  async function worker() {
-    while (cursor < todo.length) {
-      const t = todo[cursor++];
-      if (!t.transaction_id) continue;        // canceled order: nothing to fetch
-      try {
-        const j = await get(`https://merchant.grab.com/mex/finances/v2/stores/${t.store_id}/transactions/${t.transaction_id}?${Q}`);
-        if (j?.data) details.set(t.transaction_id, j.data); else throw new Error('no data');
-      } catch (e) {
-        if (e.fatal) throw e;
-        failed++;
-        console.error(`  ⚠ detail ${t.short_order_number || t.transaction_id}: ${e.message}`);
-      }
-      await sleep(150);
-    }
-  }
-  await Promise.all(Array.from({ length: 4 }, worker));
-
-  // 4. Store. Rows whose detail failed are still sent (list values only) and
-  //    are fetched again next run, because the backend keeps has_detail=false.
   if (!WEBHOOK_URL) {
-    console.log(`  (WEBHOOK_URL not set — ${details.size} detail(s) read, nothing stored)`);
-    process.exitCode = failed ? 1 : 0;
+    console.log('  (WEBHOOK_URL not set — listed only, nothing fetched or stored)');
+    process.exitCode = problems ? 1 : 0;
     return;
   }
-  const send = todo.map(t => ({ listed: t, detail: details.get(t.transaction_id) || null }));
-  const tot = { inserted: 0, updated: 0, unchanged: 0, without_detail: 0, canceled: 0, refused: [] };
-  for (let i = 0; i < send.length; i += BATCH) {
-    const j = await post('/api/grab/finance-txns', { store_code: STORE_CODE, rows: send.slice(i, i + BATCH) });
-    for (const k of ['inserted', 'updated', 'unchanged', 'without_detail', 'canceled']) tot[k] += j[k] || 0;
+
+  // 3. Which ones are new or changed. "Unchanged" needs a stored version that
+  //    equals the listed one — two blanks are not a match (lesson 156).
+  const known = {};
+  for (let i = 0; i < all.length; i += 2000) {
+    const j = await post('/api/grab/finance-txns/known', { ids: all.slice(i, i + 2000).map(keyOf) });
+    Object.assign(known, j.known || {});
+  }
+  // Both sides are local wall-clock times; compare them as instants, not text
+  // (the backend's isoformat and Grab's string differ in "Z" and fractions).
+  const ms = s => { const v = Date.parse(`${String(s || '').trim().replace(/Z$/, '')}Z`); return Number.isNaN(v) ? null : v; };
+  const todo = all.filter(t => {
+    const stored = ms(known[keyOf(t)]);
+    const listedAt = ms(t.updated_at);
+    return !(stored !== null && listedAt !== null && stored === listedAt);
+  });
+  console.log(`  ${todo.length} new or changed, ${all.length - todo.length} unchanged since last run`);
+
+  // 4. Fetch detail and post, a chunk at a time.
+  const tot = { inserted: 0, updated: 0, unchanged: 0, stale: 0, without_detail: 0, id_less: 0, refused: [] };
+  let detailFailed = 0;
+  for (let c = 0; c < todo.length; c += CHUNK) {
+    const chunk = todo.slice(c, c + CHUNK);
+    const details = new Map();
+    let cursor = 0;
+    async function worker() {
+      while (cursor < chunk.length) {
+        const t = chunk[cursor++];
+        const key = keyOf(t);
+        if (key !== String(t.transaction_id || '').trim()) continue;   // id-less: nothing to fetch
+        try {
+          const j = await get(`https://merchant.grab.com/mex/finances/v2/stores/${t.store_id}/transactions/${key}?${Q}`,
+                              { authFatal: false });
+          // Only a detail about this transaction counts; {} or an error object
+          // would otherwise be stored as complete and never fetched again.
+          if (j?.data && String(j.data.transaction_id || '').trim() === key) details.set(key, j.data);
+          else throw new Error(`detail is not about ${key}: ${JSON.stringify(j).slice(0, 100)}`);
+        } catch (e) {
+          if (e.fatal) throw e;
+          detailFailed++;
+          console.error(`  ⚠ detail ${t.short_order_number || key}: ${e.message}`);
+        }
+        await sleep(150);
+      }
+    }
+    await Promise.all(Array.from({ length: WORKERS }, worker));
+    const j = await post('/api/grab/finance-txns', {
+      store_code: STORE_CODE,
+      rows: chunk.map(t => ({ listed: t, detail: details.get(keyOf(t)) || null })),
+    });
+    for (const k of ['inserted', 'updated', 'unchanged', 'stale', 'without_detail', 'id_less']) tot[k] += j[k] || 0;
     tot.refused.push(...(j.refused || []));
   }
+
   console.log(`✓ stored: ${tot.inserted} new, ${tot.updated} updated, ${tot.unchanged} unchanged, `
-    + `${tot.canceled} canceled order(s), ${tot.without_detail} without detail, ${tot.refused.length} refused`);
+    + `${tot.stale} stale, ${tot.id_less} without an id (canceled/incomplete), `
+    + `${tot.without_detail} without detail, ${tot.refused.length} refused`);
   for (const r of tot.refused.slice(0, 10)) console.error(`  ❌ refused ${r.transaction_id}: ${r.problem}`);
-  if (failed || tot.refused.length || tot.without_detail || unkeyed.length) process.exitCode = 1;
+  if (tot.stale) console.error(`  ❌ ${tot.stale} row(s) older than what is stored — not applied; look before trusting the table`);
+  if (problems || detailFailed || tot.refused.length || tot.without_detail || tot.stale) process.exitCode = 1;
 }
 
 main().catch(err => { console.error(`❌ ${err.message}`); process.exit(1); });
