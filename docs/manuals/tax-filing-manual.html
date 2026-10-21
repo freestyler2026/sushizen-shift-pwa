@@ -157,6 +157,12 @@ td.muted{color:var(--muted);font-size:12px}
       <strong>社内移動</strong>なので、コストに数えると二重計上になります（キッチンが仕入れた時点で既に計上済み）。
       自社の伝票に税番号が無いのは正常です。初期登録では5社が自動で自社判定されています。
     </p>
+    <p style="font-size:12px;color:var(--muted)">
+      2026-10-21 から、請求書の読み取りが<strong>「誰が発行した書類か」</strong>も判定します。OS から印刷した CK 納品書・倉庫の社内請求書・
+      当社の発注書・書類ではない写真（画面、商品、温度記録表）は、2回の読み取りが一致したときに<strong>社内（INTERNAL）の印つき</strong>で台帳に残ります
+      （分類者は <code>invoice reader</code>）。<strong>宛名（Sold To）に当社名や当社 TIN があるだけでは社内にしません</strong> —
+      仕入先の請求書はすべて当社宛てだからです（以前は名前で判定していたため、上部が切れた LeProfessional のレシートが社内扱いで消えていました）。
+    </p>
     <div class="tip"><span class="tip-icon">💡</span>
       <div>判定が違っていれば Own company の Yes / No をその場で切り替えられます。1クリックで直ります。</div>
     </div>
@@ -277,6 +283,12 @@ td.muted{color:var(--muted);font-size:12px}
     <div class="tip"><span class="tip-icon">💡</span>
       <div>だから <strong>有無の判定はAI、値は人</strong>という分担にしています。人が入力するのは11社ぶんの番号だけで、以降は自動照合に使えます。</div>
     </div>
+    <p class="section-desc">
+      上の数字は旧方式（GPT-4o）のものです。2026-10-21 からは Claude Opus 5.5 が<strong>1枚を2回読み</strong>、2回で番号が違えば
+      「Two readings disagree on seller_tin_printed」と書いて人の確認に回します。目で確かめた写真では、2回が一致した番号に誤りはありませんでした
+      （ドバイでは、GPT-4o の誤った桁のまま承認されていた TRN 2件を正しく読み直しました）。それでも<strong>仕入先マスタに人が入れた番号を正とする分担は変えません</strong> —
+      かすれた桁は2回とも読めないことがあるからです。
+    </p>
   </div>
 </section>
 

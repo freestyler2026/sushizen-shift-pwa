@@ -683,7 +683,7 @@ td.muted { color:var(--muted); font-size:12px; }
     </table></div>
     <div class="tip info" style="margin-top:8px">
       <span class="tip-icon">📐</span>
-      <span data-en="The order line takes the price from the row whose unit matches what the stocktake counts in. So a wrong unit on one row does not spoil the others — but if no row carries the counted unit, no price is taken at all. That is why the unit label matters more than it looks." data-ja="発注明細の単価は、棚卸しが数えている単位と一致する行から取ります。ですから1行の単位が違っていても他の行は無事です。ただしどの行も棚卸しの単位を持っていなければ単価は付きません。単位の表記は見た目以上に効きます。">The line takes the price from the row whose unit matches the count. No row with that unit = no price at all.</span>
+      <span data-en="The order line takes the price from the row whose unit matches what the stocktake counts in. So a wrong unit on one row does not spoil the others — but if no row carries the counted unit, no price is taken at all. That is why the unit label matters more than it looks." data-ja="発注明細の単価は、棚卸しが数えている単位と一致する行から取ります。ですから1行の単位が違っていても他の行は無事です。ただし**どの行も棚卸しの単位を持っていなければ単価は付きません**。単位の表記は見た目以上に効きます。">The line takes the price from the row whose unit matches the count. No row with that unit = no price at all.</span>
     </div>
     <div class="tip warning" style="margin-top:8px">
       <span class="tip-icon">⚠️</span>
@@ -1320,7 +1320,7 @@ td.muted { color:var(--muted); font-size:12px; }
 
   <div class="card blue-border">
     <div class="card-title" data-en="Invoice Inbox (Drive) — Dubai" data-ja="インボイス受信箱（Drive）— ドバイ">Invoice Inbox (Drive) — Dubai</div>
-    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="Vendor invoices uploaded to Discord are automatically synced to Google Drive, OCR'd by GPT-4o Vision, and appear in the amber Invoice Inbox banner at the top of this page (Dubai only). See the Invoice Inbox (Drive) section for the full review workflow." data-ja="Discordにアップロードされた仕入先インボイスはGoogle Driveに自動同期され、GPT-4o VisionでOCR処理後、このページ上部のamber色Invoice Inboxバナーに表示されます（Dubai専用）。詳細なレビューフローはInvoice Inbox（Drive）セクションを参照。">Vendor invoices uploaded to Discord are automatically synced to Google Drive, OCR'd by GPT-4o Vision, and appear in the amber <strong>Invoice Inbox</strong> banner at the top of this page (Dubai only).</p>
+    <p style="color:var(--muted);font-size:12px;margin-bottom:10px" data-en="Vendor invoices uploaded to Discord are automatically synced to Google Drive, read by the invoice reader, and appear in the amber Invoice Inbox banner at the top of this page (Dubai only). See the Invoice Inbox (Drive) section for the full review workflow." data-ja="Discordにアップロードされた仕入先インボイスはGoogle Driveに自動同期され、読み取り後、このページ上部のamber色Invoice Inboxバナーに表示されます（Dubai専用）。詳細なレビューフローはInvoice Inbox（Drive）セクションを参照。">Vendor invoices uploaded to Discord are automatically synced to Google Drive, read by the invoice reader, and appear in the amber <strong>Invoice Inbox</strong> banner at the top of this page (Dubai only).</p>
     <div class="chip-row">
       <span class="chip blue" onclick="show('invoice-inbox')" style="cursor:pointer" data-en="→ Invoice Inbox section" data-ja="→ Invoice Inbox セクション">→ Invoice Inbox section</span>
     </div>
@@ -1346,7 +1346,7 @@ td.muted { color:var(--muted); font-size:12px; }
     <div>
       <div class="section-title" data-en="Invoice Inbox (Drive)" data-ja="インボイス受信箱（Drive）">Invoice Inbox (Drive)</div>
       <div class="section-path">/admin/procurement/invoices  (Dubai only — amber banner at top)</div>
-      <div class="section-desc" data-en="Vendor invoices uploaded to the Dubai Discord invoice channel are automatically downloaded, stored in Google Drive, OCR'd by GPT-4o Vision, and queued here for staff review, PO matching, and approval." data-ja="Dubai Discordインボイスチャンネルにアップロードされた仕入先インボイスを自動ダウンロードし、Google Driveに保存、GPT-4o VisionでOCR処理後、スタッフのレビュー・POマッチング・承認のためにキューイングします。">Vendor invoices from Discord are auto-OCR'd and queued for review, PO matching, and approval. Dubai only.</div>
+      <div class="section-desc" data-en="Vendor invoices uploaded to the Dubai Discord invoice channel are automatically downloaded, stored in Google Drive, read by the invoice reader, and queued here for staff review, PO matching, and approval." data-ja="Dubai Discordインボイスチャンネルにアップロードされた仕入先インボイスを自動ダウンロードし、Google Driveに保存、読み取り後、スタッフのレビュー・POマッチング・承認のためにキューイングします。">Vendor invoices from Discord are auto-OCR'd and queued for review, PO matching, and approval. Dubai only.</div>
     </div>
   </div>
 
@@ -1367,8 +1367,8 @@ td.muted { color:var(--muted); font-size:12px; }
       </div>
       <div class="lc-step">
         <div class="lc-dot orange"></div>
-        <div class="lc-header"><span class="lc-status" data-en="OCR processing (GPT-4o Vision)" data-ja="OCR処理（GPT-4o Vision）">OCR processing (GPT-4o Vision)</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
-        <div class="lc-detail" data-en="GPT-4o Vision extracts vendor name, invoice number, date, due date, total amount, currency, and all line items. Works with Arabic, English, and mixed-language invoices." data-ja="GPT-4o Visionがベンダー名・インボイス番号・日付・支払期日・合計金額・通貨・全明細行を抽出。アラビア語・英語・混在インボイスに対応。">GPT-4o Vision extracts all fields automatically — including Arabic text. Takes ~30 seconds.</div>
+        <div class="lc-header"><span class="lc-status" data-en="Read twice (Claude Opus 5.5)" data-ja="2回読み取り（Claude Opus 5.5）">Read twice (Claude Opus 5.5)</span><span class="lc-who system" data-en="System" data-ja="システム">System</span></div>
+        <div class="lc-detail" data-en="The reader reads every file twice and compares the two readings field by field. Besides the vendor, number, dates, totals and lines it records who issued the document, the seller's and the buyer's tax numbers exactly as written, and — in Manila — the BIR box (VATable / VAT / VAT-exempt / zero-rated) and whether the seller is VAT or NON-VAT. It copies what is printed and never computes an amount. About a minute per file." data-ja="1枚を2回読み、2回の読みを欄ごとに突き合わせます。仕入先・番号・日付・金額・明細に加えて、誰が発行した書類か、仕入先と宛名の税番号（書いてあるとおり）、マニラでは BIR の欄（VATable / VAT / 免税 / ゼロ税率）と仕入先が VAT 業者か NON-VAT かを記録します。印字を写すだけで、金額を計算で作ることはしません。1枚あたり約1分。">Read twice and compared field by field — including who issued it, both tax numbers, and in Manila the BIR VAT box. About a minute per file.</div>
       </div>
       <div class="lc-step">
         <div class="lc-dot amber"></div>
@@ -1382,6 +1382,19 @@ td.muted { color:var(--muted); font-size:12px; }
         <span class="lc-path">/admin/procurement/invoices</span>
       </div>
     </div>
+  </div>
+
+  <!-- WHAT THE READER CHECKS -->
+  <div class="card">
+    <div class="card-title" data-en="What the reader checks for you" data-ja="読み取りが確かめていること">What the reader checks for you</div>
+    <p data-en="Since 2026-10-21 invoices are read by Claude Opus 5.5 instead of GPT-4o. On 12 Manila photographs checked by eye, GPT-4o had 18 of 30 figures right; the new reader had 48 of 48, twice." data-ja="2026-10-21 から、請求書は GPT-4o ではなく Claude Opus 5.5 で読んでいます。目で確かめたマニラの写真12枚で、GPT-4o は30項目中18項目が正解、新しい読み取りは2回とも48項目中48項目が正解でした。">Since 2026-10-21 invoices are read by Claude Opus 5.5. On 12 Manila photos checked by eye: GPT-4o 18 of 30 right, the new reader 48 of 48, twice.</p>
+    <div class="table-wrap"><table>
+      <tr><th data-en="What you see" data-ja="画面に出るもの">What you see</th><th data-en="What it means" data-ja="意味">What it means</th><th data-en="What to do" data-ja="すること">What to do</th></tr>
+      <tr><td data-en="&ldquo;Two readings disagree on total_amount: 33125 vs 33251 &mdash; check it against the photo&rdquo;" data-ja="「Two readings disagree on total_amount: 33125 vs 33251 — check it against the photo」">&ldquo;Two readings disagree on …&rdquo;</td><td class="muted" data-en="The two readings gave different values for that one field. Only that field needs your eyes; the rest agreed." data-ja="その欄だけ、2回の読みで値が違いました。確かめるのはその欄だけで、他の欄は一致しています。">Only that field needs your eyes; the rest agreed.</td><td class="muted" data-en="Open the photo, read that field, correct it if needed" data-ja="写真を開いてその欄を読み、必要なら直す">Read that field on the photo</td></tr>
+      <tr><td data-en="&ldquo;VAT 5.0 is not 12% of 100.0&rdquo;, &ldquo;A VAT-registered seller, but no VAT line could be read&rdquo;" data-ja="「VAT 5.0 is not 12% of 100.0」「A VAT-registered seller, but no VAT line could be read」">VAT check notes</td><td class="muted" data-en="The printed figures do not add up, or the VAT line was cut off or unreadable" data-ja="印字の数字が合わない、または VAT の欄が切れている・読めない" >The figures do not add up, or the VAT line was unreadable</td><td class="muted" data-en="Check the VAT box on the photo" data-ja="写真の VAT 欄を確かめる">Check the VAT box</td></tr>
+      <tr><td data-en="Set aside automatically: our own transfer document / our own purchase order / not an invoice" data-ja="Set aside automatically（社内伝票／当社の発注書／請求書ではない）">Set aside automatically</td><td class="muted" data-en="Both readings said the document was issued by Sushi ZEN itself (a CK delivery note printed from the OS, a warehouse internal invoice), is our own PO, or is not a document (a screenshot, a photo of goods, a temperature sheet). It is marked Not a supplier invoice, so it stays out of food cost, payments and input VAT &mdash; and stays in the receipt ledger, marked internal. Our name in the Sold To box does not make a supplier's invoice internal." data-ja="2回とも、Sushi ZEN 自身が出した書類（OS から印刷した CK 納品書、倉庫の社内請求書）、当社の発注書、または書類ではない写真（画面、商品の写真、温度記録表）と判定したものです。Not a supplier invoice に分類されるので、原価・支払い・仕入税額には入りません。証憑台帳には「社内」の印つきで残ります。宛名（Sold To）に当社名があるだけでは社内にはしません。">Our own CK notes, our own POs and non-documents stay out of cost, payments and input VAT — and stay in the receipt ledger, marked internal.</td><td class="muted" data-en="Nothing. If it is wrong, open it and Approve" data-ja="何もしなくてよい。誤りなら開いて Approve">Nothing; Approve it if wrong</td></tr>
+    </table></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:8px" data-en="Invoices someone already reviewed were re-read too, but their values were not changed. Where the re-reading differs from the reviewed value, the difference is listed on the invoice (for example two Dubai TRNs that had been approved with GPT-4o's wrong digits)." data-ja="既に確認済みの請求書も読み直しましたが、値は変えていません。読み直しが確認済みの値と違う欄は、その請求書に一覧で残しています（例：GPT-4o が誤読した桁のまま承認されていたドバイの TRN 2件）。">Reviewed invoices were re-read but not changed; differences are listed on the invoice.</p>
   </div>
 
   <!-- PICKING THE VENDOR AND THE LINES -->
@@ -1473,10 +1486,10 @@ td.muted { color:var(--muted); font-size:12px; }
     <div class="table-wrap"><table>
       <tr><th data-en="Badge" data-ja="バッジ">Badge</th><th data-en="Meaning" data-ja="意味">Meaning</th><th data-en="Action" data-ja="アクション">Action</th></tr>
       <tr><td><span class="chip amber" data-en="OCR pending" data-ja="OCR待機中">OCR pending</span></td><td class="muted" data-en="Queued, processing hasn't started yet" data-ja="キュー済み、処理未開始">Queued; processing hasn't started</td><td class="muted" data-en="Wait ~30 seconds, then refresh" data-ja="約30秒待ちRefreshをクリック">Wait ~30 s, then Refresh</td></tr>
-      <tr><td><span class="chip blue" data-en="Processing…" data-ja="処理中…">Processing…</span></td><td class="muted" data-en="GPT-4o Vision is actively reading the file" data-ja="GPT-4o Visionがファイルを読み取り中">GPT-4o Vision is reading the file</td><td class="muted" data-en="Wait for completion" data-ja="完了まで待機">Wait for completion</td></tr>
+      <tr><td><span class="chip blue" data-en="Processing…" data-ja="処理中…">Processing…</span></td><td class="muted" data-en="The reader is reading the file (twice)" data-ja="ファイルを読み取り中（2回）">The reader is reading the file (twice)</td><td class="muted" data-en="Wait for completion" data-ja="完了まで待機">Wait for completion</td></tr>
       <tr><td><span class="chip green" data-en="OCR done" data-ja="OCR完了">OCR done</span></td><td class="muted" data-en="All fields extracted. Review and correct if needed." data-ja="全フィールド抽出済み。内容を確認・修正してください。">All fields extracted. Review and correct if needed.</td><td class="muted" data-en="Open modal, verify fields, approve" data-ja="モーダルを開き、フィールドを確認して承認">Open modal → verify → approve</td></tr>
       <tr><td><span class="chip" data-en="Manual entry" data-ja="手動入力">Manual entry</span></td><td class="muted" data-en="OCR was skipped (unsupported file type or no API key). Enter all fields manually." data-ja="OCRがスキップされました（未対応ファイル形式またはAPIキーなし）。全フィールドを手動入力。">OCR skipped. Enter all fields manually.</td><td class="muted" data-en="Open modal, fill all fields" data-ja="モーダルを開き全フィールドを入力">Open modal → fill all fields</td></tr>
-      <tr><td><span class="chip red" data-en="OCR error" data-ja="OCRエラー">OCR error</span></td><td class="muted" data-en="OCR failed. Use Retry OCR in the modal to reprocess, or enter manually." data-ja="OCRが失敗しました。モーダル内のRetry OCRで再処理するか、手動入力してください。">OCR failed. Use Retry OCR or enter manually.</td><td class="muted" data-en="Click Retry OCR in modal, or fill manually" data-ja="モーダルのRetry OCRをクリック、または手動入力">Click Retry OCR in modal</td></tr>
+      <tr><td><span class="chip red" data-en="OCR error" data-ja="OCRエラー">OCR error</span></td><td class="muted" data-en="The reading failed. The reason is now saved with the invoice (before 2026-10-21 it was not, and 222 invoices waited 4.5 days unnoticed when the old reader's credit ran out). Use Retry OCR, or enter manually." data-ja="読み取りに失敗しました。理由は請求書と一緒に保存されます（2026-10-21 までは保存されず、旧方式の残高切れで222件が4日半、誰にも気づかれずに止まっていました）。Retry OCR で再処理するか、手動入力してください。">The reading failed; the reason is saved with the invoice. Use Retry OCR or enter manually.</td><td class="muted" data-en="Click Retry OCR in modal, or fill manually" data-ja="モーダルのRetry OCRをクリック、または手動入力">Click Retry OCR in modal</td></tr>
     </table></div>
   </div>
 
