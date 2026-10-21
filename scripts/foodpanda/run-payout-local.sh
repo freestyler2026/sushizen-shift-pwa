@@ -40,6 +40,16 @@ if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
 fi
 echo "node: $NODE ($("$NODE" -v 2>/dev/null))" >> "$LOG_FILE"
 
+# Token for the invoice webhook (it writes tax records). Kept outside the repo,
+# readable by this user only. Without it the invoice step fails loudly and the
+# payouts still go in.
+TOKEN_FILE="$HOME/.config/sushizen/fp-invoice-ingest-token"
+if [ -r "$TOKEN_FILE" ]; then
+  export FP_INVOICE_INGEST_TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
+else
+  echo "  ⚠ $TOKEN_FILE not found — invoices will not be stored" >> "$LOG_FILE"
+fi
+
 EXIT_CODE=0
 for LOCATION in paranaque taft qc; do
   echo "" >> "$LOG_FILE"

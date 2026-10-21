@@ -121,7 +121,14 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
         - 手数料率は全期間で Paranaque・Taft 12% / **QC 18%（343件すべて）**
         - ⚠️ **名義は個人**: 宛名は `OMACHI JANINE THERESE DIAZ`（Business Style: Sushi Zen - 各店）。3店舗とも同じ TIN
         - 認証: zip の取得には portal の認証ヘッダーが要る（Cookie だけでは 401）
-        - webhook は既存の入金取込と同じく無認証。保存するのは zip から読んだ値だけで、宛名 TIN は保存時に判定して返す
+        - ~~webhook は既存の入金取込と同じく無認証~~ → **2026-10-21 レビューで修正**（教訓199）: 共有トークン
+          `FP_INVOICE_INGEST_TOKEN`（Heroku config ＋ `~/.config/sushizen/fp-invoice-ingest-token`・未設定なら全拒否）、
+          zip 展開の上限、通ごとの解析と保存、**同じ番号で数字が違えば上書きせず拒否**、入金が「取込済み」になるのは
+          全通が問題なく入ったときだけ（`fp_invoice_imports.clean`。それ以外は毎日取り直して赤）、
+          見出しに括弧の文字が無い AG 列（取消注文の補償）を保存。修正後に取り直し、退避
+          `_fp_*_bk_20261021` と全項目一致（54通・1,436行・80行・VAT ₱28,568.30）。AG は1,436行で計 ₱3,029.71
+        - ⚠️ **AG（Cancelled Orders (Wastage)）は売上側の論点**: 取消注文の補償として当店に払われる額。Phase 1 で課税売上に入れるかを決める
+        - 退避表 `_fp_sales_invoices_bk_20261021` ほか2つは 2026-11-04 以降に削除してよい
 - [ ] **0-4 Grab 財務明細の取込** — 一覧 `/mex/finances/v2/transactions`（limit ≤ 50・status は大文字 `COMPLETED`）と
       明細 `/mex/finances/v2/stores/{store_id}/transactions/{transaction_id}` から、注文ごとに
       `mex_fund_discount`・`fee_breakdown` の DISCOUNT_FUNDED・`gf_total_commission`・`gf_total_commission_tax`・`withholding_tax` を保存する
