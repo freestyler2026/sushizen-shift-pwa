@@ -2,6 +2,14 @@
 
 
 
+## 2026-10-22 Draft: 休み・欠勤の行を勤務として扱っていた（教訓201）— デプロイ・本番データ修正済み
+
+- 原因: 11月案の生成が先月の休み・欠勤を時間つきで写した（Al-Jhon 11/09 ABSENT 07–16）。承認が照合できず提案が残った。
+- 修正: backend `ae976fd1`（生成・印字・Sync・承認）、frontend `a6ca30a1`（Schedule View の棒と人数）、Shift Draft マニュアル v6。
+- 本番修正（バックアップ `_draft_rows_bk_20261022` / `_sheet_props_bk_20261022`）: 承認済み 15:30–00:30 の8件を DAY_OFF→STAFF、Al-Jhon 11/09 を STAFF 09–18 にして提案 `6342980b` を承認済みに。
+- Pinpin: 削除は1行（11/02 の欠勤行）だけ。25日分は残っている。
+- 未対応: BO 案の写された DAY_OFF/VL 46件（休みとして印字されるので実害なし。Rose Ann Onido 11/09 VL は11月の申請が無い→HQ判断）。UL/ML は共通の非勤務ロールに入っていない。`fetch_draft_rows` が時間を int に丸める（15:30→15）。行削除の監査記録が無い。
+
 ## 2026-10-21 請求書の読み取りを Claude Opus 5.5 に切替（マニラ・ドバイ）— デプロイ済み・過去分読み直し中
 
 - `app/services/invoice_reader.py`（2回読み・都市別の様式・検算・書類の発行者）/ `app/services/invoice_reread.py`（Batch API、ワーカーが毎時回収）
