@@ -2,6 +2,15 @@
 
 
 
+## 2026-10-21 VAT 1-1 StoreHub の VAT 列・取消の取り直し・net_sales の二重引き — デプロイ・本番確認済み
+
+- 取込が StoreHub の記録 VAT（＝印字額）・SC/PWD 割引・配達料・サービス料を保存（`app/services/storehub_api.py`）
+- 日次同期を直近7日の読み直しに（`STOREHUB_RESYNC_DAYS`、既定7）。取込後に取り消された注文 43件・₱38,262.39 が売上に残っていた
+- 7/1〜10/20 を読み直し済み（退避 `_bk_shapi_*_20261021`）。`net_sales = total`（4/22〜は更新で修正）。Sales Analytics の Net Sales が正しい額に
+- 印字レシートは API と一致（Paranaque の foodpanda は NON-VAT・VAT 0 で印字）。StoreHub の税設定はオーナーが確認を指示済み
+- **10/22 確認**: 17:00 UTC の同期の `storehub_api_sync_log.from_date` が 10/15 か（Scheduler が引数付きなら効かない）
+- 詳細は `docs/ai/handoff/vat-implementation.md` の 1-1
+
 ## 2026-10-20 毎回DDLを出す `ensure_*` を全部1回化（教訓197）— デプロイ・本番確認済み
 - backend `e93b5b19`（Heroku へ 12:35 UTC にデプロイ）。`app/schema_once.py` の `@once_per_process` を57関数に。4関数は DDL とデータ処理を分割（データ処理は毎回のまま）
 - `ensure_letter_columns` が DDL をコミットするように（以前は nte_case の ACCESS EXCLUSIVE を PDF 生成の間ずっと保持）
