@@ -170,7 +170,11 @@ async function main() {
     for (; pages < MAX_PAGES_PER_DAY; pages++) {
       const j = await get(`https://merchant.grab.com/mex/finances/v2/transactions?${Q}&from=${day}&to=${day}&limit=${PAGE}&offset=${pages * PAGE}`,
                           { authFatal: true });
-      const rows = Array.isArray(j?.data?.results) ? j.data.results : null;
+      // Past the last page Grab answers either [] or `results: null` with
+      // total_count 0 (both seen 2026-10-21). Only a reply with no `data` at all
+      // is a problem.
+      const rows = Array.isArray(j?.data?.results) ? j.data.results
+        : (j?.data && j.data.results == null ? [] : null);
       if (rows === null) {
         problems++;
         console.error(`  ❌ ${day}: unexpected list response: ${JSON.stringify(j).slice(0, 120)}`);
