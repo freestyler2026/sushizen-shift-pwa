@@ -22,7 +22,9 @@ on:
 jobs:
   extract-payouts:
     runs-on: ubuntu-latest
-    timeout-minutes: 5  # Pure HTTP — fast (no Playwright)
+    # Pure HTTP (no Playwright). Was 5; the finance steps below fetch one detail
+    # per new transaction (~80 per store per day), so the job needs more room.
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v4
@@ -133,6 +135,41 @@ jobs:
         env:
           WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
           GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_QC }}
+        timeout-minutes: 6
+
+      # ── Finance transactions (VAT plan Phase 0-4) ─────────────────────────
+      # One row per transaction with its breakdown: who funded the discount,
+      # commission and its VAT, withholding, and the rows that are not orders
+      # (compensations, deductions, ads). Last 3 days; only new or changed
+      # transactions get a detail call. Token-protected (lesson 199).
+      - name: Finance transactions — Paranaque
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque') }}
+        run: node scripts/grab/get-finance-txns.js
+        env:
+          WEBHOOK_URL:               https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:           PAR
+          GRAB_SESSION_STATE:        ${{ secrets.GRAB_SESSION_PARANAQUE }}
+          GRAB_FINANCE_INGEST_TOKEN: ${{ secrets.GRAB_FINANCE_INGEST_TOKEN }}
+        timeout-minutes: 6
+
+      - name: Finance transactions — Taft
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'taft') }}
+        run: node scripts/grab/get-finance-txns.js
+        env:
+          WEBHOOK_URL:               https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:           TAFT
+          GRAB_SESSION_STATE:        ${{ secrets.GRAB_SESSION_TAFT }}
+          GRAB_FINANCE_INGEST_TOKEN: ${{ secrets.GRAB_FINANCE_INGEST_TOKEN }}
+        timeout-minutes: 6
+
+      - name: Finance transactions — Cubao (QC)
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'qc') }}
+        run: node scripts/grab/get-finance-txns.js
+        env:
+          WEBHOOK_URL:               https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:           CUB
+          GRAB_SESSION_STATE:        ${{ secrets.GRAB_SESSION_QC }}
+          GRAB_FINANCE_INGEST_TOKEN: ${{ secrets.GRAB_FINANCE_INGEST_TOKEN }}
         timeout-minutes: 6
 
       - name: Refresh Daily P&L cache
