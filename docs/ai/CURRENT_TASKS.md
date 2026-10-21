@@ -15237,8 +15237,7 @@ Paranaque の前後は 2〜6件。3日連続の空欄が実際に0だったの�
 
 | 件名 | 引き継ぎ | 次の一手 | 担当 |
 |---|---|---|---|
-| **マニラ・ドバイ VAT 実装** | [handoff/vat-implementation.md](handoff/vat-implementation.md) | アグリゲーター手数料の VAT 請求書をポータルで確認 | **Claude（未着手）** |
-| ↑ マニラ TIN・法人構成 | 同上 #2 | `own_tax_numbers` にマニラ行が無い | 西村さん（確認中） |
+| **マニラ VAT 台帳（Sushi ZEN）** | [handoff/vat-implementation.md](handoff/vat-implementation.md)（2026-10-21 に計画の正本として全面改訂・Phase 0〜6 の進行表） | **Phase 0-1 から順に**。目標は 2026年第4四半期の 2550Q（期限 2027-01-25） | **Claude** ／ 0-7〜0-9 はオーナー |
 | ↑ ドバイ QFZP 資格 | 同上 #3 | 法人税。VAT とは別問題 | 西村さん（確認中） |
 | ドバイ `attendance_auto` 8/20〜 | 下記 | **未実行**。38名 / 149日 / AED 481.40 | 西村さん判断待ち |
 | マニラ 8/26〜 の給与期間 | 下記 | 期間が無く承認済み OT 3件が Add to Payroll できない | 未作成 |
