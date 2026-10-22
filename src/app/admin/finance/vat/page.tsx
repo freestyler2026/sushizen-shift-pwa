@@ -36,7 +36,8 @@ interface FillLine { platform: string; store: string; orders: number; sales: Mon
   first: string; last: string; source: string }
 interface InputRow { bucket: "deductible" | "needs_review" | "not_deductible"; reasons: string[]; checks: string[];
   review_fields: string[]; source: string; source_id: string; review_status?: string; vendor: string | null; invoice_number: string | null;
-  invoice_date: string; total: Money; vat: Money }
+  invoice_date: string; total: Money; vat: Money; buyer_tin?: string | null; buyer_name?: string | null;
+  buyer_decision?: { decision: "ours" | "not_ours"; decided_by: string; decided_at: string } | null }
 interface WhtLine { platform: string; store: string; withheld: Money; state: string;
   received: { amount: Money; by: string; at: string; note: string } | null }
 interface Summary {
@@ -159,6 +160,8 @@ export default function VatLedgerPage() {
 
   // Oldest first: the longest-waiting invoice is the first one a person sees.
   const reviewRows = useMemo(() => (data?.input.rows || []).filter((r) => r.bucket === "needs_review")
+    .sort((a, b) => a.invoice_date.localeCompare(b.invoice_date)), [data]);
+  const decidedRows = useMemo(() => (data?.input.rows || []).filter((r) => r.bucket === "deductible" && r.buyer_decision)
     .sort((a, b) => a.invoice_date.localeCompare(b.invoice_date)), [data]);
   const notRows = useMemo(() => (data?.input.rows || []).filter((r) => r.bucket === "not_deductible" && Number(r.vat) > 0)
     .sort((a, b) => a.invoice_date.localeCompare(b.invoice_date)), [data]);
@@ -379,11 +382,22 @@ export default function VatLedgerPage() {
 
             <h3 id="review" className="mt-5 text-sm font-semibold text-white">To check — oldest first</h3>
             <p className={T_CAPTION}>Each holds VAT that is not counted yet. Open it in the Invoice Inbox and compare with the photo.</p>
-            <InvoiceList rows={reviewRows} empty="Nothing to check this quarter." />
+            <p className={T_CAPTION}>
+              Approving an invoice in the Inbox puts the purchase in the Hub; it does not decide the input VAT. When the buyer TIN
+              or name is a digit or letter off, compare the photo and decide here: <strong>Our TIN</strong> counts it, <strong>Not ours</strong> leaves it out.
+              A decision stops applying if the invoice is read again with a different TIN or name.
+            </p>
+            <InvoiceList rows={reviewRows} empty="Nothing to check this quarter." canDecide={data.can_manage} onDecided={load} />
 
             <h3 className="mt-5 text-sm font-semibold text-white">VAT printed but not deductible</h3>
             <p className={T_CAPTION}>A supplier printed VAT, but the invoice misses something the BIR requires (RMC 77-2024). Ask the supplier for a corrected invoice.</p>
-            <InvoiceList rows={notRows} empty="None this quarter." />
+            <InvoiceList rows={notRows} empty="None this quarter." canDecide={data.can_manage} onDecided={load} />
+            {decidedRows.length > 0 && (
+              <>
+                <h3 className="mt-5 text-sm font-semibold text-white">Counted by a VAT decision</h3>
+                <p className={T_CAPTION}>Invoices a person decided are made out to us. Undo puts one back to be checked.</p>
+                <InvoiceList rows={decidedRows} empty="" canDecide={data.can_manage} onDecided={load} />
+              </>)}
             {data.input.rows_truncated && <p className="mt-2 text-[12px] text-amber-200">The list stops at 1,000 rows; the totals above count every document.</p>}
           </section>
 
@@ -451,10 +465,32 @@ export default function VatLedgerPage() {
   );
 }
 
-function InvoiceList({ rows, empty }: { rows: InputRow[]; empty: string }) {
+function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
+  rows: InputRow[]; empty: string; canDecide?: boolean; onDecided?: () => void;
+}) {
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const decide = async (r: InputRow, decision: "ours" | "not_ours" | "undo") => {
+    const key = `${r.source}${r.source_id}`;
+    if (decision === "undo" && !window.confirm(`Undo the decision on ${r.vendor || "this invoice"} ${r.invoice_number || ""}? It goes back to be checked.`)) return;
+    setBusy(key);
+    setErr("");
+    try {
+      const res = decision === "undo"
+        ? await fetch(`/api/admin/vat/buyer-decision?source=${encodeURIComponent(r.source)}&source_id=${encodeURIComponent(r.source_id)}`,
+          { method: "DELETE", headers: getAuthHeaders(getAuth()) })
+        : await fetch("/api/admin/vat/buyer-decision", {
+          method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+          body: JSON.stringify({ source: r.source, source_id: r.source_id, decision }),
+        });
+      if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
+      onDecided?.();
+    } finally { setBusy(""); }
+  };
   if (rows.length === 0) return <p className={`${T_BODY} mt-2`}>{empty}</p>;
   return (
     <div className="mt-2 overflow-x-auto">
+      {err && <p className="mb-2 text-[12px] text-red-300">{err}</p>}
       <table className="w-full min-w-[560px] text-sm">
         <thead><tr className={TABLE_HEADER}><th className="text-left">Date</th><th className="text-left">Supplier</th><th className="text-left">Invoice</th><th className="text-right">VAT</th><th className="text-left">What is missing</th><th /></tr></thead>
         <tbody>
@@ -466,6 +502,19 @@ function InvoiceList({ rows, empty }: { rows: InputRow[]; empty: string }) {
               <td className="py-2 text-right tabular-nums text-white">{peso(r.vat)}</td>
               <td className="py-2 text-[12px] text-amber-200">
                 {[...r.reasons, ...r.checks].map((k) => WHY[k] || k).concat(r.review_fields.length ? ["Two readings disagree"] : []).join(" · ")}
+                {(r.checks.length > 0 || r.buyer_decision) && (
+                  <div className="mt-1 text-zinc-400">Read: TIN {r.buyer_tin || "—"} · {r.buyer_name || "no name"}</div>)}
+                {r.buyer_decision && (
+                  <div className="mt-1 text-zinc-400">
+                    Decided {r.buyer_decision.decision === "ours" ? "ours" : "not ours"} by {r.buyer_decision.decided_by}
+                    {canDecide && (
+                      <button className="ml-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => decide(r, "undo")}>Undo</button>)}
+                  </div>)}
+                {canDecide && r.checks.length > 0 && !r.buyer_decision && (
+                  <div className="mt-1 flex gap-2">
+                    <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "ours")}>Our TIN</button>
+                    <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "not_ours")}>Not ours</button>
+                  </div>)}
               </td>
               <td className="py-2 text-right">
                 {r.source === "drive_invoices" ? (
