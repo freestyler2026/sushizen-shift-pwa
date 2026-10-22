@@ -119,27 +119,32 @@ export default function Form2550Q({ year, quarter, canManage, quarterEnded }: {
             </ul>
           )}
 
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className={TABLE_HEADER}>
-                  <th className="w-12 text-left">Item</th><th className="text-left">Line</th>
-                  <th className="text-right">A · Sales / Purchases</th><th className="text-right">B · Tax</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((r) => {
-                  const strong = TOTALS.has(r.item);
-                  return (
-                    <tr key={r.item} className={`${TABLE_ROW} ${r.item === "15" ? "border-t border-white/15" : ""}`}>
-                      <td className="py-1.5 tabular-nums text-zinc-400">{r.item}</td>
-                      <td className={`py-1.5 ${strong ? "font-semibold text-white" : "text-zinc-300"}`}>{r.label}</td>
-                      <td className="py-1.5 text-right tabular-nums text-zinc-200">{amount(r.A)}</td>
-                      <td className={`py-1.5 text-right tabular-nums ${strong ? "font-semibold text-white" : "text-zinc-200"}`}>{amount(r.B)}</td>
-                    </tr>);
-                })}
-              </tbody>
-            </table>
+          {/* Not a table: on a phone the amounts must stay on screen, so each line puts
+              them under the label instead of in columns that scroll off to the right. */}
+          <div className="mt-3 text-sm" role="table" aria-label={`BIR Form 2550Q items, ${year} Q${quarter}`}>
+            <div role="row" className={`${TABLE_HEADER} hidden grid-cols-[2.5rem_1fr_9.5rem_9.5rem] gap-x-3 sm:grid`}>
+              <span role="columnheader" className="text-left">Item</span>
+              <span role="columnheader" className="text-left">Line</span>
+              <span role="columnheader" className="text-right">A · Sales / Purchases</span>
+              <span role="columnheader" className="text-right">B · Tax</span>
+            </div>
+            {data.items.map((r) => {
+              const strong = TOTALS.has(r.item);
+              return (
+                <div key={r.item} role="row"
+                  className={`${TABLE_ROW} grid grid-cols-[2.5rem_1fr] gap-x-3 py-1.5 sm:grid-cols-[2.5rem_1fr_9.5rem_9.5rem] ${r.item === "15" ? "border-t border-white/15" : ""}`}>
+                  <span role="cell" className="tabular-nums text-zinc-400">{r.item}</span>
+                  <span role="cell" className={strong ? "font-semibold text-white" : "text-zinc-300"}>{r.label}</span>
+                  <div className="col-start-2 flex flex-wrap justify-end gap-x-4 sm:contents">
+                    <span role="cell" className="tabular-nums text-zinc-200 sm:text-right">
+                      {r.A !== null && <span className="mr-1 text-[11px] text-zinc-500 sm:hidden">A</span>}{amount(r.A)}
+                    </span>
+                    <span role="cell" className={`tabular-nums sm:text-right ${strong ? "font-semibold text-white" : "text-zinc-200"}`}>
+                      {r.B !== null && <span className="mr-1 text-[11px] font-normal text-zinc-500 sm:hidden">B</span>}{amount(r.B)}
+                    </span>
+                  </div>
+                </div>);
+            })}
           </div>
 
           <p className={`${T_CAPTION} mt-2`}>
