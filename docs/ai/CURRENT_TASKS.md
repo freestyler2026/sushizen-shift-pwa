@@ -2,6 +2,12 @@
 
 
 
+## 2026-10-22 VAT 6-1 決定・6-2 画面の通し（オーナーのログインで Claude が操作）— デプロイ・本番確認済み
+- ✅ 申告者: Aliana Manuel・Yusuke Uejima・Yukihiro Nishimura（オーナー決定）。3名を Deadline reminders に追加（画面から・Discord ID あり）
+- ✅ 直した: Our TIN / Not ours を「TIN・名前の確認だけが残る」請求書に限定（098354 のように押しても控除に入らない行に出ていた）／読み取りの食い違いが残る行に Inbox 番号／名簿追加の確認文を一致した氏名に（frontend `09b7c3d8`）
+- 残り（判断待ち）: 写真だけの請求書の食い違いを直す画面が無い（Q3 2件 ₱2,599.29）／MC ASIA 143172 が Q3 と Q4 に1件ずつ／Restaurant Depot 044716 が2件（欄46に二重）／スーパーのレシートに当社 TIN が無い（Q4 13件）
+- 未: COR の RDO コードと登録住所、仕入先住所7件・写真から読んだ住所の確認7件、To check 6件の判断 — いずれも書類を見る人の作業
+
 ## 2026-10-22 VAT 6-3 期限の通知 — デプロイ済み
 - ✅ 四半期末（Q4: 2026-12-31）と期限の10日前（2027-01-15）に、名簿の人へ Discord DM。未確定・要確認の件数と VAT 額・Grab 請求書の未着・SLSP を止めている理由を載せる（backend `app/vat_deadline.py`、worker で毎時 09–20 マニラ）
 - ✅ VAT Ledger に「Deadline reminders」: 宛先の追加・削除、Discord ID 入力、自分にだけ送るテスト、次の2回、最近の送信（マニラ時刻）

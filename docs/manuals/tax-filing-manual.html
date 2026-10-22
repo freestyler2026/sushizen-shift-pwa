@@ -319,7 +319,7 @@ td.muted{color:var(--muted);font-size:12px}
     <div class="table-wrap"><table>
       <thead><tr><th>区分</th><th>すること</th></tr></thead>
       <tbody>
-        <tr><td>To check（古い順）</td><td>当社の TIN の1桁違い・名前の綴り違いは、「Inbox #番号」から写真を開いて見比べ、この画面で <strong>Our TIN</strong>（当社宛て＝控除に入れる）か <strong>Not ours</strong>（入れない）を押す。押せるのは VAT の管理権限がある人。<strong>Inbox で Approve しても仕入税額は決まりません</strong>（Approve は仕入を Hub に入れる操作）。決めた後に読み直しで TIN や名前が変わると、決定は外れてもう一度確認に戻る。取り消しは「Counted by a VAT decision」の Undo。2回の読み取りの食い違いは Inbox の確認で直す</td></tr>
+        <tr><td>To check（古い順）</td><td>当社の TIN の1桁違い・名前の綴り違いは、「Inbox #番号」から写真を開いて見比べ、この画面で <strong>Our TIN</strong>（当社宛て＝控除に入れる）か <strong>Not ours</strong>（入れない）を押す。押せるのは VAT の管理権限がある人。ボタンが出るのは、TIN か名前の確認<strong>だけ</strong>が残っている請求書だけです（買い手の TIN が無いなど、他に欠けているものがある請求書は、押しても控除に入らないので出ません）。2回の読み取りも食い違っている請求書は、行に出る Inbox 番号を開いてそちらも直すと数えられます。写真だけの請求書（Photo only）の食い違いは、まだ直す画面がありません。<strong>Inbox で Approve しても仕入税額は決まりません</strong>（Approve は仕入を Hub に入れる操作）。決めた後に読み直しで TIN や名前が変わると、決定は外れてもう一度確認に戻る。取り消しは「Counted by a VAT decision」の Undo。2回の読み取りの食い違いは Inbox の確認で直す</td></tr>
         <tr><td>VAT printed but not deductible</td><td>VAT は印字されているが要件が欠けている。仕入先に正しい請求書を出し直してもらう</td></tr>
       </tbody>
     </table></div>
