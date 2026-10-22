@@ -45,7 +45,11 @@ interface FillLine { platform: string; store: string; orders: number; sales: Mon
 interface InputRow { bucket: "deductible" | "needs_review" | "not_deductible"; reasons: string[]; checks: string[];
   review_fields: string[]; source: string; source_id: string; review_status?: string; vendor: string | null; invoice_number: string | null;
   invoice_date: string; total: Money; vat: Money; buyer_tin?: string | null; buyer_name?: string | null;
-  buyer_decision?: { decision: "ours" | "not_ours"; decided_by: string; decided_at: string } | null }
+  buyer_decision?: { decision: "ours" | "not_ours"; decided_by: string; decided_at: string } | null;
+  review_values?: { field: string; first: unknown; second: unknown }[];
+  reading_choices?: { field: string; value: unknown; decided_by: string; decided_at: string }[] }
+interface CopyRow { source: string; source_id: string; vendor: string | null; invoice_number: string | null; invoice_date: string;
+  total: Money; vat: Money; same_as_source: string; same_as_id: string; decided_by: string; decided_at: string }
 interface WhtLine { platform: string; store: string; withheld: Money; state: string;
   received: { amount: Money; by: string; at: string; note: string } | null }
 interface Summary {
@@ -66,6 +70,7 @@ interface Summary {
   };
   input: { deductible: { documents: number; input_vat: Money }; needs_review: { documents: number; vat_printed: Money };
     not_deductible: { documents: number; vat_printed: Money }; excluded_not_a_purchase: number; rows: InputRow[];
+    left_out_as_copy?: CopyRow[];
     rows_truncated?: boolean; deductible_by_basis?: Record<string, { documents: number; vat: Money }> };
   withholding: { withheld: Money; received_2307: Money; awaiting: number; lines: WhtLine[] };
 }
@@ -86,6 +91,25 @@ const WHY: Record<string, string> = {
   buyer_tin_check: "Our TIN with a digit off? Check the photo",
   buyer_name_check: "Our name misspelt? Check the photo",
 };
+// What the two readings disagree on, in the words on the invoice.
+const FIELD: Record<string, string> = {
+  vat_amount: "VAT", tax_amount: "VAT", seller_tin_printed: "seller TIN", buyer_tin_printed: "buyer TIN",
+  buyer_name_printed: "buyer name", invoice_number: "invoice number", seller_vat_status: "VAT or Non-VAT seller",
+  document_kind: "kind of document",
+};
+const SOURCE: Record<string, string> = { proc_receivings: "receiving photo", proc_po_invoice_checks: "PO-check photo",
+  drive_invoices: "Inbox invoice" };
+
+/** The photo a document was read from (receiving or PO check: there is no Inbox card for it). */
+function photoLink(r: { source: string; source_id: string }): string {
+  return `/api/admin/vat/document-photo?source=${encodeURIComponent(r.source)}&source_id=${encodeURIComponent(r.source_id)}`;
+}
+
+function shown(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "(blank)";
+  return typeof v === "number" ? v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(v);
+}
+
 const WHT_STATE: Record<string, string> = {
   awaiting_2307: "Form 2307 not received",
   received: "2307 received",
@@ -173,7 +197,8 @@ export default function VatLedgerPage() {
   // Oldest first: the longest-waiting invoice is the first one a person sees.
   const reviewRows = useMemo(() => (data?.input.rows || []).filter((r) => r.bucket === "needs_review")
     .sort((a, b) => a.invoice_date.localeCompare(b.invoice_date)), [data]);
-  const decidedRows = useMemo(() => (data?.input.rows || []).filter((r) => r.bucket === "deductible" && r.buyer_decision)
+  const decidedRows = useMemo(() => (data?.input.rows || []).filter((r) => r.bucket === "deductible"
+      && (r.buyer_decision || (r.reading_choices || []).length > 0))
     .sort((a, b) => a.invoice_date.localeCompare(b.invoice_date)), [data]);
   const notRows = useMemo(() => (data?.input.rows || []).filter((r) => r.bucket === "not_deductible" && Number(r.vat) > 0)
     .sort((a, b) => a.invoice_date.localeCompare(b.invoice_date)), [data]);
@@ -411,9 +436,11 @@ export default function VatLedgerPage() {
             {decidedRows.length > 0 && (
               <>
                 <h3 className="mt-5 text-sm font-semibold text-white">Counted by a VAT decision</h3>
-                <p className={T_CAPTION}>Invoices a person decided are made out to us. Undo puts one back to be checked.</p>
+                <p className={T_CAPTION}>Invoices counted because a person decided they are made out to us, or picked one of two readings. Undo puts one back to be checked.</p>
                 <InvoiceList rows={decidedRows} empty="" canDecide={data.can_manage} onDecided={refreshAll} />
               </>)}
+            {(data.input.left_out_as_copy || []).length > 0 && (
+              <CopyList rows={data.input.left_out_as_copy || []} canDecide={data.can_manage} onDecided={refreshAll} />)}
             {data.input.rows_truncated && <p className="mt-2 text-[12px] text-amber-200">The list stops at 1,000 rows; the totals above count every document.</p>}
           </section>
 
@@ -481,11 +508,61 @@ export default function VatLedgerPage() {
   );
 }
 
+function CopyList({ rows, canDecide, onDecided }: { rows: CopyRow[]; canDecide: boolean; onDecided: () => void }) {
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const undo = async (r: CopyRow) => {
+    if (!window.confirm(`Count ${r.vendor || "this invoice"} ${r.invoice_number || ""} again as its own invoice?`)) return;
+    setBusy(r.source_id);
+    setErr("");
+    try {
+      const res = await fetch(`/api/admin/vat/same-invoice?source=${encodeURIComponent(r.source)}&source_id=${encodeURIComponent(r.source_id)}`,
+        { method: "DELETE", headers: getAuthHeaders(getAuth()) });
+      if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not undo (HTTP ${res.status}).`); return; }
+      onDecided();
+    } catch { setErr("Network error. Try again."); } finally { setBusy(""); }
+  };
+  return (
+    <>
+      <h3 className="mt-5 text-sm font-semibold text-white">Left out as a copy of another invoice</h3>
+      <p className={T_CAPTION}>The same paper invoice photographed twice. The copy is not in any total; the receiving and PO check keep their photos.</p>
+      {err && <p className="mt-2 text-[12px] text-red-300">{err}</p>}
+      <div className="mt-2 space-y-2">
+        {rows.map((r) => (
+          <div key={`${r.source}${r.source_id}`} className="rounded-xl border border-white/8 p-2 text-[12px] text-zinc-300">
+            <span className="text-white">{r.vendor || "—"}</span> · {r.invoice_number || "—"} · {r.invoice_date} · VAT {peso(r.vat)}
+            <span className="text-zinc-400"> — copy of the {SOURCE[r.same_as_source] || r.same_as_source}, left out by {r.decided_by}</span>
+            <a className="ml-2 inline-flex items-center gap-1 text-violet-300 hover:text-violet-200" href={photoLink(r)} target="_blank" rel="noreferrer">
+              Photo<ExternalLink className="h-3 w-3" /></a>
+            {canDecide && (
+              <button className="ml-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => undo(r)}>Undo</button>)}
+          </div>))}
+      </div>
+    </>
+  );
+}
+
 function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
   rows: InputRow[]; empty: string; canDecide?: boolean; onDecided?: () => void;
 }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const pick = async (r: InputRow, field: string, choice: "first" | "second" | "undo") => {
+    const key = `${r.source}${r.source_id}`;
+    setBusy(key);
+    setErr("");
+    try {
+      const q = `source=${encodeURIComponent(r.source)}&source_id=${encodeURIComponent(r.source_id)}&field=${encodeURIComponent(field)}`;
+      const res = choice === "undo"
+        ? await fetch(`/api/admin/vat/reading-choice?${q}`, { method: "DELETE", headers: getAuthHeaders(getAuth()) })
+        : await fetch("/api/admin/vat/reading-choice", {
+          method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+          body: JSON.stringify({ source: r.source, source_id: r.source_id, field, choice }),
+        });
+      if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
+      onDecided?.();
+    } catch { setErr("Network error. Try again."); } finally { setBusy(""); }
+  };
   const decide = async (r: InputRow, decision: "ours" | "not_ours" | "undo") => {
     const key = `${r.source}${r.source_id}`;
     if (decision === "undo" && !window.confirm(`Undo the decision on ${r.vendor || "this invoice"} ${r.invoice_number || ""}? It goes back to be checked.`)) return;
@@ -533,12 +610,27 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
                     <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "ours")}>Our TIN</button>
                     <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "not_ours")}>Not ours</button>
                   </div>)}
-                {r.reasons.length === 0 && r.review_fields.length > 0 && (
+                {r.reasons.length === 0 && r.review_fields.length > 0 && r.source === "drive_invoices" && (
                   <div className="mt-1 text-zinc-400">
-                    {r.source === "drive_invoices"
-                      ? `The two readings also need settling: open Inbox #${r.source_id}. The VAT counts once both are done.`
-                      : "The two readings also disagree, and a photo-only invoice has no screen to settle them yet: its VAT is not counted."}
+                    The two readings also need settling: open Inbox #{r.source_id}. The VAT counts once both are done.
                   </div>)}
+                {/* A photo-only invoice has no Inbox card: compare the photo and pick the reading here. */}
+                {(r.review_values || []).map((v) => (
+                  <div key={v.field} className="mt-1 text-zinc-300">
+                    Two readings of the {FIELD[v.field] || v.field}: <span className="tabular-nums">{shown(v.first)}</span> or{" "}
+                    <span className="tabular-nums">{shown(v.second)}</span>. Open the photo and pick the one printed.
+                    {canDecide && (
+                      <span className="mt-1 flex flex-wrap gap-2">
+                        <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => pick(r, v.field, "first")}>{shown(v.first)}</button>
+                        <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => pick(r, v.field, "second")}>{shown(v.second)}</button>
+                      </span>)}
+                  </div>))}
+                {(r.reading_choices || []).map((c) => (
+                  <div key={c.field} className="mt-1 text-zinc-400">
+                    {FIELD[c.field] || c.field}: {shown(c.value)}, picked by {c.decided_by}
+                    {canDecide && (
+                      <button className="ml-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => pick(r, c.field, "undo")}>Undo</button>)}
+                  </div>))}
               </td>
               <td className="block py-1 sm:table-cell sm:py-2 sm:text-right">
                 {r.source === "drive_invoices" ? (
@@ -549,7 +641,10 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
                 ) : r.source === "fp_sales_invoices" ? (
                   <span className="text-[11px] text-zinc-500">foodpanda invoice</span>
                 ) : (
-                  <span className="text-[11px] text-zinc-500" title="Read from a PO-check or receiving photo; it has no Inbox card">Photo only</span>
+                  <a className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200" href={photoLink(r)}
+                    target="_blank" rel="noreferrer" title="Read from a PO-check or receiving photo; it has no Inbox card">
+                    Photo<ExternalLink className="h-3 w-3" />
+                  </a>
                 )}
               </td>
             </tr>))}

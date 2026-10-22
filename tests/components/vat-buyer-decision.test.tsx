@@ -71,6 +71,30 @@ describe("VAT buyer decision", () => {
     expect(screen.getByText(/open Inbox #842/)).toBeTruthy();
   });
 
+  it("lets a person pick one of two readings of a photo-only invoice, next to its photo", async () => {
+    const f = await open(summary([row({ source: "proc_receivings", source_id: "3c30", checks: [], review_fields: ["vat_amount"],
+      review_values: [{ field: "vat_amount", first: 417.86, second: 471.86 }] })]));
+    expect(screen.getByText(/Two readings of the VAT/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Photo/ }).getAttribute("href"))
+      .toBe("/api/admin/vat/document-photo?source=proc_receivings&source_id=3c30");
+    fireEvent.click(screen.getByRole("button", { name: "471.86" }));
+    await waitFor(() => expect(f.mock.calls.some((c) => String(c[0]) === "/api/admin/vat/reading-choice")).toBe(true));
+    const call = f.mock.calls.find((c) => String(c[0]) === "/api/admin/vat/reading-choice")!;
+    expect(JSON.parse(String((call[1] as RequestInit).body)))
+      .toEqual({ source: "proc_receivings", source_id: "3c30", field: "vat_amount", choice: "second" });
+  });
+
+  it("lists an invoice left out as a copy, with an undo", async () => {
+    const body = summary([row({})]);
+    (body.input as Record<string, unknown>).left_out_as_copy = [{ source: "proc_po_invoice_checks", source_id: "ce05",
+      vendor: "Restaurant Depot", invoice_number: "SO-044716", invoice_date: "2026-10-22", total: "5150.00", vat: "551.86",
+      same_as_source: "proc_receivings", same_as_id: "cc8f", decided_by: "Yukihiro Nishimura", decided_at: "2026-10-22" }];
+    await open(body);
+    expect(screen.getByText("Left out as a copy of another invoice")).toBeTruthy();
+    expect(screen.getByText(/copy of the receiving photo, left out by Yukihiro Nishimura/)).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Undo" }).length).toBeGreaterThan(0);
+  });
+
   it("keeps a counted decision reachable to undo", async () => {
     await open(summary([row({ bucket: "deductible", checks: [],
       buyer_decision: { decision: "ours", decided_by: "Yukihiro Nishimura", decided_at: "2026-10-22" } })]));
