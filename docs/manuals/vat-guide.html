@@ -192,16 +192,16 @@
             <li class="ja">PCで、自分の名前でOSにログインします。</li>
             <li class="en">Open the menu, then <strong>Procurement &amp; Tax</strong>, then <strong>VAT Ledger</strong>.</li>
             <li class="ja">メニューを開き、<strong>Procurement &amp; Tax</strong> → <strong>VAT Ledger</strong> を押します。</li>
-            <li class="en">Pick the quarter at the top (for example <span class="ui">2026 Q4</span>). The page opens on the current quarter.</li>
-            <li class="ja">上部で四半期を選びます（例: <span class="ui">2026 Q4</span>）。開いたときは今の四半期です。</li>
+            <li class="en">Pick the quarter at the top (for example <span class="ui">2026 Q4</span>). The page opens on the quarter you are most likely filing: from the 1st to the 25th of a quarter's first month, the quarter that just ended (on 10 January, 2026 Q4); after that, the current one.</li>
+            <li class="ja">上部で四半期を選びます（例: <span class="ui">2026 Q4</span>）。開いたときは、申告中の四半期が出ます。四半期の最初の月の1日〜25日は、終わったばかりの四半期（1月10日なら 2026 Q4）、それ以降は今の四半期です。</li>
           </ol>
           <div class="note">
             <p class="en"><strong>Nothing is sent to the BIR from this page.</strong> You copy the figures into eBIRForms yourself, and you send the summary files yourself. The page only calculates and checks.</p>
             <p class="ja"><strong>この画面からBIRには何も送られません。</strong>数字は自分で eBIRForms に写し、明細ファイルも自分で送ります。この画面は計算と確認だけをします。</p>
           </div>
           <div class="note warn">
-            <p class="en"><strong>No VAT Ledger in your menu, or no buttons?</strong> Your account can only view, or cannot open it. Ask Yukihiro to give you <strong>Manage VAT Ledger</strong> in Role Management.</p>
-            <p class="ja"><strong>メニューに VAT Ledger が無い、またはボタンが出ない場合</strong>は、閲覧だけの権限か、権限がありません。Role Management で <strong>Manage VAT Ledger</strong> を付けてもらうよう Yukihiro に伝えてください。</p>
+            <p class="en"><strong>The page says "Your role does not include the VAT Ledger", or there are no buttons?</strong> Your account is missing a permission. Ask Yukihiro to give you, in Role Management, <strong>View VAT Ledger</strong> (to open the page) and <strong>Manage VAT Ledger</strong> (to make the decisions, save details and close the quarter).</p>
+            <p class="ja"><strong>「Your role does not include the VAT Ledger」と出る、またはボタンが出ない場合</strong>は、権限が足りません。Role Management で <strong>View VAT Ledger</strong>（画面を開く）と <strong>Manage VAT Ledger</strong>（判断・保存・締め）を付けてもらうよう Yukihiro に伝えてください。</p>
           </div>
         </div>
       </div>
@@ -259,12 +259,15 @@
         <div class="row"><span>Price before VAT</span><span>₱1,000.00</span></div>
         <div class="row"><span>VAT</span><span>none</span></div>
         <div class="row"><span>20% discount</span><span>− ₱200.00</span></div>
-        <div class="row total"><span>Paid · VAT-exempt sale</span><span>₱800.00</span></div>
+        <div class="row total"><span>The senior pays</span><span>₱800.00</span></div>
+        <div class="row hl" style="margin-top:8px"><span>VAT-exempt sale (item 34)</span><span>₱1,000.00</span></div>
         <div class="row" style="margin-top:8px"><span>An ordinary customer pays</span><span>₱1,120.00</span></div>
       </div>
+      <p class="en">The exempt sale on the 2550Q is the senior's share <strong>before</strong> the discount (₱1,000), not what they paid (₱800): the law counts the discount back into gross sales, and the business deducts it as an expense instead. The page does this for you — on a bill shared with friends, only the senior's own share is exempt; the rest is taxed as usual.</p>
+      <p class="ja">2550Q の免税売上は、お客さんが払った額（₱800）ではなく、<strong>割引前</strong>のシニア本人の分（₱1,000）です。法律上、割引分は売上に戻して計上し、店の経費として差し引くためです。画面が自動で計算します。友人と一緒の会計では、免税になるのはシニア本人の分だけで、残りは通常どおり課税です。</p>
       <div class="note stop">
-        <p class="en"><strong>The cashier must use the Senior/PWD button in StoreHub.</strong> If the 20% is given with the ordinary-discount button, the receipt still shows VAT, and VAT printed on a receipt is owed to the BIR even though the customer did not really pay it. The page lists these bills by store (see <a href="#screen">Output VAT</a>). When you see them, tell that store's manager.</p>
-        <p class="ja"><strong>レジでは StoreHub の Senior/PWD ボタンを使う必要があります。</strong>通常の割引ボタンで20%を引くと、レシートにVATが印字されます。レシートに印字されたVATは、お客さんが実際には払っていなくてもBIRに納めなければなりません。画面には店舗ごとにこの会計が出ます（<a href="#screen">Output VAT</a> 参照）。出ていたら、その店舗の店長に伝えてください。</p>
+        <p class="en"><strong>The cashier must use the Senior/PWD button in StoreHub.</strong> If the 20% is given with the ordinary-discount button, StoreHub charges VAT on the whole bill and prints it. The senior then pays VAT they should not have paid, and because the receipt shows it, the business owes that VAT to the BIR. The page shows, for each store, how many bills used the ordinary-discount button and how much VAT that billed (see <a href="#screen">Output VAT</a>). When you see a line, tell that store's manager.</p>
+        <p class="ja"><strong>レジでは StoreHub の Senior/PWD ボタンを使う必要があります。</strong>通常の割引ボタンで20%を引くと、StoreHub は会計全体にVATをかけて印字します。シニアは払わなくてよいVATを払い、レシートに印字されているので、店はそのVATをBIRに納めなければなりません。画面には店舗ごとに、通常の割引ボタンを使った会計の件数と、それで印字されたVATの額が出ます（<a href="#screen">Output VAT</a> 参照）。出ていたら、その店舗の店長に伝えてください。</p>
       </div>
 
       <h3><span class="en">A small part of input VAT is not ours to subtract</span><span class="ja">仕入のVATのうち、差し引けない少しの部分</span></h3>
@@ -277,8 +280,8 @@
         <div class="row"><span>÷ total sales ₱4,623,738.75</span><span></span></div>
         <div class="row total"><span>Item 51</span><span>₱149.55</span></div>
       </div>
-      <p class="en">So in full: <strong>VAT payable = output VAT − (input VAT − item 51)</strong>. This is item 56 on the form.</p>
-      <p class="ja">まとめると <strong>納めるVAT ＝ 売上のVAT −（仕入のVAT − 項目51）</strong>。これが申告書の項目56です。</p>
+      <p class="en">So in full: <strong>VAT payable = output VAT − (carried over + input VAT − item 51)</strong>. This is item 56 on the form. "Carried over" (item 36) is the excess input VAT of the previous quarter, and is only there when that quarter was closed with more input VAT than output VAT; usually it is 0.</p>
+      <p class="ja">まとめると <strong>納めるVAT ＝ 売上のVAT −（繰越 ＋ 仕入のVAT − 項目51）</strong>。これが申告書の項目56です。「繰越」（項目36）は前の四半期で余った仕入のVATで、前の四半期を「仕入のVATが売上のVATより多い」状態で締めたときだけ入ります。普段は0です。</p>
 
       <h3><span class="en">When it is due</span><span class="ja">期限</span></h3>
       <p class="en">Form 2550Q is filed and paid by the 25th day after the quarter ends. The page shows the date and the days left at the top.</p>
@@ -370,8 +373,8 @@
         <li class="ja"><strong>「not yet re-read 7 days later」</strong> — 注文は後から取り消されることがあるので、売上は1週間後にもう一度 StoreHub から読み直します。それまでは少し動くことがあります。自然に消えます。</li>
         <li class="en"><strong>Delivery apps</strong> — when the platform compensates us for a cancelled order, that compensation is a taxable sale and is added. Chargebacks are not deducted (owner decision, 21 October 2026).</li>
         <li class="ja"><strong>Delivery apps</strong> — 取り消された注文をプラットフォームが補償した場合、その補償は課税売上として足されます。チャージバックは差し引きません（2026年10月21日のオーナー決定）。</li>
-        <li class="en"><strong>Senior / PWD</strong> — the exempt sales, and the yellow lines naming bills where the wrong discount button was used. Pass those to the store manager.</li>
-        <li class="ja"><strong>Senior / PWD</strong> — 免税の売上と、割引ボタンを間違えた会計の黄色い行。店長に伝えてください。</li>
+        <li class="en"><strong>Senior / PWD</strong> — the exempt sales, and one yellow line per store with how many bills used the wrong discount button and the VAT they billed. Pass those to the store manager.</li>
+        <li class="ja"><strong>Senior / PWD</strong> — 免税の売上と、店舗ごとの黄色い行（割引ボタンを間違えた会計の件数と、印字されたVATの額）。店長に伝えてください。</li>
       </ul>
 
       <h3><span class="en">Input VAT — our purchases</span><span class="ja">Input VAT — 仕入</span></h3>
@@ -407,20 +410,22 @@
         <li class="ja">写真の <strong>Sold To</strong> と <strong>TIN</strong> を探し、行に書かれた読み取り結果と比べます。</li>
         <li class="en">Decide:
           <ul>
-            <li>The photo shows <strong>our TIN exactly</strong> (457-994-635-00000) and our restaurant's name → press <span class="ui">Our TIN</span>. The system had misread it.</li>
+            <li>The photo shows <strong>our TIN exactly</strong> (457-994-635-00000) and our name (the restaurant's, or the owner's: OMACHI JANINE THERESE DIAZ) → press <span class="ui">Our TIN</span>. The system had misread it.</li>
             <li>The photo shows <strong>another number or another business</strong> → press <span class="ui">Not ours</span>. If the supplier misprinted our TIN, it is still <em>not ours</em>: ask them for a corrected invoice.</li>
           </ul>
         </li>
         <li class="ja">判断します。
           <ul>
-            <li>写真に<strong>当社のTINが正確に</strong>（457-994-635-00000）、当店の名前と一緒に印字されている → <span class="ui">Our TIN</span>。システムの読み間違いです。</li>
+            <li>写真に<strong>当社のTINが正確に</strong>（457-994-635-00000）、当社の名前（店名、またはオーナー名 OMACHI JANINE THERESE DIAZ）と一緒に印字されている → <span class="ui">Our TIN</span>。システムの読み間違いです。</li>
             <li>写真に<strong>別の番号・別の会社</strong>が書かれている → <span class="ui">Not ours</span>。仕入先が当社のTINを書き間違えた場合も <em>Not ours</em> です。訂正した請求書を仕入先に依頼してください。</li>
           </ul>
         </li>
         <li class="en">If the row says <strong>"Two readings of …"</strong>, the two readings disagreed. Press the button that matches what is printed on the photo.</li>
         <li class="ja">行に <strong>「Two readings of …」</strong> と出ている場合は、2回の読み取りが食い違っています。写真に印字されている方のボタンを押します。</li>
-        <li class="en">The row leaves the list. A counted one moves to <strong>Counted by a VAT decision</strong>, where you can undo it.</li>
-        <li class="ja">行は一覧から消えます。数えたものは <strong>Counted by a VAT decision</strong> に移り、そこで取り消せます。</li>
+        <li class="en">When a row has both (an <span class="ui">Our TIN</span> question and two readings), answer both. It only counts once nothing is left open on it.</li>
+        <li class="ja">1つの行に両方（<span class="ui">Our TIN</span> の判断と2つの読み取り）がある場合は、両方に答えます。何も残っていない状態になって初めて数えられます。</li>
+        <li class="en">The row leaves the list. <span class="ui">Our TIN</span> moves it to <strong>Counted by a VAT decision</strong>; <span class="ui">Not ours</span> moves it to <strong>VAT printed but not deductible</strong>, marked "Decided not ours". Both show who decided, with an <span class="ui">Undo</span>.</li>
+        <li class="ja">行は一覧から消えます。<span class="ui">Our TIN</span> は <strong>Counted by a VAT decision</strong> へ、<span class="ui">Not ours</span> は「Decided not ours」と付いて <strong>VAT printed but not deductible</strong> へ移ります。どちらも判断した人の名前と <span class="ui">Undo</span> が出ます。</li>
       </ol>
 
       <figure class="shot">
@@ -430,8 +435,8 @@
       </figure>
 
       <div class="note">
-        <p class="en"><strong>What is "Pending #…"?</strong> It opens the same invoice in the Invoice Inbox, where the purchasing team records it as a purchase. Approving there <strong>does not</strong> decide the VAT. The VAT is only decided here.</p>
-        <p class="ja"><strong>「Pending #…」とは</strong> — 同じ請求書を Invoice Inbox で開きます。そこは購買担当が仕入として記録する画面です。そこで承認しても<strong>VATは決まりません</strong>。VATはこの画面でだけ決まります。</p>
+        <p class="en"><strong>What is "Pending #…" (or "Approved #…")?</strong> It opens the same invoice in the Invoice Inbox, where the purchasing team records it as a purchase. Approving there <strong>does not</strong> decide Our TIN / Not ours, or a choice between two readings: those are decided here. One exception: if a row says "Two readings disagree" but shows no buttons, the difference is between the values approved in the Inbox and a later reading; settle that one in the Inbox.</p>
+        <p class="ja"><strong>「Pending #…」（または「Approved #…」）とは</strong> — 同じ請求書を Invoice Inbox で開きます。そこは購買担当が仕入として記録する画面です。そこで承認しても、Our TIN / Not ours や2つの読み取りの選択は<strong>決まりません</strong>。それはこの画面で決めます。例外が1つあります。「Two readings disagree」と出ているのにボタンが無い行は、Inbox で承認した値と後の読み取りの違いです。それは Inbox で直してください。</p>
       </div>
       <div class="note warn">
         <p class="en"><strong>A decision belongs to what was read.</strong> If the same invoice is read again later and the TIN or name comes out different, your decision stops applying and the invoice comes back to the list. This is on purpose: you decided on what you saw.</p>
@@ -458,7 +463,7 @@
             <tr><td>Not made out to our TIN</td><td><span class="en">Ask the supplier for an invoice with our TIN and name. For supermarkets, the store gives the TIN at the counter next time.</span><span class="ja">当社のTINと名前を入れた請求書を仕入先に依頼します。スーパーの場合は、次回から店舗がレジでTINを伝えます。</span></td></tr>
             <tr><td>Seller TIN missing</td><td><span class="en">The supplier's own TIN is not on the paper. Ask for a proper VAT invoice.</span><span class="ja">仕入先自身のTINが無い。正しいVAT請求書を依頼します。</span></td></tr>
             <tr><td>No buyer name</td><td><span class="en">Our name is missing. Ask for a corrected invoice.</span><span class="ja">当社の名前が無い。訂正した請求書を依頼します。</span></td></tr>
-            <tr><td>Two readings disagree</td><td><span class="en">Open the photo and press the reading that is printed. If the right reading is complete, the invoice moves to Deductible.</span><span class="ja">写真を開き、印字されている方を押します。正しい方の読み取りが揃っていれば Deductible に移ります。</span></td></tr>
+            <tr><td>Two readings disagree</td><td><span class="en">Open the photo and press the reading that is printed. If the right reading is complete, the invoice moves to Deductible. No buttons under it? Settle it in the Invoice Inbox (Pending/Approved #).</span><span class="ja">写真を開き、印字されている方を押します。正しい方の読み取りが揃っていれば Deductible に移ります。ボタンが無い場合は Invoice Inbox（Pending/Approved #）で直します。</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -467,8 +472,8 @@
       <figure class="shot">
         <button class="zoom" type="button"><img src="vat-guide/07-copies.jpg" alt="An invoice left out as a copy" loading="lazy" width="2256" height="218"></button>
       </figure>
-      <p class="en">The same paper is sometimes photographed twice (once at receiving, once for the PO check). When the supplier TIN and invoice number match, the page counts it once by itself. When the two photos were read with different numbers, a person leaves one out; it is listed here and is in no total. <span class="ui">Undo</span> puts it back.</p>
-      <p class="ja">同じ紙が2回撮られることがあります（受領時と、POチェック時）。仕入先TINと請求書番号が同じなら、画面が自動で1回だけ数えます。2枚が違う番号で読まれた場合は、人が片方を除きます。除いたものはここに出て、どの合計にも入りません。<span class="ui">Undo</span> で戻せます。</p>
+      <p class="en">The same paper is sometimes photographed twice (once at receiving, once for the PO check). When the supplier TIN and invoice number match within the same quarter, the page counts it once by itself. It does not catch two copies whose dates were read into different quarters, or two photos read with different numbers, a person leaves one out; it is listed here and is in no total. <span class="ui">Undo</span> puts it back.</p>
+      <p class="ja">同じ紙が2回撮られることがあります（受領時と、POチェック時）。同じ四半期の中で仕入先TINと請求書番号が同じなら、画面が自動で1回だけ数えます。2枚の日付が別の四半期として読まれた場合や、違う番号で読まれた場合は自動では分かりません。その場合は、人が片方を除きます。除いたものはここに出て、どの合計にも入りません。<span class="ui">Undo</span> で戻せます。</p>
       <div class="note warn">
         <p class="en"><strong>There is no button on this page to leave a copy out yet.</strong> If you see the same invoice counted twice, send both photo links to Yukihiro.</p>
         <p class="ja"><strong>重複を除くボタンは、この画面にはまだありません。</strong>同じ請求書が2回数えられているのを見つけたら、2つの Photo のリンクを Yukihiro に送ってください。</p>
@@ -498,8 +503,8 @@
       <figure class="shot">
         <button class="zoom" type="button"><img src="vat-guide/10-withholding.jpg" alt="Tax withheld box" loading="lazy" width="2256" height="264"></button>
       </figure>
-      <p class="en">Some platforms keep back a small tax from what they pay us. <strong>This is not VAT.</strong> It is income tax, and it can only be used with the platform's <strong>Form 2307</strong>. That is why item 16 of the 2550Q stays at 0. Collect the 2307s each quarter and keep them for the income tax return.</p>
-      <p class="ja">プラットフォームによっては、入金の一部を税金として差し引きます。<strong>これはVATではありません。</strong>所得税で、プラットフォームの <strong>Form 2307</strong> がある場合だけ使えます。だから 2550Q の項目16は0のままです。2307 は四半期ごとに集め、所得税の申告用に保管してください。</p>
+      <p class="en">Some platforms keep back a small tax from what they pay us. <strong>This is not VAT.</strong> It is income tax, and it can only be used with the platform's <strong>Form 2307</strong>. That is why item 16 of the 2550Q stays at 0. When a platform has withheld something, its row shows "Form 2307 not received": when the 2307 arrives, type the amount printed on it and press <span class="ui">2307 received</span> (<span class="ui">Undo</span> takes it back). Keep the 2307s for the income tax return. In 2026 Q4 so far, nothing was withheld.</p>
+      <p class="ja">プラットフォームによっては、入金の一部を税金として差し引きます。<strong>これはVATではありません。</strong>所得税で、プラットフォームの <strong>Form 2307</strong> がある場合だけ使えます。だから 2550Q の項目16は0のままです。プラットフォームが差し引いた場合、その行に「Form 2307 not received」と出ます。2307 が届いたら、印字された金額を入れて <span class="ui">2307 received</span> を押します（<span class="ui">Undo</span> で取り消せます）。2307 は所得税の申告用に保管してください。2026 Q4 は今のところ差し引きはありません。</p>
     </section>
 
     <!-- ───────────────────────────── 7 -->
@@ -523,11 +528,11 @@
         <li class="ja"><strong>登録証明書（BIR Form 2303）</strong>を手元に用意します。</li>
         <li class="en">Press <span class="ui">Check and save</span>. Compare every field with the certificate. Fill in the <strong>RDO code</strong> and the <strong>registered address</strong>, which are only on the certificate.</li>
         <li class="ja"><span class="ui">Check and save</span> を押します。全ての欄を証明書と見比べます。証明書にしか無い <strong>RDO code</strong> と <strong>登録住所</strong> を入力します。</li>
-        <li class="en">Press <span class="ui">Save</span>. This is needed once, not every quarter.</li>
-        <li class="ja"><span class="ui">Save</span> を押します。毎回ではなく、最初の1回だけです。</li>
+        <li class="en">Press <span class="ui">Save</span>. This is needed once, not every quarter. Afterwards the button reads <span class="ui">Edit</span>.</li>
+        <li class="ja"><span class="ui">Save</span> を押します。毎回ではなく、最初の1回だけです。保存後はボタンが <span class="ui">Edit</span> になります。</li>
       </ol>
-      <p class="en">Below the form, the green ticks show that each list total equals its 2550Q line. If one turns red, do not send the files.</p>
-      <p class="ja">フォームの下の緑のチェックは、リストの合計が 2550Q の各行と一致していることを示します。赤になったら、ファイルを送らないでください。</p>
+      <p class="en">Below the form, the green ticks show that each list total equals its 2550Q line. If one shows a yellow warning instead, the lists do not match the return, and the download stays off until they do.</p>
+      <p class="ja">フォームの下の緑のチェックは、リストの合計が 2550Q の各行と一致していることを示します。黄色の警告になっている行があれば、リストが申告書と合っていません。合うまでダウンロードはできません。</p>
 
       <h3><span class="en">2 · Supplier addresses</span><span class="ja">2 · 仕入先の住所</span></h3>
       <figure class="shot">
@@ -536,10 +541,10 @@
       <p class="en">BIR's checker refuses a purchase line without the supplier's address. Each supplier needs it once.</p>
       <p class="ja">BIRの検証ツールは、仕入先の住所が無い行を受け付けません。仕入先ごとに1回入れれば済みます。</p>
       <ul>
-        <li class="en"><strong>"no address"</strong> — type the address as printed on the supplier's invoice and press <span class="ui">Save</span>. Or press <span class="ui">Read from photo</span> to have it read.</li>
-        <li class="ja"><strong>「no address」</strong> — 仕入先の請求書に印字された住所を入力して <span class="ui">Save</span>。または <span class="ui">Read from photo</span> で読み取らせます。</li>
-        <li class="en"><strong>"read from … — check"</strong> — an address was read from a photo. Open <span class="ui">Photo</span>, correct the text if needed, and press <span class="ui">Confirm</span>. A read address only counts after a person confirms it.</li>
-        <li class="ja"><strong>「read from … — check」</strong> — 写真から住所を読み取ったもの。<span class="ui">Photo</span> を開き、必要なら文字を直して <span class="ui">Confirm</span>。読み取った住所は、人が確認するまで使われません。</li>
+        <li class="en"><strong>"no address"</strong> — type the address as printed on the supplier's invoice and press <span class="ui">Save</span>. Or press <span class="ui">Read from photo</span> to have it read (the button is there only when the supplier has a photo on file).</li>
+        <li class="ja"><strong>「no address」</strong> — 仕入先の請求書に印字された住所を入力して <span class="ui">Save</span>。または <span class="ui">Read from photo</span> で読み取らせます（写真がある仕入先にだけボタンが出ます）。</li>
+        <li class="en"><strong>"read from … — check"</strong> — an address was read from a photo. Compare it with the supplier's invoice (when the row has a <span class="ui">Photo</span> link, it opens that invoice in the Invoice Inbox; otherwise use the paper invoice), correct the text if needed, and press <span class="ui">Confirm</span>. A read address only counts after a person confirms it.</li>
+        <li class="ja"><strong>「read from … — check」</strong> — 写真から住所を読み取ったもの。仕入先の請求書と見比べ（行に <span class="ui">Photo</span> があれば Invoice Inbox でその請求書が開きます。無ければ紙の請求書で）、必要なら文字を直して <span class="ui">Confirm</span>。読み取った住所は、人が確認するまで使われません。</li>
       </ul>
 
       <h3><span class="en">3 · Download and validate</span><span class="ja">3 · ダウンロードと検証</span></h3>
@@ -556,8 +561,8 @@
       <figure class="shot">
         <button class="zoom" type="button"><img src="vat-guide/14-reminders.jpg" alt="Deadline reminders list with Add and Send me a test" loading="lazy" width="2256" height="652"></button>
       </figure>
-      <p class="en">On the quarter's last day, and 10 days before the 2550Q is due, the people listed here get a Discord message saying what is still open. Type a name exactly as in the Staff list and press <span class="ui">Add</span>. <span class="ui">Send me a test</span> sends one only to you. The next two dates are shown at the bottom.</p>
-      <p class="ja">四半期の最終日と、2550Q の期限の10日前に、ここに載っている人へ、まだ終わっていないことを Discord で知らせます。Staff 一覧と同じ名前を入れて <span class="ui">Add</span>。<span class="ui">Send me a test</span> は自分にだけ届きます。次の2回の日付が下に出ます。</p>
+      <p class="en">On the quarter's last day, and 10 days before the 2550Q is due, the people listed here get a Discord message saying what is still open. Type a name exactly as in the Staff list and press <span class="ui">Add</span>. <span class="ui">Send me a test</span> sends one only to you; it works once you are on the list with your Discord id. The next two dates are shown at the bottom. If a person shows "no Discord id", the reminder cannot reach them: type their Discord user id (17–20 digits) in the box on their row and save it.</p>
+      <p class="ja">四半期の最終日と、2550Q の期限の10日前に、ここに載っている人へ、まだ終わっていないことを Discord で知らせます。Staff 一覧と同じ名前を入れて <span class="ui">Add</span>。<span class="ui">Send me a test</span> は自分にだけ届きます（自分が一覧に入り、Discord ID が登録されている必要があります）。次の2回の日付が下に出ます。「no Discord id」と出ている人には届きません。その行の欄に Discord のユーザーID（17〜20桁）を入れて保存してください。</p>
     </section>
 
     <!-- ───────────────────────────── 8 -->
@@ -575,8 +580,8 @@
         <li class="ja">画面に戻り <span class="ui">Close 2026 Q4</span> を押します（四半期が終わると出ます）。数字は申告したとおりに固定され、仕入のVATが売上のVATより多かった場合、次の四半期が項目36として繰り越します。</li>
       </ol>
       <div class="note">
-        <p class="en"><strong>Need to change a closed quarter?</strong> Press <span class="ui">Reopen…</span>, write why in a few words, then <span class="ui">Reopen</span>. The reason stays on record. Close again once the figures are right. A quarter cannot be reopened while the next one is closed.</p>
-        <p class="ja"><strong>締めた四半期を直したいとき</strong>は、<span class="ui">Reopen…</span> を押し、理由を短く書いて <span class="ui">Reopen</span>。理由は記録に残ります。数字が正しくなったら、もう一度締めます。次の四半期が締まっている間は開き直せません。</p>
+        <p class="en"><strong>Need to change a closed quarter?</strong> Press <span class="ui">Reopen…</span>, write why in a few words, then <span class="ui">Reopen</span>. The reason stays on record. Close again once the figures are right. A quarter cannot be reopened while the next one is closed, and a quarter cannot be closed while the one before it is reopened: close that one first. Close and Reopen appear only for people with Manage VAT Ledger.</p>
+        <p class="ja"><strong>締めた四半期を直したいとき</strong>は、<span class="ui">Reopen…</span> を押し、理由を短く書いて <span class="ui">Reopen</span>。理由は記録に残ります。数字が正しくなったら、もう一度締めます。次の四半期が締まっている間は開き直せません。また、前の四半期を開き直している間は締められません（先にそちらを締めます）。Close と Reopen は Manage VAT Ledger の権限がある人にだけ出ます。</p>
       </div>
     </section>
 
