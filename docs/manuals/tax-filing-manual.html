@@ -243,6 +243,33 @@ td.muted{color:var(--muted);font-size:12px}
   </div>
 
   <div class="card">
+    <div class="card-title">売上・仕入の明細（SLSP）を BIR に出す</div>
+    <p style="font-size:12px;color:var(--muted)">
+      2550Q と同じ期限で、売上と仕入の明細を BIR の RELIEF 形式（DAT ファイル）で出します。全 VAT 事業者の義務で、基準額はありません（RR 1-2012）。
+      ファイルは<strong>1種類×1か月で1本</strong>（RMO 4-2003）なので、四半期で売上3本・仕入3本です。
+      書式は BIR が公開している RELIEF 2.3 そのものから取りました。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>やること</th><th>誰が</th></tr></thead>
+      <tbody>
+        <tr><td>「Taxpayer」の <strong>Check and save</strong>: RDO コード（3桁）と登録住所を、Certificate of Registration（BIR Form 2303）から入れる。提案された名前（OMACHI / JANINE THERESE / DIAZ・屋号）も COR と照合して Save</td><td>VAT の管理権限がある人（最初の1回だけ）</td></tr>
+        <tr><td>「Supplier addresses」: 住所の無い仕入先は、請求書に印字された住所を入れて <strong>Save</strong>。写真がある仕入先は <strong>Read from photo</strong> で読める</td><td>同上</td></tr>
+        <tr><td>写真から読んだ住所（「read from … — check」）は、写真と見比べて <strong>Confirm</strong>。崩れていたら直してから Confirm</td><td>同上</td></tr>
+        <tr><td><strong>Sales files / Purchase files</strong> を押して zip を保存（DAT 3本＋確認用の Excel）</td><td>閲覧権限がある人</td></tr>
+        <tr><td>DAT を BIR の RELIEF Validation Module（Windows）に通してから提出</td><td>オーナー</td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      足りないものがある間は、ダウンロードのボタンが押せず、何が足りないかが上に出ます。検証モジュールが受け付けないファイルは作りません。
+      画面の下に、明細の合計と 2550Q の各欄（31・34・42・46）の照合が出ます。すべて一致するのが正常です。
+    </p>
+    <div class="tip"><span class="tip-icon">⚠️</span><div>
+      売上は月ごとに「END CONSUMER」の1行です（POS に買い手の TIN が無いため）。事業者の常連客や、1回 ₱100,000 以上の事業者への売上があった場合は、個別に載せる必要があります。
+      仕入先の TIN が書類ごとに違って読まれている場合（手書きの領収書）は1社にまとめ、まとめたことを画面に出します。TIN の読めない書類は明細に載せられませんが、2550Q の欄46には入ったままです。
+    </div></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">売上税額（Output VAT）</div>
     <p style="font-size:12px;color:var(--muted)">
       店舗 × 経路（店内・GrabFood・foodpanda・その他）ごとの売上と VAT。計算は<strong>お客様が払った額 × 12/112</strong>で、端数は合計で1回だけ丸めます。

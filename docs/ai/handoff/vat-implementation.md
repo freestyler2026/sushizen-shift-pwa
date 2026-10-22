@@ -445,9 +445,23 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
       → 2026-10-22 `app/vat_2550q.py`（`vat_quarter_close`）。`channel.admin.vat.manage` が必要。
         期間中は拒否。同時に2回押しても1本（部分一意索引）。解除は理由5文字以上、締めと解除の両方が残る。
         **次の四半期の項目36（繰越）は、直前の四半期の締めの項目56から取る** — 締めていない四半期からは何も繰り越さない
-- [ ] **5-2 SLSP の仕様を一次資料で確定** — BIR の Data Entry Module / RELIEF の DAT 形式の現行仕様を入手する。
+- [x] **5-2 SLSP の仕様を一次資料で確定** — BIR の Data Entry Module / RELIEF の DAT 形式の現行仕様を入手する。
       **推測で形式を作らない**
-- [ ] **5-3 SLSP 出力** — 売上・仕入の DAT と、確認用の Excel
+      → 2026-10-22。BIR が公開している **RELIEF 2.3 本体**（bir.gov.ph > Downloadables > Relief、
+        `BIRReliefv2.3.exe`）を**実行せずに展開**し、Visual FoxPro のソースから
+        データ入力側の「Generate File」と、同梱の **Validation Module v2.3** の検査を読んだ。
+        - ファイル名 `999999999TMMYYYY.DAT`（TIN 9桁＋S/P＋月＋年）— RELIEF job aid（2006）
+        - **1ファイル＝1種類×1か月**（RMO 4-2003 §III "File"）→ 四半期で売上3本・仕入3本
+        - **売上・仕入とも全 VAT 事業者に提出義務、基準額なし**（RR 1-2012 原文、SC e-Library）→ 未確認#4 解決
+        - 行の並び・引用符・金額の書き方・日付 MM/DD/YYYY・使えない文字（" $ & ' , \ ` |）は
+          `app/vat_slsp.py` の docstring に原典どおり記録。検証規則は `tests/test_vat_slsp.py` に写した
+- [x] **5-3 SLSP 出力** — 売上・仕入の DAT と、確認用の Excel
+      → 2026-10-22 VAT Ledger「Summary List of Sales and Purchases」。売上は月1行の END CONSUMER
+        （POS に買い手の TIN が無い）、仕入は項目42/46と同じ書類を仕入先 TIN×月で集計、
+        項目51を仕入ヘッダーの non-creditable に。**2550Q と6項目すべて0.00で一致**（Q3 実データ）。
+        手書き領収書の TIN の読み違い（Richcath's 6通り）は1社に寄せる。
+        仕入先の住所は請求書写真から読み（`vat_seller_registry`）、**人が確認するまで仕入ファイルは出さない**。
+        当社の RDO コードと登録住所は COR から人が入れる（未入力の間はダウンロード不可）
 - [x] **5-4 2550Q 転記表** — 様式の欄番号ごとに、台帳のどの数字を写すかの表
       → 2026-10-22 VAT Ledger の「BIR Form 2550Q」節（`GET /api/admin/vat/2550q`）。欄番号は
         **BIR Form 2550Q January 2023 (ENCS)**（RMC 59-2023 Annex A）。April 2024 版の PDF は取得できず、
@@ -479,7 +493,7 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
 | 2 | Grab の手数料 VAT 請求書が当社宛てに出ているか | オーナー（0-7） | 仕入税額 推定 四半期 ₱23万〜47万（1店1日の幅から。foodpanda の推定は実測で約4.5分の1に下がったので、こちらも過大の可能性がある） | 未確認 |
 | 2b | foodpanda の手数料・広告の仕入税額（実測） | — | 9/23〜10/19 の約4週で VAT ₱28,568（手数料 ₱23,061＋広告 ₱5,507）→ 四半期 約₱9.5万 | 取込済み（0-3） |
 | 3 | foodpanda QC の手数料率 18% | オーナー（0-9） | 月 約 ₱10万（1日分からの推定） | 未確認 |
-| 4 | SLSP 仕入の現行の基準額 | Claude（5-2 で一次資料） | 当社は超えるので作る結論は変わらない | 未確認 |
+| 4 | SLSP 仕入の現行の基準額 | Claude（5-2 で一次資料） | 当社は超えるので作る結論は変わらない | **解決**: RR 1-2012 で基準額なし（全 VAT 事業者が売上・仕入とも提出） |
 | 5 | Form 2307 の受け取り方 | Claude（Phase 3） | **Grab は「Withholding Tax Remittance」の調整で源泉している**（7/1〜10/21 で21件・₱50,785.11）。2307 を受け取る必要がある | 未確認 |
 | 7 | foodpanda の手数料に対する 2% EWT（明細の列 AE）が全件0円。当社が源泉義務者（Top Withholding Agent 等）なら、手数料の支払時に 2% を源泉して 2307 を出す側になる | オーナー → 会計事務所 | 4週の手数料 約₱19.2万 × 2% ≈ ₱3,800 | 未確認（VAT とは別の税目） |
 | 6 | PO Match のマニラ VAT 表示の修正（印字どおりの VAT 額・総額＝請求額・6行の修正） | オーナー承認待ち | 照合画面の表示。台帳の計算には使わない | 承認待ち |
