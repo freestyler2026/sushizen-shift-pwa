@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
 import { getAuth, getAuthHeaders, hasRouteAccess } from "@/lib/auth";
 import Form2550Q from "@/components/vat/Form2550Q";
+import Slsp from "@/components/vat/Slsp";
 import {
   GLASS_CARD,
   KPI_CARD,
@@ -276,6 +277,8 @@ export default function VatLedgerPage() {
           </div>
 
           <Form2550Q year={year} quarter={quarter} canManage={data.can_manage} quarterEnded={data.quarter_ended} />
+
+          <Slsp year={year} quarter={quarter} />
 
           {/* Output VAT */}
           <section className={`${GLASS_CARD} p-4`}>
