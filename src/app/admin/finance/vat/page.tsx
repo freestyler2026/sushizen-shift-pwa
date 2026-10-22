@@ -626,10 +626,16 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
               </td>
               <td className="block py-1 sm:table-cell sm:py-2 sm:text-right">
                 {r.source === "drive_invoices" ? (
-                  <a className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200"
-                    href={`/admin/procurement/invoices?city=manila&invoice=${r.source_id}`}>
-                    {r.review_status === "approved" ? "Approved" : "Pending"} #{r.source_id}<ExternalLink className="h-3 w-3" />
-                  </a>
+                  <span className="inline-flex flex-wrap items-center gap-3">
+                    <a className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200" href={photoLink(r)}
+                      target="_blank" rel="noreferrer">
+                      Photo<ExternalLink className="h-3 w-3" />
+                    </a>
+                    <a className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200"
+                      href={`/admin/procurement/invoices?city=manila&invoice=${r.source_id}`}>
+                      {r.review_status === "approved" ? "Approved" : "Pending"} #{r.source_id}<ExternalLink className="h-3 w-3" />
+                    </a>
+                  </span>
                 ) : r.source === "fp_sales_invoices" ? (
                   <span className="text-[11px] text-zinc-500">foodpanda invoice</span>
                 ) : (
