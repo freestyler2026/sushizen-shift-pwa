@@ -65,10 +65,12 @@ describe("VAT buyer decision", () => {
     expect(screen.queryByRole("button", { name: "Our TIN" })).toBeNull();
   });
 
-  it("says what is still open when the two readings also disagree", async () => {
-    await open(summary([row({ review_fields: [{ field: "vat_amount" }] })]));
+  it("offers the two readings of an Inbox invoice too, next to Our TIN", async () => {
+    // 2026-10-22 ultra review: approving in the Inbox never settled a split between the readings
+    await open(summary([row({ review_fields: ["vat_amount"], review_values: [{ field: "vat_amount", first: 782.89, second: 762.84 }] })]));
     expect(screen.getByRole("button", { name: "Our TIN" })).toBeTruthy();
-    expect(screen.getByText(/open Inbox #842/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "762.84" })).toBeTruthy();
+    expect(screen.queryByText(/open Inbox #842/)).toBeNull();
   });
 
   it("lets a person pick one of two readings of a photo-only invoice, next to its photo", async () => {

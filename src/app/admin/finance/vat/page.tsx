@@ -610,11 +610,8 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
                     <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "ours")}>Our TIN</button>
                     <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "not_ours")}>Not ours</button>
                   </div>)}
-                {r.reasons.length === 0 && r.review_fields.length > 0 && r.source === "drive_invoices" && (
-                  <div className="mt-1 text-zinc-400">
-                    The two readings also need settling: open Inbox #{r.source_id}. The VAT counts once both are done.
-                  </div>)}
-                {/* A photo-only invoice has no Inbox card: compare the photo and pick the reading here. */}
+                {/* Approving in the Inbox does not settle a split between the two readings, for any
+                    kind of document: compare the photo and pick the printed value here. */}
                 {(r.review_values || []).map((v) => (
                   <div key={v.field} className="mt-1 text-zinc-300">
                     Two readings of the {FIELD[v.field] || v.field}: <span className="tabular-nums">{shown(v.first)}</span> or{" "}
