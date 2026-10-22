@@ -496,6 +496,12 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
         控除に入れられない） ② **同じ請求書が2四半期に1件ずつ**（MC ASIA 143172: 8/10 と 10/6、VAT ₱2,518.93） ③ **同じ請求書が
         2つの写真から別番号で2件**（Restaurant Depot 00-044716 / SO-044716、欄46に二重） ④ スーパーのレシートに当社 TIN が
         無く控除できない（Q4 だけで Jubilee・Cash & Carry・Robinson's 等 13件）
+      - ✅ 同日 オーナー承認で対応: ① 写真だけの請求書の読み取りを VAT Ledger で選ぶ（`app/vat_reading_choice.py`・
+        `POST /api/admin/vat/reading-choice`）と写真の表示（`GET /api/admin/vat/document-photo`） ② 同じ紙の請求書の2枚目を
+        合計から外す（`app/vat_same_invoice.py`・削除はしない） ③ 写真読み取りの日付29件が日/月逆のまま保存されていたのを直した
+        （10/22 の月先修正より前に書かれた分。退避 `_bk_photo_read_dates_20261022`）。MC ASIA 143172 は印字日 10/05 で Q4 の1件として
+        控除（オーナー指示は「最初の方」=8/10 だったが、8/10 は読み違い）。143856 は Q3 と Q4 に二重に入っていた（Q3 −₱1,602.47）。
+        Restaurant Depot SO-044716 は 00-044716 の写しとして除外。Our TIN が写真だけの請求書で毎回エラーになる不具合も直した
       - 本人（Aliana・Yusuke）が通すのはまだ
 - [x] **6-3 期限の通知** — 四半期末と期限の10日前に、本人へ「未確定」「要確認 N 件」を送る
       - ✅ 2026-10-22 完了（backend `app/vat_deadline.py`・worker `run_vat_deadline_reminders`、frontend `src/components/vat/Reminders.tsx`）。
