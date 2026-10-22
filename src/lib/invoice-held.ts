@@ -10,6 +10,7 @@ export const HELD_LABEL: Record<string, string> = {
   hub_number_taken: "Number already in the Hub",
   duplicate: "Possible duplicate",
   buyer_not_us: "Not addressed to us",
+  buyer_tin_not_us: "Buyer TIN is not ours",
   not_supplier_invoice_kind: "May not be a supplier invoice",
   not_double_read: "Not read twice yet",
   single_reading: "Read once only",
