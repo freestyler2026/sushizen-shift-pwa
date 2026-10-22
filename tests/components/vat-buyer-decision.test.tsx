@@ -59,6 +59,18 @@ describe("VAT buyer decision", () => {
     expect(screen.queryByRole("button", { name: "Our TIN" })).toBeNull();
   });
 
+  it("does not offer a decision that would change nothing", async () => {
+    // 2026-10-22: 098354 has no buyer TIN at all; Our TIN would leave it not deductible.
+    await open(summary([row({ bucket: "not_deductible", reasons: ["buyer_tin_not_ours"], checks: ["buyer_name_check"] })]));
+    expect(screen.queryByRole("button", { name: "Our TIN" })).toBeNull();
+  });
+
+  it("says what is still open when the two readings also disagree", async () => {
+    await open(summary([row({ review_fields: [{ field: "vat_amount" }] })]));
+    expect(screen.getByRole("button", { name: "Our TIN" })).toBeTruthy();
+    expect(screen.getByText(/open Inbox #842/)).toBeTruthy();
+  });
+
   it("keeps a counted decision reachable to undo", async () => {
     await open(summary([row({ bucket: "deductible", checks: [],
       buyer_decision: { decision: "ours", decided_by: "Yukihiro Nishimura", decided_at: "2026-10-22" } })]));

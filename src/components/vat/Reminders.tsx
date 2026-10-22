@@ -46,7 +46,8 @@ export default function Reminders() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const call = async (key: string, url: string, method: string, body?: unknown, ok?: string) => {
+  const call = async (key: string, url: string, method: string, body?: unknown,
+    ok?: string | ((b: { staff_name?: string } | null) => string)) => {
     setBusy(key);
     setError("");
     setNote("");
@@ -57,7 +58,7 @@ export default function Reminders() {
       });
       const b = await res.json().catch(() => null);
       if (!res.ok) { setError(b?.detail || `Failed (HTTP ${res.status}).`); return false; }
-      if (ok) setNote(ok);
+      if (ok) setNote(typeof ok === "function" ? ok(b) : ok);
       await load();
       return true;
     } catch { setError("Network error. Try again."); return false; } finally { setBusy(""); }
@@ -113,7 +114,8 @@ export default function Reminders() {
               <input className={`${input} w-64`} aria-label="Staff name to add" placeholder="staff name, as in the Staff list"
                 value={name} onChange={(e) => setName(e.target.value)} />
               <button className={SMALL_BUTTON} disabled={!!busy || !name.trim()}
-                onClick={async () => { if (await call("add", "/api/admin/vat/reminders/recipients", "POST", { staff_name: name.trim() }, `${name.trim()} added.`)) setName(""); }}>
+                onClick={async () => { if (await call("add", "/api/admin/vat/reminders/recipients", "POST", { staff_name: name.trim() },
+                  (b) => `${b?.staff_name || name.trim()} added.`)) setName(""); }}>
                 Add
               </button>
               <button className={SMALL_BUTTON} disabled={!!busy}

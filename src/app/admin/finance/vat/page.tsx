@@ -400,7 +400,7 @@ export default function VatLedgerPage() {
             <p className={T_CAPTION}>Each holds VAT that is not counted yet. Open it in the Invoice Inbox and compare with the photo.</p>
             <p className={T_CAPTION}>
               Approving an invoice in the Inbox puts the purchase in the Hub; it does not decide the input VAT. When the buyer TIN
-              or name is a digit or letter off, compare the photo and decide here: <strong>Our TIN</strong> counts it, <strong>Not ours</strong> leaves it out.
+              or name is a digit or letter off, compare the photo and decide here: <strong>Our TIN</strong> counts it (once nothing else is open on it), <strong>Not ours</strong> leaves it out.
               A decision stops applying if the invoice is read again with a different TIN or name.
             </p>
             <InvoiceList rows={reviewRows} empty="Nothing to check this quarter." canDecide={data.can_manage} onDecided={refreshAll} />
@@ -526,10 +526,18 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
                     {canDecide && (
                       <button className="ml-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => decide(r, "undo")}>Undo</button>)}
                   </div>)}
-                {canDecide && r.checks.length > 0 && !r.buyer_decision && (
+                {/* The decision settles only the TIN / name check. On an invoice that misses something
+                    else (no buyer TIN at all, no VAT shown) it would change nothing, so it is not offered. */}
+                {canDecide && r.checks.length > 0 && r.reasons.length === 0 && !r.buyer_decision && (
                   <div className="mt-1 flex gap-2">
                     <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "ours")}>Our TIN</button>
                     <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "not_ours")}>Not ours</button>
+                  </div>)}
+                {r.reasons.length === 0 && r.review_fields.length > 0 && (
+                  <div className="mt-1 text-zinc-400">
+                    {r.source === "drive_invoices"
+                      ? `The two readings also need settling: open Inbox #${r.source_id}. The VAT counts once both are done.`
+                      : "The two readings also disagree, and a photo-only invoice has no screen to settle them yet: its VAT is not counted."}
                   </div>)}
               </td>
               <td className="block py-1 sm:table-cell sm:py-2 sm:text-right">

@@ -1,5 +1,5 @@
 /** Deadline reminders on the VAT Ledger (VAT plan 6-3). */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { lucideMock } from "../lucide-mock";
 
@@ -41,5 +41,16 @@ describe("Reminders", () => {
     await screen.findByText(/Nobody gets the reminders yet/);
     expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Send me a test" })).toBeNull();
+  });
+  it("confirms the name it matched, not the one typed", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => ({
+      ok: true, status: 200,
+      json: async () => (init?.method === "POST" ? { ok: true, staff_name: "Yukihiro Nishimura" }
+        : { recipients: [], recent: [], can_manage: true, next: [] }) })));
+    const R = (await import("@/components/vat/Reminders")).default;
+    render(<R />);
+    fireEvent.change(await screen.findByLabelText("Staff name to add"), { target: { value: "yukihiro nishimura" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    expect(await screen.findByText("Yukihiro Nishimura added.")).toBeTruthy();
   });
 });
