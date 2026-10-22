@@ -229,14 +229,17 @@
       </div>
 
       <h3><span class="en">Why 12/112</span><span class="ja">なぜ 12/112 なのか</span></h3>
-      <p class="en">Our menu prices already include VAT. A ₱1,120 bill is ₱1,000 of food plus ₱120 of VAT (12% of ₱1,000). So the VAT inside any amount paid is <span class="num">amount × 12 ÷ 112</span>.</p>
-      <p class="ja">メニューの値段にはVATが既に含まれています。₱1,120 の会計は、料理 ₱1,000 ＋ VAT ₱120（₱1,000の12%）です。だから、払われた金額に含まれるVATは <span class="num">金額 × 12 ÷ 112</span> で出ます。</p>
+      <p class="en">StoreHub keeps each menu price <strong>before VAT</strong> and adds 12% at the till, so the customer pays a whole-peso amount that includes VAT. Aburi Salmon Nigiri 2pcs is registered at ₱164.29; ₱164.29 + 12% = <strong>₱184</strong>, which is what the customer pays. (On 22 October 2026, 229 of the 243 products came to a whole peso this way, and every dine-in receipt checked was price + VAT = total.)</p>
+      <p class="ja">StoreHub はメニューの価格を<strong>税抜き</strong>で持ち、レジで12%を足します。お客さんが払うのは、VATを含んだきりのいい金額です。Aburi Salmon Nigiri 2pcs の登録価格は ₱164.29 で、₱164.29 ＋ 12% ＝ <strong>₱184</strong> がお客さんの払う額です（2026年10月22日に確認: 243品中229品がこの計算でぴったりの金額になり、確認した店内の会計はすべて「税抜き ＋ VAT ＝ 合計」でした）。</p>
+      <p class="en">The page works from <strong>what was paid</strong>, which already has the VAT inside. To take the VAT back out of a paid amount, the calculation is <span class="num">paid × 12 ÷ 112</span>. It gives the same VAT as 12% of the price before VAT.</p>
+      <p class="ja">画面は<strong>払われた金額</strong>（VATを含んだ額）から計算します。払われた金額からVATを取り出す式が <span class="num">払った額 × 12 ÷ 112</span> です。税抜き価格の12%と同じ額になります。</p>
       <div class="pair">
         <div class="receipt">
-          <p class="cap"><span class="en">A dine-in bill</span><span class="ja">店内飲食の会計</span></p>
-          <div class="row"><span>Paid</span><span>₱1,120.00</span></div>
-          <div class="row"><span>VAT = 1,120 × 12 ÷ 112</span><span>₱120.00</span></div>
-          <div class="row total"><span>VATable sales</span><span>₱1,000.00</span></div>
+          <p class="cap"><span class="en">One dine-in item</span><span class="ja">店内飲食の1品</span></p>
+          <div class="row"><span>Price in StoreHub (before VAT)</span><span>₱164.29</span></div>
+          <div class="row"><span>+ VAT 12%</span><span>₱19.71</span></div>
+          <div class="row total"><span>Customer pays</span><span>₱184.00</span></div>
+          <div class="row" style="margin-top:8px"><span>Check: 184 × 12 ÷ 112</span><span>₱19.71</span></div>
         </div>
         <div class="receipt">
           <p class="cap"><span class="en">A supplier invoice</span><span class="ja">仕入先の請求書</span></p>
@@ -249,14 +252,15 @@
       <p class="ja">画面は四半期の全店舗・全チャネルを合計し、最後に<strong>1回だけ</strong>端数処理します。店舗ごとの箱をそれぞれ丸めると、合計と数センタボずれることがあるのはこのためです。正しいのは四半期の合計です。</p>
 
       <h3><span class="en">Seniors and PWD</span><span class="ja">シニア・PWD（障がい者）</span></h3>
-      <p class="en">A senior citizen or a person with disability does not pay VAT on their own meal, and also gets 20% off. The VAT comes off first, then the 20%:</p>
-      <p class="ja">シニア・PWDのお客さんは、本人の食事にVATがかからず、さらに20%割引になります。先にVATを外し、そのあと20%を引きます。</p>
+      <p class="en">A senior citizen or a person with disability does not pay VAT on their own meal, and also gets 20% off. The 20% is taken from the price before VAT:</p>
+      <p class="ja">シニア・PWDのお客さんは、本人の食事にVATがかからず、さらに20%割引になります。20%は税抜き価格から引きます。</p>
       <div class="receipt">
         <p class="cap"><span class="en">One senior's meal</span><span class="ja">シニア1名の食事</span></p>
-        <div class="row"><span>Menu price</span><span>₱1,120.00</span></div>
-        <div class="row"><span>Without VAT (÷ 1.12)</span><span>₱1,000.00</span></div>
+        <div class="row"><span>Price before VAT</span><span>₱1,000.00</span></div>
+        <div class="row"><span>VAT</span><span>none</span></div>
         <div class="row"><span>20% discount</span><span>− ₱200.00</span></div>
         <div class="row total"><span>Paid · VAT-exempt sale</span><span>₱800.00</span></div>
+        <div class="row" style="margin-top:8px"><span>An ordinary customer pays</span><span>₱1,120.00</span></div>
       </div>
       <div class="note stop">
         <p class="en"><strong>The cashier must use the Senior/PWD button in StoreHub.</strong> If the 20% is given with the ordinary-discount button, the receipt still shows VAT, and VAT printed on a receipt is owed to the BIR even though the customer did not really pay it. The page lists these bills by store (see <a href="#screen">Output VAT</a>). When you see them, tell that store's manager.</p>
