@@ -63,6 +63,7 @@
 | Management Channel の**配信**（当番表 / 送信ガード / Discord通知 / エスカレーション / 送信量の決め方） | **Management Channel Delivery** | `docs/manuals/management-channel-delivery-manual.html` |
 | Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
 | 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け / **VAT Ledger**（`/admin/finance/vat`）） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
+| **VAT Ledger の操作と計算**（`/admin/finance/vat` の全セクション：2550Q・Output/Input VAT・To check の判断・Grab・源泉・SLSP・リマインダー・締め） | **VAT Ledger Handbook**（日英切替・申告担当向け）。税務・証憑マニュアルと**両方**直す | `docs/manuals/vat-guide.html`（画像は `docs/manuals/vat-guide/`） |
 | **Receipt Log**（`/store/receipt-log` 入力フォーム / `/admin/procurement/receipt-log` 全件一覧・月次） | **Receipt Log**（日英切替・スタッフ向け） | `docs/manuals/receipt-log-manual.html` |
 | **Morning Review**（`/store/management/review` / レーン分割 / D評価 / 前日レビューの生成） | **The Morning Review**（日英切替・マネージャー向け） | `docs/manuals/morning-review-manual.html` |
 | **Required Reports**（`app/required_reports_api.py` の8項目・締切・スロット / `/admin/management/required-reports` / 提出4画面: Travel Path・Backup・Daily Inventory・Disposal） | **Kitchen Daily Reports**（キッチン向け）と **Back Office Daily Review**（BO向け）の**2本とも** | `docs/manuals/kitchen-daily-reports.html` / `docs/manuals/back-office-daily-review.html` |
@@ -114,6 +115,15 @@
    - file_path: docs/manuals/tax-filing-manual.html
    - url: https://claude.ai/code/artifact/a1d6d054-68fd-42e2-90d8-51c22192cfa5   ← 税務・証憑マニュアル
    - favicon: 🧾
+
+   - file_path: docs/manuals/vat-guide.html
+   - url: https://claude.ai/artifact/NUePjbcbtkL5MiDGSN9KHp   ← VAT Ledger Handbook（日英切替・既定は英語）
+   - icon: book
+   ※ 読者は申告担当（Aliana・Yusuke・Yukihiro）。**画像16枚を `files` で一緒に publish する**
+     （`vat-guide/NN-*.jpg` → `docs/manuals/vat-guide/NN-*.jpg`）。撮り直しは
+     scratchpad の Playwright スクリプト（PC幅1440・2倍・オーナーが手でログイン）。
+     **画面の文言・ボタン名を変えたら、本文の `<span class="ui">` も直す。**
+     「重複を除くボタンは画面に無い」と書いてある — 作ったらこの記述が嘘になる。
 
    - file_path: docs/manuals/emergency-reporting.html
    - url: https://claude.ai/code/artifact/9b1b9346-202a-4c94-9dd3-2ad3f39cd702   ← Emergency Reporting（スタッフ向け）

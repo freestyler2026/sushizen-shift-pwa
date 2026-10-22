@@ -2,6 +2,13 @@
 
 
 
+## 2026-10-22 VAT Ledger Handbook（申告担当向けマニュアル）— 公開済み
+- https://claude.ai/artifact/NUePjbcbtkL5MiDGSN9KHp（日英切替・既定英語）。`docs/manuals/vat-guide.html` + 実機スクショ16枚（PC幅1440・2倍）
+- 撮影中に見つけた画面の不具合4件を修正・デプロイ: VAT列と「What is missing」/請求書番号とVATが接していた・仕入先住所に内部テーブル名（`drive_invoices #863`）・同じVATの食い違いが vat_amount/tax_amount で2回出ていた（1回のボタンで両方決まる）
+- Role Management の `Manage VAT Ledger` の説明文が「2307の記録」だけだったのを、実際に許す操作の一覧に直した（バックエンド・デプロイ済み）
+- ⚠️ **未解決: Aliana Manuel（ADMIN）は VAT Ledger を開けない。** 申告担当3名のうち、開けるのは HQ の2名だけ。ADMIN ロールに付けると7名（Caila・Cyrine・Erica・Marithel・Rose Ann・Ruby）にも広がる。権限は複数ロールの和集合なので、Aliana だけに付ける方法がある。オーナー判断待ち
+- ⚠️ **画面に「重複を除く」ボタンが無い**（Undo だけ）。マニュアルには「Yukihiro に送る」と書いた
+
 ## 2026-10-22 VAT 全体の ultra レビュー（バックエンド前半・後半）の反映 — デプロイ済み
 - 前半（取込・売上・読み取り）10件: 直した5（日付の未来選択・マニラ自動承認のTIN・一括読み直しの容量と失敗・写真の二重送信・batch_queued の検知）／分割の都合2／該当なし3（StoreHub 過去分は対応済み・差0件）。backend `66cef98d`
 - 後半（仕入・申告・エンドポイント）10件: 直した6＋予防3。**Inbox の請求書で読み取り2回が食い違うと永久に控除できなかった**（Approve は消さない）→ VAT Ledger で選べるように（Q3 5件・Q4 4件が選択待ち）。今日入れた「Inbox で直せば数える」案内は誤りだったので削除。VAT 権限で他人の Discord ID を上書きできた → 空欄の補充のみ。プールに返した接続の再利用（SLSP 保存・OCR キュー）。止まる読み取りは3回で error。SSO 写真の表示。2307 が明細の無い店舗で消えていた。backend `3439485a` / frontend `161204cb`

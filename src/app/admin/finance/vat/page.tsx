@@ -604,13 +604,13 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
     <div className="mt-2 overflow-x-auto">
       {err && <p className="mb-2 text-[12px] text-red-300">{err}</p>}
       <table className={`${STACK_TABLE} sm:min-w-[560px]`}>
-        <thead className={STACK_HEAD}><tr className={TABLE_HEADER}><th className="text-left">Date</th><th className="text-left">Supplier</th><th className="text-left">Invoice</th><th className="text-right sm:pr-4">VAT</th><th className="text-left">What is missing</th><th /></tr></thead>
+        <thead className={STACK_HEAD}><tr className={TABLE_HEADER}><th className="text-left">Date</th><th className="text-left">Supplier</th><th className="text-left sm:pr-4">Invoice</th><th className="text-right sm:pr-4">VAT</th><th className="text-left">What is missing</th><th /></tr></thead>
         <tbody className={STACK_BODY}>
           {rows.map((r) => (
             <tr key={`${r.source}${r.source_id}`} className={`${TABLE_ROW} ${STACK_ROW}`}>
               <td className={`${STACK_CELL} tabular-nums text-zinc-300 sm:text-left`}><span className={STACK_LABEL}>Date</span>{r.invoice_date}</td>
               <td className={`${STACK_TITLE} text-zinc-200 sm:order-none`}>{r.vendor || "—"}</td>
-              <td className={`${STACK_CELL} tabular-nums text-zinc-300 sm:text-left`}><span className={STACK_LABEL}>Invoice</span>{r.invoice_number || "—"}</td>
+              <td className={`${STACK_CELL} tabular-nums text-zinc-300 sm:pr-4 sm:text-left`}><span className={STACK_LABEL}>Invoice</span>{r.invoice_number || "—"}</td>
               <td className={`${STACK_CELL} tabular-nums text-white sm:pr-4`}><span className={STACK_LABEL}>VAT</span>{peso(r.vat)}</td>
               <td className="block py-1 text-[12px] text-amber-200 sm:table-cell sm:py-2">
                 {[...r.reasons, ...r.checks].map((k) => WHY[k] || k).concat(r.review_fields.length ? ["Two readings disagree"] : []).join(" · ")}
