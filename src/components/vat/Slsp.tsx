@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, ExternalLink } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
-import { GLASS_CARD, SMALL_BUTTON, TABLE_HEADER, TABLE_ROW, T_BODY, T_CAPTION, T_SECTION } from "@/lib/ui-tokens";
+import {
+  GLASS_CARD, SMALL_BUTTON, STACK_BODY, STACK_CELL, STACK_HEAD, STACK_LABEL, STACK_ROW, STACK_TABLE, STACK_TITLE,
+  TABLE_HEADER, TABLE_ROW, T_BODY, T_CAPTION, T_SECTION,
+} from "@/lib/ui-tokens";
 
 /* Summary List of Sales and Purchases as BIR RELIEF DAT files (VAT plan 5-3).
    Backend: app/vat_slsp.py, app/vat_seller_registry.py —
@@ -219,22 +222,22 @@ export default function Slsp({ year, quarter, refreshKey = 0 }: { year: number; 
 
           {/* Month by month */}
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead><tr className={TABLE_HEADER}>
+            <table className={`${STACK_TABLE} sm:min-w-[520px]`}>
+              <thead className={STACK_HEAD}><tr className={TABLE_HEADER}>
                 <th className="text-left">Month</th><th className="text-right">Sales, taxable</th><th className="text-right">Exempt</th>
                 <th className="text-right">Output tax</th><th className="text-right">Suppliers</th><th className="text-right">Input tax</th>
               </tr></thead>
-              <tbody>
+              <tbody className={STACK_BODY}>
                 {data.sales.map((s, i) => {
                   const p = data.purchases[i];
                   return (
-                    <tr key={s.month} className={TABLE_ROW}>
-                      <td className="py-1.5 text-zinc-200">{monthName(s.month)}</td>
-                      <td className="py-1.5 text-right tabular-nums text-zinc-200">{peso(s.taxable)}</td>
-                      <td className="py-1.5 text-right tabular-nums text-zinc-200">{peso(s.exempt)}</td>
-                      <td className="py-1.5 text-right tabular-nums text-white">{peso(s.tax)}</td>
-                      <td className="py-1.5 text-right tabular-nums text-zinc-200">{p?.lines.length ?? 0}</td>
-                      <td className="py-1.5 text-right tabular-nums text-white">{peso(p?.tax)}</td>
+                    <tr key={s.month} className={`${TABLE_ROW} ${STACK_ROW}`}>
+                      <td className={`${STACK_TITLE} text-zinc-200`}>{monthName(s.month)}</td>
+                      <td className={`${STACK_CELL} tabular-nums text-zinc-200`}><span className={STACK_LABEL}>Sales, taxable</span>{peso(s.taxable)}</td>
+                      <td className={`${STACK_CELL} tabular-nums text-zinc-200`}><span className={STACK_LABEL}>Exempt</span>{peso(s.exempt)}</td>
+                      <td className={`${STACK_CELL} tabular-nums text-white`}><span className={STACK_LABEL}>Output tax</span>{peso(s.tax)}</td>
+                      <td className={`${STACK_CELL} tabular-nums text-zinc-200`}><span className={STACK_LABEL}>Suppliers</span>{p?.lines.length ?? 0}</td>
+                      <td className={`${STACK_CELL} tabular-nums text-white`}><span className={STACK_LABEL}>Input tax</span>{peso(p?.tax)}</td>
                     </tr>);
                 })}
               </tbody>

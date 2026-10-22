@@ -48,3 +48,15 @@ export const BADGE_ACCENT = "inline-flex items-center gap-1.5 rounded-full bg-pu
 
 // Misc
 export const DIVIDER = "my-6 border-t border-white/5";
+
+// A table that stacks on a phone: below `sm` each row becomes a block, each cell a
+// "label ... value" line, and the header is hidden; from `sm` up it is a normal
+// table. Put the table's min width as `sm:min-w-[...]` so a phone never scrolls the
+// amounts off the screen (VAT Ledger, 2026-10-22: five tables did at 375px).
+export const STACK_TABLE = "block w-full text-sm sm:table";
+export const STACK_HEAD = "hidden sm:table-header-group";
+export const STACK_BODY = "block sm:table-row-group";
+export const STACK_ROW = "block py-2 sm:table-row sm:py-0";
+export const STACK_CELL = "flex items-baseline justify-between gap-3 py-0.5 text-right sm:table-cell sm:py-2";
+export const STACK_TITLE = "block py-0.5 font-medium sm:table-cell sm:py-2 sm:font-normal";
+export const STACK_LABEL = "shrink-0 text-left text-[11px] font-normal text-zinc-500 sm:hidden";

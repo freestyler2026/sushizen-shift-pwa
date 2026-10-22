@@ -12,6 +12,13 @@ import {
   KPI_LABEL,
   KPI_VALUE,
   SMALL_BUTTON,
+  STACK_BODY,
+  STACK_CELL,
+  STACK_HEAD,
+  STACK_LABEL,
+  STACK_ROW,
+  STACK_TABLE,
+  STACK_TITLE,
   TABLE_HEADER,
   TABLE_ROW,
   TAB_ACTIVE,
@@ -296,18 +303,19 @@ export default function VatLedgerPage() {
               {data.days_not_settled > 0 ? ` ${data.days_not_settled} store-days not yet re-read 7 days later (late cancellations can still move them).` : ""}
             </p>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-sm">
-                <thead><tr className={TABLE_HEADER}>
+              <table className={`${STACK_TABLE} sm:min-w-[520px]`}>
+                <thead className={STACK_HEAD}><tr className={TABLE_HEADER}>
                   <th className="text-left">Store</th>
                   {Object.keys(CHANNEL).map((c) => <th key={c} className="text-right">{CHANNEL[c]}</th>)}
                 </tr></thead>
-                <tbody>
+                <tbody className={STACK_BODY}>
                   {o.stores.map((s) => (
-                    <tr key={s.store} className={TABLE_ROW}>
-                      <td className="py-2 text-zinc-200">{STORE[s.store] || s.label}</td>
+                    <tr key={s.store} className={`${TABLE_ROW} ${STACK_ROW}`}>
+                      <td className={`${STACK_TITLE} text-zinc-200`}>{STORE[s.store] || s.label}</td>
                       {Object.keys(CHANNEL).map((c) => (
-                        <td key={c} className="py-2 text-right tabular-nums text-zinc-300">
-                          {s.channels[c] ? <>{peso(s.channels[c].sales)}<div className="text-[11px] text-zinc-500">VAT {peso(s.channels[c].vat)}</div></> : "—"}
+                        <td key={c} className={`${STACK_CELL} tabular-nums text-zinc-300`}>
+                          <span className={STACK_LABEL}>{CHANNEL[c]}</span>
+                          <span>{s.channels[c] ? <>{peso(s.channels[c].sales)}<span className="ml-2 text-[11px] text-zinc-500 sm:ml-0 sm:block">VAT {peso(s.channels[c].vat)}</span></> : "—"}</span>
                         </td>
                       ))}
                     </tr>
@@ -416,16 +424,16 @@ export default function VatLedgerPage() {
               Ask Grab Help &amp; Support, or open Finance → Reports with the business-owner account.
             </p>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] text-sm">
-                <thead><tr className={TABLE_HEADER}><th className="text-left">Store</th><th className="text-right">Commission</th><th className="text-right">Ads</th><th className="text-right">Cancelled-order fees</th><th className="text-right">VAT</th></tr></thead>
-                <tbody>
+              <table className={`${STACK_TABLE} sm:min-w-[480px]`}>
+                <thead className={STACK_HEAD}><tr className={TABLE_HEADER}><th className="text-left">Store</th><th className="text-right">Commission</th><th className="text-right">Ads</th><th className="text-right">Cancelled-order fees</th><th className="text-right">VAT</th></tr></thead>
+                <tbody className={STACK_BODY}>
                   {Object.entries(data.awaiting_invoice?.by_store || {}).map(([s, v]) => (
-                    <tr key={s} className={TABLE_ROW}>
-                      <td className="py-2 text-zinc-200">{STORE[s] || s}</td>
-                      <td className="py-2 text-right tabular-nums">{peso(v.commission)}</td>
-                      <td className="py-2 text-right tabular-nums">{peso(v.ads)}</td>
-                      <td className="py-2 text-right tabular-nums">{peso(v.cancelled_fees)}</td>
-                      <td className="py-2 text-right font-semibold tabular-nums text-white">{peso(v.vat)}</td>
+                    <tr key={s} className={`${TABLE_ROW} ${STACK_ROW}`}>
+                      <td className={`${STACK_TITLE} text-zinc-200`}>{STORE[s] || s}</td>
+                      <td className={`${STACK_CELL} tabular-nums`}><span className={STACK_LABEL}>Commission</span>{peso(v.commission)}</td>
+                      <td className={`${STACK_CELL} tabular-nums`}><span className={STACK_LABEL}>Ads</span>{peso(v.ads)}</td>
+                      <td className={`${STACK_CELL} tabular-nums`}><span className={STACK_LABEL}>Cancelled-order fees</span>{peso(v.cancelled_fees)}</td>
+                      <td className={`${STACK_CELL} font-semibold tabular-nums text-white`}><span className={STACK_LABEL}>VAT</span>{peso(v.vat)}</td>
                     </tr>))}
                 </tbody>
               </table>
@@ -496,16 +504,16 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
   return (
     <div className="mt-2 overflow-x-auto">
       {err && <p className="mb-2 text-[12px] text-red-300">{err}</p>}
-      <table className="w-full min-w-[560px] text-sm">
-        <thead><tr className={TABLE_HEADER}><th className="text-left">Date</th><th className="text-left">Supplier</th><th className="text-left">Invoice</th><th className="text-right">VAT</th><th className="text-left">What is missing</th><th /></tr></thead>
-        <tbody>
+      <table className={`${STACK_TABLE} sm:min-w-[560px]`}>
+        <thead className={STACK_HEAD}><tr className={TABLE_HEADER}><th className="text-left">Date</th><th className="text-left">Supplier</th><th className="text-left">Invoice</th><th className="text-right">VAT</th><th className="text-left">What is missing</th><th /></tr></thead>
+        <tbody className={STACK_BODY}>
           {rows.map((r) => (
-            <tr key={`${r.source}${r.source_id}`} className={TABLE_ROW}>
-              <td className="py-2 tabular-nums text-zinc-300">{r.invoice_date}</td>
-              <td className="py-2 text-zinc-200">{r.vendor || "—"}</td>
-              <td className="py-2 tabular-nums text-zinc-300">{r.invoice_number || "—"}</td>
-              <td className="py-2 text-right tabular-nums text-white">{peso(r.vat)}</td>
-              <td className="py-2 text-[12px] text-amber-200">
+            <tr key={`${r.source}${r.source_id}`} className={`${TABLE_ROW} ${STACK_ROW}`}>
+              <td className={`${STACK_CELL} tabular-nums text-zinc-300 sm:text-left`}><span className={STACK_LABEL}>Date</span>{r.invoice_date}</td>
+              <td className={`${STACK_TITLE} text-zinc-200 sm:order-none`}>{r.vendor || "—"}</td>
+              <td className={`${STACK_CELL} tabular-nums text-zinc-300 sm:text-left`}><span className={STACK_LABEL}>Invoice</span>{r.invoice_number || "—"}</td>
+              <td className={`${STACK_CELL} tabular-nums text-white`}><span className={STACK_LABEL}>VAT</span>{peso(r.vat)}</td>
+              <td className="block py-1 text-[12px] text-amber-200 sm:table-cell sm:py-2">
                 {[...r.reasons, ...r.checks].map((k) => WHY[k] || k).concat(r.review_fields.length ? ["Two readings disagree"] : []).join(" · ")}
                 {(r.checks.length > 0 || r.buyer_decision) && (
                   <div className="mt-1 text-zinc-400">Read: TIN {r.buyer_tin || "—"} · {r.buyer_name || "no name"}</div>)}
@@ -521,7 +529,7 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
                     <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => decide(r, "not_ours")}>Not ours</button>
                   </div>)}
               </td>
-              <td className="py-2 text-right">
+              <td className="block py-1 sm:table-cell sm:py-2 sm:text-right">
                 {r.source === "drive_invoices" ? (
                   <a className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200"
                     href={`/admin/procurement/invoices?city=manila&invoice=${r.source_id}`}>
