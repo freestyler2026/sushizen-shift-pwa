@@ -253,6 +253,12 @@ async function fetchInvoiceArchives(context, listReq, payouts, acct) {
     // un-clean and is fetched again tomorrow (review 2026-10-21).
     const missing = invoicesOf(p).filter(inv => filesOf(inv).length === 0).map(inv => String(inv.invoiceId));
     const attachments = withFiles.flatMap(filesOf);
+    if (invoicesOf(p).length === 0) {
+      // A payout with no invoices at all has nothing to fetch; counting it as failed made the
+      // job exit 1 every day for the whole window (2026-10-22 ultra review).
+      console.log(`  · ${payoutId} ${p.at}: no invoices on this payout`);
+      continue;
+    }
     if (attachments.length === 0) {
       failed++;
       console.error(`  ❌ ${payoutId} ${p.at}: no invoice files listed yet (${missing.join(', ') || 'no invoices'})`);

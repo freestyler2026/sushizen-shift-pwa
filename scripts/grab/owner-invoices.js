@@ -14,7 +14,8 @@
 const fs = require('fs');
 const { chromium } = require('playwright');
 
-const OUT = process.env.OUT || 'grab-owner-invoices.json';
+// The owner's invoice data: kept out of the repository unless OUT says otherwise.
+const OUT = process.env.OUT || require('path').join(require('os').tmpdir(), 'grab-owner-invoices.json');
 
 (async () => {
   // Headed on purpose: the portal logs a headless browser out (hydra-shield).

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Download, ExternalLink } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { manilaDate, peso } from "@/lib/vat-format";
 import {
+  INPUT_COMPACT_CLASS,
   GLASS_CARD, SMALL_BUTTON, STACK_BODY, STACK_CELL, STACK_HEAD, STACK_LABEL, STACK_ROW, STACK_TABLE, STACK_TITLE,
   TABLE_HEADER, TABLE_ROW, T_BODY, T_CAPTION, T_SECTION,
 } from "@/lib/ui-tokens";
@@ -46,12 +48,6 @@ const PROFILE_FIELDS: [keyof Profile, string, string][] = [
   ["address1", "Registered address, line 1", "street, barangay"],
   ["address2", "Registered address, line 2", "city, ZIP"],
 ];
-
-function peso(v: Money | number | null | undefined): string {
-  const n = Number(v || 0);
-  const s = `₱${Math.abs(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return n < 0 ? `−${s}` : s;
-}
 
 function monthName(m: string): string {
   const [y, mo] = m.split("-").map(Number);
@@ -145,7 +141,7 @@ export default function Slsp({ year, quarter, refreshKey = 0 }: { year: number; 
     } catch { setError("Network error during the download. Try again."); } finally { setBusy(""); }
   };
 
-  const input = "w-full rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-sm text-white";
+  const input = `${INPUT_COMPACT_CLASS} w-full`;
 
   return (
     <section id="slsp" className={`${GLASS_CARD} p-4`}>
@@ -190,7 +186,7 @@ export default function Slsp({ year, quarter, refreshKey = 0 }: { year: number; 
             </div>
             <p className={T_CAPTION}>
               {data.profile.saved
-                ? `Saved by ${data.profile.updated_by} · ${(data.profile.updated_at || "").slice(0, 10)}`
+                ? `Saved by ${data.profile.updated_by} · ${manilaDate(data.profile.updated_at)}`
                 : "Suggested from what foodpanda prints on our invoices — check it against the Certificate of Registration (BIR Form 2303) and save."}
             </p>
             {!editProfile && (

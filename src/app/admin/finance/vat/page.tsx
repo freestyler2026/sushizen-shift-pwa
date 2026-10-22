@@ -7,6 +7,7 @@ import { getAuth, getAuthHeaders, hasRouteAccess } from "@/lib/auth";
 import Form2550Q from "@/components/vat/Form2550Q";
 import Slsp from "@/components/vat/Slsp";
 import Reminders from "@/components/vat/Reminders";
+import { peso } from "@/lib/vat-format";
 import {
   GLASS_CARD,
   KPI_CARD,
@@ -116,12 +117,6 @@ const WHT_STATE: Record<string, string> = {
   received_differs: "2307 received — amount differs",
   nothing_withheld: "Nothing withheld",
 };
-
-function peso(v: Money | number | null | undefined): string {
-  const n = Number(v || 0);
-  const s = `₱${Math.abs(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return n < 0 ? `−${s}` : s;
-}
 
 /** Today in Manila: the filing deadline is Manila's, whatever the device's clock says. */
 function manilaToday(): string {

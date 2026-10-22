@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Lock, Unlock } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { manilaTime } from "@/lib/vat-format";
 import { GLASS_CARD, SMALL_BUTTON, TABLE_HEADER, TABLE_ROW, T_BODY, T_CAPTION, T_SECTION } from "@/lib/ui-tokens";
 
 /* The quarter's BIR Form 2550Q, item by item, and closing the quarter (VAT plan 5-1 / 5-4).
@@ -100,7 +101,7 @@ export default function Form2550Q({ year, quarter, canManage, quarterEnded, refr
         </div>
         {data && (data.closed ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[12px] text-emerald-200">
-            <Lock className="h-3.5 w-3.5" />Closed by {data.closed_by} · {(data.closed_at || "").slice(0, 16).replace("T", " ")} UTC
+            <Lock className="h-3.5 w-3.5" />Closed by {data.closed_by} · {manilaTime(data.closed_at)}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[12px] text-amber-200">

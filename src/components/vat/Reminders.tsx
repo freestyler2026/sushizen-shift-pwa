@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, BellRing } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
-import { GLASS_CARD, SMALL_BUTTON, T_BODY, T_CAPTION, T_SECTION } from "@/lib/ui-tokens";
+import { GLASS_CARD, INPUT_COMPACT_CLASS, SMALL_BUTTON, T_BODY, T_CAPTION, T_SECTION } from "@/lib/ui-tokens";
+import { manilaTime } from "@/lib/vat-format";
 
 /* Deadline reminders for the quarterly VAT filing (VAT plan 6-3).
    Backend: app/vat_deadline.py — GET /api/admin/vat/reminders,
@@ -18,15 +19,6 @@ interface Data { recipients: Recipient[]; next: { date: string; year: number; qu
 const KIND: Record<string, string> = { quarter_end: "quarter ends", due_minus_10: "10 days before the due date" };
 const STATUS: Record<string, string> = { sent: "sent", failed: "failed — tried again next hour", sending: "sending",
   no_discord_id: "no Discord id — tried again once one is entered" };
-
-/** A UTC timestamp from the server, on Manila's clock (where the filing happens). */
-function manilaTime(at: string): string {
-  const iso = at.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return at.slice(0, 16);
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false }).format(d).replace(",", "") + " Manila";
-}
 
 export default function Reminders() {
   const [data, setData] = useState<Data | null>(null);
@@ -64,7 +56,7 @@ export default function Reminders() {
     } catch { setError("Network error. Try again."); return false; } finally { setBusy(""); }
   };
 
-  const input = "rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-sm text-white";
+  const input = INPUT_COMPACT_CLASS;
 
   return (
     <section id="reminders" className={`${GLASS_CARD} p-4`}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -99,8 +99,12 @@ export default function VendorMasterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Only the answer for the city on screen is used: a slow answer for the tab just left
+  // must not replace the vendors and own numbers of the one just chosen.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
     if (!city) return;
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/finance/vendors?city=${city}`, {
@@ -108,15 +112,17 @@ export default function VendorMasterPage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = await res.json();
-      setVendors(d.vendors || []);
       const own = await fetch(`/api/admin/finance/own-tax-numbers?city=${city}`, {
         headers: getAuthHeaders(getAuth()),
       });
-      setOwnTins(own.ok ? (await own.json()).rows || [] : []);
+      const rows = own.ok ? (await own.json()).rows || [] : [];
+      if (seq !== loadSeq.current) return;
+      setVendors(d.vendors || []);
+      setOwnTins(rows);
     } catch (e) {
-      setBanner({ kind: "err", text: `Could not load vendors: ${e}` });
+      if (seq === loadSeq.current) setBanner({ kind: "err", text: `Could not load vendors: ${e}` });
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [city]);
 
