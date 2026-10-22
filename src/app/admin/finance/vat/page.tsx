@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
 import { getAuth, getAuthHeaders, hasRouteAccess } from "@/lib/auth";
-import { isoToday } from "@/lib/date";
 import {
   GLASS_CARD,
   KPI_CARD,
@@ -31,10 +30,10 @@ interface ChannelBox { transactions: number; sales: Money; vat: Money }
 interface Store { store: string; label: string; channels: Record<string, ChannelBox> }
 interface AdjLine { platform: string; store: string; compensation: Money; alignment: Money; applied: Money; vat: Money;
   not_applied: Record<string, { orders: number; sales: Money }> }
-interface FillLine { platform: string; store: string; orders: number; sales: Money; vat: Money; days: number;
+interface FillLine { platform: string; store: string; orders: number; sales: Money; vat: Money; days: number | null;
   first: string; last: string; source: string }
 interface InputRow { bucket: "deductible" | "needs_review" | "not_deductible"; reasons: string[]; checks: string[];
-  review_fields: string[]; source: string; source_id: string; vendor: string | null; invoice_number: string | null;
+  review_fields: string[]; source: string; source_id: string; review_status?: string; vendor: string | null; invoice_number: string | null;
   invoice_date: string; total: Money; vat: Money }
 interface WhtLine { platform: string; store: string; withheld: Money; state: string;
   received: { amount: Money; by: string; at: string; note: string } | null }
@@ -49,10 +48,13 @@ interface Summary {
     platform_adjustments: { applied: Money; vat: Money; lines: AdjLine[];
       platform_only?: { sales: Money; vat: Money; lines: FillLine[] } };
     days_not_settled: { store: string; days: number; first: string | null; last: string | null }[];
-    days_without_sales: { store: string; days: number }[];
+    days_without_sales: { store: string; days: number; dates: string[] }[];
+    not_in_storehub_before: { store: string; channel: string; first_in_storehub: string; days_missing: number;
+      filled_from_platform: { orders: number; days: number } | null }[];
   };
   input: { deductible: { documents: number; input_vat: Money }; needs_review: { documents: number; vat_printed: Money };
-    not_deductible: { documents: number; vat_printed: Money }; excluded_not_a_purchase: number; rows: InputRow[] };
+    not_deductible: { documents: number; vat_printed: Money }; excluded_not_a_purchase: number; rows: InputRow[];
+    rows_truncated?: boolean; deductible_by_basis?: Record<string, { documents: number; vat: Money }> };
   withholding: { withheld: Money; received_2307: Money; awaiting: number; lines: WhtLine[] };
 }
 
@@ -81,12 +83,18 @@ const WHT_STATE: Record<string, string> = {
 
 function peso(v: Money | number | null | undefined): string {
   const n = Number(v || 0);
-  return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const s = `₱${Math.abs(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return n < 0 ? `−${s}` : s;
+}
+
+/** Today in Manila: the filing deadline is Manila's, whatever the device's clock says. */
+function manilaToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
 }
 
 /** The quarter to open on: the one being filed while its 25 days run, else the current one. */
 function defaultQuarter(): { year: number; quarter: number } {
-  const [y, m, d] = isoToday().split("-").map(Number);
+  const [y, m, d] = manilaToday().split("-").map(Number);
   const q = Math.floor((m - 1) / 3) + 1;
   const firstMonth = (q - 1) * 3 + 1;
   if (m === firstMonth && d <= 25) return q === 1 ? { year: y - 1, quarter: 4 } : { year: y, quarter: q - 1 };
@@ -102,26 +110,36 @@ export default function VatLedgerPage() {
   const [loading, setLoading] = useState(false);
   const [draft2307, setDraft2307] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState("");
+  const [whtError, setWhtError] = useState("");
+  const [allowed, setAllowed] = useState(true);
+  const seq = useRef(0);
 
   useEffect(() => {
     setMounted(true);
     const a = getAuth();
     if (!a) { router.replace("/"); return; }
-    if (a.role !== "HQ" && !hasRouteAccess("/admin/finance/vat", a)) router.replace("/");
+    // The API also accepts Management Accounting access; the screen does the same,
+    // and says so instead of sending the person home without a word.
+    setAllowed(a.role === "HQ" || hasRouteAccess("/admin/finance/vat", a) || hasRouteAccess("/admin/mgmt-accounting", a));
   }, [router]);
 
   const load = useCallback(async () => {
+    const my = ++seq.current;
     setLoading(true);
     setError("");
+    // A quarter's figures must not stay on screen under another quarter's tab:
+    // a 2307 pressed then was recorded for the tab, with the old row's numbers.
+    setData((d) => (d && (d.year !== year || d.quarter !== quarter) ? null : d));
     try {
       const res = await fetch(`/api/admin/vat/summary?year=${year}&quarter=${quarter}`, { headers: getAuthHeaders(getAuth()) });
       const body = await res.json().catch(() => null);
+      if (my !== seq.current) return;
       if (!res.ok) { setData(null); setError(body?.detail || `Could not load the quarter (HTTP ${res.status}).`); return; }
       setData(body);
     } catch {
-      setError("Network error. Press Refresh to try again.");
+      if (my === seq.current) setError("Network error. Press Refresh to try again.");
     } finally {
-      setLoading(false);
+      if (my === seq.current) setLoading(false);
     }
   }, [year, quarter]);
 
@@ -129,7 +147,7 @@ export default function VatLedgerPage() {
 
   // 2026 Q1 (the first quarter with data) to the calendar quarter running today.
   const quarters = useMemo(() => {
-    const [cy, cm] = isoToday().split("-").map(Number);
+    const [cy, cm] = manilaToday().split("-").map(Number);
     const cq = Math.floor((cm - 1) / 3) + 1;
     const out: { year: number; quarter: number }[] = [];
     for (let y = 2026; y <= cy; y++) for (let q = 1; q <= 4; q++) if (y < cy || q <= cq) out.push({ year: y, quarter: q });
@@ -143,9 +161,16 @@ export default function VatLedgerPage() {
     .sort((a, b) => a.invoice_date.localeCompare(b.invoice_date)), [data]);
 
   const save2307 = async (w: WhtLine) => {
-    const key = `${w.platform}|${w.store}`;
-    const amount = Number(draft2307[key] ?? w.withheld);
-    if (!Number.isFinite(amount) || amount < 0) { setError("Enter the amount printed on the Form 2307."); return; }
+    const key = `${year}Q${quarter}|${w.platform}|${w.store}`;
+    const raw = (draft2307[key] || "").replace(/[,\s₱]/g, "");
+    const amount = Number(raw);
+    // Typed from the form, never prefilled from the statement: a prefilled figure
+    // recorded "received" with one tap, and nobody had compared it.
+    if (!raw || !Number.isFinite(amount) || amount <= 0) {
+      setWhtError(`Type the amount printed on the Form 2307 for ${PLATFORM[w.platform]} ${STORE[w.store] || w.store}.`);
+      return;
+    }
+    setWhtError("");
     setSaving(key);
     try {
       const res = await fetch("/api/admin/vat/2307", {
@@ -153,23 +178,35 @@ export default function VatLedgerPage() {
         headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
         body: JSON.stringify({ platform: w.platform, store: w.store, year, quarter, amount }),
       });
-      if (!res.ok) { const b = await res.json().catch(() => null); setError(b?.detail || "Could not save the 2307."); return; }
+      if (!res.ok) { const b = await res.json().catch(() => null); setWhtError(b?.detail || "Could not save the 2307."); return; }
+      setDraft2307((d) => { const n = { ...d }; delete n[key]; return n; });
       await load();
     } finally { setSaving(""); }
   };
   const undo2307 = async (w: WhtLine) => {
-    const key = `${w.platform}|${w.store}`;
+    const key = `${year}Q${quarter}|${w.platform}|${w.store}`;
+    if (!window.confirm(`Remove the Form 2307 recorded for ${PLATFORM[w.platform]} ${STORE[w.store] || w.store}, ${year} Q${quarter}?`)) return;
     setSaving(key);
     try {
       const res = await fetch(`/api/admin/vat/2307?platform=${w.platform}&store=${w.store}&year=${year}&quarter=${quarter}`, {
         method: "DELETE", headers: getAuthHeaders(getAuth()),
       });
-      if (!res.ok) { setError("Could not undo the 2307."); return; }
+      if (!res.ok) { const b = await res.json().catch(() => null); setWhtError(b?.detail || "Could not undo the 2307."); return; }
       await load();
     } finally { setSaving(""); }
   };
 
   if (!mounted) return null;
+  if (!allowed) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <h1 className={T_PAGE_TITLE}>VAT Ledger</h1>
+        <p className={`${T_BODY} mt-3`}>
+          Your role does not include the VAT Ledger. Ask HQ to grant &ldquo;View VAT Ledger&rdquo; in Role Management.
+        </p>
+      </div>
+    );
+  }
 
   const o = data?.output;
   const pa = o?.platform_adjustments;
@@ -208,7 +245,12 @@ export default function VatLedgerPage() {
             <div className={KPI_CARD}>
               <div className={KPI_LABEL}>VAT payable (so far)</div>
               <div className={KPI_VALUE}>{peso(data.payable)}</div>
-              <div className={T_CAPTION}>{peso(data.output_vat)} output − {peso(data.input_vat)} input</div>
+              <div className={T_CAPTION}>
+                {peso(data.output_vat)} output − {peso(data.input_vat)} input.
+                {Number(data.input.needs_review.vat_printed) > 0 || Number(data.awaiting_invoice?.vat) > 0
+                  ? ` Lower by up to ${peso(Number(data.input.needs_review.vat_printed) + Number(data.awaiting_invoice?.vat || 0))} once the invoices to check and Grab's invoice are in.`
+                  : ""}
+              </div>
             </div>
             <div className={KPI_CARD}>
               <div className={KPI_LABEL}>2550Q due</div>
@@ -231,7 +273,8 @@ export default function VatLedgerPage() {
           <section className={`${GLASS_CARD} p-4`}>
             <h2 className={T_SECTION}>Output VAT</h2>
             <p className={`${T_CAPTION} mb-3`}>
-              {data.from} to {o.through}. VAT = paid amount × 12/112, rounded once. Days not yet re-read 7 days later: {data.days_not_settled}.
+              {data.from} to {o.through}. VAT = paid amount × 12/112, rounded once.
+              {data.days_not_settled > 0 ? ` ${data.days_not_settled} store-days not yet re-read 7 days later (late cancellations can still move them).` : ""}
             </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] text-sm">
@@ -254,6 +297,15 @@ export default function VatLedgerPage() {
               </table>
             </div>
 
+            {(o.not_in_storehub_before.some((g) => !g.filled_from_platform) || o.days_without_sales.length > 0) && (
+              <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-200">
+                {o.not_in_storehub_before.filter((g) => !g.filled_from_platform).map((g) => (
+                  <div key={g.store + g.channel}>{STORE[g.store] || g.store} {CHANNEL[g.channel] || g.channel}: {g.days_missing} days before {g.first_in_storehub} are in neither StoreHub nor the platform&apos;s records — not in the figures.</div>))}
+                {o.days_without_sales.map((g) => (
+                  <div key={g.store}>{STORE[g.store] || g.store}: {g.days} days with no sale at all ({g.dates.slice(0, 5).join(", ")}{g.days > 5 ? "…" : ""}) — closed, or not read.</div>))}
+              </div>
+            )}
+
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-xl border border-white/8 p-3">
                 <div className="text-sm font-semibold text-white">Delivery apps, aligned to the platform</div>
@@ -267,7 +319,7 @@ export default function VatLedgerPage() {
                   (pa?.platform_only?.lines || []).map((l) => (
                     <div key={`${l.platform}${l.store}`} className="mt-2 text-sm text-zinc-300">
                       {STORE[l.store] || l.store} {PLATFORM[l.platform]}: {peso(l.sales)} · VAT {peso(l.vat)}
-                      <div className="text-[11px] text-zinc-500">{l.orders} orders, {l.days} days ({l.first} to {l.last}) · {l.source}</div>
+                      <div className="text-[11px] text-zinc-500">{l.orders} orders{l.days != null ? `, ${l.days} days` : ""} ({l.first} to {l.last}) · {l.source}</div>
                     </div>))}
               </div>
               <div className="rounded-xl border border-white/8 p-3">
@@ -294,7 +346,13 @@ export default function VatLedgerPage() {
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
                 <div className="text-emerald-300">Deductible</div>
                 <div className="tabular-nums text-white">{peso(data.input.deductible.input_vat)}</div>
-                <div className={T_CAPTION}>{data.input.deductible.documents} invoices (foodpanda&apos;s included)</div>
+                <div className={T_CAPTION}>{data.input.deductible.documents} invoices</div>
+                {Object.entries(data.input.deductible_by_basis || {}).map(([k, v]) => (
+                  <div key={k} className="text-[11px] text-zinc-400">
+                    {({ foodpanda_invoice: "foodpanda's invoices", approved_by_a_person: "approved by a person",
+                       approved_by_the_reader: "approved by the reader (read twice, nothing to check)",
+                       read_twice_not_reviewed: "read twice, not reviewed yet" } as Record<string, string>)[k] || k}: {peso(v.vat)} ({v.documents})
+                  </div>))}
               </div>
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
                 <div className="text-amber-300">To check</div>
@@ -315,10 +373,13 @@ export default function VatLedgerPage() {
             <h3 className="mt-5 text-sm font-semibold text-white">VAT printed but not deductible</h3>
             <p className={T_CAPTION}>A supplier printed VAT, but the invoice misses something the BIR requires (RMC 77-2024). Ask the supplier for a corrected invoice.</p>
             <InvoiceList rows={notRows} empty="None this quarter." />
+            {data.input.rows_truncated && <p className="mt-2 text-[12px] text-amber-200">The list stops at 1,000 rows; the totals above count every document.</p>}
           </section>
 
           {/* Grab */}
           <section id="grab" className={`${GLASS_CARD} p-4`}>
+            {Object.keys(data.awaiting_invoice?.by_store || {}).length === 0 && (
+              <p className={`${T_CAPTION} mb-1`}>No Grab transactions read for this quarter.</p>)}
             <h2 className={T_SECTION}>Waiting for Grab&apos;s VAT invoice</h2>
             <p className={`${T_CAPTION} mb-2`}>
               The amounts are exact (Grab&apos;s own transactions), but input VAT needs Grab&apos;s VAT invoice to our TIN and registered name.
@@ -347,9 +408,10 @@ export default function VatLedgerPage() {
             <p className={`${T_CAPTION} mb-2`}>
               Not VAT: a credit against income tax, usable only with the platform&apos;s Form 2307. {peso(data.withholding.withheld)} withheld this quarter, {data.withholding.awaiting} 2307s outstanding.
             </p>
+            {whtError && <p className="mb-2 text-[12px] text-red-300">{whtError}</p>}
             <div className="space-y-2">
               {data.withholding.lines.filter((w) => Number(w.withheld) > 0 || w.received).map((w) => {
-                const key = `${w.platform}|${w.store}`;
+                const key = `${year}Q${quarter}|${w.platform}|${w.store}`;
                 return (
                   <div key={key} className="flex flex-wrap items-center gap-3 rounded-xl border border-white/8 p-3 text-sm">
                     <div className="min-w-[160px] text-zinc-200">{PLATFORM[w.platform]} · {STORE[w.store] || w.store}</div>
@@ -357,14 +419,14 @@ export default function VatLedgerPage() {
                     <span className={w.state === "received" ? "text-emerald-300" : "text-amber-200"}>{WHT_STATE[w.state] || w.state}</span>
                     {w.received && <span className={T_CAPTION}>{peso(w.received.amount)} recorded by {w.received.by}</span>}
                     {data.can_manage && (w.received ? (
-                      <button className={SMALL_BUTTON} disabled={saving === key} onClick={() => undo2307(w)}>Undo</button>
+                      <button className={SMALL_BUTTON} disabled={saving === key || loading} onClick={() => undo2307(w)}>Undo</button>
                     ) : (
                       <span className="flex items-center gap-2">
-                        <input aria-label="Amount on the Form 2307" inputMode="decimal"
-                          className="w-28 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-right tabular-nums text-white"
-                          value={draft2307[key] ?? w.withheld}
+                        <input aria-label="Amount on the Form 2307" inputMode="decimal" placeholder="amount on the 2307"
+                          className="w-36 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-right tabular-nums text-white"
+                          value={draft2307[key] ?? ""}
                           onChange={(e) => setDraft2307((d) => ({ ...d, [key]: e.target.value }))} />
-                        <button className={SMALL_BUTTON} disabled={saving === key} onClick={() => save2307(w)}>2307 received</button>
+                        <button className={SMALL_BUTTON} disabled={saving === key || loading} onClick={() => save2307(w)}>2307 received</button>
                       </span>))}
                   </div>);
               })}
@@ -395,10 +457,16 @@ function InvoiceList({ rows, empty }: { rows: InputRow[]; empty: string }) {
                 {[...r.reasons, ...r.checks].map((k) => WHY[k] || k).concat(r.review_fields.length ? ["Two readings disagree"] : []).join(" · ")}
               </td>
               <td className="py-2 text-right">
-                {r.source === "drive_invoices" && (
-                  <a className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200" href="/admin/procurement/invoices">
-                    Inbox #{r.source_id}<ExternalLink className="h-3 w-3" />
-                  </a>)}
+                {r.source === "drive_invoices" ? (
+                  <a className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200"
+                    href={`/admin/procurement/invoices?city=manila&invoice=${r.source_id}`}>
+                    {r.review_status === "approved" ? "Approved" : "Pending"} #{r.source_id}<ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : r.source === "fp_sales_invoices" ? (
+                  <span className="text-[11px] text-zinc-500">foodpanda invoice</span>
+                ) : (
+                  <span className="text-[11px] text-zinc-500" title="Read from a PO-check or receiving photo; it has no Inbox card">Photo only</span>
+                )}
               </td>
             </tr>))}
         </tbody>

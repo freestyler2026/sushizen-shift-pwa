@@ -1081,6 +1081,15 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
           {/* Right: form */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <ConfidenceWarnings notes={invoice.confidence_notes} />
+            {(invoice.buyer_name || invoice.buyer_tin || invoice.tin_or_trn) && (
+              <div className="mb-3 rounded-lg border border-white/10 bg-white/5 p-2 text-[11px] text-white/70">
+                <span className="text-white/50">As read — check against the photo: </span>
+                Sold to <span className="text-white">{invoice.buyer_name || "—"}</span>
+                {" · "}buyer TIN <span className="font-mono text-white">{invoice.buyer_tin || "—"}</span>
+                {" · "}seller TIN <span className="font-mono text-white">{invoice.tin_or_trn || "—"}</span>
+                {invoice.seller_vat_status ? <> · seller {invoice.seller_vat_status === "NON_VAT" ? "Non-VAT" : "VAT-registered"}</> : null}
+              </div>
+            )}
             {(invoice.held_because || []).length > 0 && (
               <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
                 <span className="font-semibold">Not approved automatically: </span>
@@ -1533,12 +1542,14 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
 
         {/* Footer buttons */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-white/10 shrink-0 bg-black/20">
+          {/* On an approved invoice "Save Draft" moved it back to pending and took it
+              out of the Hub without a word -- the natural click after "Use re-reading". */}
           <button
-            onClick={() => submit("pending_review")}
+            onClick={() => submit(invoice.review_status === "approved" ? "approved" : "pending_review")}
             disabled={saving}
             className="text-sm px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all border border-white/10 disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save Draft"}
+            {saving ? "Saving…" : invoice.review_status === "approved" ? "Save (stays approved)" : "Save Draft"}
           </button>
           <div className="flex items-center gap-2">
             {/* Our own paperwork gets posted into the supplier invoice
