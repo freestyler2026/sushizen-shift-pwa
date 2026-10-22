@@ -197,7 +197,7 @@ td.muted{color:var(--muted);font-size:12px}
     <div>
       <div class="section-title">VAT Ledger（マニラの VAT 台帳）</div>
       <div class="section-path">/admin/finance/vat ・ メニュー「Procurement &amp; Tax」→ VAT Ledger</div>
-      <div class="section-desc">マニラ（TIN 457-994-635-00000）の四半期の売上税額・仕入税額・源泉税を1画面で出します。<strong>読み取り専用で、ここから申告はしません</strong>。</div>
+      <div class="section-desc">マニラ（TIN 457-994-635-00000）の四半期の売上税額・仕入税額・源泉税と、2550Q の各欄の値を1画面で出します。<strong>ここから申告はしません</strong>。欄の値を eBIRForms に写します。</div>
     </div>
   </div>
 
@@ -213,6 +213,33 @@ td.muted{color:var(--muted);font-size:12px}
       </tbody>
     </table></div>
     <div class="tip"><span class="tip-icon">💡</span><div>四半期は上のタブで切り替えます。期限の25日間は前の四半期が最初に開きます。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">BIR Form 2550Q の欄と、四半期の締め</div>
+    <p style="font-size:12px;color:var(--muted)">
+      4つの数字の下に、2550Q の欄番号ごとの値が出ます。番号は <strong>2550Q January 2023 (ENCS)</strong> のものです。
+      eBIRForms の April 2024 版で番号がずれている場合は、<strong>欄の名前</strong>で照合してください。括弧の数字は仕入税額の超過です。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>欄</th><th>どこから</th></tr></thead>
+      <tbody>
+        <tr><td>31 課税売上・売上税額</td><td>下の Output VAT（税抜売上と12%）</td></tr>
+        <tr><td>34 免税売上</td><td>シニア/PWD の売上</td></tr>
+        <tr><td>36 前期からの繰越</td><td>前の四半期を<strong>締めたとき</strong>の欄56が超過（マイナス）ならその額。締めていなければ0</td></tr>
+        <tr><td>42 国内仕入・仕入税額</td><td>下の Input VAT の控除できる分</td></tr>
+        <tr><td>46 仕入税額の無い仕入</td><td>Non-VAT の仕入先・OR など、控除できる VAT が無い請求書</td></tr>
+        <tr><td>51 免税売上に対応する仕入税額</td><td>当期の仕入税額 × 免税売上 ÷ 総売上（RR 16-2005 §4.110-4）</td></tr>
+        <tr><td>56 / 15 / 21 納付額</td><td>欄35B − 欄55B</td></tr>
+        <tr><td>16 源泉された VAT</td><td>0。デリバリーアプリが差し引くのは所得税で、VAT ではない</td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      <strong>Close</strong>（VAT の管理権限がある人だけ・四半期が終わってから）で、その時点の欄の値を固定します。締めた後は再計算しません。
+      押す前に、残っている注意（未確認の請求書・Grab の請求書待ちなど）が確認画面に出ます。締めた人と日時はログインから記録します。
+      申告した後に締めてください。次の四半期の欄36は、この締めの値から繰り越します。
+    </p>
+    <div class="tip"><span class="tip-icon">↩️</span><div>直すときは <strong>Reopen…</strong> を押し、理由を書いて Reopen。締めと解除の両方が記録に残ります。直したらもう一度 Close。</div></div>
   </div>
 
   <div class="card">
