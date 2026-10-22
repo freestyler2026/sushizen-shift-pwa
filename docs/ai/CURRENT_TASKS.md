@@ -9,7 +9,7 @@
 - 数字は不変: Q3 控除 ₱118,715.65 / Q4 ₱32,026.41
 - フロント7件: 全部直した（中程度以下）。締めの日時と SLSP の保存日がUTC表示→マニラ時刻／金額・時刻の書式を `src/lib/vat-format.ts` に1つ／小さな入力欄は `INPUT_COMPACT_CLASS`／Vendors の都市切替で古い応答が上書き→順番を見る／Grab の請求書取得の出力をリポジトリ外に（.gitignore も）／foodpanda で請求書の無い入金を失敗と数えて毎日赤になっていた。frontend `2a895a4b`
 - ✅ 画面で確認（オーナーのログイン）: Q4 の Inbox 請求書4件に読み取りの2択と Photo リンク（写真 200・JPEG）。誤った「Inbox で直す」案内は消えた
-- ✅ 2026-10-22 夕方、Vercel の Git 連携が push を拾わなくなった（20:45〜21:11 の3回）。**上限ではない**: プランは Pro（1日6,000回）で当日51回。Git 連携の設定も正常、Vercel の GitHub アプリもリポジトリを見られた（アクセス制限なし）、Vercel・GitHub とも障害なし。`vercel git disconnect --yes && vercel git connect --yes` でつなぎ直したら、次の push から Git 経由のデプロイが戻った（`79bcbadf` READY）。止まっていた間の `a190d9c1` は `vercel deploy --prod --yes` で出した
+- ✅ 2026-10-22 夕方、Vercel の Git 連携が push を拾わなかった（20:45〜21:33 の4回）。**原因は GitHub の障害**（UTC 15:28〜17:43、API・Actions 等。Vercel のダッシュボードにも「GitHub Outage — automatic deployments may be delayed」）。上限ではない（Pro・1日6,000回に対し51回）。私は最初 githubstatus の Webhooks 欄だけ見て「障害なし」と誤って報告し、Git 連携のつなぎ直しまでした（不要だった・害もなし）。止まっていた間の `a190d9c1` は `vercel deploy --prod --yes` で出した
 -読み取りの選択待ち Q3 5件・Q4 4件はオーナーが写真を見て選ぶ
 - レビュー用リポジトリ `~/vat-full-review`（と `~/vat-phase5-review`・`~/Desktop/vat-phase5-review`）は不要。削除はオーナー
 
