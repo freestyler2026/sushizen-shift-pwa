@@ -62,7 +62,7 @@
 | Store Operation Management Channel（BO Dashboard / Manager Inbox / **Manager Checklist** / Exception Templates / Pattern Detection / Area Manager Review） | **Management Channel Manual** | `docs/manuals/management-channel-manual.html` |
 | Management Channel の**配信**（当番表 / 送信ガード / Discord通知 / エスカレーション / 送信量の決め方） | **Management Channel Delivery** | `docs/manuals/management-channel-delivery-manual.html` |
 | Management Accounting系（全社管理 / コスト分析 / 月次レポート / 日次P&L / 設定） | **管理会計マニュアル** | `docs/manuals/management-accounting-manual.html` |
-| 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
+| 税務・証憑系（**Vendors 取引先マスタ** / 証憑台帳 / レシート自動仕分け / **VAT Ledger**（`/admin/finance/vat`）） | **税務・証憑マニュアル** | `docs/manuals/tax-filing-manual.html` |
 | **Receipt Log**（`/store/receipt-log` 入力フォーム / `/admin/procurement/receipt-log` 全件一覧・月次） | **Receipt Log**（日英切替・スタッフ向け） | `docs/manuals/receipt-log-manual.html` |
 | **Morning Review**（`/store/management/review` / レーン分割 / D評価 / 前日レビューの生成） | **The Morning Review**（日英切替・マネージャー向け） | `docs/manuals/morning-review-manual.html` |
 | **Required Reports**（`app/required_reports_api.py` の8項目・締切・スロット / `/admin/management/required-reports` / 提出4画面: Travel Path・Backup・Daily Inventory・Disposal） | **Kitchen Daily Reports**（キッチン向け）と **Back Office Daily Review**（BO向け）の**2本とも** | `docs/manuals/kitchen-daily-reports.html` / `docs/manuals/back-office-daily-review.html` |

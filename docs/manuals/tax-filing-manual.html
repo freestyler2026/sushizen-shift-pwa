@@ -105,6 +105,7 @@ td.muted{color:var(--muted);font-size:12px}
 <nav class="sidebar">
   <div class="sidebar-label">画面</div>
   <div class="nav-item active" onclick="show('vendors')"><span class="nav-icon">🧾</span><span>Vendors（取引先マスタ）</span></div>
+  <div class="nav-item" onclick="show('vat')"><span class="nav-icon">⚖️</span><span>VAT Ledger（マニラ）</span></div>
   <div class="sidebar-label">前提</div>
   <div class="nav-item" onclick="show('scope')"><span class="nav-icon">🧭</span><span>管理会計との違い</span></div>
   <div class="nav-item" onclick="show('why')"><span class="nav-icon">🎯</span><span>この仕組みの目的</span></div>
@@ -189,6 +190,64 @@ td.muted{color:var(--muted);font-size:12px}
     </p>
   </div>
 
+</section>
+<section class="section" id="sec-vat">
+  <div class="section-hero">
+    <div class="hero-icon">⚖️</div>
+    <div>
+      <div class="section-title">VAT Ledger（マニラの VAT 台帳）</div>
+      <div class="section-path">/admin/finance/vat ・ メニュー「Procurement &amp; Tax」→ VAT Ledger</div>
+      <div class="section-desc">マニラ（TIN 457-994-635-00000）の四半期の売上税額・仕入税額・源泉税を1画面で出します。<strong>読み取り専用で、ここから申告はしません</strong>。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">開いた瞬間に分かる4つの数字</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>表示</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr><td>VAT payable (so far)</td><td>売上税額 − 控除できる仕入税額。四半期の途中は「その日まで」の額</td></tr>
+        <tr><td>2550Q due</td><td>期限（四半期末から25日以内）まであと何日か</td></tr>
+        <tr><td>Invoices to check</td><td>人が写真と見比べるまで数えていない請求書の件数と VAT。押すと一覧へ移動（古い順）</td></tr>
+        <tr><td>Waiting for Grab's invoice</td><td>Grab の手数料・広告の VAT。金額は確定しているが、<strong>Grab の VAT 請求書が届くまで控除に入れない</strong></td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span><div>四半期は上のタブで切り替えます。期限の25日間は前の四半期が最初に開きます。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">売上税額（Output VAT）</div>
+    <p style="font-size:12px;color:var(--muted)">
+      店舗 × 経路（店内・GrabFood・foodpanda・その他）ごとの売上と VAT。計算は<strong>お客様が払った額 × 12/112</strong>で、端数は合計で1回だけ丸めます。
+      配達アプリはプラットフォームの記録に合わせます（取消補償は課税売上に入れ、チャージバックは引かない）。
+      StoreHub に配達の記録が無かった期間（Paranaque の GrabFood 8/21 まで・foodpanda 9/6 まで）は、Grab の財務明細と foodpanda の日次請求書から入れ、件数・日数・出典を出します。
+    </p>
+    <div class="tip"><span class="tip-icon">⚠️</span><div>シニア/PWD の20%を<strong>通常の割引ボタン</strong>で打った請求は、レシートに VAT を印字しているので VAT を納める必要があります。店舗では Senior/PWD のボタンを使ってください。画面に店舗別の件数と額が出ます。</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">仕入税額（Input VAT）</div>
+    <p style="font-size:12px;color:var(--muted)">
+      控除できるのは、<strong>VAT 額・売り手と当社の TIN と登録名・品目・日付</strong>が載った VAT 請求書だけです（RMC 77-2024）。
+      当社の登録名は屋号 <strong>SUSHIZEN Japanese Restaurant</strong> と、登録者本人の名前（OMACHI JANINE THERESE DIAZ）のどちらでも可。
+      Non-VAT の仕入先・Official Receipt は控除できません（EOPT・RR 11-2024）。foodpanda の手数料の請求書は自動で入ります。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>区分</th><th>すること</th></tr></thead>
+      <tbody>
+        <tr><td>To check（古い順）</td><td>「Inbox #番号」から請求書を開き、写真と見比べる。当社の TIN の1桁違い・名前の綴り違い・2回の読み取りの食い違いが理由</td></tr>
+        <tr><td>VAT printed but not deductible</td><td>VAT は印字されているが要件が欠けている。仕入先に正しい請求書を出し直してもらう</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">配達アプリの源泉税と Form 2307</div>
+    <p style="font-size:12px;color:var(--muted)">
+      Grab は半月ごと、foodpanda は注文ごとに源泉税を入金から差し引きます。<strong>VAT ではなく所得税の前払い</strong>で、相手から Form 2307 を受け取って初めて使えます。
+      明細に載った額だけを出し、自分で計算はしません。2307 を受け取ったら、額を確かめて <strong>2307 received</strong> を押します（記録者はログイン中の本人）。間違えたら <strong>Undo</strong>。
+    </p>
+  </div>
 </section>
 <section class="section" id="sec-scope">
   <div class="section-hero">
