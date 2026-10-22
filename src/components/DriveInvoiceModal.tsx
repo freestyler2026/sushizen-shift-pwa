@@ -703,6 +703,17 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
         setError(data.detail || data.message || "Save failed");
         return;
       }
+      // Approved, but the Hub already holds this invoice number for another
+      // approved photo or another supplier, so it was not overwritten.
+      const held = data.to_hub?.skipped_number_held as
+        { invoice_no: string; held_by: string; why: string }[] | undefined;
+      if (held && held.length > 0) {
+        window.alert(
+          `Saved, but not sent to the Hub: invoice number ${held[0].invoice_no} is already held by ` +
+          `${held[0].held_by || "another invoice"} (${held[0].why}). ` +
+          "If this is a second photo of the same invoice, reject it; if the number is wrong, correct it and approve again.",
+        );
+      }
       onUpdated({ ...invoice, ...buildPayload(reviewStatus) });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Network error");
