@@ -6,6 +6,7 @@ import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
 import { getAuth, getAuthHeaders, hasRouteAccess } from "@/lib/auth";
 import Form2550Q from "@/components/vat/Form2550Q";
 import Slsp from "@/components/vat/Slsp";
+import Reminders from "@/components/vat/Reminders";
 import {
   GLASS_CARD,
   KPI_CARD,
@@ -294,6 +295,8 @@ export default function VatLedgerPage() {
             refreshKey={tick} onChanged={refreshAll} />
 
           <Slsp year={year} quarter={quarter} refreshKey={tick} />
+
+          <Reminders />
 
           {/* Output VAT */}
           <section className={`${GLASS_CARD} p-4`}>
