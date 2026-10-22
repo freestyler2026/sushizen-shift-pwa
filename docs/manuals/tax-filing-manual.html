@@ -121,7 +121,7 @@ td.muted{color:var(--muted);font-size:12px}
     <div>
       <div class="section-title">Vendors（取引先マスタ）</div>
       <div class="section-path">/admin/finance/vendors</div>
-      <div class="section-desc">仕入先ごとの正しい税番号（TRN）を1回だけ登録する画面。税務申告用のレシート自動仕分けの土台になります。</div>
+      <div class="section-desc">仕入先ごとの正しい税番号（ドバイは TRN、マニラは TIN）を1回だけ登録する画面。税務申告用のレシート自動仕分けの土台になります。上の <strong>Dubai / Manila</strong> のタブで都市を切り替えます（ログインした都市で開きます）。</div>
     </div>
   </div>
 
@@ -144,11 +144,19 @@ td.muted{color:var(--muted);font-size:12px}
       <thead><tr><th>#</th><th>操作</th><th>補足</th></tr></thead>
       <tbody>
         <tr><td>1</td><td>Invoice to check の紫リンクを開く</td><td>その仕入先の実物の請求書（Google Drive）が開きます</td></tr>
-        <tr><td>2</td><td>請求書に印字された TRN を読む</td><td>ドバイの TRN は15桁です</td></tr>
+        <tr><td>2</td><td>請求書に印字された税番号を読む</td><td>ドバイの TRN は15桁、マニラの TIN は9〜14桁です</td></tr>
         <tr><td>3</td><td>Tax number 欄に入力して保存</td><td>桁数が違うと保存が拒否されます</td></tr>
         <tr><td>4</td><td>綴り違いの同一社は Merge</td><td>吸収した行は削除ではなく非表示になります</td></tr>
       </tbody>
     </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">当社の税番号（Our own tax numbers）</div>
+    <p style="font-size:12px;color:var(--muted)">
+      都市ごとに当社の番号を登録します（マニラは TIN 457-994-635-00000）。ここにある番号は「当社宛て」と判定され、仕入先の番号として提案されません。
+      <strong>消すと、その番号宛ての請求書が当社宛てと見なされなくなり、VAT Ledger の仕入税額の判定にも影響します。</strong>消す前に確認が出ます。戻すときは同じ番号をもう一度 Add します。
+    </p>
   </div>
 
   <div class="card">
