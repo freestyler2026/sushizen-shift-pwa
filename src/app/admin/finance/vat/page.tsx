@@ -41,6 +41,7 @@ interface WhtLine { platform: string; store: string; withheld: Money; state: str
 interface Summary {
   year: number; quarter: number; from: string; to: string; due: string; days_to_due: number; quarter_ended: boolean;
   output_vat: Money; input_vat: Money; payable: Money; needs_review: number; days_not_settled: number; can_manage: boolean;
+  carried_over?: Money; exempt_share?: Money; closed?: boolean;
   awaiting_invoice: { vat: Money; by_store: Record<string, { commission: Money; ads: Money; cancelled_fees: Money; vat: Money }> } | null;
   output: {
     stores: Store[]; vat_inclusive_sales: Money; vatable_sales: Money; output_vat: Money; vat_exempt_sales: Money;
@@ -243,16 +244,20 @@ export default function VatLedgerPage() {
       {data && o && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className={KPI_CARD}>
-              <div className={KPI_LABEL}>VAT payable (so far)</div>
+            {/* Full width on a phone: a seven-figure peso amount does not fit half a screen. */}
+            <a href="#form-2550q" className={`${KPI_CARD} col-span-2 lg:col-span-1`}>
+              <div className={KPI_LABEL}>{data.closed ? "VAT payable (closed)" : "VAT payable (so far)"}</div>
               <div className={KPI_VALUE}>{peso(data.payable)}</div>
               <div className={T_CAPTION}>
-                {peso(data.output_vat)} output − {peso(data.input_vat)} input.
-                {Number(data.input.needs_review.vat_printed) > 0 || Number(data.awaiting_invoice?.vat) > 0
+                2550Q item 56: {peso(data.output_vat)} output − {peso(data.input_vat)} input
+                {Number(data.carried_over) > 0 ? ` − ${peso(data.carried_over)} carried over` : ""}
+                {Number(data.exempt_share) > 0 ? ` + ${peso(data.exempt_share)} input tax on exempt sales (item 51)` : ""}.
+                {data.closed ? " Frozen when the quarter was closed." : ""}
+                {!data.closed && (Number(data.input.needs_review.vat_printed) > 0 || Number(data.awaiting_invoice?.vat) > 0)
                   ? ` Lower by up to ${peso(Number(data.input.needs_review.vat_printed) + Number(data.awaiting_invoice?.vat || 0))} once the invoices to check and Grab's invoice are in.`
                   : ""}
               </div>
-            </div>
+            </a>
             <div className={KPI_CARD}>
               <div className={KPI_LABEL}>2550Q due</div>
               <div className={KPI_VALUE}>{data.days_to_due >= 0 ? `${data.days_to_due} days` : `${-data.days_to_due} days ago`}</div>
