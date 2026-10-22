@@ -39,7 +39,7 @@ describe("Slsp", () => {
     }
     // a supplier with no photo cannot be read, only typed; a reading must be confirmed
     expect(screen.queryAllByRole("button", { name: "Read from photo" })).toHaveLength(0);
-    expect(screen.getByText(/read from proc_receivings #1 — check/)).toBeTruthy();
+    expect(screen.getByText(/read from a receiving photo — check/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Confirm" })).toBeTruthy();
   });
 });

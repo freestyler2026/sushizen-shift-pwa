@@ -86,6 +86,17 @@ describe("VAT buyer decision", () => {
       .toEqual({ source: "proc_receivings", source_id: "3c30", field: "vat_amount", choice: "second" });
   });
 
+  it("asks once when the VAT is read under two names with the same split, and settles both", async () => {
+    const f = await open(summary([row({ source: "proc_receivings", source_id: "3c30", checks: [], review_fields: ["vat_amount", "tax_amount"],
+      review_values: [{ field: "vat_amount", first: 417.86, second: 471.86 }, { field: "tax_amount", first: 417.86, second: 471.86 }] })]));
+    expect(screen.getAllByText(/Two readings of the VAT/)).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "417.86" }));
+    await waitFor(() => expect(f.mock.calls.filter((c) => String(c[0]) === "/api/admin/vat/reading-choice")).toHaveLength(2));
+    const fields = f.mock.calls.filter((c) => String(c[0]) === "/api/admin/vat/reading-choice")
+      .map((c) => JSON.parse(String((c[1] as RequestInit).body)).field);
+    expect(fields).toEqual(["vat_amount", "tax_amount"]);
+  });
+
   it("lists an invoice left out as a copy, with an undo", async () => {
     const body = summary([row({})]);
     (body.input as Record<string, unknown>).left_out_as_copy = [{ source: "proc_po_invoice_checks", source_id: "ce05",

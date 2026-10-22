@@ -54,6 +54,16 @@ function monthName(m: string): string {
   return new Date(Date.UTC(y, mo - 1, 1)).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
+/** Where a reading came from, in words a person knows (not the table it is stored in). */
+function photoSource(from: string): string {
+  const [table, id] = String(from || "").split(" #");
+  if (table === "drive_invoices") return `Inbox invoice #${id}`;
+  if (table === "proc_receivings") return "a receiving photo";
+  if (table === "proc_po_invoice_checks") return "a PO-check photo";
+  if (table === "store_supplier_orders") return "a store order photo";
+  return "a photo";
+}
+
 function photoHref(p: { source: string; source_id: string }): string | null {
   return p.source === "drive_invoices" ? `/admin/procurement/invoices?city=manila&invoice=${p.source_id}` : null;
 }
@@ -274,7 +284,7 @@ export default function Slsp({ year, quarter, refreshKey = 0 }: { year: number; 
                         <span className="tabular-nums text-zinc-400">TIN {s.tin}</span>
                         <span className={T_CAPTION}>{s.documents} document{s.documents === 1 ? "" : "s"}</span>
                         <span className={missing ? "text-amber-200 text-[12px]" : "text-sky-200 text-[12px]"}>
-                          {missing ? "no address" : `read from ${s.from} — check`}
+                          {missing ? "no address" : `read from ${photoSource(s.from)} — check`}
                         </span>
                         {photo && (
                           <a className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200" href={photo}>

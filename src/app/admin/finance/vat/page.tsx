@@ -106,6 +106,26 @@ function photoLink(r: { source: string; source_id: string }): string {
   return `/api/admin/vat/document-photo?source=${encodeURIComponent(r.source)}&source_id=${encodeURIComponent(r.source_id)}`;
 }
 
+/** Splits that read the same to a person (the VAT is kept under two field names) shown once. */
+function readingGroups(vals: { field: string; first: unknown; second: unknown }[]) {
+  const out: { field: string; first: unknown; second: unknown; fields: string[] }[] = [];
+  for (const v of vals) {
+    const same = out.find((g) => (FIELD[g.field] || g.field) === (FIELD[v.field] || v.field)
+      && shown(g.first) === shown(v.first) && shown(g.second) === shown(v.second));
+    if (same) same.fields.push(v.field); else out.push({ ...v, fields: [v.field] });
+  }
+  return out;
+}
+
+function choiceGroups(vals: { field: string; value: unknown; decided_by: string; decided_at: string }[]) {
+  const out: { field: string; value: unknown; decided_by: string; decided_at: string; fields: string[] }[] = [];
+  for (const c of vals) {
+    const same = out.find((g) => (FIELD[g.field] || g.field) === (FIELD[c.field] || c.field) && shown(g.value) === shown(c.value));
+    if (same) same.fields.push(c.field); else out.push({ ...c, fields: [c.field] });
+  }
+  return out;
+}
+
 function shown(v: unknown): string {
   if (v === null || v === undefined || v === "") return "(blank)";
   return typeof v === "number" ? v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(v);
@@ -542,19 +562,23 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
 }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
-  const pick = async (r: InputRow, field: string, choice: "first" | "second" | "undo") => {
+  // One choice can settle several fields: the reading keeps the VAT under two names
+  // (vat_amount and tax_amount), and both split the same way.
+  const pick = async (r: InputRow, fields: string[], choice: "first" | "second" | "undo") => {
     const key = `${r.source}${r.source_id}`;
     setBusy(key);
     setErr("");
     try {
-      const q = `source=${encodeURIComponent(r.source)}&source_id=${encodeURIComponent(r.source_id)}&field=${encodeURIComponent(field)}`;
-      const res = choice === "undo"
-        ? await fetch(`/api/admin/vat/reading-choice?${q}`, { method: "DELETE", headers: getAuthHeaders(getAuth()) })
-        : await fetch("/api/admin/vat/reading-choice", {
-          method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
-          body: JSON.stringify({ source: r.source, source_id: r.source_id, field, choice }),
-        });
-      if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
+      for (const field of fields) {
+        const q = `source=${encodeURIComponent(r.source)}&source_id=${encodeURIComponent(r.source_id)}&field=${encodeURIComponent(field)}`;
+        const res = choice === "undo"
+          ? await fetch(`/api/admin/vat/reading-choice?${q}`, { method: "DELETE", headers: getAuthHeaders(getAuth()) })
+          : await fetch("/api/admin/vat/reading-choice", {
+            method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+            body: JSON.stringify({ source: r.source, source_id: r.source_id, field, choice }),
+          });
+        if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
+      }
       onDecided?.();
     } catch { setErr("Network error. Try again."); } finally { setBusy(""); }
   };
@@ -580,14 +604,14 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
     <div className="mt-2 overflow-x-auto">
       {err && <p className="mb-2 text-[12px] text-red-300">{err}</p>}
       <table className={`${STACK_TABLE} sm:min-w-[560px]`}>
-        <thead className={STACK_HEAD}><tr className={TABLE_HEADER}><th className="text-left">Date</th><th className="text-left">Supplier</th><th className="text-left">Invoice</th><th className="text-right">VAT</th><th className="text-left">What is missing</th><th /></tr></thead>
+        <thead className={STACK_HEAD}><tr className={TABLE_HEADER}><th className="text-left">Date</th><th className="text-left">Supplier</th><th className="text-left">Invoice</th><th className="text-right sm:pr-4">VAT</th><th className="text-left">What is missing</th><th /></tr></thead>
         <tbody className={STACK_BODY}>
           {rows.map((r) => (
             <tr key={`${r.source}${r.source_id}`} className={`${TABLE_ROW} ${STACK_ROW}`}>
               <td className={`${STACK_CELL} tabular-nums text-zinc-300 sm:text-left`}><span className={STACK_LABEL}>Date</span>{r.invoice_date}</td>
               <td className={`${STACK_TITLE} text-zinc-200 sm:order-none`}>{r.vendor || "—"}</td>
               <td className={`${STACK_CELL} tabular-nums text-zinc-300 sm:text-left`}><span className={STACK_LABEL}>Invoice</span>{r.invoice_number || "—"}</td>
-              <td className={`${STACK_CELL} tabular-nums text-white`}><span className={STACK_LABEL}>VAT</span>{peso(r.vat)}</td>
+              <td className={`${STACK_CELL} tabular-nums text-white sm:pr-4`}><span className={STACK_LABEL}>VAT</span>{peso(r.vat)}</td>
               <td className="block py-1 text-[12px] text-amber-200 sm:table-cell sm:py-2">
                 {[...r.reasons, ...r.checks].map((k) => WHY[k] || k).concat(r.review_fields.length ? ["Two readings disagree"] : []).join(" · ")}
                 {(r.checks.length > 0 || r.buyer_decision) && (
@@ -607,21 +631,21 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
                   </div>)}
                 {/* Approving in the Inbox does not settle a split between the two readings, for any
                     kind of document: compare the photo and pick the printed value here. */}
-                {(r.review_values || []).map((v) => (
-                  <div key={v.field} className="mt-1 text-zinc-300">
+                {readingGroups(r.review_values || []).map((v) => (
+                  <div key={v.fields.join(",")} className="mt-1 text-zinc-300">
                     Two readings of the {FIELD[v.field] || v.field}: <span className="tabular-nums">{shown(v.first)}</span> or{" "}
                     <span className="tabular-nums">{shown(v.second)}</span>. Open the photo and pick the one printed.
                     {canDecide && (
                       <span className="mt-1 flex flex-wrap gap-2">
-                        <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => pick(r, v.field, "first")}>{shown(v.first)}</button>
-                        <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => pick(r, v.field, "second")}>{shown(v.second)}</button>
+                        <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => pick(r, v.fields, "first")}>{shown(v.first)}</button>
+                        <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => pick(r, v.fields, "second")}>{shown(v.second)}</button>
                       </span>)}
                   </div>))}
-                {(r.reading_choices || []).map((c) => (
-                  <div key={c.field} className="mt-1 text-zinc-400">
+                {choiceGroups(r.reading_choices || []).map((c) => (
+                  <div key={c.fields.join(",")} className="mt-1 text-zinc-400">
                     {FIELD[c.field] || c.field}: {shown(c.value)}, picked by {c.decided_by}
                     {canDecide && (
-                      <button className="ml-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => pick(r, c.field, "undo")}>Undo</button>)}
+                      <button className="ml-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => pick(r, c.fields, "undo")}>Undo</button>)}
                   </div>))}
               </td>
               <td className="block py-1 sm:table-cell sm:py-2 sm:text-right">
