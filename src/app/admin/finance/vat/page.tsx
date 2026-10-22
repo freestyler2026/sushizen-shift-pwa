@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
 import { getAuth, getAuthHeaders, hasRouteAccess } from "@/lib/auth";
+import Form2550Q from "@/components/vat/Form2550Q";
 import {
   GLASS_CARD,
   KPI_CARD,
@@ -21,7 +22,7 @@ import {
   T_SECTION,
 } from "@/lib/ui-tokens";
 
-/* The Manila VAT ledger (VAT plan Phase 4). Read-only: nothing here is filed.
+/* The Manila VAT ledger (VAT plan Phases 4-5). Nothing here is filed: the 2550Q items are copied into eBIRForms.
    Backend: GET /api/admin/vat/summary (app/vat_output.py, app/vat_input.py,
    app/vat_withholding.py). */
 
@@ -216,7 +217,7 @@ export default function VatLedgerPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className={T_PAGE_TITLE}>VAT Ledger</h1>
-          <p className={T_CAPTION}>Manila · TIN 457-994-635-00000 · read-only, nothing here is filed</p>
+          <p className={T_CAPTION}>Manila · TIN 457-994-635-00000 · nothing here is filed with the BIR</p>
         </div>
         <button className={SMALL_BUTTON} onClick={load} disabled={loading}>
           <RefreshCw className={`mr-1 inline h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />Refresh
@@ -268,6 +269,8 @@ export default function VatLedgerPage() {
               <div className={T_CAPTION}>Input VAT not counted until Grab invoices it</div>
             </a>
           </div>
+
+          <Form2550Q year={year} quarter={quarter} canManage={data.can_manage} quarterEnded={data.quarter_ended} />
 
           {/* Output VAT */}
           <section className={`${GLASS_CARD} p-4`}>
