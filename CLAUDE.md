@@ -2239,8 +2239,11 @@ npx tsc --noEmit
       ではない。
     - ⚠️ **push してもデプロイ自体が作られないことがある（2026-10-22）。** `vercel ls sushizen-shift-pwa`
       に新しい行が出ず、コミットに Vercel の状態も付かない。上限ではなかった（Pro・1日6,000回に対し51回）。
-      `vercel git disconnect --yes && vercel git connect --yes` で直った。待つ間に急ぐ変更は
-      `vercel deploy --prod --yes`（作業ツリーが main と同じことを先に確かめる）。
+      **原因は GitHub の障害**だった。私は githubstatus の Webhooks 欄が operational なのを見て「障害なし」と
+      報告し、不要な Git 連携のつなぎ直しまでした。**障害の有無は欄ではなく、未解決の incident とその
+      affected を読む**（`https://www.githubstatus.com/api/v2/incidents/unresolved.json`）。Vercel の
+      ダッシュボード左下にも「GitHub Outage」と出る。待つ間に急ぐ変更は `vercel deploy --prod --yes`
+      （作業ツリーが main と同じことを先に確かめる）。
 
 125. **「その画面が開ける」と「その画面でその作業ができる」は別の主張 — 案内する前に後者を確かめる** → 2026-09-26、アラートが届かない3名について「Discord ID を登録してください」の案内先を**3回間違えた**。
     - 1回目: 「Store Operations → Management Channel → Discord IDs」と書いた。**そんな経路は存在しない。**
