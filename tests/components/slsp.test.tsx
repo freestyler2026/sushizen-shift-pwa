@@ -43,3 +43,18 @@ describe("Slsp", () => {
     expect(screen.getByRole("button", { name: "Confirm" })).toBeTruthy();
   });
 });
+
+describe("Slsp taxpayer form", () => {
+  it("keeps what is being typed when the lists reload", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => BUILD })));
+    const { fireEvent } = await import("@testing-library/react");
+    const Slsp = (await import("@/components/vat/Slsp")).default;
+    const { rerender } = render(<Slsp year={2026} quarter={3} refreshKey={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Check and save" }));
+    const rdo = screen.getByPlaceholderText("3 digits, on the COR") as HTMLInputElement;
+    fireEvent.change(rdo, { target: { value: "052" } });
+    rerender(<Slsp year={2026} quarter={3} refreshKey={1} />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect((screen.getByPlaceholderText("3 digits, on the COR") as HTMLInputElement).value).toBe("052");
+  });
+});

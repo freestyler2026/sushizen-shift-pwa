@@ -336,4 +336,20 @@ describe("ProcurementInvoicesPage", () => {
     render(<Page />);
     await screen.findByText(/Problem Data/i);
   });
+
+  it("keeps the link's city when the login city is another (ultra review 2026-10-22)", async () => {
+    mockAuthReturn = { ...HQ_AUTH, city: "dubai" };
+    window.history.pushState({}, "", "/admin/procurement/invoices?city=manila&invoice=842");
+    try {
+      render(<Page />);
+      await screen.findByText("Supplier Invoice Hub");
+      await new Promise((r) => setTimeout(r, 50));
+      const paths = mockProcurementJson.mock.calls.map((c: any[]) => String(c[0]));
+      const withMarket = paths.filter((u: string) => u.includes("market="));
+      expect(withMarket.length).toBeGreaterThan(0);
+      expect(withMarket.at(-1)).toContain("market=manila");
+    } finally {
+      window.history.pushState({}, "", "/");
+    }
+  });
 });

@@ -117,6 +117,9 @@ export default function VatLedgerPage() {
   const [whtError, setWhtError] = useState("");
   const [allowed, setAllowed] = useState(true);
   const seq = useRef(0);
+  // One refresh for the whole page: the 2550Q and SLSP sections read the same
+  // figures as the summary, so a decision, a close or Refresh reloads all three.
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -148,6 +151,7 @@ export default function VatLedgerPage() {
   }, [year, quarter]);
 
   useEffect(() => { if (mounted) load(); }, [mounted, load]);
+  const refreshAll = useCallback(() => { load(); setTick((t) => t + 1); }, [load]);
 
   // 2026 Q1 (the first quarter with data) to the calendar quarter running today.
   const quarters = useMemo(() => {
@@ -187,7 +191,7 @@ export default function VatLedgerPage() {
       if (!res.ok) { const b = await res.json().catch(() => null); setWhtError(b?.detail || "Could not save the 2307."); return; }
       setDraft2307((d) => { const n = { ...d }; delete n[key]; return n; });
       await load();
-    } finally { setSaving(""); }
+    } catch { setWhtError("Network error. Try again."); } finally { setSaving(""); }
   };
   const undo2307 = async (w: WhtLine) => {
     const key = `${year}Q${quarter}|${w.platform}|${w.store}`;
@@ -199,7 +203,7 @@ export default function VatLedgerPage() {
       });
       if (!res.ok) { const b = await res.json().catch(() => null); setWhtError(b?.detail || "Could not undo the 2307."); return; }
       await load();
-    } finally { setSaving(""); }
+    } catch { setWhtError("Network error. Try again."); } finally { setSaving(""); }
   };
 
   if (!mounted) return null;
@@ -224,7 +228,7 @@ export default function VatLedgerPage() {
           <h1 className={T_PAGE_TITLE}>VAT Ledger</h1>
           <p className={T_CAPTION}>Manila · TIN 457-994-635-00000 · nothing here is filed with the BIR</p>
         </div>
-        <button className={SMALL_BUTTON} onClick={load} disabled={loading}>
+        <button className={SMALL_BUTTON} onClick={refreshAll} disabled={loading}>
           <RefreshCw className={`mr-1 inline h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />Refresh
         </button>
       </div>
@@ -279,9 +283,10 @@ export default function VatLedgerPage() {
             </a>
           </div>
 
-          <Form2550Q year={year} quarter={quarter} canManage={data.can_manage} quarterEnded={data.quarter_ended} />
+          <Form2550Q year={year} quarter={quarter} canManage={data.can_manage} quarterEnded={data.quarter_ended}
+            refreshKey={tick} onChanged={refreshAll} />
 
-          <Slsp year={year} quarter={quarter} />
+          <Slsp year={year} quarter={quarter} refreshKey={tick} />
 
           {/* Output VAT */}
           <section className={`${GLASS_CARD} p-4`}>
@@ -311,12 +316,12 @@ export default function VatLedgerPage() {
               </table>
             </div>
 
-            {(o.not_in_storehub_before.some((g) => !g.filled_from_platform) || o.days_without_sales.length > 0) && (
+            {((o.not_in_storehub_before || []).some((g) => !g.filled_from_platform) || (o.days_without_sales || []).length > 0) && (
               <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-200">
-                {o.not_in_storehub_before.filter((g) => !g.filled_from_platform).map((g) => (
+                {(o.not_in_storehub_before || []).filter((g) => !g.filled_from_platform).map((g) => (
                   <div key={g.store + g.channel}>{STORE[g.store] || g.store} {CHANNEL[g.channel] || g.channel}: {g.days_missing} days before {g.first_in_storehub} are in neither StoreHub nor the platform&apos;s records — not in the figures.</div>))}
-                {o.days_without_sales.map((g) => (
-                  <div key={g.store}>{STORE[g.store] || g.store}: {g.days} days with no sale at all ({g.dates.slice(0, 5).join(", ")}{g.days > 5 ? "…" : ""}) — closed, or not read.</div>))}
+                {(o.days_without_sales || []).map((g) => (
+                  <div key={g.store}>{STORE[g.store] || g.store}: {g.days} days with no sale at all ({(g.dates || []).slice(0, 5).join(", ")}{g.days > 5 ? "…" : ""}) — closed, or not read.</div>))}
               </div>
             )}
 
@@ -387,16 +392,16 @@ export default function VatLedgerPage() {
               or name is a digit or letter off, compare the photo and decide here: <strong>Our TIN</strong> counts it, <strong>Not ours</strong> leaves it out.
               A decision stops applying if the invoice is read again with a different TIN or name.
             </p>
-            <InvoiceList rows={reviewRows} empty="Nothing to check this quarter." canDecide={data.can_manage} onDecided={load} />
+            <InvoiceList rows={reviewRows} empty="Nothing to check this quarter." canDecide={data.can_manage} onDecided={refreshAll} />
 
             <h3 className="mt-5 text-sm font-semibold text-white">VAT printed but not deductible</h3>
             <p className={T_CAPTION}>A supplier printed VAT, but the invoice misses something the BIR requires (RMC 77-2024). Ask the supplier for a corrected invoice.</p>
-            <InvoiceList rows={notRows} empty="None this quarter." canDecide={data.can_manage} onDecided={load} />
+            <InvoiceList rows={notRows} empty="None this quarter." canDecide={data.can_manage} onDecided={refreshAll} />
             {decidedRows.length > 0 && (
               <>
                 <h3 className="mt-5 text-sm font-semibold text-white">Counted by a VAT decision</h3>
                 <p className={T_CAPTION}>Invoices a person decided are made out to us. Undo puts one back to be checked.</p>
-                <InvoiceList rows={decidedRows} empty="" canDecide={data.can_manage} onDecided={load} />
+                <InvoiceList rows={decidedRows} empty="" canDecide={data.can_manage} onDecided={refreshAll} />
               </>)}
             {data.input.rows_truncated && <p className="mt-2 text-[12px] text-amber-200">The list stops at 1,000 rows; the totals above count every document.</p>}
           </section>
@@ -485,7 +490,7 @@ function InvoiceList({ rows, empty, canDecide = false, onDecided }: {
         });
       if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
       onDecided?.();
-    } finally { setBusy(""); }
+    } catch { setErr("Network error. Try again."); } finally { setBusy(""); }
   };
   if (rows.length === 0) return <p className={`${T_BODY} mt-2`}>{empty}</p>;
   return (

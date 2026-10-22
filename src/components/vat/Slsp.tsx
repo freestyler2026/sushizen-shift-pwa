@@ -59,7 +59,7 @@ function photoHref(p: { source: string; source_id: string }): string | null {
   return p.source === "drive_invoices" ? `/admin/procurement/invoices?city=manila&invoice=${p.source_id}` : null;
 }
 
-export default function Slsp({ year, quarter }: { year: number; quarter: number }) {
+export default function Slsp({ year, quarter, refreshKey = 0 }: { year: number; quarter: number; refreshKey?: number }) {
   const [data, setData] = useState<Build | null>(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -68,6 +68,9 @@ export default function Slsp({ year, quarter }: { year: number; quarter: number 
   const [editProfile, setEditProfile] = useState(false);
   const [addr, setAddr] = useState<Record<string, { name: string; address: string }>>({});
   const seq = useRef(0);
+  // A reload while the taxpayer form is open must not replace what is being typed.
+  const editing = useRef(false);
+  useEffect(() => { editing.current = editProfile; }, [editProfile]);
 
   const load = useCallback(async () => {
     const my = ++seq.current;
@@ -79,13 +82,14 @@ export default function Slsp({ year, quarter }: { year: number; quarter: number 
       if (my !== seq.current) return;
       if (!res.ok) { setData(null); setError(body?.detail || `Could not build the lists (HTTP ${res.status}).`); return; }
       setData(body);
-      setProfile(body.profile);
+      if (!editing.current) setProfile(body.profile);
     } catch {
       if (my === seq.current) setError("Network error building the lists.");
     }
   }, [year, quarter]);
 
-  useEffect(() => { setNote(""); setEditProfile(false); setAddr({}); load(); }, [load]);
+  useEffect(() => { setNote(""); setEditProfile(false); setAddr({}); }, [year, quarter]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const send = async (key: string, url: string, method: string, body?: unknown): Promise<unknown | null> => {
     setBusy(key);
@@ -135,7 +139,7 @@ export default function Slsp({ year, quarter }: { year: number; quarter: number 
       a.download = name;
       a.click();
       URL.revokeObjectURL(a.href);
-    } finally { setBusy(""); }
+    } catch { setError("Network error during the download. Try again."); } finally { setBusy(""); }
   };
 
   const input = "w-full rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-sm text-white";

@@ -27,8 +27,11 @@ function amount(v: string | null): string {
   return n < 0 ? `(${s})` : s;
 }
 
-export default function Form2550Q({ year, quarter, canManage, quarterEnded }: {
+export default function Form2550Q({ year, quarter, canManage, quarterEnded, refreshKey = 0, onChanged }: {
   year: number; quarter: number; canManage: boolean; quarterEnded: boolean;
+  // The page bumps refreshKey when anything the 2550Q reads has changed; a close or
+  // reopen here tells the page, whose summary card shows the same quarter.
+  refreshKey?: number; onChanged?: () => void;
 }) {
   const [data, setData] = useState<Return2550Q | null>(null);
   const [error, setError] = useState("");
@@ -52,7 +55,8 @@ export default function Form2550Q({ year, quarter, canManage, quarterEnded }: {
     }
   }, [year, quarter]);
 
-  useEffect(() => { setReopening(false); setReason(""); load(); }, [load]);
+  useEffect(() => { setReopening(false); setReason(""); }, [year, quarter]);
+  useEffect(() => { load(); }, [load, refreshKey]);
 
   const close = async () => {
     if (!data) return;
@@ -66,8 +70,8 @@ export default function Form2550Q({ year, quarter, canManage, quarterEnded }: {
         body: JSON.stringify({ year, quarter }),
       });
       if (!res.ok) { const b = await res.json().catch(() => null); setError(b?.detail || "Could not close the quarter."); return; }
-      await load();
-    } finally { setBusy(false); }
+      if (onChanged) onChanged(); else await load();
+    } catch { setError("Network error. Try again."); } finally { setBusy(false); }
   };
 
   const reopen = async () => {
@@ -81,8 +85,8 @@ export default function Form2550Q({ year, quarter, canManage, quarterEnded }: {
       });
       if (!res.ok) { const b = await res.json().catch(() => null); setError(b?.detail || "Could not reopen the quarter."); return; }
       setReopening(false); setReason("");
-      await load();
-    } finally { setBusy(false); }
+      if (onChanged) onChanged(); else await load();
+    } catch { setError("Network error. Try again."); } finally { setBusy(false); }
   };
 
   return (

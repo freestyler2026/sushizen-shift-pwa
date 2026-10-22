@@ -74,3 +74,28 @@ describe("Form2550Q", () => {
     expect(f.mock.calls.every((c) => !String(c[0]).includes("/vat/reopen"))).toBe(true);
   });
 });
+
+describe("Form2550Q failures and refresh", () => {
+  it("says so when the network fails on Close", async () => {
+    const f = vi.fn(async (url: string) => {
+      if (String(url).includes("/vat/close")) throw new TypeError("Failed to fetch");
+      return { ok: true, status: 200, json: async () => RETURN };
+    });
+    vi.stubGlobal("fetch", f);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const Form2550Q = (await import("@/components/vat/Form2550Q")).default;
+    render(<Form2550Q year={2026} quarter={3} canManage quarterEnded />);
+    fireEvent.click(await screen.findByRole("button", { name: "Close 2026 Q3" }));
+    expect(await screen.findByText(/Network error/)).toBeTruthy();
+  });
+
+  it("reloads when the page says the figures changed", async () => {
+    const f = mockFetch(RETURN);
+    const Form2550Q = (await import("@/components/vat/Form2550Q")).default;
+    const { rerender } = render(<Form2550Q year={2026} quarter={3} canManage={false} quarterEnded refreshKey={0} />);
+    await screen.findByText("Total Sales & Output Tax Due");
+    const before = f.mock.calls.length;
+    rerender(<Form2550Q year={2026} quarter={3} canManage={false} quarterEnded refreshKey={1} />);
+    await waitFor(() => expect(f.mock.calls.length).toBeGreaterThan(before));
+  });
+});
