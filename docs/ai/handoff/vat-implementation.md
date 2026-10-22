@@ -261,7 +261,7 @@ TIN の根拠（2026-10-21 確認）: foodpanda（Delivery Hero Philippines）�
       - ✅ `net_sales` の二重引きも修正（`net_sales = total`）。7/1以降は読み直しで、それより前（4/22〜6/30）は
         `net_sales = total_sales` に更新（日次353行・取引8,710行）。Manila Sales Analytics の Net Sales は
         9/26〜10/20 の foodpanda で ₱519,632 → ₱925,720
-      - [ ] **10/22 確認**: 今夜 17:00 UTC の同期が7日分読んだか（`storehub_api_sync_log` の from_date が 10/15 になっているか）。
+      - [x] **10/22 確認**（済: 17:00 UTC の同期は Cubao・Paranaque とも from 10/16〜to 10/22 の7日を読み直した）: 今夜 17:00 UTC の同期が7日分読んだか（`storehub_api_sync_log` の from_date が 10/15 になっているか）。
         Heroku Scheduler のコマンドは CLI から読めないので、引数付きで登録されていれば効かない
 - [x] **1-2 四半期の箱** — `vat_quarter(year, q)` が売上を店内飲食・Grab・foodpanda・その他に分けて返す。
       基礎は storehub_api の割引後売上。**課税対象 = 税込 ÷ 1.12 × 0.12**（端数は集計後に丸める）
