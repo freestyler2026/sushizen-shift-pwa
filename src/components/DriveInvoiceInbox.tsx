@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { GLASS_CARD } from "@/lib/ui-tokens";
 import DriveInvoiceModal from "./DriveInvoiceModal";
+import { HELD_LABEL } from "@/lib/invoice-held";
 
 export interface DriveInvoice {
   id: number;
@@ -43,7 +44,12 @@ export interface DriveInvoice {
   /** Fields two readings disagreed on, and -- on an approved invoice -- where the
    *  re-reading disagrees with what was approved ("reviewed value"). */
   review_fields?: ReviewField[];
+  /** Why the reader did not approve it on its own (backend
+   *  invoice_auto_approve.assess). Pending invoices only. */
+  held_because?: string[];
 }
+
+
 
 export interface ReviewField {
   field: string;
@@ -126,6 +132,7 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
   /** How many are waiting, which is not how many were fetched. The endpoint
       used to return the page size as the total, so 634 read as 50. */
   const [pendingTotal, setPendingTotal] = useState(0);
+  const [heldCounts, setHeldCounts] = useState<Record<string, number>>({});
 
   const fetchInvoices = useCallback(async () => {
     try {
@@ -137,6 +144,7 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
       const data = await res.json();
       setInvoices(data.rows ?? []);
       setPendingTotal(Number(data.total ?? (data.rows ?? []).length));
+      setHeldCounts(data.held_counts ?? {});
     } catch {
       // silent
     } finally {
@@ -224,6 +232,17 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
           </div>
         </div>
 
+        {status === "pending_review" && Object.keys(heldCounts).length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-white/50">Why these were not approved automatically:</span>
+            {Object.entries(heldCounts).sort((a, b) => b[1] - a[1]).map(([k, n]) => (
+              <span key={k} className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-amber-200">
+                {HELD_LABEL[k] || k} · {n}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Card grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {invoices.length === 0 && (
@@ -258,6 +277,15 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
                       </span>
                     )}
                   </p>
+                )}
+                {(inv.held_because || []).length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {(inv.held_because || []).map((k) => (
+                      <span key={k} className="rounded bg-amber-500/15 px-1 py-0.5 text-[10px] text-amber-200">
+                        {HELD_LABEL[k] || k}
+                      </span>
+                    ))}
+                  </div>
                 )}
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
                   <OcrStatusBadge status={inv.ocr_status} />

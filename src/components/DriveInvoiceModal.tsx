@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { DriveInvoice, LineItem, ReviewField } from "./DriveInvoiceInbox";
+import { HELD_LABEL } from "@/lib/invoice-held";
 import PhotoLoupe from "./PhotoLoupe";
 import { money } from "@/lib/currency";
 
@@ -1080,6 +1081,12 @@ export default function DriveInvoiceModal({ invoice, authHeaders, onClose, onUpd
           {/* Right: form */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <ConfidenceWarnings notes={invoice.confidence_notes} />
+            {(invoice.held_because || []).length > 0 && (
+              <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
+                <span className="font-semibold">Not approved automatically: </span>
+                {(invoice.held_because || []).map((k) => HELD_LABEL[k] || k).join(" · ")}
+              </div>
+            )}
             <ReadingDiffers
               fields={invoice.review_fields}
               use={{
