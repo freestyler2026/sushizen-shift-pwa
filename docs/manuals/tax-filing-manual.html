@@ -278,6 +278,28 @@ td.muted{color:var(--muted);font-size:12px}
   </div>
 
   <div class="card">
+    <div class="card-title">期限の通知（Deadline reminders）</div>
+    <p style="font-size:12px;color:var(--muted)">
+      四半期の<strong>最終日</strong>と、2550Q の<strong>期限の10日前</strong>に、ここに載っている人へ Discord で知らせます（マニラ時刻の朝9時以降）。
+      本文には、締めたかどうか・確認待ちの請求書の件数と VAT 額・Grab の VAT 請求書が未着か・SLSP が作れない理由と、この画面へのリンクが入ります。
+      次の2回の日付は画面に出ます（Q4 は 2026-12-31 と 2027-01-15、期限 2027-01-25）。
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>やること</th><th>誰が</th></tr></thead>
+      <tbody>
+        <tr><td>申告する人の名前（Staff の一覧どおり）を入れて <strong>Add</strong>。在籍中の人だけ入れられます</td><td>VAT の管理権限がある人</td></tr>
+        <tr><td>「no Discord id」と出た人は、その人の Discord ユーザー ID（17〜20桁）を入れて <strong>Save</strong>。ID が無い間は届きません。ID が入れば、その日のうちの次の回に送ります</td><td>同上</td></tr>
+        <tr><td><strong>Send me a test</strong> で、押した本人にだけ同じ文面を送って届くか確かめる（記録には残りません）</td><td>同上</td></tr>
+        <tr><td>やめるときは <strong>Remove</strong></td><td>同上</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tip"><span class="tip-icon">💡</span><div>
+      最初は誰も載っていません。誰も載っていない間は何も送りません。送れなかった通知（Discord が受け付けなかった・ID が無い）は同じ日の次の回にもう一度送り、届いたものは二度送りません。
+      最近の送信と結果は画面の下に出ます。
+    </div></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">売上税額（Output VAT）</div>
     <p style="font-size:12px;color:var(--muted)">
       店舗 × 経路（店内・GrabFood・foodpanda・その他）ごとの売上と VAT。計算は<strong>お客様が払った額 × 12/112</strong>で、端数は合計で1回だけ丸めます。
