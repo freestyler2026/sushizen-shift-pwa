@@ -278,6 +278,21 @@ td.muted{color:var(--muted);font-size:12px}
   </div>
 
   <div class="card">
+    <div class="card-title">ドバイ：Keeta の手数料と、Keeta が負担した割引</div>
+    <p>画面下の「Dubai — Keeta's fees and the discounts Keeta funded」。週1回の Keeta の取込（GitHub Actions・水曜）が、Keeta の Billing report から<strong>ブランド×店舗×日</strong>で取り込みます。金額はすべて VAT 込み。月×ブランドの行を押すと店舗別が開きます。</p>
+    <div class="table-wrap"><table>
+      <tr><th>列</th><th>意味</th></tr>
+      <tr><td>Sales after our discounts</td><td>商品の元値 − 当店負担の割引。当店の売上（の一部）</td></tr>
+      <tr><td>Keeta-funded item discount</td><td>Keeta が負担した商品割引。<strong>Keeta から受け取る対価なので課税売上に入る</strong>。配達料の割引は配達料がアプリのものなので入れない</td></tr>
+      <tr><td>Commission / Bank fee / Delivery subsidy</td><td>Keeta が当店に請求した手数料（VAT 込み）</td></tr>
+      <tr><td>Keeta invoiced</td><td>上の合計。Keeta の請求書の「Invoice amount」と1フィルスまで一致する</td></tr>
+      <tr><td>VAT in it</td><td>請求額 × 5/105。<strong>まだ数えない</strong>（下の注意）</td></tr>
+    </table></div>
+    <div class="tip"><span class="tip-icon">⚠️</span><div>仕入税額として差し引けるのは、Keeta の <strong>Tax Invoice（Keeta の TRN と請求書番号つき）</strong>がある場合だけ。Keeta の UAE 向けポータルには税額票の取得口が無い（2026-10-23 確認）。届いているメールなどで税額票が見つかるまで、この VAT は「待ち」として表示するだけ。</div></div>
+    <div class="tip"><span class="tip-icon">💡</span><div>検算済み：Sushi ZEN の 2026年7〜9月は、Keeta 自身の四半期の Statement of Account と全項目一致（請求額 AED 196,890.68 など）。表示する四半期は上のタブ（暦の四半期）。</div></div>
+  </div>
+
+  <div class="card">
     <div class="card-title">期限の通知（Deadline reminders）</div>
     <p style="font-size:12px;color:var(--muted)">
       四半期の<strong>最終日</strong>と、2550Q の<strong>期限の10日前</strong>に、ここに載っている人へ Discord で知らせます（マニラ時刻の朝9時以降）。

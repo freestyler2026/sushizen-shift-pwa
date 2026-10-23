@@ -2,6 +2,14 @@
 
 
 
+## 2026-10-24 ドバイ VAT 0-6：Keeta の手数料・Keeta 負担割引を店舗×日で取込 — デプロイ・本番確認済み
+- Keeta UAE のポータルに税額票の取得口は無い（確認済み）。Billing report の Order Summary から `keeta_fee_days` へ（`app/keeta_fees.py`、`POST /api/keeta/fee-days`、トークン `KEETA_FEE_INGEST_TOKEN` は Heroku と GitHub secret に設定済み）。毎週水曜の `keeta-dubai-payout.yml` が両ブランドで送る。失敗したら run を赤にする
+- VAT Ledger 最下部「Dubai — Keeta's fees」（`src/components/vat/DubaiKeetaFees.tsx`）。手数料の VAT は「税額票待ち」で数えない
+- 検算：Sushi ZEN 7〜9月が Keeta の四半期 SOA と全項目一致。3,236 店舗日、内訳と請求額の不一致0件
+- マニュアル：税務・証憑マニュアル（v15）と VAT Ledger Handbook（v5）に節を追加・再公開
+- 未了：①Keeta の税額票がメールで届いているかスタッフに確認 ②画面の目視確認（ブラウザのセッション切れ）③鮮度監視（vat_feed_health はマニラ前提、計画 4-3 で）
+- 教訓：レポートの列は版ごとに名前が変わる（`Store ID`/`Restaurant ID`、配達補助の名前）。**見出しで探し、必須列が無ければ止め、内訳＝請求額の検算を毎行で持つ**。その検算が「今日（締め前）」の行と旧形式の列名違いを両方捕まえた
+
 ## 2026-10-23 ドバイPOS売上：日を全ブランドで保存・取り込み漏れ181件・ファイルの日付取り違え・UrbanPiper照合 — デプロイ・本番確認済み
 - 原因：日次表は (日付, 都市) で丸ごと置換するのに1ブランドずつ書いていた（最後のブランドだけ残る）＋Driveの新しい100件しか読まず181件が未取込。3〜10月で before 2.59M → after 8.53M AED（Excel `Desktop/Dubai_POS_daily_before_after_2026-10-23.xlsx`）
 - **ファイル名の日付は信用しない**：04-15名で04-14の中身、`026-07-12`（年の打ち間違い→旧コードは「今日」扱い）、同名で別の日を持つ2ファイル。取込時に記録した中身の日（`get_pos_sales_import_days_by_file_ids`）で束ね、1ブランド1日1ファイル（注文数の多い方）、累積ファイル（月・1日〜22日）は日のファイルにしない。新規ファイルの中身が名前と違えば同じ実行で両日を作り直す（`regroup_only`）
