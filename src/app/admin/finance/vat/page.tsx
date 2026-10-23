@@ -7,6 +7,7 @@ import { getAuth, getAuthHeaders, hasRouteAccess } from "@/lib/auth";
 import Form2550Q from "@/components/vat/Form2550Q";
 import Slsp from "@/components/vat/Slsp";
 import Reminders from "@/components/vat/Reminders";
+import DubaiKeetaFees from "@/components/vat/DubaiKeetaFees";
 import { peso } from "@/lib/vat-format";
 import {
   GLASS_CARD,
@@ -517,6 +518,8 @@ export default function VatLedgerPage() {
                 <p className={T_BODY}>Nothing withheld in the statements this quarter.</p>)}
             </div>
           </section>
+
+          <DubaiKeetaFees year={year} quarter={quarter} />
         </>
       )}
     </div>

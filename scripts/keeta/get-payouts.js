@@ -395,8 +395,13 @@ function parseFeeDays(wb) {
   const round = (x) => Math.round(x * 100) / 100;
   // A day still open (today, in a report made today) has orders but no invoice
   // line yet; it is sent once a later report closes it.
-  const open = Object.values(out).filter(d => !d.invoiced).length;
-  return { open, days: Object.values(out).filter(d => d.invoiced).map(({ invoiced, ...d }) => d).map(d => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, typeof v === 'number' && k !== 'orders' ? round(v) : v]))) };
+  // Keeta also writes a line of 0 for a day it has not invoiced yet (seen for
+  // the day before a report made just after midnight), so a day with charges
+  // and an invoice amount of 0 is open too.
+  const charged = (d) => Math.abs(d.commission) + Math.abs(d.bank_fee) + Math.abs(d.delivery_subsidy) > 0.005;
+  const isOpen = (d) => !d.invoiced || (Math.abs(d.invoice_amount) < 0.005 && charged(d));
+  const open = Object.values(out).filter(isOpen).length;
+  return { open, days: Object.values(out).filter(d => !isOpen(d)).map(({ invoiced, ...d }) => d).map(d => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, typeof v === 'number' && k !== 'orders' ? round(v) : v]))) };
 }
 
 async function postFeeDays(days) {
