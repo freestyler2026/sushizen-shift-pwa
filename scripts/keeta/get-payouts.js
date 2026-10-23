@@ -341,43 +341,52 @@ function parseFeeDays(wb) {
   const os = wb.Sheets['Order Summary'];
   const inv = wb.Sheets['Invoice Details'];
   if (!os || !inv) return { days: [], problem: 'no Order Summary or Invoice Details sheet' };
+  // Reports before about August 2026 say "Restaurant ID", "shop code" and
+  // "Payable to Restaurant"; some leave out the top-up and drone columns.
+  const norm = (x) => String(x ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const finder = (head) => (...names) => { for (const n of names) { const i = head.indexOf(norm(n)); if (i >= 0) return i; } return -1; };
+  const STORE = ['Store ID', 'Restaurant ID'], DAY = ['Transaction date'];
+  const REQUIRED = ['item_price', 'commission', 'bank_fee', 'delivery_subsidy', 'merchant_item_discount',
+                    'keeta_item_discount', 'keeta_delivery_discount'];
   const rows = xlsx.utils.sheet_to_json(os, { header: 1, raw: false });
-  const h = rows.findIndex(r => (r || []).includes('Store ID') && (r || []).includes('Transaction date'));
+  const h = rows.findIndex(r => { const f = finder((r || []).map(norm)); return f(...STORE) >= 0 && f(...DAY) >= 0; });
   if (h < 0) return { days: [], problem: 'Order Summary has no Store ID / Transaction date header' };
-  const head = rows[h].map(x => String(x || '').trim());
-  const col = (name) => head.indexOf(name);
-  const missing = Object.values(FEE_COLUMNS).filter(n => col(n) < 0);
+  const at = finder(rows[h].map(norm));
+  const cols = Object.fromEntries(Object.entries(FEE_COLUMNS).map(([c, name]) => [c, at(name)]));
+  const missing = REQUIRED.filter(c => cols[c] < 0).map(c => FEE_COLUMNS[c]);
   if (missing.length) return { days: [], problem: `Order Summary is missing: ${missing.join(' | ')}` };
+  const iStore = at(...STORE), iDay = at(...DAY), iType = at('Transaction type'), iShop = at('Shop code');
   const out = {};
   for (const r of rows.slice(h + 1)) {
-    const storeId = String(r[col('Store ID')] ?? '').replace(/\.0$/, '').trim();
-    const day = isoDay(r[col('Transaction date')]);
+    const storeId = String(r[iStore] ?? '').replace(/\.0$/, '').trim();
+    const day = isoDay(r[iDay]);
     if (!storeId || !day) continue;
     const k = `${storeId}|${day}`;
-    const d = (out[k] ||= { store_id: storeId, work_date: day, shop_label: String(r[col('Shop code')] ?? '').trim(),
+    const d = (out[k] ||= { store_id: storeId, work_date: day, shop_label: String(r[iShop] ?? '').trim(),
                             orders: 0, invoice_amount: 0, payable: 0,
                             ...Object.fromEntries(Object.keys(FEE_COLUMNS).map(c => [c, 0])) });
-    const type = String(r[col('Transaction type')] ?? '').trim();
+    const type = String(r[iType] ?? '').trim();
     if (type === 'Delivery Order') d.orders += 1;
-    for (const [c, name] of Object.entries(FEE_COLUMNS)) {
+    for (const c of Object.keys(FEE_COLUMNS)) {
+      if (cols[c] < 0) continue;      // not in this report: 0 (an invoiced part missing shows as parts not matching)
       // Keeta's own subsidies are the one pair written unsigned: a refund row
       // carries them positive, every other column of it negative. Netting
       // refunds off gives the summary sheet's figure (Sushi ZEN 2026-09:
       // 17,895.55 - 163.66 - 39.46 = 17,692.43).
       const unsigned = c === 'keeta_item_discount' || c === 'keeta_delivery_discount';
-      d[c] += unsigned && /refund/i.test(type) ? -num(r[col(name)]) : num(r[col(name)]);
+      d[c] += unsigned && /refund/i.test(type) ? -num(r[cols[c]]) : num(r[cols[c]]);
     }
   }
   const irows = xlsx.utils.sheet_to_json(inv, { header: 1, raw: false });
-  const ih = irows.findIndex(r => (r || []).includes('Invoice amount'));
-  if (ih >= 0) {
-    const ihead = irows[ih].map(x => String(x || '').trim());
-    for (const r of irows.slice(ih + 1)) {
-      const k = `${String(r[ihead.indexOf('Store ID')] ?? '').replace(/\.0$/, '').trim()}|${isoDay(r[ihead.indexOf('Transaction date')])}`;
-      if (!out[k]) continue;
-      out[k].invoice_amount += num(r[ihead.indexOf('Invoice amount')]);
-      out[k].payable += num(r[ihead.indexOf('Payable to merchant')]);
-    }
+  const ih = irows.findIndex(r => finder((r || []).map(norm))('Invoice amount') >= 0);
+  if (ih < 0) return { days: [], problem: 'Invoice Details has no Invoice amount header' };
+  const iat = finder(irows[ih].map(norm));
+  const jStore = iat(...STORE), jDay = iat(...DAY), jAmt = iat('Invoice amount'), jPay = iat('Payable to merchant', 'Payable to Restaurant');
+  for (const r of irows.slice(ih + 1)) {
+    const k = `${String(r[jStore] ?? '').replace(/\.0$/, '').trim()}|${isoDay(r[jDay])}`;
+    if (!out[k]) continue;
+    out[k].invoice_amount += num(r[jAmt]);
+    if (jPay >= 0) out[k].payable += num(r[jPay]);
   }
   const round = (x) => Math.round(x * 100) / 100;
   return { days: Object.values(out).map(d => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, typeof v === 'number' && k !== 'orders' ? round(v) : v]))) };
