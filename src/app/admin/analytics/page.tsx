@@ -2718,6 +2718,7 @@ export default function AdminAnalyticsPage() {
   const [dubaiSyncStatus, setDubaiSyncStatus] = useState<{
     today: { sync_date: string; attempt_count: number; last_status: string | null; last_success_at: string | null; last_error: string | null };
     history: { sync_date: string; status: string; processed_count: number; error_message: string | null }[];
+    file_gaps?: PosFileGaps;
   } | null>(null);
   const [manilaSyncStatus, setManilaSyncStatus] = useState<{
     today: { sync_date: string; attempt_count: number; last_status: string | null; last_success_at: string | null; last_error: string | null };
@@ -3238,12 +3239,12 @@ export default function AdminAnalyticsPage() {
     if (analyticsTab !== "dubaiSales") return;
     if (!salesStepUpReady) return;
     const controller = new AbortController();
-    apiGet<{ ok: boolean; today: never; history: never[] }>(
+    apiGet<{ ok: boolean; today: never; history: never[]; file_gaps?: PosFileGaps }>(
       "/api/admin/pos/dubai-sync-status?city=dubai&days=7",
     )
       .then((d) => {
         if (!controller.signal.aborted && d?.ok) {
-          setDubaiSyncStatus({ today: d.today, history: d.history });
+          setDubaiSyncStatus({ today: d.today, history: d.history, file_gaps: d.file_gaps });
         }
       })
       .catch(() => {/* non-critical */});
@@ -6085,6 +6086,10 @@ export default function AdminAnalyticsPage() {
               </div>
             );
           })()}
+
+          {analyticsTab === "dubaiSales" && dubaiSyncStatus?.file_gaps ? (
+            <PosFileGapsPanel gaps={dubaiSyncStatus.file_gaps} />
+          ) : null}
 
           <div className={TAB_CONTAINER}>
             {analyticsTabs.filter((tab) => tab.visible).map((tab) => (
@@ -10631,3 +10636,57 @@ export default function AdminAnalyticsPage() {
   );
 }
 
+
+
+type PosFileGaps = {
+  ok: boolean;
+  message?: string;
+  from?: string;
+  to?: string;
+  brands?: string[];
+  missing_in_drive?: { brand: string; date: string }[];
+  not_imported?: { brand: string; date: string }[];
+};
+
+/** Brand-days of UrbanPiper order exports that are not in Drive, or are in Drive
+ *  and not loaded yet. A day missing here is missing from every sales figure. */
+function PosFileGapsPanel({ gaps }: { gaps: PosFileGaps }) {
+  if (!gaps.ok) {
+    return <div className="mb-3 rounded-xl border border-amber-700/40 bg-amber-950/20 px-4 py-2.5 text-xs text-amber-200">{gaps.message || "Could not check the Drive files."}</div>;
+  }
+  const missing = gaps.missing_in_drive || [];
+  const pending = gaps.not_imported || [];
+  if (missing.length === 0 && pending.length === 0) {
+    return (
+      <div className="mb-3 rounded-xl border border-emerald-700/30 bg-emerald-950/10 px-4 py-2.5 text-xs text-emerald-200">
+        Order exports complete for {gaps.from} to {gaps.to}: every brand has a file for every day, and all are loaded.
+      </div>
+    );
+  }
+  const byBrand = (rows: { brand: string; date: string }[]) => {
+    const m = new Map<string, string[]>();
+    rows.forEach((r) => m.set(r.brand, [...(m.get(r.brand) || []), r.date.slice(5)]));
+    return [...m.entries()];
+  };
+  return (
+    <div className="mb-3 space-y-2 rounded-xl border border-amber-700/40 bg-amber-950/20 px-4 py-3 text-xs">
+      <div className="font-semibold text-amber-200">Order exports with gaps ({gaps.from} to {gaps.to})</div>
+      {missing.length > 0 ? (
+        <div>
+          <div className="text-amber-100">Not in Drive — export these days from UrbanPiper (Order transactions) into the Drive folder:</div>
+          {byBrand(missing).map(([b, ds]) => (
+            <div key={`m-${b}`} className="text-amber-200/80"><span className="font-semibold">{b}</span>: {ds.join(", ")}</div>
+          ))}
+        </div>
+      ) : null}
+      {pending.length > 0 ? (
+        <div>
+          <div className="text-amber-100">In Drive, not loaded yet — the daily sync loads these automatically:</div>
+          {byBrand(pending).map(([b, ds]) => (
+            <div key={`p-${b}`} className="text-amber-200/80"><span className="font-semibold">{b}</span>: {ds.join(", ")}</div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
