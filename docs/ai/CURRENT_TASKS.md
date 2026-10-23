@@ -2,6 +2,23 @@
 
 
 
+## 2026-10-23 HR Clearance: 7CZ 退職者の金額を HR が見て保存できる — デプロイ・本番確認済み／ultra レビュー実行中
+- 発端: Peter が Francis Ibana（payroll_entity=7CZ）の13ヶ月カットオフを保存できず「You do not have permission to edit pay figures」。9/14 の 7CZ 隠し（`_entity_pay_staff`）が退職手続きの画面にも効いていた。Francis は退職手続きを通る最初の 7CZ 社員
+- オーナー決定: 退職手続きの画面に限り 7CZ も開ける。給与の画面は従来どおり隠す。名前指定の4人（Yuri・Ayako・Yusuke・Peter）はどこでも隠す
+- 実装（バックエンド `038609c4` / `2e832c20`）: `_clearance_protected_staff()`（名前指定のみ）・ミドルウェアの `clearance` モード・最終給与 PATCH も退職者ごとの書き込み判定に。`_SALARY_FIELDS` に漏れていた4項目（`fp_leave_conversion` `fp_other_earnings` `deductions` `total_actual_basic`）を追加。給与明細（JSON/ファイル）と精算書 PDF を `_require_clearance_pay_read`（退職者ごと）に
+- 新たに見える人: Peter・Cyrine・Camilla（Camilla は明細と PDF も開けるようになった）
+- 本番確認: Peter 本人が修正後に保存・明細添付を実行（07:15 UTC、200）。3アカウントで明細・PDF 200、存在しない行 404。給与の画面では 7CZ 14名が引き続き非表示
+- HR Manual の Clearance に「誰が金額を見て保存できるか」を追記し再公開
+- ⚠️ 残課題: 名前指定の判定が文字列一致（「Peter John Villafuerte」の表記で作ると外れる）。該当0件
+- `/ultrareview 65d0065e` 実行中（2ファイル +194/−15）。結果待ち
+
+## 2026-10-23 その他（同日）
+- スタッフ改名: Jennyleen Valera Pepelar → Repelar、Renz Erick Matudan → Matudan Erespe（`update_staff_branch_name`、62表・2,059行、衝突0、給与・DTR合計は前後一致）
+- VAT_FILER ロール新設（Aliana・Cyrine に副ロールで付与）、ADMIN と HR_MANAGER に VAT Ledger 閲覧。→ 上の Aliana の未解決は解消
+- PO-Match: マニラは VAT を上乗せしない（既存7件修正・退避 `_bk_po_match_vat_20261022`）、All Records と Discrepancy Queue で請求書写真を開ける
+- 古いシフトマニュアル5本に「古い版」の注意書き。リンク共有の2本（CBV9…・KW9z…）は共有版が固定されたまま — オーナーが共有を止めるか最新に移す
+- マニラ3店舗の注文数（7月〜10/21）を Excel で提出（Analytics＋10/21 のみ StoreHub）
+
 ## 2026-10-22 VAT Ledger Handbook（申告担当向けマニュアル）— 公開済み
 - https://claude.ai/artifact/NUePjbcbtkL5MiDGSN9KHp（日英切替・既定英語）。`docs/manuals/vat-guide.html` + 実機スクショ16枚（PC幅1440・2倍）
 - 撮影中に見つけた画面の不具合4件を修正・デプロイ: VAT列と「What is missing」/請求書番号とVATが接していた・仕入先住所に内部テーブル名（`drive_invoices #863`）・同じVATの食い違いが vat_amount/tax_amount で2回出ていた（1回のボタンで両方決まる）
