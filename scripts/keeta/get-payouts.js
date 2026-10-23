@@ -346,7 +346,9 @@ function parseFeeDays(wb) {
   const norm = (x) => String(x ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
   const finder = (head) => (...names) => { for (const n of names) { const i = head.indexOf(norm(n)); if (i >= 0) return i; } return -1; };
   const STORE = ['Store ID', 'Restaurant ID'], DAY = ['Transaction date'];
-  const REQUIRED = ['item_price', 'commission', 'bank_fee', 'delivery_subsidy', 'merchant_item_discount',
+  // The October 2025 per-store reports have no delivery-subsidy column; a
+  // missing invoiced part still shows up as parts not matching.
+  const REQUIRED = ['item_price', 'commission', 'bank_fee', 'merchant_item_discount',
                     'keeta_item_discount', 'keeta_delivery_discount'];
   const rows = xlsx.utils.sheet_to_json(os, { header: 1, raw: false });
   const h = rows.findIndex(r => { const f = finder((r || []).map(norm)); return f(...STORE) >= 0 && f(...DAY) >= 0; });
@@ -363,7 +365,7 @@ function parseFeeDays(wb) {
     if (!storeId || !day) continue;
     const k = `${storeId}|${day}`;
     const d = (out[k] ||= { store_id: storeId, work_date: day, shop_label: String(r[iShop] ?? '').trim(),
-                            orders: 0, invoice_amount: 0, payable: 0,
+                            orders: 0, invoice_amount: 0, payable: 0, invoiced: false,
                             ...Object.fromEntries(Object.keys(FEE_COLUMNS).map(c => [c, 0])) });
     const type = String(r[iType] ?? '').trim();
     if (type === 'Delivery Order') d.orders += 1;
@@ -385,11 +387,15 @@ function parseFeeDays(wb) {
   for (const r of irows.slice(ih + 1)) {
     const k = `${String(r[jStore] ?? '').replace(/\.0$/, '').trim()}|${isoDay(r[jDay])}`;
     if (!out[k]) continue;
+    out[k].invoiced = true;
     out[k].invoice_amount += num(r[jAmt]);
     if (jPay >= 0) out[k].payable += num(r[jPay]);
   }
   const round = (x) => Math.round(x * 100) / 100;
-  return { days: Object.values(out).map(d => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, typeof v === 'number' && k !== 'orders' ? round(v) : v]))) };
+  // A day still open (today, in a report made today) has orders but no invoice
+  // line yet; it is sent once a later report closes it.
+  const open = Object.values(out).filter(d => !d.invoiced).length;
+  return { open, days: Object.values(out).filter(d => d.invoiced).map(({ invoiced, ...d }) => d).map(d => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, typeof v === 'number' && k !== 'orders' ? round(v) : v]))) };
 }
 
 async function postFeeDays(days) {
