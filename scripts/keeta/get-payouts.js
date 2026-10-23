@@ -302,6 +302,105 @@ function parseInvoiceDetails(wb) {
   }));
 }
 
+// ── Fees and discounts by store and day (Dubai VAT plan 0-6) ─────────────────
+// Keeta's UAE portal gives no tax invoice, but the billing report carries what
+// Keeta charged us and what it funded, order by order. Summed by store and day
+// they equal the report's own "Invoice amount" (Sushi ZEN 2026-09: 150 of 150).
+
+const FEE_COLUMNS = {
+  item_price:                 'Original item price (VAT included)',
+  top_up:                     'Total Top-up to Minimum (VAT included)',
+  compensation:               'Total Compensation to Merchant (VAT included)',
+  commission:                 'Subtotal of commission fee (VAT included)',
+  bank_fee:                   'Bank fee (VAT included)',
+  delivery_subsidy:           'Delivery subsidies (Keeta delivery) covered by merchant',
+  subscription_fee:           'Subscription fee (including VAT)',
+  drone_fee:                  'Drone service fee (including VAT)',
+  invoiced_adjustment:        'Adjustment (including invoice)',
+  merchant_item_discount:     'Product campaign expenses by merchant (VAT included)',
+  merchant_delivery_discount: 'Delivery promotion subsidy (merchant delivery, including VAT) covered by merchant',
+  keeta_item_discount:        'Product subsidies by Keeta(VAT included)',
+  keeta_delivery_discount:    'Delivery fee subsidies by Keeta(VAT included)',
+};
+
+const num = (v) => parseFloat(String(v ?? '').replace(/,/g, '')) || 0;   // "1,056.22" (see parseInvoiceDetails)
+
+/** "1 Sep 2026" → "2026-09-01" ("" when it is not a date). */
+function isoDay(text) {
+  const d = new Date(`${String(text || '').trim()} 12:00 UTC`);
+  return isNaN(d) ? '' : d.toISOString().slice(0, 10);
+}
+
+/**
+ * Store x day totals from the "Order Summary" sheet, with the "Invoice amount"
+ * and "Payable to merchant" from "Invoice Details". Columns are found by their
+ * header text, so a report that moves a column still reads right; a report that
+ * lacks one says so instead of storing zeros.
+ */
+function parseFeeDays(wb) {
+  const os = wb.Sheets['Order Summary'];
+  const inv = wb.Sheets['Invoice Details'];
+  if (!os || !inv) return { days: [], problem: 'no Order Summary or Invoice Details sheet' };
+  const rows = xlsx.utils.sheet_to_json(os, { header: 1, raw: false });
+  const h = rows.findIndex(r => (r || []).includes('Store ID') && (r || []).includes('Transaction date'));
+  if (h < 0) return { days: [], problem: 'Order Summary has no Store ID / Transaction date header' };
+  const head = rows[h].map(x => String(x || '').trim());
+  const col = (name) => head.indexOf(name);
+  const missing = Object.values(FEE_COLUMNS).filter(n => col(n) < 0);
+  if (missing.length) return { days: [], problem: `Order Summary is missing: ${missing.join(' | ')}` };
+  const out = {};
+  for (const r of rows.slice(h + 1)) {
+    const storeId = String(r[col('Store ID')] ?? '').replace(/\.0$/, '').trim();
+    const day = isoDay(r[col('Transaction date')]);
+    if (!storeId || !day) continue;
+    const k = `${storeId}|${day}`;
+    const d = (out[k] ||= { store_id: storeId, work_date: day, shop_label: String(r[col('Shop code')] ?? '').trim(),
+                            orders: 0, invoice_amount: 0, payable: 0,
+                            ...Object.fromEntries(Object.keys(FEE_COLUMNS).map(c => [c, 0])) });
+    const type = String(r[col('Transaction type')] ?? '').trim();
+    if (type === 'Delivery Order') d.orders += 1;
+    for (const [c, name] of Object.entries(FEE_COLUMNS)) {
+      // Keeta's own subsidies are the one pair written unsigned: a refund row
+      // carries them positive, every other column of it negative. Netting
+      // refunds off gives the summary sheet's figure (Sushi ZEN 2026-09:
+      // 17,895.55 - 163.66 - 39.46 = 17,692.43).
+      const unsigned = c === 'keeta_item_discount' || c === 'keeta_delivery_discount';
+      d[c] += unsigned && /refund/i.test(type) ? -num(r[col(name)]) : num(r[col(name)]);
+    }
+  }
+  const irows = xlsx.utils.sheet_to_json(inv, { header: 1, raw: false });
+  const ih = irows.findIndex(r => (r || []).includes('Invoice amount'));
+  if (ih >= 0) {
+    const ihead = irows[ih].map(x => String(x || '').trim());
+    for (const r of irows.slice(ih + 1)) {
+      const k = `${String(r[ihead.indexOf('Store ID')] ?? '').replace(/\.0$/, '').trim()}|${isoDay(r[ihead.indexOf('Transaction date')])}`;
+      if (!out[k]) continue;
+      out[k].invoice_amount += num(r[ihead.indexOf('Invoice amount')]);
+      out[k].payable += num(r[ihead.indexOf('Payable to merchant')]);
+    }
+  }
+  const round = (x) => Math.round(x * 100) / 100;
+  return { days: Object.values(out).map(d => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, typeof v === 'number' && k !== 'orders' ? round(v) : v]))) };
+}
+
+async function postFeeDays(days) {
+  if (!WEBHOOK_URL) { console.log(`  (dry run — ${days.length} store-days not sent)`); return { ok: true, dry_run: true }; }
+  const token = process.env.KEETA_FEE_INGEST_TOKEN || '';
+  if (!token) throw new Error('KEETA_FEE_INGEST_TOKEN is not set — fees are not stored');
+  const totals = { inserted: 0, updated: 0, unchanged: 0, refused: [], parts_not_matching: [] };
+  for (let i = 0; i < days.length; i += 1000) {
+    const resp = await fetch(`${WEBHOOK_URL}/api/keeta/fee-days`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Ingest-Token': token },
+      body: JSON.stringify({ rows: days.slice(i, i + 1000) }), signal: AbortSignal.timeout(60_000),
+    });
+    if (!resp.ok) throw new Error(`fee-days ${resp.status}: ${(await resp.text().catch(() => '')).slice(0, 200)}`);
+    const j = await resp.json();
+    for (const k of ['inserted', 'updated', 'unchanged']) totals[k] += j[k] || 0;
+    totals.refused.push(...(j.refused || [])); totals.parts_not_matching.push(...(j.parts_not_matching || []));
+  }
+  return totals;
+}
+
 /**
  * Format billing cycle "2026.07.01~2026.07.07" → { start: "2026-07-01", end: "2026-07-07" }
  */
@@ -415,7 +514,10 @@ async function main() {
   // "All restaurants" files used to be skipped, but the parser reads the
   // Restaurant ID column out of each row, so one of those covers all five
   // shops — and it is what generateReports() asks for.
-  const shopTasks = tasks.filter(t => t.taskStatus === 30 && t.downloadUrl);
+  // Newest first, so for fees the latest report of a day is the one kept
+  // (the reports for a month are generated again each week, and Keeta restates days).
+  const shopTasks = tasks.filter(t => t.taskStatus === 30 && t.downloadUrl)
+    .sort((a, b) => (b.createTime || 0) - (a.createTime || 0));
   console.log(`  ${shopTasks.length} completed tasks with a download URL`);
 
   // ── 3. Download each Excel and parse ─────────────────────────────────────
@@ -425,6 +527,8 @@ async function main() {
 
   // Track seen (shop_id × billing_cycle) to avoid double-processing duplicates
   const seen = new Set();
+  const feeDays = new Map();     // store_id|day → row, newest report wins
+  let feeProblems = 0;
 
   for (const task of shopTasks) {
     // Download Excel from S3
@@ -447,6 +551,18 @@ async function main() {
       console.error(`  ❌ Excel parse failed for ${task.taskName}: ${err.message}`);
       totalErrors++;
       continue;
+    }
+
+    const fees = parseFeeDays(wb);
+    if (fees.problem) { console.warn(`  ⚠ fees not read from ${task.taskName}: ${fees.problem}`); feeProblems++; }
+    for (const d of fees.days) {
+      const key = `${d.store_id}|${d.work_date}`;
+      if (feeDays.has(key)) continue;
+      const shop = resolveShop(d.store_id, d.shop_label);
+      if (!shop) { console.warn(`  ⚠ fees for shop ${d.store_id} ("${d.shop_label}") skipped: not in SHOP_MAP`); feeProblems++; continue; }
+      const { shop_label, ...rest } = d;
+      feeDays.set(key, { ...rest, brand: shop.brand, store_code: shop.code, source_task: task.taskName,
+                         report_made_at: task.createTime ? new Date(task.createTime).toISOString() : null });
     }
 
     const settlements = parseInvoiceDetails(wb);
@@ -510,11 +626,24 @@ async function main() {
     }
   }
 
+  // ── 4. Fees and discounts by store and day ──────────────────────────────
+  if (feeDays.size) {
+    console.log(`\nFees: ${feeDays.size} store-days`);
+    try {
+      const r = await postFeeDays([...feeDays.values()]);
+      console.log(`  ✓ fees: ${r.inserted || 0} new, ${r.updated || 0} changed, ${r.unchanged || 0} unchanged`);
+      if ((r.parts_not_matching || []).length) console.warn(`  ⚠ ${r.parts_not_matching.length} store-day(s) where the charges do not add up to the invoice amount`);
+      if ((r.refused || []).length) { console.error(`  ❌ ${r.refused.length} store-day(s) refused: ${JSON.stringify(r.refused.slice(0, 3))}`); feeProblems++; }
+    } catch (err) { console.error(`  ❌ fees: ${err.message}`); feeProblems++; }
+  }
+
   console.log('\n' + '='.repeat(60));
   console.log(`✓ ${totalPosted} new records inserted`);
   if (totalSkipped) console.log(`  ${totalSkipped} already existed (skipped)`);
   if (totalErrors)  console.log(`  ${totalErrors} errors`);
   console.log('Done.');
+  // A VAT figure that failed to store must not look like a green run (lesson 47).
+  if (feeProblems) { console.error(`❌ ${feeProblems} fee problem(s) — see above`); process.exit(1); }
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
