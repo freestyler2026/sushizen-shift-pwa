@@ -313,7 +313,8 @@ const FEE_COLUMNS = {
   compensation:               'Total Compensation to Merchant (VAT included)',
   commission:                 'Subtotal of commission fee (VAT included)',
   bank_fee:                   'Bank fee (VAT included)',
-  delivery_subsidy:           'Delivery subsidies (Keeta delivery) covered by merchant',
+  // October 2025 reports call it "Delivery fee campaign by merchant".
+  delivery_subsidy:           ['Delivery subsidies (Keeta delivery) covered by merchant', 'Delivery fee campaign by merchant(VAT included)'],
   subscription_fee:           'Subscription fee (including VAT)',
   drone_fee:                  'Drone service fee (including VAT)',
   invoiced_adjustment:        'Adjustment (including invoice)',
@@ -354,8 +355,8 @@ function parseFeeDays(wb) {
   const h = rows.findIndex(r => { const f = finder((r || []).map(norm)); return f(...STORE) >= 0 && f(...DAY) >= 0; });
   if (h < 0) return { days: [], problem: 'Order Summary has no Store ID / Transaction date header' };
   const at = finder(rows[h].map(norm));
-  const cols = Object.fromEntries(Object.entries(FEE_COLUMNS).map(([c, name]) => [c, at(name)]));
-  const missing = REQUIRED.filter(c => cols[c] < 0).map(c => FEE_COLUMNS[c]);
+  const cols = Object.fromEntries(Object.entries(FEE_COLUMNS).map(([c, name]) => [c, at(...[].concat(name))]));
+  const missing = REQUIRED.filter(c => cols[c] < 0).map(c => [].concat(FEE_COLUMNS[c])[0]);
   if (missing.length) return { days: [], problem: `Order Summary is missing: ${missing.join(' | ')}` };
   const iStore = at(...STORE), iDay = at(...DAY), iType = at('Transaction type'), iShop = at('Shop code');
   const out = {};
@@ -570,7 +571,11 @@ async function main() {
 
     const fees = parseFeeDays(wb);
     if (fees.problem) { console.warn(`  ⚠ fees not read from ${task.taskName}: ${fees.problem}`); feeProblems++; }
+    // A day on or after the report's own date (Dubai) was still open when the
+    // report was made: its invoice line is 0. A later report closes it.
+    const madeOn = task.createTime ? new Date(task.createTime + 4 * 3600_000).toISOString().slice(0, 10) : '9999-12-31';
     for (const d of fees.days) {
+      if (d.work_date >= madeOn) continue;
       const key = `${d.store_id}|${d.work_date}`;
       if (feeDays.has(key)) continue;
       const shop = resolveShop(d.store_id, d.shop_label);
