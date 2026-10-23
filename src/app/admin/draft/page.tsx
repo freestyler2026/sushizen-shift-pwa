@@ -4614,11 +4614,13 @@ export default function AdminDraftPage() {
               {applyPrepared.items.some(i => i.conflict) && (
                 <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-300">
-                    ⚠️ Overwrite Warning — Manual corrections detected
+                    Manual corrections made after this draft
                   </div>
                   <p className="mb-3 text-xs text-amber-200/70">
-                    The following branches have published shifts that were updated <strong>after</strong> this draft was generated.
-                    Proceeding will overwrite those manual OS corrections.
+                    These weeks have published shifts that were corrected <strong>after</strong> this draft was generated.
+                    Confirm Apply keeps those corrections and publishes the rest of the draft. Each week&apos;s result
+                    lists the shifts it kept. To use the draft&apos;s version of a kept shift, edit that cell in the
+                    draft and apply again.
                   </p>
                   <div className="space-y-2">
                     {applyPrepared.items.filter(i => i.conflict).map(i => (
