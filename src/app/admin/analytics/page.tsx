@@ -104,6 +104,7 @@ import { ManilaOverallRatingsTab } from "@/components/analytics/ManilaOverallRat
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
 import DubaiMonthlySummaryTable from "@/components/analytics/dubai/DubaiMonthlySummaryTable";
+import DubaiSalesCheckPanel from "@/components/analytics/dubai/DubaiSalesCheckPanel";
 import { ManilaSalesDataTab } from "@/components/analytics/ManilaSalesDataTab";
 import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashierEvaluationTab";
 import { ManilaCancellationsTab } from "@/components/analytics/ManilaCancellationsTab";
@@ -6090,6 +6091,8 @@ export default function AdminAnalyticsPage() {
           {analyticsTab === "dubaiSales" && dubaiSyncStatus?.file_gaps ? (
             <PosFileGapsPanel gaps={dubaiSyncStatus.file_gaps} />
           ) : null}
+
+          {analyticsTab === "dubaiSales" && salesStepUpReady ? <DubaiSalesCheckPanel /> : null}
 
           <div className={TAB_CONTAINER}>
             {analyticsTabs.filter((tab) => tab.visible).map((tab) => (
