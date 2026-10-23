@@ -233,11 +233,9 @@ type ApplyPrepareResult = {
     rows_count: number;
     staff_count: number;
   };
+  /** Shifts corrected after this draft was made, which Confirm Apply keeps. */
   conflict?: {
-    published_by: string;
-    published_at_pht: string;
-    draft_created_at_pht: string;
-    delta_minutes: number;
+    kept_cells: string[];
   } | null;
   day_off_conflicts?: DayOffConflict[];
   cross_branch_overlaps?: CrossBranchOverlap[];
@@ -4627,12 +4625,9 @@ export default function AdminDraftPage() {
                       <div key={`${i.branch_code}-${i.week_start}`} className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs">
                         <span className="font-semibold text-amber-200">{i.branch_name}</span>
                         <span className="ml-2 text-amber-400/60">{i.week_start}</span>
-                        <div className="mt-1 text-amber-200/50">
-                          Published by <span className="text-amber-200/80">{i.conflict!.published_by}</span> at{" "}
-                          <span className="text-amber-200/80">{i.conflict!.published_at_pht?.slice(0, 16)} PHT</span>
-                          {" "}(draft was generated at {i.conflict!.draft_created_at_pht?.slice(0, 16)} PHT,{" "}
-                          {i.conflict!.delta_minutes} min earlier)
-                        </div>
+                        {(i.conflict?.kept_cells || []).map((line, k) => (
+                          <div key={`kc${k}`} className="mt-1 text-amber-200/70">{line}</div>
+                        ))}
                       </div>
                     ))}
                   </div>
