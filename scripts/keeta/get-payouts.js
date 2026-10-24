@@ -129,12 +129,33 @@ function monthWindows(fromISO, toISO) {
  * gaps in ar_payouts matched the months nobody had clicked Submit for. This
  * does that clicking.
  */
+/**
+ * The brand id(s) this login's shops belong to. The id used to be the constant
+ * 297253 (Sushi ZEN), so the Ramen ZEN login asked for Sushi ZEN's reports and
+ * its own months were only there when someone had made them by hand (2026-10-24:
+ * Ramen ZEN had fees for 2026-02/05/06 only).
+ */
+async function brandIdsOfThisLogin(page) {
+  const res = await page.evaluate(async () => {
+    const r = await fetch('/api/account/query/getShopListByAccount?yodaReady=h5&csecplatform=4&csecversion=3.5.1', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shopName: '', pageNo: 1, pageSize: 50 }),
+    });
+    return r.json();
+  }).catch(e => ({ error: e.message }));
+  const ids = [...new Set(((res && res.data && res.data.list) || []).map(x => Number(x.brandId)).filter(Boolean))];
+  if (!ids.length) console.warn(`  ⚠ could not read this login's brand id (${JSON.stringify(res).slice(0, 160)}); using ${BRAND_INPUT_ID}`);
+  return ids.length ? ids : [BRAND_INPUT_ID];
+}
+
 async function generateReports(page, fromISO, toISO) {
   const windows = monthWindows(fromISO, toISO);
+  const brandIds = await brandIdsOfThisLogin(page);
+  console.log(`  brand id(s) of this login: ${brandIds.join(', ')}`);
   console.log(`\nRequesting billing reports for ${windows.length} month(s): ${fromISO} → ${toISO}`);
 
   let created = 0;
-  for (const w of windows) {
+  for (const brandId of brandIds) for (const w of windows) {
     const res = await page.evaluate(async ([startStamp, endStamp, inputId]) => {
       const resp = await fetch(
         '/api/settlement/statement/v2/w/download/task/create?yodaReady=h5&csecplatform=4&csecversion=3.5.1',
@@ -151,7 +172,7 @@ async function generateReports(page, fromISO, toISO) {
         }
       );
       return resp.json();
-    }, [w.startStamp, w.endStamp, BRAND_INPUT_ID]).catch(e => ({ error: e.message }));
+    }, [w.startStamp, w.endStamp, brandId]).catch(e => ({ error: e.message }));
 
     if (res && res.code === 0) { console.log(`  ✓ ${w.label}`); created++; }
     else console.warn(`  ⚠ ${w.label}: ${JSON.stringify(res).slice(0, 160)}`);
