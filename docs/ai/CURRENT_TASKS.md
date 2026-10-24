@@ -2,6 +2,11 @@
 
 
 
+## 2026-10-24 ドバイ VAT：会計事務所の Q1・Q2 申告と OS の照合 — 報告済み（会計事務所への確認待ち）
+- 照合表 `~/Desktop/Dubai_VAT_accountant_vs_OS_2026-10-24.xlsx`（月別・四半期・指摘7件）。詳細は `docs/ai/handoff/vat-dubai-implementation.md`「会計事務所の申告との照合」
+- あわせて Keeta 取込のブランドID固定（297253）を直した → Ramen ZEN（247261）のレポートが作られ、357 店舗日を補完。全月そろった
+- 未了：①DMCC が別に申告しているか（オーナー）②会計事務所への確認（依頼文は渡し済み）③Q3 は 10/28 期限
+
 ## 2026-10-24 ドバイ VAT 0-6：Keeta の手数料・Keeta 負担割引を店舗×日で取込 — デプロイ・本番確認済み
 - Keeta UAE のポータルに税額票の取得口は無い（確認済み）。Billing report の Order Summary から `keeta_fee_days` へ（`app/keeta_fees.py`、`POST /api/keeta/fee-days`、トークン `KEETA_FEE_INGEST_TOKEN` は Heroku と GitHub secret に設定済み）。毎週水曜の `keeta-dubai-payout.yml` が両ブランドで送る。失敗したら run を赤にする
 - VAT Ledger 最下部「Dubai — Keeta's fees」（`src/components/vat/DubaiKeetaFees.tsx`）。手数料の VAT は「税額票待ち」で数えない

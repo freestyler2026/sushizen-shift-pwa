@@ -100,6 +100,24 @@
 
 ---
 
+## 会計事務所の申告との照合（2026-10-24・Yusuke 経由の資料と Dropbox 5フォルダ）
+
+資料：VAT 201（Q1 下書き・Q2 申告済み 7/28）、売上・仕入の Voucher Register（Q1・Q2）、Dropbox（仕入写真＝Discord の店舗別、Careem/Noon/Talabat の Tax Invoice、Keeta は SOA 2枚のみ）。照合表 `~/Desktop/Dubai_VAT_accountant_vs_OS_2026-10-24.xlsx`。
+
+| 期 | Box 1b 売上 | 売上税 | Box 9 仕入 | 仕入税 | 納付 |
+|---|---:|---:|---:|---:|---:|
+| Q1（下書き） | 4,151,088.32 | 207,554.41 | 1,876,963.62 | 93,850.50 | 113,703.91 |
+| Q2（申告済） | 2,661,587.76 | 133,079.39 | 1,940,645.27 | 97,032.26 | 36,047.13 |
+
+- 売上は「アプリへの販売」としてアプリ×月で計上。Careem・Noon は OS（JLT 込み）＋アプリ負担割引に近い → **LLC の申告に JLT（DMCC）が入っている可能性が高い**
+- Keeta Q1 = SOA（Sushi ZEN・JLT 込）の Total revenue＝**上代**を3か月に割り振り（RZ 無し）。Q2 は根拠不明で過少
+- Talabat Q2：5月に大きな行が2本、6月が4月と同額 118,218.10
+- Smiles は Q1・Q2 とも計上なし
+- 手数料の仕入税：Keeta・Noon・Talabat は TRN も番号も無し（Q2 で 31,100.96）。Careem だけ TRN・番号あり。Keeta の法人名は **KEETA DB DELIVERY SERVICES L.L.C**（TRN 未入手）
+- JLT の請求書は **RAMENZEN RESTAURANT L.L.C 宛て**（TRN 104172381600003、納品先 JLT）で、Q2 の LLC の仕入に 273件・VAT 2,835.13 入っている
+- 課税期間は Stagger 3（4月始まりの暦四半期）。Q3（7〜9月）は会計事務所が未作成、期限 10/28
+- **未決（オーナー）：ZEN FOOD LABS DMCC は自分の VAT 201 を出しているか。** これで JLT を LLC に入れるべきかが決まる
+
 ## Phase 0 — 準備（材料の確定）
 
 - [ ] **0-1 2社の課税期間**（オーナー）: TRN は受領済み（上表）。VAT 登録証で各社の課税期間（開始月）を確認し、DMCC の TRN を `own_tax_numbers` に登録
