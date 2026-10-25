@@ -1592,4 +1592,65 @@ describe("ManualShiftPage — days already clocked in", () => {
     await waitFor(() => expect(publishBodies).toHaveLength(2), { timeout: 3000 });
     expect(publishBodies[1]).toMatchObject({ confirm_worked: true });
   });
+
+  it("a note on a cell whose unpublished hours change came before the clock-in asks about those hours", async () => {
+    // Published 9–17; someone saved 13–21 before Alice clocked in. Adding a note now
+    // must not send that hours change as confirmed (ultrareview, 2026-10-25).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: { rows: [
+        { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }] } },
+      { match: "/api/admin/shifts/week_state", body: { ok: true, max_rev: 3, edits: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", rev: 3, edited_by: "Someone",
+          cells: [{ start_hour: 13, end_hour: 21, role: "CK" }] }] } },
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "09:02", check_out: null, working: true }] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 09:02", {}, { timeout: 3000 });
+    fireEvent.click(await screen.findByText("13:00–21:00", {}, { timeout: 3000 }));
+    fireEvent.change(await screen.findByPlaceholderText("Add a note for this shift…"), { target: { value: "late bus" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Alice Cohen has already clocked in on this day", {}, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cellPosts(fetchMock)).toHaveLength(0);
+  });
+
+  it("a refusal seen by two flushes at once is asked about once", async () => {
+    // The edit's own flush is still waiting when Publish flushes again. Both used to
+    // get the same refusal and ask the same question twice.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    let posts = 0;
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        posts += 1;
+        const body = JSON.parse(String(opts?.body));
+        await new Promise((r) => setTimeout(r, 300));
+        if (!body.edits[0].confirm_worked) {
+          return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+            { staff_name: body.edits[0].staff_name, work_date: body.edits[0].work_date,
+              check_in: "09:40", check_out: null, working: true }] } }), { status: 409, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ ok: true, written: 1, rev: 5, pending: 1 }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    await loadStaff();
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await waitFor(() => expect(posts).toBe(1));
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    await screen.findByRole("button", { name: "Change anyway" }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: "Change anyway" }));
+    await waitFor(() => expect(posts).toBe(2), { timeout: 3000 });
+    await new Promise((r) => setTimeout(r, 500));
+    expect(screen.queryByRole("button", { name: "Change anyway" })).toBeNull();
+    expect(posts).toBe(2);
+  });
 });

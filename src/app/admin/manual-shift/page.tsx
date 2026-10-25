@@ -299,8 +299,7 @@ function BranchSection({
     // Days already clocked in are named before anything goes (the server refuses them otherwise).
     let workedDays: WorkedInfo[] = [];
     try {
-      const d = await apiFetch<{ days?: WorkedInfo[] }>(
-        `/api/admin/shifts/week_attendance?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`);
+      const d = await fetchWeekAttendance(city, weekStart);
       const mine = new Set(shiftsForStaff.map((r) => workedKey(staffName, r.work_date)));
       workedDays = (d.days || []).filter((w) => mine.has(workedKey(w.staff_name, w.work_date)));
     } catch {
@@ -500,6 +499,19 @@ type WorkedAnswer = "change" | "skip" | "cancel";
 /** single/bulk: an edit on this page. replay: queued edits the server refused.
  *  publish / import: pending cells, or the sheet, about to replace worked days. */
 type WorkedAskMode = "single" | "bulk" | "replay" | "publish" | "import";
+
+/** The week's clock-ins. One copy of the request, shared by the grid and the Published view's delete. */
+function fetchWeekAttendance(city: string, weekStart: string) {
+  return apiFetch<{ days?: WorkedInfo[] }>(
+    `/api/admin/shifts/week_attendance?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`);
+}
+
+/** A "change anyway" answer belongs to one cell of one branch's week. Keyed by
+ *  name and date alone, a yes given at one branch skipped the question for the
+ *  same person and day at another (clock-ins are per city, not per branch). */
+function confirmKey(city: string, branchCode: string, weekStart: string, staffName: string, dateStr: string): string {
+  return `${city}|${branchCode}|${weekStart}|${workedKey(staffName, dateStr)}`;
+}
 
 function workedKey(name: string, dateStr: string): string {
   return `${stripRoleSuffix(name).replace(/\s+/g, " ").trim().toLowerCase()}|${dateStr}`;
@@ -760,6 +772,14 @@ export default function ManualShiftPage() {
   }, []);
   /** The week whose clock-ins are in `worked`, so a change is never checked against another week's. */
   const workedForRef = useRef("");
+  /** The week whose clock-ins were last asked for, answered or not. An edit waits
+   *  for that request once per week, not on every edit while it keeps failing. */
+  const workedTriedRef = useRef("");
+  /** Edits apply in the order they were made. Each one may wait for the clock-ins
+   *  and a question, and two edits to the same cell must not land out of order. */
+  const commitChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const sheetKeyRef = useRef("");
+  sheetKeyRef.current = `${city}|${branchCode}|${weekStart}`;
   const loadWorkedRef = useRef<() => Promise<void>>(async () => {});
   const answerWorked = (a: WorkedAnswer) => {
     const r = workedAskResolve.current;
@@ -783,6 +803,10 @@ export default function ManualShiftPage() {
    *  edit from a saved copy of what is already published. */
   const publishedGridRef = useRef<Record<string, string>>({});
   const publishedDraftSigRef = useRef<Record<string, string>>({});
+  /** The published hours and branch of each cell, by workedKey. A worked day is
+   *  measured against what is published, so "same hours" is judged against this
+   *  and not against the screen, which also shows unpublished edits. */
+  const publishedWorkedSigRef = useRef<Record<string, string>>({});
 
   // A new deploy hard-reloads the page. Edits are saved as they are made now, so
   // the only thing a reload can lose is what has not reached the server yet.
@@ -869,10 +893,10 @@ export default function ManualShiftPage() {
 
   /** Send everything queued. Grouped by week so a queue built across a week
    *  change still lands in the right place. What fails stays queued. */
-  const flushOutbox = useCallback(async () => {
-    if (outboxRef.current.size === 0) return;
+  const flushOnce = useCallback(async (): Promise<boolean> => {
+    if (outboxRef.current.size === 0) return false;
     // A question about worked days is on screen; send nothing until it is answered.
-    if (workedAskResolve.current) return;
+    if (workedAskResolve.current) return false;
     const refusedWorked: { edit: PendingEdit; info: WorkedInfo }[] = [];
     const groups = new Map<string, PendingEdit[]>();
     for (const e of outboxRef.current.values()) {
@@ -939,40 +963,93 @@ export default function ManualShiftPage() {
         const cur = outboxRef.current.get(k);
         if (!cur) continue;
         if (answer === "change") {
-          confirmedWorkedRef.current.add(cellKey(edit.staff_name, edit.work_date));
+          confirmedWorkedRef.current.add(confirmKey(edit.city, edit.branch_code, edit.week_start,
+                                                    edit.staff_name, edit.work_date));
           outboxRef.current.set(k, { ...cur, confirm_worked: true });
         } else {
           outboxRef.current.delete(k);
         }
       }
       syncOutboxSize();
-      // Awaited: Publish and Discard wait on this flush, and must see the queue settled.
-      if (answer === "change") await flushRef.current();
-      else await refreshWeekRef.current();   // put the published cells back on screen
+      if (answer === "change") return true;   // send them again, confirmed
+      await refreshWeekRef.current();         // put the published cells back on screen
     }
+    return false;
   }, [syncOutboxSize, askWorked]);
+
+  // One flush at a time. Two in flight (an edit's flush and the 5s retry) both got
+  // the same refusal and asked the same question twice; a "Discard" on the repeat
+  // then dropped the edit just confirmed. A call made while one runs waits for it,
+  // and the running one goes round again so nothing queued meanwhile is missed.
+  // Publish and Discard await this, so they see the queue settled.
+  const flushInFlightRef = useRef<Promise<void> | null>(null);
+  const flushAgainRef = useRef(false);
+  const flushOutbox = useCallback((): Promise<void> => {
+    if (flushInFlightRef.current) {
+      flushAgainRef.current = true;
+      return flushInFlightRef.current;
+    }
+    const run = (async () => {
+      try {
+        let again = true;
+        while (again) {
+          flushAgainRef.current = false;
+          const resend = await flushOnce();
+          again = (resend || flushAgainRef.current) && outboxRef.current.size > 0;
+        }
+      } finally {
+        flushInFlightRef.current = null;
+      }
+    })();
+    flushInFlightRef.current = run;
+    return run;
+  }, [flushOnce]);
   flushRef.current = flushOutbox;
 
   /** The single place a cell changes. Everything that edits the grid goes
    *  through here, so nothing can change a cell without it being saved. */
-  const commitCells = useCallback(async (
+  const commitCells = useCallback((
     input: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }[],
-    opts?: { bulk?: boolean },
-  ) => {
+    opts?: { bulk?: boolean; onWorkedAnswer?: (a: WorkedAnswer) => void },
+  ): Promise<number> => {
+    const run = commitChainRef.current.then(() => commitNow(input, opts));
+    commitChainRef.current = run.catch(() => 0);
+    return run;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, branchCode, weekStart, auth?.staffName, syncOutboxSize, flushOutbox, askWorked]);
+
+  const commitNow = async (
+    input: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }[],
+    opts?: { bulk?: boolean; onWorkedAnswer?: (a: WorkedAnswer) => void },
+  ): Promise<number> => {
     let changes = input;
     if (changes.length === 0) return 0;
+    const sheet = `${city}|${branchCode}|${weekStart}`;
     // The week's clock-ins, if this week's have not arrived yet (an old draft is
-    // carried in on load, racing the attendance request).
-    if (workedForRef.current !== `${city}|${weekStart}`) {
+    // carried in on load, racing the attendance request). Asked once per week:
+    // if the request fails, later edits go straight on and the server still asks.
+    const wk = `${city}|${weekStart}`;
+    if (workedForRef.current !== wk && workedTriedRef.current !== wk) {
+      workedTriedRef.current = wk;
       try { await loadWorkedRef.current(); } catch { /* the server still asks */ }
     }
+    // The person may have moved to another branch or week while that was waiting.
+    // This edit was made on the old grid and must not be painted onto the new one.
+    if (sheetKeyRef.current !== sheet) return 0;
+    const ck = (ch: { staffName: string; dateStr: string }) => confirmKey(city, branchCode, weekStart, ch.staffName, ch.dateStr);
     const isWorked = (ch: { staffName: string; dateStr: string }) => workedRef.current.has(workedKey(ch.staffName, ch.dateStr));
     const moves = (ch: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }) =>
       workedSig(gridDataRef.current[ch.staffName]?.[ch.dateStr], branchCode) !== workedSig(ch.value, branchCode);
+    // Against what is published, which is what the day is measured against. The
+    // screen may show an hours change saved before the clock-in; a note added to
+    // that cell now would otherwise carry the hours change through unasked.
+    const leavesPublished = (ch: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }) =>
+      (publishedWorkedSigRef.current[workedKey(ch.staffName, ch.dateStr)] ?? workedSig(null, branchCode))
+        !== workedSig(ch.value, branchCode);
     // A day already clocked in: ask before changing it -- once per cell for an
     // edit by hand; every time for a bulk load, whose answer covers all of them.
-    const needs = changes.filter((ch) => isWorked(ch) && moves(ch)
-      && (opts?.bulk || !confirmedWorkedRef.current.has(cellKey(ch.staffName, ch.dateStr))));
+    const needs = changes.filter((ch) => isWorked(ch) && (moves(ch) || leavesPublished(ch))
+      && (opts?.bulk || !confirmedWorkedRef.current.has(ck(ch))));
     if (needs.length > 0) {
       const answer = await askWorked(needs.map((ch) => ({
         staffName: ch.staffName, dateStr: ch.dateStr,
@@ -980,19 +1057,20 @@ export default function ManualShiftPage() {
         before: describeCellValue(gridDataRef.current[ch.staffName]?.[ch.dateStr]),
         after: describeCellValue(ch.value),
       })), opts?.bulk ? "bulk" : "single");
+      opts?.onWorkedAnswer?.(answer);
+      if (sheetKeyRef.current !== sheet) return 0;
       if (answer === "cancel") return 0;
-      const asked = new Set(needs.map((ch) => cellKey(ch.staffName, ch.dateStr)));
+      const asked = new Set(needs.map(ck));
       // "Keep worked days as they are" keeps all of them, notes and labels too.
       if (answer === "skip") changes = changes.filter((ch) => !(isWorked(ch)
         && cellSignature(gridDataRef.current[ch.staffName]?.[ch.dateStr]) !== cellSignature(ch.value)));
       else for (const k of asked) confirmedWorkedRef.current.add(k);
       if (changes.length === 0) return 0;
     }
-    // Same hours on a worked day (a note, a role label): nothing the day is
-    // measured against changes, so it goes without a question. For this edit
-    // only -- a later change of hours to the same cell is still asked about.
-    const sameHours = new Set(changes.filter((ch) => isWorked(ch) && !moves(ch))
-      .map((ch) => cellKey(ch.staffName, ch.dateStr)));
+    // Same hours as published on a worked day (a note, a role label): nothing the
+    // day is measured against changes, so it goes without a question. For this
+    // edit only -- a later change of hours to the same cell is still asked about.
+    const sameHours = new Set(changes.filter((ch) => isWorked(ch) && !leavesPublished(ch)).map(ck));
     setGridData((prev) => {
       const next: GridData = {};
       for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
@@ -1018,15 +1096,14 @@ export default function ManualShiftPage() {
         city, branch_code: branchCode, week_start: weekStart,
         staff_name: ch.staffName, work_date: ch.dateStr,
         cells: cellsOf(ch.value),
-        confirm_worked: confirmedWorkedRef.current.has(cellKey(ch.staffName, ch.dateStr))
-          || sameHours.has(cellKey(ch.staffName, ch.dateStr)),
+        confirm_worked: confirmedWorkedRef.current.has(ck(ch)) || sameHours.has(ck(ch)),
       };
       outboxRef.current.set(queueKey(e), e);
     }
     syncOutboxSize();
     void flushOutbox();
     return changes.length;
-  }, [city, branchCode, weekStart, auth?.staffName, syncOutboxSize, flushOutbox, askWorked]);
+  };
 
   const commitCell = useCallback(
     (staffName: string, dateStr: string, value: ShiftCell | ShiftCell[] | null) =>
@@ -1228,6 +1305,16 @@ export default function ManualShiftPage() {
         publishedDraftSigRef.current = Object.fromEntries(
           Object.entries(byCell).map(([k, v]) => [k, cellDraftSignature(v)])
         );
+        const byWorked: Record<string, ShiftCell[]> = {};
+        for (const r of rows as any[]) {
+          (byWorked[workedKey(String(r.staff_name), String(r.work_date))] ??= []).push({
+            start_hour: Number(r.start_hour), end_hour: Number(r.end_hour), role: String(r.role || ""),
+            branch_code: r.branch_code ? String(r.branch_code) : undefined,
+          });
+        }
+        publishedWorkedSigRef.current = Object.fromEntries(
+          Object.entries(byWorked).map(([k, v]) => [k, workedSig(v, branchCode)])
+        );
       }
 
       setGridData((prev) => {
@@ -1379,8 +1466,20 @@ export default function ManualShiftPage() {
             if (cellDraftSignature(value) === (publishedDraftSigRef.current[k] ?? "")) continue;
             carried.push({ staffName: rName, dateStr: rDate, value });
           }
-          if (!cancelledRef.current && carried.length > 0) {
-            void commitCells(carried, { bulk: true }).then((n) => {
+          // "Keep worked days as they are" on an old week leaves nothing to carry,
+          // so the overlay stays empty and the same question came back on every
+          // open. Remembered here for this week (per browser).
+          const keptKey = `manual-shift:draft-kept:${city}|${branchCode}|${weekStart}`;
+          let kept = false;
+          try { kept = window.localStorage.getItem(keptKey) === "1"; } catch { /* storage off: ask again */ }
+          if (!cancelledRef.current && carried.length > 0 && !kept) {
+            void commitCells(carried, {
+              bulk: true,
+              onWorkedAnswer: (a) => {
+                if (a !== "skip") return;
+                try { window.localStorage.setItem(keptKey, "1"); } catch { /* storage off: ask again */ }
+              },
+            }).then((n) => {
               if (n > 0) setNotice(`${n} cell${n === 1 ? "" : "s"} from the old saved draft moved into this week — publish when ready.`);
             });
           }
@@ -1468,8 +1567,7 @@ export default function ManualShiftPage() {
   weekKeyRef.current = `${city}|${weekStart}`;
   const loadWorked = useCallback(async () => {
     const key = `${city}|${weekStart}`;
-    const d = await apiFetch<{ days?: WorkedInfo[] }>(
-      `/api/admin/shifts/week_attendance?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`);
+    const d = await fetchWeekAttendance(city, weekStart);
     if (weekKeyRef.current !== key) return;
     const m = new Map<string, WorkedInfo>();
     for (const w of d.days || []) m.set(workedKey(w.staff_name, w.work_date), w);
