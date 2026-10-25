@@ -491,7 +491,9 @@ type PendingEdit = {
  *  preparing tomorrow for several branches a click can land on today. 886 changes
  *  to worked days in 60 days were mostly deliberate (payroll, reconciliation), so
  *  the page asks once per cell and the server refuses a change it was not asked about. */
-type WorkedInfo = { staff_name: string; work_date: string; check_in: string; check_out: string | null; working: boolean;
+/** check_in / check_out are null for someone without attendance access: the server
+ *  says the day was worked, not when. */
+type WorkedInfo = { staff_name: string; work_date: string; check_in: string | null; check_out: string | null; working: boolean;
   /** An older day whose session was never closed — a forgotten clock-out, not someone at work. */
   no_clock_out?: boolean };
 type WorkedAskItem = { staffName: string; dateStr: string; info: WorkedInfo; before: string; after: string };
@@ -523,10 +525,17 @@ function workedCellsFrom(err: ApiError | undefined): WorkedInfo[] {
   return Array.isArray(err.detail.cells) ? (err.detail.cells as WorkedInfo[]) : [];
 }
 
+/** The longer line in the question. */
+function workedDetail(w: WorkedInfo): string {
+  if (w.working) return w.check_in ? `Working now — clocked in ${w.check_in}` : "Working now";
+  if (w.no_clock_out) return w.check_in ? `Clocked in ${w.check_in} — no clock-out recorded` : "Clocked in — no clock-out recorded";
+  return w.check_in ? `Worked — in ${w.check_in}${w.check_out ? `, out ${w.check_out}` : ""}` : "Worked";
+}
+
 function workedLabel(w: WorkedInfo): string {
-  if (w.working) return `working · in ${w.check_in}`;
-  if (w.no_clock_out) return `in ${w.check_in} · no clock-out`;
-  return `worked ${w.check_in}${w.check_out ? `–${w.check_out}` : ""}`;
+  if (w.working) return w.check_in ? `working · in ${w.check_in}` : "working";
+  if (w.no_clock_out) return w.check_in ? `in ${w.check_in} · no clock-out` : "no clock-out";
+  return w.check_in ? `worked ${w.check_in}${w.check_out ? `–${w.check_out}` : ""}` : "worked";
 }
 
 function describeCellValue(v: ShiftCell | ShiftCell[] | null | undefined): string {
@@ -3297,7 +3306,7 @@ export default function ManualShiftPage() {
                             <td key={d} className={"relative px-1 py-1 text-center align-top" + (workedHere ? " bg-emerald-50/70" : "")}>
                               {workedHere && (
                                 <span
-                                  title={`${stripRoleSuffix(name)} ${workedHere.working ? "is working now" : "has worked this day"} (clocked in ${workedHere.check_in}). Changing this day asks you first.`}
+                                  title={`${stripRoleSuffix(name)} ${workedHere.working ? "is working now" : "has worked this day"}${workedHere.check_in ? ` (clocked in ${workedHere.check_in})` : ""}. Changing this day asks you first.`}
                                   className={"pointer-events-none absolute bottom-0 right-0.5 z-10 rounded px-1 text-[8px] font-bold "
                                     + (workedHere.working ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800")}
                                 >
@@ -3826,9 +3835,7 @@ export default function ManualShiftPage() {
               {workedAsk.items.slice(0, 20).map((it) => (
                 <li key={`${it.staffName}|${it.dateStr}`} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
                   <div className="font-semibold text-gray-900">{stripRoleSuffix(it.staffName)} · {formatDate(it.dateStr)}</div>
-                  <div className="text-emerald-800">{it.info.working ? `Working now — clocked in ${it.info.check_in}`
-                    : it.info.no_clock_out ? `Clocked in ${it.info.check_in} — no clock-out recorded`
-                    : `Worked — in ${it.info.check_in}${it.info.check_out ? `, out ${it.info.check_out}` : ""}`}</div>
+                  <div className="text-emerald-800">{workedDetail(it.info)}</div>
                   <div className="text-gray-700">{it.before} → <span className="font-semibold">{it.after}</span></div>
                 </li>
               ))}

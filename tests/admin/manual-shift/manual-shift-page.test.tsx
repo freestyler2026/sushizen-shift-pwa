@@ -1492,6 +1492,24 @@ describe("ManualShiftPage — days already clocked in", () => {
     expect(cellPosts(fetchMock)).toHaveLength(0);
   });
 
+  it("without attendance access the day is marked and asked about, with no times", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = makeFetch([
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: null, check_out: null, working: true },
+      ] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working", {}, { timeout: 3000 });
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await screen.findByText("Alice Cohen has already clocked in on this day", {}, { timeout: 2000 });
+    expect(screen.getByText("Working now")).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).toBeNull();
+  });
+
   it("Change anyway saves the edit with the confirmation", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(MONDAY);
