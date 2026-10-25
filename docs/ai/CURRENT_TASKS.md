@@ -23,6 +23,12 @@
   - 打刻の取得を1つの関数に
   - 対象外：4（week_attendance と delete は同じ `_may_edit_shifts` で権限のずれは無い）／2（サーバーは送られた名前をそのまま返す）／7（サーバーの確認順は 休み→重複→打刻 で、打刻の後に休みの拒否は来ない）／8（サーバーは `confirm_worked` があれば打刻の確認をしない）
   - テスト2件を追加（直す前のコードで落ちることを確認）。94件通過・build 通過
+- **ultrareview（バックエンド）後の修正（同日・デプロイ・本番確認済み）**：指摘9件
+  - 出退勤時刻は勤怠を見る権限（`_assert_os_attendance_access`）のある人にだけ返す。シフト編集だけの人には「勤務済み／勤務中」のみ（画面は時刻なしで表示）
+  - `confirmed_worked` 列の ALTER は列が無いときだけ（毎回の起動で ACCESS EXCLUSIVE ロックを取っていた）
+  - 使われていない `manual_publish`・`inject_staff_published_rows` にも同じ確認／Load from DB は店舗の違いも変更とみなす／シートが空なら確認より先に 422／拒否の処理を1つに・未来日だけの保存はDB接続を開かない
+  - 対象外：公開順の指摘（両方とも本番に出済み）
+  - 手順メモ：このリポジトリの `origin` は画面側の GitHub を指しているため、`/ultrareview` は全体レビュー扱いで止まる。レビュー中だけ `refs/remotes/origin/main` を直前のコミットに向け、終わったら元（`d814c7f5`）に戻した
 
 ## 2026-10-24 ドバイ VAT：会計事務所の Q1・Q2 申告と OS の照合 — 報告済み（会計事務所への確認待ち）
 - 照合表 `~/Desktop/Dubai_VAT_accountant_vs_OS_2026-10-24.xlsx`（月別・四半期・指摘7件）。詳細は `docs/ai/handoff/vat-dubai-implementation.md`「会計事務所の申告との照合」
