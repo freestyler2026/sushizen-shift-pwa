@@ -1456,3 +1456,54 @@ describe("ManualShiftPage — hidden rows that still hold shifts", () => {
     expect(screen.queryByText(/still scheduled here from/i)).toBeNull();
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────────
+// A day the staff member has already clocked in asks before it changes
+// (Back Office request, 2026-10-25; app/shift_worked_days.py on the server).
+describe("ManualShiftPage — days already clocked in", () => {
+  const MONDAY = new Date("2026-10-12T02:00:00Z");
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); localStorage.clear(); });
+
+  function workedFetch() {
+    return makeFetch([
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "09:02", check_out: null, working: true },
+      ] } },
+    ]);
+  }
+  const cellPosts = (fetchMock: ReturnType<typeof makeFetch>) =>
+    fetchMock.mock.calls.filter(([u, o]) => String(u).includes("/api/admin/shifts/week_cells")
+      && ((o as RequestInit)?.method || "GET").toUpperCase() === "POST");
+
+  it("marks the cell and asks before saving; Cancel sends nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = workedFetch();
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 09:02", {}, { timeout: 3000 });
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await screen.findByText("Alice Cohen has already clocked in on this day", {}, { timeout: 2000 });
+    expect(screen.getByText("Working now — clocked in 09:02")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByText("Alice Cohen has already clocked in on this day")).toBeNull());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cellPosts(fetchMock)).toHaveLength(0);
+  });
+
+  it("Change anyway saves the edit with the confirmation", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = workedFetch();
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 09:02", {}, { timeout: 3000 });
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    fireEvent.click(await screen.findByRole("button", { name: "Change anyway" }, { timeout: 2000 }));
+    await waitFor(() => expect(cellPosts(fetchMock).length).toBeGreaterThan(0), { timeout: 3000 });
+    const body = JSON.parse(String((cellPosts(fetchMock)[0][1] as RequestInit).body));
+    expect(body.edits[0]).toMatchObject({ staff_name: "Alice Cohen", work_date: "2026-10-12", confirm_worked: true });
+  });
+});
