@@ -481,7 +481,9 @@ type PendingEdit = {
  *  preparing tomorrow for several branches a click can land on today. 886 changes
  *  to worked days in 60 days were mostly deliberate (payroll, reconciliation), so
  *  the page asks once per cell and the server refuses a change it was not asked about. */
-type WorkedInfo = { staff_name: string; work_date: string; check_in: string; check_out: string | null; working: boolean };
+type WorkedInfo = { staff_name: string; work_date: string; check_in: string; check_out: string | null; working: boolean;
+  /** An older day whose session was never closed — a forgotten clock-out, not someone at work. */
+  no_clock_out?: boolean };
 type WorkedAskItem = { staffName: string; dateStr: string; info: WorkedInfo; before: string; after: string };
 type WorkedAnswer = "change" | "skip" | "cancel";
 
@@ -490,7 +492,9 @@ function workedKey(name: string, dateStr: string): string {
 }
 
 function workedLabel(w: WorkedInfo): string {
-  return w.working ? `working · in ${w.check_in}` : `worked ${w.check_in}${w.check_out ? `–${w.check_out}` : ""}`;
+  if (w.working) return `working · in ${w.check_in}`;
+  if (w.no_clock_out) return `in ${w.check_in} · no clock-out`;
+  return `worked ${w.check_in}${w.check_out ? `–${w.check_out}` : ""}`;
 }
 
 function describeCellValue(v: ShiftCell | ShiftCell[] | null | undefined): string {
@@ -3635,7 +3639,9 @@ export default function ManualShiftPage() {
               {workedAsk.items.slice(0, 20).map((it) => (
                 <li key={`${it.staffName}|${it.dateStr}`} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
                   <div className="font-semibold text-gray-900">{stripRoleSuffix(it.staffName)} · {formatDate(it.dateStr)}</div>
-                  <div className="text-emerald-800">{it.info.working ? `Working now — clocked in ${it.info.check_in}` : `Worked — in ${it.info.check_in}${it.info.check_out ? `, out ${it.info.check_out}` : ""}`}</div>
+                  <div className="text-emerald-800">{it.info.working ? `Working now — clocked in ${it.info.check_in}`
+                    : it.info.no_clock_out ? `Clocked in ${it.info.check_in} — no clock-out recorded`
+                    : `Worked — in ${it.info.check_in}${it.info.check_out ? `, out ${it.info.check_out}` : ""}`}</div>
                   <div className="text-gray-700">{it.before} → <span className="font-semibold">{it.after}</span></div>
                 </li>
               ))}
