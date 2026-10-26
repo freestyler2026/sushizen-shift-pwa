@@ -1665,6 +1665,10 @@ export default function ManualShiftPage() {
   /** Published week + overlay, in that order. Every refresh path uses this so
    *  none of them can reload one without the other. */
   const refreshWeek = useCallback(async () => {
+    // The published week moved (someone published, Load from DB, a row deleted):
+    // a yes was given against what it said before, and the server has taken its
+    // copy back too (app/shift_worked_days.py), so ask again.
+    confirmedWorkedRef.current.clear();
     await loadExistingShifts(true);
     try { await reapplyWholeOverlay(); } catch { /* keep the published week on screen */ }
   }, [loadExistingShifts, reapplyWholeOverlay]);
@@ -2231,7 +2235,9 @@ export default function ManualShiftPage() {
         setCellEditors({});
       }
       // publish_from_base writes the published week itself, so there is nothing
-      // to carry over -- reload and let the overlay lie back on top.
+      // to carry over -- reload and let the overlay lie back on top. A yes given
+      // against the old week no longer stands (the server took its copy back).
+      confirmedWorkedRef.current.clear();
       const staffOk = await loadStaff();
       if (!staffOk) return;
       await loadExistingShifts(true);
