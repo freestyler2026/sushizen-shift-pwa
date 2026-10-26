@@ -28,6 +28,11 @@
   - `confirmed_worked` 列の ALTER は列が無いときだけ（毎回の起動で ACCESS EXCLUSIVE ロックを取っていた）
   - 使われていない `manual_publish`・`inject_staff_published_rows` にも同じ確認／Load from DB は店舗の違いも変更とみなす／シートが空なら確認より先に 422／拒否の処理を1つに・未来日だけの保存はDB接続を開かない
   - 対象外：公開順の指摘（両方とも本番に出済み）
+  - **ultra 前の自己レビュー（2026-10-26・CLAUDE.md「ultra の前に、自分でレビューを回す」の初回）**：3回まわした
+    - 1回目（4人・観点別）：本物14件（消した分割シフトが Save で戻る／Publish anyway が週全体を通す／Day Off→VL を変更と見ない／待ち中の週切替で編集が消える／再読み込みで待ち中の編集が消える ほか）。サーバーの単体テストが偽DBだけだった → `tests/test_shift_worked_days_pg.py`（実DB・6件）
+    - 2回目（2人）：低7件（二重 Publish・null 同士の比較・余計な確認4種）を修正
+    - 3回目（1人）：2回目の修正の逆戻り1件を修正。デプロイ済み（サーバー→画面の順。Publish の確認はセル単位 `confirm_worked_cells` で、古い画面の `confirm_worked` も受ける）
+    - 未確認：本番画面の目視（OS のブラウザセッション切れ）
   - 手順メモ：このリポジトリの `origin` は画面側の GitHub を指しているため、`/ultrareview` は全体レビュー扱いで止まる。レビュー中だけ `refs/remotes/origin/main` を直前のコミットに向け、終わったら元（`d814c7f5`）に戻した
 
 ## 2026-10-24 ドバイ VAT：会計事務所の Q1・Q2 申告と OS の照合 — 報告済み（会計事務所への確認待ち）
