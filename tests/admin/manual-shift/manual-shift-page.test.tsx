@@ -1510,6 +1510,35 @@ describe("ManualShiftPage — days already clocked in", () => {
     expect(screen.queryByText(/null/)).toBeNull();
   });
 
+  it("removing a segment of a worked day asks on top of the editor, and the editor already shows it gone", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: { rows: [
+        { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 13 },
+        { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 17, end_hour: 22 }] } },
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "08:55", check_out: null, working: true }] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 08:55", {}, { timeout: 3000 });
+    fireEvent.click(screen.getByText("9:00–13:00"));
+    await screen.findByRole("button", { name: "Save" }, { timeout: 2000 });
+    const removes = screen.getAllByRole("button", { name: "✕" }).filter((b) => b.className.includes("text-rose-400"));
+    expect(removes).toHaveLength(2);
+    fireEvent.click(removes[1]);   // 17:00–22:00
+    const dialog = await screen.findByRole("dialog", {}, { timeout: 2000 });
+    expect(dialog.className).toContain("z-[10000]");   // above the editor (z-[9999])
+    // The editor's list already shows the removal, so a Save now cannot bring it back.
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "✕" })
+      .filter((b) => b.className.includes("text-rose-400"))).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Change anyway" }));
+    await waitFor(() => expect(cellPosts(fetchMock).length).toBeGreaterThan(0), { timeout: 3000 });
+    const body = JSON.parse(String((cellPosts(fetchMock)[0][1] as RequestInit).body));
+    expect(body.edits[0].cells.map((c: { start_hour: number }) => c.start_hour)).toEqual([9]);
+  });
+
   it("Change anyway saves the edit with the confirmation", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(MONDAY);
@@ -1591,7 +1620,7 @@ describe("ManualShiftPage — days already clocked in", () => {
       if (String(url).includes("/api/admin/shifts/publish_week_cells")) {
         const body = JSON.parse(String(opts?.body));
         publishBodies.push(body);
-        if (!body.confirm_worked) {
+        if (!(body.confirm_worked_cells || []).length) {
           return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
             { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "08:55", check_out: "17:05", working: false }] } }),
           { status: 409, headers: { "Content-Type": "application/json" } });
@@ -1608,7 +1637,9 @@ describe("ManualShiftPage — days already clocked in", () => {
     expect(screen.getByText("Worked — in 08:55, out 17:05")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Publish anyway" }));
     await waitFor(() => expect(publishBodies).toHaveLength(2), { timeout: 3000 });
-    expect(publishBodies[1]).toMatchObject({ confirm_worked: true });
+    // The yes covers the day the question named, not the whole publish.
+    expect(publishBodies[1].confirm_worked_cells).toEqual([{ staff_name: "Alice Cohen", work_date: "2026-10-12" }]);
+    expect(publishBodies[1].confirm_worked).toBeUndefined();
   });
 
   it("a note on a cell whose unpublished hours change came before the clock-in asks about those hours", async () => {
