@@ -762,6 +762,7 @@ export default function ManualShiftPage() {
   // the overlap check, so 'publish anyway' does not lose the first answer.
   const dayOffWaivedRef = useRef(false);
   const workedWaivedRef = useRef<{ staff_name: string; work_date: string }[]>([]);
+  const publishingRef = useRef(false);
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
 
@@ -804,7 +805,10 @@ export default function ManualShiftPage() {
   /** Edits apply in the order they were made. Each one may wait for the clock-ins
    *  and a question, and two edits to the same cell must not land out of order. */
   const commitChainRef = useRef<Promise<unknown>>(Promise.resolve());
-  const intendedRef = useRef<Record<string, ShiftCell | ShiftCell[] | null>>({});
+  /** Per cell, the value last asked for and which commit asked: two removals are
+   *  both null, so the commit's own number decides whose entry to clear. */
+  const intendedRef = useRef<Record<string, { v: ShiftCell | ShiftCell[] | null; t: number }>>({});
+  const commitSeqRef = useRef(0);
   const sheetKeyRef = useRef("");
   sheetKeyRef.current = `${city}|${branchCode}|${weekStart}`;
   const loadWorkedRef = useRef<() => Promise<void>>(async () => {});
@@ -1064,12 +1068,13 @@ export default function ManualShiftPage() {
     // The editor builds its next value from this: the removal of a segment still
     // waiting on its question must not come back with the next Save.
     const sheet = `${city}|${branchCode}|${weekStart}`;
-    for (const ch of input) intendedRef.current[`${sheet}|${cellKey(ch.staffName, ch.dateStr)}`] = ch.value;
+    const token = ++commitSeqRef.current;
+    for (const ch of input) intendedRef.current[`${sheet}|${cellKey(ch.staffName, ch.dateStr)}`] = { v: ch.value, t: token };
     setCommitsWaiting((n) => n + 1);
     const run = commitChainRef.current.then(() => commitNow(input, opts)).finally(() => {
       for (const ch of input) {
         const k = `${sheet}|${cellKey(ch.staffName, ch.dateStr)}`;
-        if (intendedRef.current[k] === ch.value) delete intendedRef.current[k];
+        if (intendedRef.current[k]?.t === token) delete intendedRef.current[k];
       }
       setCommitsWaiting((n) => n - 1);
     });
@@ -1131,12 +1136,18 @@ export default function ManualShiftPage() {
       opts?.onWorkedAnswer?.(answer);
       if (answer === "cancel") return 0;
       const asked = new Set(needs.map(ck));
+      // Moved to another sheet while the question was open: this grid and these
+      // clock-ins belong to the other sheet, so only the answer itself is used.
+      if (sheetKeyRef.current !== sheet) {
+        if (answer === "skip") return queueOnly(changes.filter((ch) => !asked.has(ck(ch))), () => false);
+        for (const k of asked) confirmedWorkedRef.current.add(k);
+        return queueOnly(changes, (ch) => asked.has(ck(ch)));
+      }
       // "Keep worked days as they are" keeps all of them, notes and labels too.
       if (answer === "skip") changes = changes.filter((ch) => !(isWorked(ch)
         && cellSignature(gridDataRef.current[ch.staffName]?.[ch.dateStr]) !== cellSignature(ch.value)));
       else for (const k of asked) confirmedWorkedRef.current.add(k);
       if (changes.length === 0) return 0;
-      if (sheetKeyRef.current !== sheet) return queueOnly(changes, (ch) => confirmedWorkedRef.current.has(ck(ch)));
     }
     // Same hours as published on a worked day (a note, a role label): nothing the
     // day is measured against changes, so it goes without a question. For this
@@ -1767,7 +1778,7 @@ export default function ManualShiftPage() {
    *  question is not on the grid yet, and the next edit must build on it. */
   function latestCell(staffName: string, dateStr: string) {
     const k = `${city}|${branchCode}|${weekStart}|${cellKey(staffName, dateStr)}`;
-    return k in intendedRef.current ? intendedRef.current[k] : gridData[staffName]?.[dateStr];
+    return k in intendedRef.current ? intendedRef.current[k].v : gridData[staffName]?.[dateStr];
   }
 
   function removeShiftSegment(staffName: string, dateStr: string, index: number) {
@@ -2121,7 +2132,9 @@ export default function ManualShiftPage() {
           }
         );
       let res: { ok: boolean; rows_copied: number } | null = null;
-      for (let attempt = 0; attempt < 4 && res === null; attempt += 1) {
+      // Day off, worked days, a recent publish -- and worked days again if someone
+      // clocks in meanwhile: room for each question once more.
+      for (let attempt = 0; attempt < 6 && res === null; attempt += 1) {
         try {
           res = await loadFromDb();
         } catch (refused: unknown) {
@@ -2269,8 +2282,17 @@ export default function ManualShiftPage() {
     return rows;
   }, [gridData]);
 
-  async function handlePublish(opts: { allowApprovedDayOff?: boolean; allowCrossBranch?: boolean;
-                                       confirmWorkedCells?: { staff_name: string; work_date: string }[] } = {}) {
+  type PublishOpts = { allowApprovedDayOff?: boolean; allowCrossBranch?: boolean;
+                       confirmWorkedCells?: { staff_name: string; work_date: string }[] };
+  /** One publish at a time: the button stays enabled while waiting edits settle,
+   *  and a double click used to send two publishes. */
+  async function handlePublish(opts: PublishOpts = {}) {
+    if (publishingRef.current) return;
+    publishingRef.current = true;
+    try { await publishNow(opts); } finally { publishingRef.current = false; }
+  }
+
+  async function publishNow(opts: PublishOpts = {}) {
     const allowApprovedDayOff = Boolean(opts.allowApprovedDayOff);
     const allowCrossBranch = Boolean(opts.allowCrossBranch);
     // The worked days the person said yes to, by name and date. A day that clocks
@@ -2351,7 +2373,7 @@ export default function ManualShiftPage() {
           after: describeCellValue(gridDataRef.current[info.staff_name]?.[info.work_date]),
         })), "publish");
         if (answer === "change") {
-          await handlePublish({ ...opts, confirmWorkedCells: [...confirmWorkedCells,
+          await publishNow({ ...opts, confirmWorkedCells: [...confirmWorkedCells,
             ...workedCells.map((c) => ({ staff_name: c.staff_name, work_date: c.work_date }))] });
         } else {
           setError(`Not published. ${workedCells.slice(0, 3).map((c) => `${stripRoleSuffix(c.staff_name)} ${formatDate(c.work_date)}`).join(", ")}`
