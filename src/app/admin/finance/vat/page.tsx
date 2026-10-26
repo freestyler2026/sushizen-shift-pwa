@@ -46,7 +46,7 @@ interface FillLine { platform: string; store: string; orders: number; sales: Mon
   first: string; last: string; source: string }
 interface InputRow { bucket: "deductible" | "needs_review" | "not_deductible"; reasons: string[]; checks: string[];
   review_fields: string[]; source: string; source_id: string; review_status?: string; vendor: string | null; invoice_number: string | null;
-  invoice_date: string; total: Money; vat: Money; buyer_tin?: string | null; buyer_name?: string | null;
+  invoice_date: string; total: Money; vat: Money; seller_tin?: string | null; buyer_tin?: string | null; buyer_name?: string | null;
   buyer_decision?: { decision: "ours" | "not_ours"; decided_by: string; decided_at: string } | null;
   review_values?: { field: string; first: unknown; second: unknown }[];
   reading_choices?: { field: string; value: unknown; decided_by: string; decided_at: string }[] }
@@ -122,13 +122,22 @@ async function leaveOutAsCopy(r: { source: string; source_id: string }, of: { so
   } catch { return "Network error. Try again."; }
 }
 
-/** Leaving out the one that is counted as deductible, while its pair is not, would drop input VAT. */
+const RANK: Record<string, number> = { deductible: 2, needs_review: 1, not_deductible: 0 };
+
+/** Leaving out the one that stands better (counted, or still to check) and keeping one
+ *  that is refused can drop input VAT that would count: ask first. */
 function confirmLeaveOut(r: CopySide | InputRow, of: CopySide | InputRow): boolean {
-  if (r.bucket === "deductible" && of.bucket !== "deductible") {
-    return window.confirm(`This one is counted as deductible (VAT ${peso(r.vat)}); the other is ${BUCKET[of.bucket] || of.bucket}. `
-      + `Leaving this one out drops that input VAT. Leave it out anyway?`);
+  if ((RANK[r.bucket] ?? 0) > (RANK[of.bucket] ?? 0)) {
+    return window.confirm(`This one is ${BUCKET[r.bucket] || r.bucket} (VAT ${peso(r.vat)}); the one you keep is ${BUCKET[of.bucket] || of.bucket}. `
+      + `Leaving this one out can drop input VAT that would count. Leave it out anyway?`);
   }
   return true;
+}
+
+/** Same seller as far as the photos show: equal TINs, or a TIN missing on one. */
+function sameSeller(a: { seller_tin?: string | null }, b: { seller_tin?: string | null }): boolean {
+  const t = (v?: string | null) => String(v || "").replace(/\D/g, "").slice(0, 9);
+  return !t(a.seller_tin) || !t(b.seller_tin) || t(a.seller_tin) === t(b.seller_tin);
 }
 
 /** The photo a document was read from (receiving or PO check: there is no Inbox card for it). */
@@ -228,7 +237,8 @@ export default function VatLedgerPage() {
   }, [year, quarter]);
 
   useEffect(() => { if (mounted) load(); }, [mounted, load]);
-  const refreshAll = useCallback(() => { load(); setTick((t) => t + 1); }, [load]);
+  // Returns the reload, so a list can keep its buttons disabled until the new data is on screen.
+  const refreshAll = useCallback(() => { setTick((t) => t + 1); return load(); }, [load]);
 
   // 2026 Q1 (the first quarter with data) to the calendar quarter running today.
   const quarters = useMemo(() => {
@@ -582,7 +592,7 @@ function CopyList({ rows, canDecide, onDecided }: { rows: CopyRow[]; canDecide: 
           <div key={`${r.source}${r.source_id}`} className="rounded-xl border border-white/8 p-2 text-[12px] text-zinc-300">
             <span className="text-white">{r.vendor || "—"}</span> · {r.invoice_number || "—"} · {r.invoice_date} · VAT {peso(r.vat)}
             <span className="text-zinc-400"> — {r.with_copy
-              ? <>same number as the {SOURCE[r.with_copy.source] || r.with_copy.source} left out above, so out with it</>
+              ? <>same number and total as the {SOURCE[r.with_copy.source] || r.with_copy.source} #{r.with_copy.source_id} left out here, so out with it</>
               : <>copy of the {SOURCE[r.same_as_source] || r.same_as_source}, left out by {r.decided_by}</>}</span>
             <a className="ml-2 inline-flex items-center gap-1 text-violet-300 hover:text-violet-200" href={photoLink(r)} target="_blank" rel="noreferrer">
               Photo<ExternalLink className="h-3 w-3" /></a>
@@ -594,16 +604,18 @@ function CopyList({ rows, canDecide, onDecided }: { rows: CopyRow[]; canDecide: 
   );
 }
 
-function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; canDecide: boolean; onDecided: () => void }) {
+function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; canDecide: boolean; onDecided: () => unknown }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  // The buttons stay disabled until the ledger has reloaded: a pair already settled
+  // must not be clicked again on the old screen.
   const leaveOut = async (r: CopySide, of: CopySide) => {
     if (!confirmLeaveOut(r, of)) return;
     setBusy(`${r.source}${r.source_id}`);
     setErr("");
     const e = await leaveOutAsCopy(r, of);
-    setBusy("");
-    if (e) setErr(e); else onDecided();
+    if (e) { setErr(e); setBusy(""); return; }
+    try { await onDecided(); } finally { setBusy(""); }
   };
   const notACopy = async (p: CopyPair) => {
     setBusy(`${p.a.source}${p.a.source_id}`);
@@ -614,7 +626,7 @@ function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; ca
         body: JSON.stringify({ source: p.a.source, source_id: p.a.source_id, other_source: p.b.source, other_id: p.b.source_id }),
       });
       if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
-      onDecided();
+      await onDecided();
     } catch { setErr("Network error. Try again."); } finally { setBusy(""); }
   };
   const side = (r: CopySide, other: CopySide) => (
@@ -623,9 +635,10 @@ function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; ca
       <div className="tabular-nums text-zinc-300">{r.invoice_date} · No. {r.invoice_number || "—"} · {peso(r.total)} · VAT {peso(r.vat)}</div>
       <div className="text-zinc-400">{SOURCE[r.source] || r.source} · {BUCKET[r.bucket] || r.bucket}{(r.copies || 1) > 1 ? ` · ${r.copies} photos with this number` : ""}</div>
       <div className="mt-1 flex flex-wrap items-center gap-3">
-        <a className="inline-flex items-center gap-1 text-violet-300 hover:text-violet-200" href={photoLink(r)} target="_blank" rel="noreferrer">
-          Photo<ExternalLink className="h-3 w-3" /></a>
-        {canDecide && (
+        {r.source !== "fp_sales_invoices" && (
+          <a className="inline-flex items-center gap-1 text-violet-300 hover:text-violet-200" href={photoLink(r)} target="_blank" rel="noreferrer">
+            Photo<ExternalLink className="h-3 w-3" /></a>)}
+        {canDecide && r.source !== "fp_sales_invoices" && (
           <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => leaveOut(r, other)}>Leave this one out</button>)}
       </div>
     </div>
@@ -652,7 +665,7 @@ function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; ca
 }
 
 function InvoiceList({ rows, allRows = [], empty, canDecide = false, onDecided }: {
-  rows: InputRow[]; allRows?: InputRow[]; empty: string; canDecide?: boolean; onDecided?: () => void;
+  rows: InputRow[]; allRows?: InputRow[]; empty: string; canDecide?: boolean; onDecided?: () => unknown;
 }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -660,17 +673,24 @@ function InvoiceList({ rows, allRows = [], empty, canDecide = false, onDecided }
   // documents with the same total, or the same number (digits only).
   const [picking, setPicking] = useState("");
   const digits = (v: string | null) => String(v || "").replace(/\D/g, "").replace(/^0+/, "");
-  const candidates = (r: InputRow) => allRows.filter((x) => `${x.source}${x.source_id}` !== `${r.source}${r.source_id}`
-    && Number(x.total) > 0 && (Number(x.total) === Number(r.total) || (digits(x.invoice_number) !== "" && digits(x.invoice_number) === digits(r.invoice_number))));
+  // The same seller (as far as the photos show), and the same total within a month or
+  // the same number; nearest date first, at most ten -- a ₱450 total is on many rows.
+  const days = (a: string, b: string) => Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 86_400_000;
+  const candidates = (r: InputRow) => allRows
+    .filter((x) => `${x.source}${x.source_id}` !== `${r.source}${r.source_id}` && x.source !== "fp_sales_invoices"
+      && Number(x.total) > 0 && sameSeller(x, r)
+      && ((Number(x.total) === Number(r.total) && days(x.invoice_date, r.invoice_date) <= 31)
+        || (digits(x.invoice_number) !== "" && digits(x.invoice_number) === digits(r.invoice_number))))
+    .sort((a, b) => days(a.invoice_date, r.invoice_date) - days(b.invoice_date, r.invoice_date))
+    .slice(0, 10);
   const copyOf = async (r: InputRow, of: InputRow) => {
     if (!confirmLeaveOut(r, of)) return;
     setBusy(`${r.source}${r.source_id}`);
     setErr("");
     const e = await leaveOutAsCopy(r, of);
-    setBusy("");
-    if (e) { setErr(e); return; }
+    if (e) { setErr(e); setBusy(""); return; }
     setPicking("");
-    onDecided?.();
+    try { await onDecided?.(); } finally { setBusy(""); }
   };
   // One choice can settle several fields: the reading keeps the VAT under two names
   // (vat_amount and tax_amount), and both split the same way.
@@ -765,7 +785,7 @@ function InvoiceList({ rows, allRows = [], empty, canDecide = false, onDecided }
                     {picking === `${r.source}${r.source_id}` && (
                       <div className="mt-1 space-y-1 rounded-lg border border-white/10 p-2 text-zinc-300">
                         {candidates(r).length === 0
-                          ? <div>No other document this quarter has the same total or number.</div>
+                          ? <div>No other document this quarter from this seller has the same total (within a month) or the same number.</div>
                           : <>
                               <div className="text-zinc-400">Which invoice is this a copy of? This one is then left out of every total.</div>
                               {candidates(r).map((x) => (

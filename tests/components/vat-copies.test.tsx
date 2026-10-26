@@ -64,7 +64,22 @@ describe("VAT copies", () => {
     const f = await open(summary({ possible_copies: [pair] }), false);
     fireEvent.click(screen.getAllByRole("button", { name: "Leave this one out" })[0]);   // 6507, deductible
     await new Promise((r) => setTimeout(r, 30));
+    expect(window.confirm).toHaveBeenCalledTimes(1);
     expect(posted(f, "/api/admin/vat/same-invoice")).toEqual([]);
+  });
+
+  it("also asks before leaving out one still to check when the one kept is refused", async () => {
+    const review = { ...pair, a: side({ bucket: "needs_review" }) };
+    const f = await open(summary({ possible_copies: [review] }), false);
+    fireEvent.click(screen.getAllByRole("button", { name: "Leave this one out" })[0]);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(posted(f, "/api/admin/vat/same-invoice")).toEqual([]);
+  });
+
+  it("offers neither a photo nor Leave out on a foodpanda invoice", async () => {
+    await open(summary({ possible_copies: [{ ...pair, b: side({ source: "fp_sales_invoices", source_id: "S1", vendor: "CASH & CARRY" }) }] }));
+    expect(screen.getAllByRole("button", { name: "Leave this one out" })).toHaveLength(1);
   });
 
   it("Not a copy records the pair", async () => {
@@ -74,11 +89,16 @@ describe("VAT copies", () => {
       { source: "drive_invoices", source_id: "6507", other_source: "drive_invoices", other_id: "6461" }]));
   });
 
-  it("marks a row a copy of a document with the same total, chosen from a list", async () => {
-    const counted = row({ bucket: "deductible", reasons: [], source_id: "6507", vendor: "LESALE COMMODITY", invoice_number: "07486280" });
-    const f = await open(summary({ rows: [row({}), counted] }));
+  it("marks a row a copy of a document with the same total, chosen from a list of the same seller's", async () => {
+    const counted = row({ bucket: "deductible", reasons: [], source_id: "6507", vendor: "LESALE COMMODITY", invoice_number: "07486280",
+      seller_tin: "000-150-640-000" });
+    const otherSeller = row({ source_id: "9999", vendor: "SOMEONE ELSE", invoice_number: "5", seller_tin: "111-111-111-000" });
+    const farAway = row({ source_id: "8888", vendor: "LESALE COMMODITY", invoice_number: "6", invoice_date: "2026-12-30" });
+    const f = await open(summary({ rows: [row({ seller_tin: "000150640000" }), counted, otherSeller, farAway] }));
     fireEvent.click(screen.getAllByRole("button", { name: /Copy of another invoice/ })[0]);
-    fireEvent.click(await screen.findByRole("button", { name: "Copy of this one" }));
+    // Only 6507: not another seller's, not one two months away.
+    expect(await screen.findAllByRole("button", { name: "Copy of this one" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Copy of this one" }));
     await waitFor(() => expect(posted(f, "/api/admin/vat/same-invoice")).toEqual([
       { source: "drive_invoices", source_id: "6461", same_as_source: "drive_invoices", same_as_id: "6507" }]));
   });
