@@ -140,4 +140,13 @@ describe("VAT copies", () => {
     expect(screen.queryByRole("button", { name: /Not a copy/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Copy of another invoice/ })).toBeNull();
   });
+
+  it("Undo of Our TIN reaches the photo it is stored on when another photo stands", async () => {
+    const decided = row({ bucket: "deductible", reasons: [], checks: ["buyer_tin_check"], source: "proc_po_invoice_checks", source_id: "a1",
+      buyer_decision: { decision: "ours", decided_by: "Y", decided_at: "2026-10-06", on: { source: "proc_receivings", source_id: "z9" } } });
+    const f = await open(summary({ rows: [decided] }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Undo" })[0]);
+    await waitFor(() => expect(f.mock.calls.some((c) => String(c[0]) === "/api/admin/vat/buyer-decision?source=proc_receivings&source_id=z9"
+      && (c[1] as RequestInit)?.method === "DELETE")).toBe(true));
+  });
 });

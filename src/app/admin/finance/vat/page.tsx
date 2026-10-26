@@ -47,7 +47,9 @@ interface FillLine { platform: string; store: string; orders: number; sales: Mon
 interface InputRow { bucket: "deductible" | "needs_review" | "not_deductible"; reasons: string[]; checks: string[];
   review_fields: string[]; source: string; source_id: string; review_status?: string; vendor: string | null; invoice_number: string | null;
   invoice_date: string; total: Money; vat: Money; seller_tin?: string | null; buyer_tin?: string | null; buyer_name?: string | null;
-  buyer_decision?: { decision: "ours" | "not_ours"; decided_by: string; decided_at: string } | null;
+  /** `on`: the photo the decision is stored on, when another photo of the document stands (app/vat_input.py). */
+  buyer_decision?: { decision: "ours" | "not_ours"; decided_by: string; decided_at: string;
+                     on?: { source: string; source_id: string } | null } | null;
   review_values?: { field: string; first: unknown; second: unknown }[];
   reading_choices?: { field: string; value: unknown; decided_by: string; decided_at: string }[];
   /** Every photo the ledger counts as this one document (app/vat_input.py). */
@@ -764,8 +766,9 @@ function InvoiceList({ rows, allRows = [], allRowsCut = false, empty, canDecide 
     setBusy(key);
     setErr("");
     try {
+      const at = (decision === "undo" && r.buyer_decision?.on) || r;
       const res = decision === "undo"
-        ? await fetch(`/api/admin/vat/buyer-decision?source=${encodeURIComponent(r.source)}&source_id=${encodeURIComponent(r.source_id)}`,
+        ? await fetch(`/api/admin/vat/buyer-decision?source=${encodeURIComponent(at.source)}&source_id=${encodeURIComponent(at.source_id)}`,
           { method: "DELETE", headers: getAuthHeaders(getAuth()) })
         : await fetch("/api/admin/vat/buyer-decision", {
           method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
