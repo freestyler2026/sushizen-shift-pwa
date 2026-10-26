@@ -1567,6 +1567,48 @@ describe("ManualShiftPage — days already clocked in", () => {
       { timeout: 1500 });
   });
 
+  it("a refusal that spells the name without the role suffix is still asked about", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    localStorage.setItem("manual-shift-outbox", JSON.stringify([{ city: "dubai", branch_code: "BB", week_start: "2026-10-12",
+      staff_name: "Bob Smith (AL)", work_date: "2026-10-14", cells: [{ start_hour: 10, end_hour: 18, role: "STAFF" }],
+      confirm_worked: false }]));
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+          { staff_name: "Bob Smith", work_date: "2026-10-14", check_in: "09:00", check_out: null, working: true }] } }),
+        { status: 409, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    // Used to match on the exact name, find nothing, and retry silently forever.
+    await screen.findByRole("button", { name: "Discard these changes" }, { timeout: 3000 });
+  });
+
+  it("a discarded refused edit no longer counts as an unpublished change", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        const body = JSON.parse(String(opts?.body));
+        return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+          { staff_name: body.edits[0].staff_name, work_date: body.edits[0].work_date,
+            check_in: "09:40", check_out: null, working: true }] } }), { status: 409, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    await loadStaff();
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await screen.findByText(/1 cell edited — not yet published/i, {}, { timeout: 3000 });
+    fireEvent.click(await screen.findByRole("button", { name: "Discard these changes" }, { timeout: 3000 }));
+    await waitFor(() => expect(screen.queryByText(/cells? edited — not yet published/i)).toBeNull(), { timeout: 3000 });
+  });
+
   it("Change anyway saves the edit with the confirmation", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(MONDAY);

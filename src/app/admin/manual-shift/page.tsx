@@ -281,6 +281,7 @@ function BranchSection({
   const [bRows, setBRows] = useState<PublishedRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingStaff, setDeletingStaff] = useState<string | null>(null);
+  const deleteBusyRef = useRef(false);
 
   useEffect(() => {
     setLoading(true);
@@ -294,8 +295,22 @@ function BranchSection({
 
   /** Delete all shifts for a staff member in this branch/week. */
   async function deleteStaffRow(staffName: string) {
+    // The clock-in check below takes a moment before the confirm appears; a
+    // second click in that gap must not start a second delete.
+    if (deleteBusyRef.current) return;
     const shiftsForStaff = bRows.filter((r) => r.staff_name === staffName);
     if (shiftsForStaff.length === 0) return;
+    deleteBusyRef.current = true;
+    setDeletingStaff(staffName);
+    try {
+      await deleteStaffRowInner(staffName, shiftsForStaff);
+    } finally {
+      deleteBusyRef.current = false;
+      setDeletingStaff(null);
+    }
+  }
+
+  async function deleteStaffRowInner(staffName: string, shiftsForStaff: typeof bRows) {
     // Days already clocked in are named before anything goes (the server refuses them otherwise).
     let workedDays: WorkedInfo[] = [];
     try {
@@ -320,7 +335,6 @@ function BranchSection({
       : "";
     if (!window.confirm(`Delete all ${shiftsForStaff.length} shift(s) for "${stripRoleSuffix(staffName)}"?${workedText}`)) return;
     const workedDates = new Set(workedDays.map((w) => w.work_date));
-    setDeletingStaff(staffName);
     const done = new Set<string>();
     try {
       for (const r of shiftsForStaff) {
@@ -339,8 +353,6 @@ function BranchSection({
         ? `${stripRoleSuffix(staffName)} clocked in on ${formatDate(worked.work_date)} after this list was opened, `
           + `so the delete stopped there (${done.size} day${done.size === 1 ? "" : "s"} deleted). Press delete again to see the days.`
         : `${e instanceof Error ? e.message : String(e)}${done.size > 0 ? ` (${done.size} shift(s) were already deleted.)` : ""}`);
-    } finally {
-      setDeletingStaff(null);
     }
   }
 
@@ -827,7 +839,6 @@ export default function ManualShiftPage() {
     setWorkedAsk(null);
     r?.(a);
   };
-  const flushRef = useRef<() => Promise<void>>(async () => {});
   const refreshWeekRef = useRef<() => Promise<void>>(async () => {});
   const [syncError, setSyncError] = useState("");
   const [notice, setNotice] = useState("");
@@ -968,11 +979,20 @@ export default function ManualShiftPage() {
         if (workedCellsFrom(apiErr).length > 0) {
           // Edits queued before this rule (or from another tab) for days already
           // clocked in. Asked about below instead of retried forever.
+          // Matched on workedKey: the server may spell the name without the
+          // grid's role suffix ("Amar BK" for "Amar BK (CK)").
           const cells = workedCellsFrom(apiErr);
+          let matched = 0;
           for (const c of cells) {
-            const e = edits.find((x) => x.staff_name === c.staff_name && x.work_date === c.work_date);
-            if (e) refusedWorked.push({ edit: e, info: c });
+            const ck = workedKey(c.staff_name, c.work_date);
+            const e = edits.find((x) => workedKey(x.staff_name, x.work_date) === ck);
+            if (e) { refusedWorked.push({ edit: e, info: c }); matched++; }
           }
+          if (matched > 0) continue;
+          // A refusal that names no queued edit cannot be asked about; say so
+          // rather than retry it silently every five seconds.
+          failed = true;
+          lastError = `already clocked in on ${cells.map((c) => `${stripRoleSuffix(c.staff_name)} ${c.work_date}`).join(", ")}`;
           continue;
         }
         // Every failure used to read as a dropped connection, and the banner
@@ -998,6 +1018,7 @@ export default function ManualShiftPage() {
         staffName: edit.staff_name, dateStr: edit.work_date, info,
         before: "as published", after: describeCellValue(edit.cells),
       })), "replay");
+      const discarded: PendingEdit[] = [];
       for (const { edit } of refusedWorked) {
         const k = queueKey(edit);
         const cur = outboxRef.current.get(k);
@@ -1010,10 +1031,22 @@ export default function ManualShiftPage() {
           outboxRef.current.set(k, { ...cur, confirm_worked: true });
         } else {
           outboxRef.current.delete(k);
+          discarded.push(edit);
         }
       }
       syncOutboxSize();
       if (answer === "change") return true;   // send them again, confirmed
+      // Never reached the server, so it is not an unpublished change. The whole
+      // overlay goes back on in the refresh below, re-marking any cell someone
+      // else still has an edit on.
+      const dsk = sheetKeyRef.current;
+      const gone = discarded
+        .filter((e) => `${e.city}|${e.branch_code}|${e.week_start}` === dsk)
+        .map((e) => cellKey(e.staff_name, e.work_date));
+      if (gone.length > 0) {
+        setUnpublishedCells((prev) => { const n = new Set(prev); for (const k of gone) n.delete(k); return n; });
+        setCellEditors((prev) => { const n = { ...prev }; for (const k of gone) delete n[k]; return n; });
+      }
       await refreshWeekRef.current();         // put the published cells back on screen
       // The refresh paints the published week; the other edits refused in the same
       // batch are still queued and were never saved, so put them back on screen.
@@ -1068,7 +1101,6 @@ export default function ManualShiftPage() {
     flushInFlightRef.current = run;
     return run;
   }, [flushOnce]);
-  flushRef.current = flushOutbox;
 
   /** The single place a cell changes. Everything that edits the grid goes
    *  through here, so nothing can change a cell without it being saved. */
@@ -1900,6 +1932,9 @@ export default function ManualShiftPage() {
     // Anything typed for this person and still queued in this browser goes to
     // the server first, so the removal below sees it -- otherwise the queue
     // would send it afterwards and bring the cell back as a pending edit.
+    // An edit can still be waiting in the commit chain (for the week's clock-ins)
+    // before it reaches the queue, so settle that first, as Publish does.
+    await commitChainRef.current;
     await flushOutbox();
     if (Array.from(outboxRef.current.values()).some(
       (e) => e.staff_name === staffName && e.city === city && e.branch_code === branchCode)) {
@@ -2404,6 +2439,19 @@ export default function ManualShiftPage() {
       setUnpublishedCells(new Set());
       setCellEditors({});
       publishedTokenRef.current = result.published_token ?? publishedTokenRef.current;
+      // The token above stops the poll from reporting this publish as a change,
+      // so the published hours the worked-day question compares against would
+      // stay pre-publish. Everything on the grid was just published.
+      {
+        const sigs: Record<string, string> = {};
+        for (const [name, days] of Object.entries(gridDataRef.current)) {
+          for (const [d, v] of Object.entries(days ?? {})) {
+            if (v == null) continue;
+            sigs[workedKey(name, d)] = workedSig(v, branchCode, city);
+          }
+        }
+        publishedWorkedSigRef.current = { sheet: `${city}|${branchCode}|${weekStart}`, sigs };
+      }
       setView("published");
       // The schedule just changed, so the workbook on Drive is now out of date.
       markNeedsExport();
