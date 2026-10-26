@@ -53,13 +53,14 @@ describe("VAT copies", () => {
   const pair = { a: side({}), b: side({ source_id: "6461", bucket: "not_deductible", vendor: "CASH & CARRY", invoice_number: "728663", copies: 3 }), why: "same_date" };
 
   it("leaves out every photo counted as that document, not only the one shown", async () => {
-    const withMembers = { ...pair, b: { ...pair.b, members: [{ source: "drive_invoices", source_id: "6461" },
-      { source: "proc_receivings", source_id: "3466" }, { source: "proc_po_invoice_checks", source_id: "bc2e" }] } };
+    // bc2e was read with another total: maybe another invoice under a misread number, so it stays.
+    const withMembers = { ...pair, b: { ...pair.b, members: [{ source: "drive_invoices", source_id: "6461", total: "10963.25" },
+      { source: "proc_receivings", source_id: "3466", total: "10963.25" }, { source: "proc_po_invoice_checks", source_id: "bc2e", total: "999.00" }] } };
     const f = await open(summary({ possible_copies: [withMembers] }));
     fireEvent.click(screen.getAllByRole("button", { name: "Leave this one out" })[1]);
     await waitFor(() => expect(posted(f, "/api/admin/vat/same-invoice")).toEqual([
       { source: "drive_invoices", source_id: "6461", same_as_source: "drive_invoices", same_as_id: "6507",
-        also: [{ source: "proc_receivings", source_id: "3466" }, { source: "proc_po_invoice_checks", source_id: "bc2e" }] }]));
+        also: [{ source: "proc_receivings", source_id: "3466" }] }]));
   });
 
   it("asks before Not a copy, and lists the answer with an Undo", async () => {
@@ -70,8 +71,8 @@ describe("VAT copies", () => {
     expect(posted(f, "/api/admin/vat/not-same-invoice")).toEqual([]);
     expect(screen.getByText("Marked as two purchases")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-    await waitFor(() => expect(f.mock.calls.some((c) => String(c[0]).startsWith("/api/admin/vat/not-same-invoice?source=drive_invoices&source_id=A1")
-      && (c[1] as RequestInit)?.method === "DELETE")).toBe(true));
+    await waitFor(() => expect(posted(f, "/api/admin/vat/not-same-invoice/undo")).toEqual([
+      { a: [{ source: "drive_invoices", source_id: "A1" }], b: [{ source: "drive_invoices", source_id: "6461" }] }]));
   });
 
   it("points out a pair and leaves the chosen one out as a copy of the other", async () => {

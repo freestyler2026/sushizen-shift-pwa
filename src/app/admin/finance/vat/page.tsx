@@ -51,11 +51,11 @@ interface InputRow { bucket: "deductible" | "needs_review" | "not_deductible"; r
   review_values?: { field: string; first: unknown; second: unknown }[];
   reading_choices?: { field: string; value: unknown; decided_by: string; decided_at: string }[];
   /** Every photo the ledger counts as this one document (app/vat_input.py). */
-  members?: { source: string; source_id: string }[] }
+  members?: { source: string; source_id: string; total?: Money }[] }
 interface CopyRow { source: string; source_id: string; vendor: string | null; invoice_number: string | null; invoice_date: string;
   total: Money; vat: Money; same_as_source: string; same_as_id: string; decided_by: string; decided_at: string;
 }
-interface Member { source: string; source_id: string }
+interface Member { source: string; source_id: string; total?: Money }
 interface CopySide { source: string; source_id: string; bucket: InputRow["bucket"]; vendor: string | null; invoice_number: string | null;
   invoice_date: string; total: Money; vat: Money; seller_tin?: string | null; copies?: number; members?: Member[] }
 /** Two counted documents that look like one invoice photographed twice (app/vat_input.possible_copies). */
@@ -116,9 +116,15 @@ const BUCKET: Record<string, string> = { deductible: "counted as deductible", ne
 /** Leave `r` out of the VAT totals as a copy of `of` (POST /api/admin/vat/same-invoice), with
  *  every other photo counted as the same document: left behind, the next of them would
  *  take its place (Cash & Carry 728663, 2026-10-26). */
-async function leaveOutAsCopy(r: { source: string; source_id: string; members?: { source: string; source_id: string }[] },
+async function leaveOutAsCopy(r: { source: string; source_id: string; total?: Money; members?: Member[] },
                               of: { source: string; source_id: string }): Promise<string> {
-  const also = (r.members || []).filter((m) => `${m.source}${m.source_id}` !== `${r.source}${r.source_id}`);
+  // Only the photos read with the same total: one read with another total under the
+  // same number may be a different invoice whose number was misread, and stays counted
+  // (if it is the same paper, it is pointed out as a possible copy next).
+  const also = (r.members || [])
+    .filter((m) => `${m.source}${m.source_id}` !== `${r.source}${r.source_id}`
+      && (m.total === undefined || r.total === undefined || Number(m.total) === Number(r.total)))
+    .map((m) => ({ source: m.source, source_id: m.source_id }));
   try {
     const res = await fetch("/api/admin/vat/same-invoice", {
       method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
@@ -640,15 +646,22 @@ function PossibleCopies({ pairs, dismissed = [], canDecide, onDecided }: {
     setBusy(`${p.a.source}${p.a.source_id}`);
     setErr("");
     try {
-      const q = `source=${encodeURIComponent(p.a.source)}&source_id=${encodeURIComponent(p.a.source_id)}`
-        + `&other_source=${encodeURIComponent(p.b.source)}&other_id=${encodeURIComponent(p.b.source_id)}`;
+      // Undo by every photo of the two documents: the answer may have been recorded on
+      // a photo that does not stand for its document now.
+      const ids = (x: CopySide) => (x.members || [{ source: x.source, source_id: x.source_id }])
+        .map((m) => ({ source: m.source, source_id: String(m.source_id) }));
       const res = undo
-        ? await fetch(`/api/admin/vat/not-same-invoice?${q}`, { method: "DELETE", headers: getAuthHeaders(getAuth()) })
+        ? await fetch("/api/admin/vat/not-same-invoice/undo", {
+          method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+          body: JSON.stringify({ a: ids(p.a), b: ids(p.b) }),
+        })
         : await fetch("/api/admin/vat/not-same-invoice", {
           method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
           body: JSON.stringify({ source: p.a.source, source_id: p.a.source_id, other_source: p.b.source, other_id: p.b.source_id }),
         });
-      if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
+      const b = await res.json().catch(() => null);
+      if (!res.ok) { setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
+      if (undo && b && b.ok === false) { setErr("Nothing was undone: the answer is no longer stored. Reload the ledger."); return; }
       await onDecided();
     } catch { setErr("Network error. Try again."); } finally { setBusy(""); }
   };
