@@ -1539,6 +1539,34 @@ describe("ManualShiftPage — days already clocked in", () => {
     expect(body.edits[0].cells.map((c: { start_hour: number }) => c.start_hour)).toEqual([9]);
   });
 
+  it("discarding a refused cell sends the rest of its batch again at once", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const queued = (staff_name: string, work_date: string) => ({ city: "dubai", branch_code: "BB", week_start: "2026-10-12",
+      staff_name, work_date, cells: [{ start_hour: 10, end_hour: 18, role: "STAFF" }], confirm_worked: false });
+    localStorage.setItem("manual-shift-outbox", JSON.stringify([queued("Alice Cohen", "2026-10-12"), queued("Bob Smith (AL)", "2026-10-14")]));
+    const bodies: { edits: { staff_name: string }[] }[] = [];
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        const body = JSON.parse(String(opts?.body));
+        bodies.push(body);
+        if (body.edits.some((e: { staff_name: string }) => e.staff_name === "Alice Cohen")) {
+          return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+            { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "09:00", check_out: null, working: true }] } }),
+          { status: 409, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ ok: true, written: 1, rev: 9, pending: 1 }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    fireEvent.click(await screen.findByRole("button", { name: "Discard these changes" }, { timeout: 3000 }));
+    // Bob's edit was never refused: it goes now, not on the next 5 s retry.
+    await waitFor(() => expect(bodies.some((b) => b.edits.length === 1 && b.edits[0].staff_name === "Bob Smith (AL)")).toBe(true),
+      { timeout: 1500 });
+  });
+
   it("Change anyway saves the edit with the confirmation", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(MONDAY);
@@ -1633,13 +1661,15 @@ describe("ManualShiftPage — days already clocked in", () => {
     await loadStaff();
     await editOneCell();
     fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
-    await screen.findByText(/saved before the staff clocked in, and publishing applies them now/, {}, { timeout: 3000 });
+    await screen.findByText(/saved without this question, and publishing applies them now/, {}, { timeout: 3000 });
     expect(screen.getByText("Worked — in 08:55, out 17:05")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Publish anyway" }));
     await waitFor(() => expect(publishBodies).toHaveLength(2), { timeout: 3000 });
     // The yes covers the day the question named, not the whole publish.
     expect(publishBodies[1].confirm_worked_cells).toEqual([{ staff_name: "Alice Cohen", work_date: "2026-10-12" }]);
-    expect(publishBodies[1].confirm_worked).toBeUndefined();
+    // The old flag rides along for an older server; the current one goes by the cells.
+    expect(publishBodies[0].confirm_worked).toBe(false);
+    expect(publishBodies[1].confirm_worked).toBe(true);
   });
 
   it("a note on a cell whose unpublished hours change came before the clock-in asks about those hours", async () => {

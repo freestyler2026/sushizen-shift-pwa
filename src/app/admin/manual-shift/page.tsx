@@ -554,6 +554,14 @@ function describeCellValue(v: ShiftCell | ShiftCell[] | null | undefined): strin
 
 /** What a worked day is measured against: the hours, and the branch when it is
  *  not this sheet's own. A note or a role label alone is not a change to ask about. */
+/** Day-off and leave markers without underscores: the same set as the server's
+ *  _NOT_WORKING (app/shift_worked_days.py). A cell with one of these is compared by
+ *  its type, whatever its hours; plain "off" words are one day off. */
+const WORKED_SIG_OFF = new Set(["DAYOFF", "OFF", "REST", "RESTDAY", "DO", "RD", "VL", "UL", "SL", "ML", "EL", "AL", "PL",
+  "CL", "HL", "LEAVE", "ABSENCE", "ABSENT", "VACATIONLEAVE", "MEDICALLEAVE", "MATERNITYLEAVE", "BEREAVEMENTLEAVE",
+  "INJURY", "HOSPITAL", "AWOL", "SUSPENDED"]);
+const WORKED_SIG_PLAIN_OFF = new Set(["OFF", "REST", "RESTDAY", "DO", "RD"]);
+
 function workedSig(v: ShiftCell | ShiftCell[] | null | undefined, home: string, city: City): string {
   // Hours as numbers (fmtHour shows 9.3 as 9:00); a day off or leave by its type
   // (Day Off and VL pay differently); the branch as a code -- the published week
@@ -561,8 +569,9 @@ function workedSig(v: ShiftCell | ShiftCell[] | null | undefined, home: string, 
   const code = (b: string) => String(normalizeBranchCode(city, b)).toUpperCase();
   const homeCode = code(home);
   return cellsOf(v).map((c) => {
-    if (isSpecialRole(c.role) || (Number(c.start_hour) === 0 && Number(c.end_hour) === 0))
-      return `OFF:${String(c.role || "DAY_OFF").toUpperCase().replace(/[_\s]/g, "")}`;
+    const r = String(c.role || "").toUpperCase().replace(/[_\s]/g, "");
+    if (WORKED_SIG_OFF.has(r)) return `OFF:${WORKED_SIG_PLAIN_OFF.has(r) ? "DAYOFF" : r}`;
+    if (Number(c.start_hour) === 0 && Number(c.end_hour) === 0) return "OFF:DAYOFF";
     const b = c.branch_code ? code(c.branch_code) : "";
     return `${Number(c.start_hour)}-${Number(c.end_hour)}${b && b !== homeCode ? `@${b}` : ""}`;
   }).sort().join("+");
@@ -837,7 +846,7 @@ export default function ManualShiftPage() {
   /** The published hours and branch of each cell, by workedKey. A worked day is
    *  measured against what is published, so "same hours" is judged against this
    *  and not against the screen, which also shows unpublished edits. */
-  const publishedWorkedSigRef = useRef<Record<string, string>>({});
+  const publishedWorkedSigRef = useRef<{ sheet: string; sigs: Record<string, string> }>({ sheet: "", sigs: {} });
 
   // A new deploy hard-reloads the page. Edits are saved as they are made now, so
   // the only thing a reload can lose is what has not reached the server yet.
@@ -1025,6 +1034,9 @@ export default function ManualShiftPage() {
           return n;
         });
       }
+      // The server refused the whole batch for the discarded cells; the rest of it
+      // was never refused and goes again now, before Publish or Load from DB look.
+      return outboxRef.current.size > 0;
     }
     return false;
   }, [syncOutboxSize, askWorked]);
@@ -1096,7 +1108,10 @@ export default function ManualShiftPage() {
     const wk = `${city}|${weekStart}`;
     if (workedForRef.current !== wk && workedTriedRef.current !== wk) {
       workedTriedRef.current = wk;
-      try { await loadWorkedRef.current(); } catch { /* the server still asks */ }
+      // At most 8 s: every later edit, Publish and Discard queue behind this one.
+      try {
+        await Promise.race([loadWorkedRef.current(), new Promise((r) => window.setTimeout(r, 8000))]);
+      } catch { /* the server still asks */ }
     }
     // The person may have moved to another branch or week while that was waiting.
     // The edit belongs to the old sheet: it is queued for that sheet, not painted on
@@ -1120,10 +1135,13 @@ export default function ManualShiftPage() {
     // screen may show an hours change saved before the clock-in; a note added to
     // that cell now would otherwise carry the hours change through unasked.
     const leavesPublished = (ch: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }) =>
-      (publishedWorkedSigRef.current[workedKey(ch.staffName, ch.dateStr)] ?? workedSig(null, branchCode, city))
+      // Not loaded for this sheet yet (just switched): unknown, so it counts as a change.
+      publishedWorkedSigRef.current.sheet !== sheet
+      || (publishedWorkedSigRef.current.sigs[workedKey(ch.staffName, ch.dateStr)] ?? workedSig(null, branchCode, city))
         !== workedSig(ch.value, branchCode, city);
     // A day already clocked in: ask before changing it -- once per cell for an
     // edit by hand; every time for a bulk load, whose answer covers all of them.
+    const bulkYes = new Set<string>();
     const needs = changes.filter((ch) => isWorked(ch) && (moves(ch) || leavesPublished(ch))
       && (opts?.bulk || !confirmedWorkedRef.current.has(ck(ch))));
     if (needs.length > 0) {
@@ -1145,9 +1163,14 @@ export default function ManualShiftPage() {
         for (const k of asked) confirmedWorkedRef.current.add(k);
         return queueOnly(changes, yes);
       }
-      // "Keep worked days as they are" keeps all of them, notes and labels too.
+      // "Keep worked days as they are" keeps all of them, notes and labels too --
+      // and a pending value saved before the clock-in, which differs from what is published.
       if (answer === "skip") changes = changes.filter((ch) => !(isWorked(ch)
-        && cellSignature(gridDataRef.current[ch.staffName]?.[ch.dateStr]) !== cellSignature(ch.value)));
+        && (cellSignature(gridDataRef.current[ch.staffName]?.[ch.dateStr]) !== cellSignature(ch.value)
+            || leavesPublished(ch))));
+      // A bulk yes covers this load's values only; a hand edit's yes lasts for the cell
+      // until the week is published or discarded.
+      else if (opts?.bulk) for (const k of asked) bulkYes.add(k);
       else for (const k of asked) confirmedWorkedRef.current.add(k);
       if (changes.length === 0) return 0;
     }
@@ -1180,7 +1203,7 @@ export default function ManualShiftPage() {
         city, branch_code: branchCode, week_start: weekStart,
         staff_name: ch.staffName, work_date: ch.dateStr,
         cells: cellsOf(ch.value),
-        confirm_worked: confirmedWorkedRef.current.has(ck(ch)) || sameHours.has(ck(ch)),
+        confirm_worked: confirmedWorkedRef.current.has(ck(ch)) || sameHours.has(ck(ch)) || bulkYes.has(ck(ch)),
       };
       outboxRef.current.set(queueKey(e), e);
     }
@@ -1396,9 +1419,10 @@ export default function ManualShiftPage() {
             branch_code: r.branch_code ? String(r.branch_code) : undefined,
           });
         }
-        publishedWorkedSigRef.current = Object.fromEntries(
-          Object.entries(byWorked).map(([k, v]) => [k, workedSig(v, branchCode, city)])
-        );
+        publishedWorkedSigRef.current = {
+          sheet: `${city}|${branchCode}|${weekStart}`,
+          sigs: Object.fromEntries(Object.entries(byWorked).map(([k, v]) => [k, workedSig(v, branchCode, city)])),
+        };
       }
 
       setGridData((prev) => {
@@ -1649,9 +1673,16 @@ export default function ManualShiftPage() {
   // Who has clocked in this week. Reloaded every minute: people clock in all day.
   const weekKeyRef = useRef("");
   weekKeyRef.current = `${city}|${weekStart}`;
+  const workedInFlightRef = useRef<{ key: string; p: Promise<{ days?: WorkedInfo[] }> } | null>(null);
   const loadWorked = useCallback(async () => {
     const key = `${city}|${weekStart}`;
-    const d = await fetchWeekAttendance(city, weekStart);
+    // The minute poll and an edit waiting for the marks share one request.
+    if (workedInFlightRef.current?.key !== key) {
+      const p = fetchWeekAttendance(city, weekStart);
+      workedInFlightRef.current = { key, p };
+      p.finally(() => { if (workedInFlightRef.current?.p === p) workedInFlightRef.current = null; }).catch(() => {});
+    }
+    const d = await workedInFlightRef.current!.p;
     if (weekKeyRef.current !== key) return;
     const m = new Map<string, WorkedInfo>();
     for (const w of d.days || []) m.set(workedKey(w.staff_name, w.work_date), w);
@@ -1774,6 +1805,13 @@ export default function ManualShiftPage() {
       : existing.map((s, i) => (i === editShiftIndex ? newShift : s));
     commitCell(staffName, dateStr, next.length === 1 ? next[0] : next);
     closeEdit();
+  }
+
+  /** A grid cell found by the server's spelling of the name ("Amar BK" vs "Amar BK (CK)"). */
+  function gridCellByWorkedKey(name: string, dateStr: string) {
+    const want = workedKey(name, dateStr);
+    const hit = Object.keys(gridDataRef.current).find((n) => workedKey(n, dateStr) === want);
+    return hit ? gridDataRef.current[hit]?.[dateStr] : undefined;
   }
 
   /** The cell as the person last asked for it: an edit still waiting on its
@@ -2130,6 +2168,8 @@ export default function ManualShiftPage() {
             body: JSON.stringify({
               city, branch_code: branchCode, week_start: weekStart,
               force, allow_approved_day_off: allowApprovedDayOff, confirm_worked_cells: confirmWorkedCells,
+              // An older server reads only this; the current one uses the cells when given.
+              confirm_worked: confirmWorkedCells.length > 0,
             }),
           }
         );
@@ -2160,7 +2200,7 @@ export default function ManualShiftPage() {
           if (workedCells.length > 0) {
             const answer = await askWorked(workedCells.map((info) => ({
               staffName: info.staff_name, dateStr: info.work_date, info,
-              before: describeCellValue(gridDataRef.current[info.staff_name]?.[info.work_date]),
+              before: describeCellValue(gridCellByWorkedKey(info.staff_name, info.work_date)),
               after: "as on the sheet",
             })), "import");
             if (answer !== "change") { setError(""); return; }
@@ -2286,8 +2326,8 @@ export default function ManualShiftPage() {
 
   type PublishOpts = { allowApprovedDayOff?: boolean; allowCrossBranch?: boolean;
                        confirmWorkedCells?: { staff_name: string; work_date: string }[] };
-  /** One publish at a time: the button stays enabled while waiting edits settle,
-   *  and a double click used to send two publishes. */
+  /** One publish at a time: a second click while the first waits for edits to
+   *  settle used to send two publishes. */
   async function handlePublish(opts: PublishOpts = {}) {
     if (publishingRef.current) return;
     publishingRef.current = true;
@@ -2346,6 +2386,7 @@ export default function ManualShiftPage() {
             allow_approved_day_off: allowApprovedDayOff,
             allow_cross_branch_overlap: allowCrossBranch,
             confirm_worked_cells: confirmWorkedCells,
+            confirm_worked: confirmWorkedCells.length > 0,   // for an older server; see Load from DB
           }),
         }
       );
@@ -2353,6 +2394,7 @@ export default function ManualShiftPage() {
         setError(`Sheet export error: ${result.export_result.error}`);
       }
       setPublishedCount(result.rows_written);
+      confirmedWorkedRef.current.clear();   // a yes was for this round of changes
       setUnpublishedCells(new Set());
       setCellEditors({});
       publishedTokenRef.current = result.published_token ?? publishedTokenRef.current;
@@ -2373,7 +2415,7 @@ export default function ManualShiftPage() {
         const answer = await askWorked(workedCells.map((info) => ({
           staffName: info.staff_name, dateStr: info.work_date, info,
           before: "as published",
-          after: describeCellValue(gridDataRef.current[info.staff_name]?.[info.work_date]),
+          after: describeCellValue(gridCellByWorkedKey(info.staff_name, info.work_date)),
         })), "publish");
         if (answer === "change") {
           await publishNow({ ...opts, confirmWorkedCells: [...confirmWorkedCells,
@@ -2416,6 +2458,7 @@ export default function ManualShiftPage() {
         method: "POST",
         body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart }),
       });
+      confirmedWorkedRef.current.clear();
       setUnpublishedCells(new Set());
       setCellEditors({});
       await refreshWeek();
@@ -3937,7 +3980,7 @@ export default function ManualShiftPage() {
               {workedAsk.mode === "replay"
                 ? "These changes were waiting to be saved. Late, early and pay for these days are measured against this schedule."
                 : workedAsk.mode === "publish"
-                ? "These changes were saved before the staff clocked in, and publishing applies them now. Late, early and pay for these days are measured against this schedule."
+                ? "These changes were saved without this question, and publishing applies them now. Late, early and pay for these days are measured against this schedule."
                 : workedAsk.mode === "import"
                 ? "Loading from DB replaces these days with the imported sheet. Late, early and pay for these days are measured against this schedule."
                 : "Late, early and pay for this day are measured against this schedule. Check it is the day you meant."}
