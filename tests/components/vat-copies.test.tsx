@@ -52,12 +52,34 @@ const posted = (f: ReturnType<typeof vi.fn>, path: string) =>
 describe("VAT copies", () => {
   const pair = { a: side({}), b: side({ source_id: "6461", bucket: "not_deductible", vendor: "CASH & CARRY", invoice_number: "728663", copies: 3 }), why: "same_date" };
 
+  it("leaves out every photo counted as that document, not only the one shown", async () => {
+    const withMembers = { ...pair, b: { ...pair.b, members: [{ source: "drive_invoices", source_id: "6461" },
+      { source: "proc_receivings", source_id: "3466" }, { source: "proc_po_invoice_checks", source_id: "bc2e" }] } };
+    const f = await open(summary({ possible_copies: [withMembers] }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Leave this one out" })[1]);
+    await waitFor(() => expect(posted(f, "/api/admin/vat/same-invoice")).toEqual([
+      { source: "drive_invoices", source_id: "6461", same_as_source: "drive_invoices", same_as_id: "6507",
+        also: [{ source: "proc_receivings", source_id: "3466" }, { source: "proc_po_invoice_checks", source_id: "bc2e" }] }]));
+  });
+
+  it("asks before Not a copy, and lists the answer with an Undo", async () => {
+    const f = await open(summary({ possible_copies: [pair], not_copies: [{ ...pair, a: side({ source_id: "A1" }) }] }), false);
+    fireEvent.click(screen.getByRole("button", { name: /Not a copy/ }));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(posted(f, "/api/admin/vat/not-same-invoice")).toEqual([]);
+    expect(screen.getByText("Marked as two purchases")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(f.mock.calls.some((c) => String(c[0]).startsWith("/api/admin/vat/not-same-invoice?source=drive_invoices&source_id=A1")
+      && (c[1] as RequestInit)?.method === "DELETE")).toBe(true));
+  });
+
   it("points out a pair and leaves the chosen one out as a copy of the other", async () => {
     const f = await open(summary({ possible_copies: [pair] }));
     expect(screen.getByText(/Possible copies/)).toBeTruthy();
     fireEvent.click(screen.getAllByRole("button", { name: "Leave this one out" })[1]);   // the refused 6461
     await waitFor(() => expect(posted(f, "/api/admin/vat/same-invoice")).toEqual([
-      { source: "drive_invoices", source_id: "6461", same_as_source: "drive_invoices", same_as_id: "6507" }]));
+      { source: "drive_invoices", source_id: "6461", same_as_source: "drive_invoices", same_as_id: "6507", also: [] }]));
   });
 
   it("asks before leaving out the one counted as deductible, and sends nothing on No", async () => {
@@ -100,15 +122,21 @@ describe("VAT copies", () => {
     expect(await screen.findAllByRole("button", { name: "Copy of this one" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Copy of this one" }));
     await waitFor(() => expect(posted(f, "/api/admin/vat/same-invoice")).toEqual([
-      { source: "drive_invoices", source_id: "6461", same_as_source: "drive_invoices", same_as_id: "6507" }]));
+      { source: "drive_invoices", source_id: "6461", same_as_source: "drive_invoices", same_as_id: "6507", also: [] }]));
   });
 
-  it("lists a photo left out with its copy without an Undo of its own", async () => {
+  it("lists every photo left out, each with its own Undo", async () => {
     const copy = { source: "drive_invoices", source_id: "6461", vendor: "CASH & CARRY", invoice_number: "728663", invoice_date: "2026-10-22",
       total: "10963.25", vat: "1174.63", same_as_source: "drive_invoices", same_as_id: "6507", decided_by: "Yukihiro Nishimura", decided_at: "" };
-    await open(summary({ left_out_as_copy: [copy, { ...copy, source: "proc_receivings", source_id: "3466",
-      with_copy: { source: "drive_invoices", source_id: "6461" } }] }));
-    expect(screen.getByText(/so out with it/)).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(1);
+    await open(summary({ left_out_as_copy: [copy, { ...copy, source: "proc_receivings", source_id: "3466" }] }));
+    expect(screen.getAllByRole("button", { name: "Undo" })).toHaveLength(2);
+  });
+
+  it("shows no write control to someone without VAT management", async () => {
+    const body = summary({ possible_copies: [pair], rows: [row({})] });
+    await open({ ...body, can_manage: false });
+    expect(screen.queryByRole("button", { name: "Leave this one out" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Not a copy/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Copy of another invoice/ })).toBeNull();
   });
 });

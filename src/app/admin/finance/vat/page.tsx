@@ -49,15 +49,17 @@ interface InputRow { bucket: "deductible" | "needs_review" | "not_deductible"; r
   invoice_date: string; total: Money; vat: Money; seller_tin?: string | null; buyer_tin?: string | null; buyer_name?: string | null;
   buyer_decision?: { decision: "ours" | "not_ours"; decided_by: string; decided_at: string } | null;
   review_values?: { field: string; first: unknown; second: unknown }[];
-  reading_choices?: { field: string; value: unknown; decided_by: string; decided_at: string }[] }
+  reading_choices?: { field: string; value: unknown; decided_by: string; decided_at: string }[];
+  /** Every photo the ledger counts as this one document (app/vat_input.py). */
+  members?: { source: string; source_id: string }[] }
 interface CopyRow { source: string; source_id: string; vendor: string | null; invoice_number: string | null; invoice_date: string;
   total: Money; vat: Money; same_as_source: string; same_as_id: string; decided_by: string; decided_at: string;
-  /** Left out with another copy read with the same number (app/vat_input.py); it has no Undo of its own. */
-  with_copy?: { source: string; source_id: string } | null }
+}
+interface Member { source: string; source_id: string }
 interface CopySide { source: string; source_id: string; bucket: InputRow["bucket"]; vendor: string | null; invoice_number: string | null;
-  invoice_date: string; total: Money; vat: Money; seller_tin?: string | null; copies?: number }
+  invoice_date: string; total: Money; vat: Money; seller_tin?: string | null; copies?: number; members?: Member[] }
 /** Two counted documents that look like one invoice photographed twice (app/vat_input.possible_copies). */
-interface CopyPair { a: CopySide; b: CopySide; why: "same_date" | "same_number" }
+interface CopyPair { a: CopySide; b: CopySide; why: "same_date" | "same_number" | "similar_number" | "same_number_same_day" }
 interface WhtLine { platform: string; store: string; withheld: Money; state: string;
   received: { amount: Money; by: string; at: string; note: string } | null }
 interface Summary {
@@ -80,6 +82,7 @@ interface Summary {
     not_deductible: { documents: number; vat_printed: Money }; excluded_not_a_purchase: number; rows: InputRow[];
     left_out_as_copy?: CopyRow[];
     possible_copies?: CopyPair[];
+    not_copies?: CopyPair[];
     rows_truncated?: boolean; deductible_by_basis?: Record<string, { documents: number; vat: Money }> };
   withholding: { withheld: Money; received_2307: Money; awaiting: number; lines: WhtLine[] };
 }
@@ -110,12 +113,16 @@ const SOURCE: Record<string, string> = { proc_receivings: "receiving photo", pro
   drive_invoices: "Inbox invoice", store_supplier_orders: "store order photo", fp_sales_invoices: "foodpanda invoice" };
 const BUCKET: Record<string, string> = { deductible: "counted as deductible", needs_review: "to check", not_deductible: "not deductible" };
 
-/** Leave `r` out of the VAT totals as a copy of `of` (POST /api/admin/vat/same-invoice). */
-async function leaveOutAsCopy(r: { source: string; source_id: string }, of: { source: string; source_id: string }): Promise<string> {
+/** Leave `r` out of the VAT totals as a copy of `of` (POST /api/admin/vat/same-invoice), with
+ *  every other photo counted as the same document: left behind, the next of them would
+ *  take its place (Cash & Carry 728663, 2026-10-26). */
+async function leaveOutAsCopy(r: { source: string; source_id: string; members?: { source: string; source_id: string }[] },
+                              of: { source: string; source_id: string }): Promise<string> {
+  const also = (r.members || []).filter((m) => `${m.source}${m.source_id}` !== `${r.source}${r.source_id}`);
   try {
     const res = await fetch("/api/admin/vat/same-invoice", {
       method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
-      body: JSON.stringify({ source: r.source, source_id: r.source_id, same_as_source: of.source, same_as_id: of.source_id }),
+      body: JSON.stringify({ source: r.source, source_id: r.source_id, same_as_source: of.source, same_as_id: of.source_id, also }),
     });
     if (!res.ok) { const b = await res.json().catch(() => null); return b?.detail || `Could not save (HTTP ${res.status}).`; }
     return "";
@@ -130,6 +137,11 @@ function confirmLeaveOut(r: CopySide | InputRow, of: CopySide | InputRow): boole
   if ((RANK[r.bucket] ?? 0) > (RANK[of.bucket] ?? 0)) {
     return window.confirm(`This one is ${BUCKET[r.bucket] || r.bucket} (VAT ${peso(r.vat)}); the one you keep is ${BUCKET[of.bucket] || of.bucket}. `
       + `Leaving this one out can drop input VAT that would count. Leave it out anyway?`);
+  }
+  // Both counted the same way, but this one was read with more VAT: one of the readings is wrong.
+  if (r.bucket === of.bucket && r.bucket === "deductible" && Number(r.vat) > Number(of.vat)) {
+    return window.confirm(`This one was read with VAT ${peso(r.vat)}; the one you keep has ${peso(of.vat)}. `
+      + `Check the photos: keep the one whose VAT matches the paper. Leave this one out anyway?`);
   }
   return true;
 }
@@ -238,7 +250,11 @@ export default function VatLedgerPage() {
 
   useEffect(() => { if (mounted) load(); }, [mounted, load]);
   // Returns the reload, so a list can keep its buttons disabled until the new data is on screen.
-  const refreshAll = useCallback(() => { setTick((t) => t + 1); return load(); }, [load]);
+  // Through a ref: a save that finishes after the person moved to another quarter tab
+  // reloads the tab now on screen, not the quarter the button was pressed on.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const refreshAll = useCallback(() => { setTick((t) => t + 1); return loadRef.current(); }, []);
 
   // 2026 Q1 (the first quarter with data) to the calendar quarter running today.
   const quarters = useMemo(() => {
@@ -476,8 +492,9 @@ export default function VatLedgerPage() {
               </div>
             </div>
 
-            {(data.input.possible_copies || []).length > 0 && (
-              <PossibleCopies pairs={data.input.possible_copies || []} canDecide={data.can_manage} onDecided={refreshAll} />)}
+            {((data.input.possible_copies || []).length > 0 || (data.input.not_copies || []).length > 0) && (
+              <PossibleCopies pairs={data.input.possible_copies || []} dismissed={data.input.not_copies || []}
+                canDecide={data.can_manage} onDecided={refreshAll} />)}
 
             <h3 id="review" className="mt-5 text-sm font-semibold text-white">To check — oldest first</h3>
             <p className={T_CAPTION}>Each holds VAT that is not counted yet. Open it in the Invoice Inbox and compare with the photo.</p>
@@ -486,16 +503,16 @@ export default function VatLedgerPage() {
               or name is a digit or letter off, compare the photo and decide here: <strong>Our TIN</strong> counts it (once nothing else is open on it), <strong>Not ours</strong> leaves it out.
               A decision stops applying if the invoice is read again with a different TIN or name.
             </p>
-            <InvoiceList rows={reviewRows} allRows={data.input.rows} empty="Nothing to check this quarter." canDecide={data.can_manage} onDecided={refreshAll} />
+            <InvoiceList rows={reviewRows} allRows={data.input.rows} allRowsCut={!!data.input.rows_truncated} empty="Nothing to check this quarter." canDecide={data.can_manage} onDecided={refreshAll} />
 
             <h3 className="mt-5 text-sm font-semibold text-white">VAT printed but not deductible</h3>
             <p className={T_CAPTION}>A supplier printed VAT, but the invoice misses something the BIR requires (RMC 77-2024). Ask the supplier for a corrected invoice.</p>
-            <InvoiceList rows={notRows} allRows={data.input.rows} empty="None this quarter." canDecide={data.can_manage} onDecided={refreshAll} />
+            <InvoiceList rows={notRows} allRows={data.input.rows} allRowsCut={!!data.input.rows_truncated} empty="None this quarter." canDecide={data.can_manage} onDecided={refreshAll} />
             {decidedRows.length > 0 && (
               <>
                 <h3 className="mt-5 text-sm font-semibold text-white">Counted by a VAT decision</h3>
                 <p className={T_CAPTION}>Invoices counted because a person decided they are made out to us, or picked one of two readings. Undo puts one back to be checked.</p>
-                <InvoiceList rows={decidedRows} allRows={data.input.rows} empty="" canDecide={data.can_manage} onDecided={refreshAll} />
+                <InvoiceList rows={decidedRows} allRows={data.input.rows} allRowsCut={!!data.input.rows_truncated} empty="" canDecide={data.can_manage} onDecided={refreshAll} />
               </>)}
             {(data.input.left_out_as_copy || []).length > 0 && (
               <CopyList rows={data.input.left_out_as_copy || []} canDecide={data.can_manage} onDecided={refreshAll} />)}
@@ -591,12 +608,10 @@ function CopyList({ rows, canDecide, onDecided }: { rows: CopyRow[]; canDecide: 
         {rows.map((r) => (
           <div key={`${r.source}${r.source_id}`} className="rounded-xl border border-white/8 p-2 text-[12px] text-zinc-300">
             <span className="text-white">{r.vendor || "—"}</span> · {r.invoice_number || "—"} · {r.invoice_date} · VAT {peso(r.vat)}
-            <span className="text-zinc-400"> — {r.with_copy
-              ? <>same number and total as the {SOURCE[r.with_copy.source] || r.with_copy.source} #{r.with_copy.source_id} left out here, so out with it</>
-              : <>copy of the {SOURCE[r.same_as_source] || r.same_as_source}, left out by {r.decided_by}</>}</span>
+            <span className="text-zinc-400"> — copy of the {SOURCE[r.same_as_source] || r.same_as_source}, left out by {r.decided_by}</span>
             <a className="ml-2 inline-flex items-center gap-1 text-violet-300 hover:text-violet-200" href={photoLink(r)} target="_blank" rel="noreferrer">
               Photo<ExternalLink className="h-3 w-3" /></a>
-            {canDecide && !r.with_copy && (
+            {canDecide && (
               <button className="ml-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => undo(r)}>Undo</button>)}
           </div>))}
       </div>
@@ -604,7 +619,9 @@ function CopyList({ rows, canDecide, onDecided }: { rows: CopyRow[]; canDecide: 
   );
 }
 
-function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; canDecide: boolean; onDecided: () => unknown }) {
+function PossibleCopies({ pairs, dismissed = [], canDecide, onDecided }: {
+  pairs: CopyPair[]; dismissed?: CopyPair[]; canDecide: boolean; onDecided: () => unknown;
+}) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   // The buttons stay disabled until the ledger has reloaded: a pair already settled
@@ -617,14 +634,20 @@ function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; ca
     if (e) { setErr(e); setBusy(""); return; }
     try { await onDecided(); } finally { setBusy(""); }
   };
-  const notACopy = async (p: CopyPair) => {
+  const notACopy = async (p: CopyPair, undo = false) => {
+    if (!undo && !window.confirm(`Mark these as two separate purchases? The pair stops being pointed out. `
+      + `If they are one invoice photographed twice, both stay counted. You can undo this below.`)) return;
     setBusy(`${p.a.source}${p.a.source_id}`);
     setErr("");
     try {
-      const res = await fetch("/api/admin/vat/not-same-invoice", {
-        method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
-        body: JSON.stringify({ source: p.a.source, source_id: p.a.source_id, other_source: p.b.source, other_id: p.b.source_id }),
-      });
+      const q = `source=${encodeURIComponent(p.a.source)}&source_id=${encodeURIComponent(p.a.source_id)}`
+        + `&other_source=${encodeURIComponent(p.b.source)}&other_id=${encodeURIComponent(p.b.source_id)}`;
+      const res = undo
+        ? await fetch(`/api/admin/vat/not-same-invoice?${q}`, { method: "DELETE", headers: getAuthHeaders(getAuth()) })
+        : await fetch("/api/admin/vat/not-same-invoice", {
+          method: "POST", headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
+          body: JSON.stringify({ source: p.a.source, source_id: p.a.source_id, other_source: p.b.source, other_id: p.b.source_id }),
+        });
       if (!res.ok) { const b = await res.json().catch(() => null); setErr(b?.detail || `Could not save (HTTP ${res.status}).`); return; }
       await onDecided();
     } catch { setErr("Network error. Try again."); } finally { setBusy(""); }
@@ -647,11 +670,11 @@ function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; ca
     <>
       <h3 className="mt-5 text-sm font-semibold text-white">Possible copies — the same invoice photographed twice?</h3>
       <p className={T_CAPTION}>
-        Each pair has the same date and total (or the same number and total), but they are counted as two documents because a
-        number was misread or covered. Open both photos. If they are one invoice, leave out the less complete photo and keep the one
-        that shows the number and our TIN. If they are two purchases, choose Not a copy.
+        Each pair is from the same supplier with the same total and date, or the same number, but the ledger treats them as two
+        documents because a number or a date was read differently. Open both photos. If they are one invoice, leave out the less
+        complete photo and keep the one that shows the number and our TIN. If they are two purchases, choose Not a copy.
       </p>
-      {err && <p className="mt-2 text-[12px] text-red-300">{err}</p>}
+      {err && <p role="alert" className="mt-2 text-[12px] text-red-300">{err}</p>}
       <div className="mt-2 space-y-2">
         {pairs.map((p) => (
           <div key={`${p.a.source}${p.a.source_id}|${p.b.source}${p.b.source_id}`} className="rounded-xl border border-amber-400/30 p-2 text-[12px]">
@@ -660,12 +683,22 @@ function PossibleCopies({ pairs, canDecide, onDecided }: { pairs: CopyPair[]; ca
               <button className="mt-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => notACopy(p)}>Not a copy — two purchases</button>)}
           </div>))}
       </div>
+      {dismissed.length > 0 && (
+        <div className="mt-3 text-[12px] text-zinc-400">
+          <div className="text-zinc-300">Marked as two purchases</div>
+          {dismissed.map((p) => (
+            <div key={`${p.a.source}${p.a.source_id}|${p.b.source}${p.b.source_id}`} className="mt-1">
+              {p.a.invoice_date} · {p.a.vendor || "—"} · No. {p.a.invoice_number || "—"} and No. {p.b.invoice_number || "—"} · {peso(p.a.total)}
+              {canDecide && (
+                <button className="ml-2 text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => notACopy(p, true)}>Undo</button>)}
+            </div>))}
+        </div>)}
     </>
   );
 }
 
-function InvoiceList({ rows, allRows = [], empty, canDecide = false, onDecided }: {
-  rows: InputRow[]; allRows?: InputRow[]; empty: string; canDecide?: boolean; onDecided?: () => unknown;
+function InvoiceList({ rows, allRows = [], allRowsCut = false, empty, canDecide = false, onDecided }: {
+  rows: InputRow[]; allRows?: InputRow[]; allRowsCut?: boolean; empty: string; canDecide?: boolean; onDecided?: () => unknown;
 }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -732,7 +765,7 @@ function InvoiceList({ rows, allRows = [], empty, canDecide = false, onDecided }
   if (rows.length === 0) return <p className={`${T_BODY} mt-2`}>{empty}</p>;
   return (
     <div className="mt-2 overflow-x-auto">
-      {err && <p className="mb-2 text-[12px] text-red-300">{err}</p>}
+      {err && !picking && <p role="alert" className="mb-2 text-[12px] text-red-300">{err}</p>}
       <table className={`${STACK_TABLE} sm:min-w-[560px]`}>
         <thead className={STACK_HEAD}><tr className={TABLE_HEADER}><th className="text-left">Date</th><th className="text-left">Supplier</th><th className="text-left sm:pr-4">Invoice</th><th className="text-right sm:pr-4">VAT</th><th className="text-left">What is missing</th><th /></tr></thead>
         <tbody className={STACK_BODY}>
@@ -784,13 +817,16 @@ function InvoiceList({ rows, allRows = [], empty, canDecide = false, onDecided }
                       Copy of another invoice…</button>
                     {picking === `${r.source}${r.source_id}` && (
                       <div className="mt-1 space-y-1 rounded-lg border border-white/10 p-2 text-zinc-300">
+                        {err && <div role="alert" className="text-red-300">{err}</div>}
                         {candidates(r).length === 0
-                          ? <div>No other document this quarter from this seller has the same total (within a month) or the same number.</div>
+                          ? <div>No other document this quarter from this seller has the same total (within a month) or the same number.
+                              {allRowsCut ? " The list stops at 1,000 rows, so one may be missing." : ""}</div>
                           : <>
                               <div className="text-zinc-400">Which invoice is this a copy of? This one is then left out of every total.</div>
                               {candidates(r).map((x) => (
                                 <div key={`${x.source}${x.source_id}`} className="flex flex-wrap items-center gap-2">
-                                  <span>{x.invoice_date} · {x.vendor || "—"} · {x.invoice_number || "—"} · VAT {peso(x.vat)} · {BUCKET[x.bucket] || x.bucket}</span>
+                                  <span>{x.invoice_date} · {x.vendor || "—"} · No. {x.invoice_number || "—"} · {peso(x.total)} · VAT {peso(x.vat)}
+                                    {x.seller_tin ? ` · TIN ${x.seller_tin}` : ""} · {BUCKET[x.bucket] || x.bucket}</span>
                                   <a className="inline-flex items-center gap-1 text-violet-300 hover:text-violet-200" href={photoLink(x)} target="_blank" rel="noreferrer">
                                     Photo<ExternalLink className="h-3 w-3" /></a>
                                   <button className={SMALL_BUTTON} disabled={!!busy} onClick={() => copyOf(r, x)}>Copy of this one</button>
