@@ -1139,9 +1139,11 @@ export default function ManualShiftPage() {
       // Moved to another sheet while the question was open: this grid and these
       // clock-ins belong to the other sheet, so only the answer itself is used.
       if (sheetKeyRef.current !== sheet) {
-        if (answer === "skip") return queueOnly(changes.filter((ch) => !asked.has(ck(ch))), () => false);
+        // A cell confirmed earlier on the old sheet keeps its yes either way.
+        const yes = (ch: { staffName: string; dateStr: string }) => confirmedWorkedRef.current.has(ck(ch));
+        if (answer === "skip") return queueOnly(changes.filter((ch) => !asked.has(ck(ch))), yes);
         for (const k of asked) confirmedWorkedRef.current.add(k);
-        return queueOnly(changes, (ch) => asked.has(ck(ch)));
+        return queueOnly(changes, yes);
       }
       // "Keep worked days as they are" keeps all of them, notes and labels too.
       if (answer === "skip") changes = changes.filter((ch) => !(isWorked(ch)
@@ -2289,7 +2291,8 @@ export default function ManualShiftPage() {
   async function handlePublish(opts: PublishOpts = {}) {
     if (publishingRef.current) return;
     publishingRef.current = true;
-    try { await publishNow(opts); } finally { publishingRef.current = false; }
+    setSaving(true);   // "Publishing..." from the click, while waiting edits settle
+    try { await publishNow(opts); } finally { publishingRef.current = false; setSaving(false); }
   }
 
   async function publishNow(opts: PublishOpts = {}) {
