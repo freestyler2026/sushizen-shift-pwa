@@ -1,6 +1,7 @@
 // src/app/request/page.tsx
 "use client";
 
+import { dayCount, MAX_DAYS, spanDates, spanWords } from "@/lib/leave-span";
 import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prepareIfImage } from "@/lib/image-compress";
@@ -182,7 +183,10 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
                   </div>
                   <p className="mt-2 text-sm text-zinc-300">{n.reason}</p>
                   {n.leave_days != null && (
-                    <p className={T_CAPTION + " mt-1"}>{n.leave_days} day(s) · {n.leave_type}</p>
+                    <p className={T_CAPTION + " mt-1 tabular-nums"}>
+                      {spanDates(n.target_date, n.leave_days) || n.target_date} · {n.leave_days} day(s)
+                      {n.leave_type ? ` · ${n.leave_type.replace(/_/g, " ")}` : ""}
+                    </p>
                   )}
                   {n.overtime_hours != null && n.overtime_hours > 0 && (
                     <p className={T_CAPTION + " mt-1"}>{n.overtime_hours} OT hour(s)</p>
@@ -444,7 +448,9 @@ function InboxTab({
                   </div>
                   <p className="mt-1.5 text-sm text-zinc-300">{n.reason}</p>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
-                    <span>Date: {n.target_date}</span>
+                    <span className="tabular-nums">
+                      {dayCount(n.leave_days) > 1 ? "Dates" : "Date"}: {spanDates(n.target_date, n.leave_days) || n.target_date}
+                    </span>
                     {n.leave_type && <span>Type: {n.leave_type}</span>}
                     {n.leave_days != null && <span>{n.leave_days} day(s)</span>}
                     {n.overtime_hours != null && <span>{n.overtime_hours} OT hr(s)</span>}
@@ -999,7 +1005,7 @@ export default function RequestPage() {
                       onChange={e => setStaffName(e.target.value)} />
                   )}
                 </Field>
-                <Field label="Work date">
+                <Field label={["paid_leave", "vacation", "absence", "day_off"].includes(requestType) ? "First day" : "Work date"}>
                   <DatePicker value={workDate} onChange={setWorkDate} />
                 </Field>
 
@@ -1057,8 +1063,16 @@ export default function RequestPage() {
                       />
                     </Field>
                     <Field label="Days">
-                      <input className={INPUT_CLASS} type="number" min="0.5" step="0.5" value={leaveDays}
+                      <input className={INPUT_CLASS} type="number" min="0.5" step="0.5" max={MAX_DAYS} value={leaveDays}
                         onChange={e => setLeaveDays(e.target.value)} />
+                      {/* What is being asked, in days of the week: one request
+                          for both days, not one request per day. */}
+                      {(parseFloat(leaveDays) || 0) > 0 && (
+                        <p className={T_CAPTION + " mt-1"}>
+                          {dayCount(leaveDays) > 1 ? "Covers " : "On "}
+                          <span className="text-zinc-200">{spanWords(workDate, leaveDays)}</span>
+                        </p>
+                      )}
                     </Field>
                   </>
                 )}

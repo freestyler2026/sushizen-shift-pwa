@@ -204,6 +204,9 @@ type AdminItem = {
   counterparty_status?: string;
   reason?: string;
   requested_at?: string;
+  /** Days asked for, and the span they cover ("2026-12-06 → 2026-12-07 (2 days)"). */
+  leave_days?: number | null;
+  dates?: string;
 };
 
 type Overview = {
@@ -444,7 +447,7 @@ function RequestCard({
           <div className="min-w-0">
             <div className="font-medium truncate">{item.staff_name} / {item.request_type}</div>
             <div className="mt-1 text-xs text-neutral-500">
-              {item.work_date} • M:{item.manager_status} • HQ:{item.hq_status}
+              <span className="tabular-nums">{item.dates || item.work_date}</span> • M:{item.manager_status} • HQ:{item.hq_status}
             </div>
             {item.counterparty_name ? <div className="text-xs text-neutral-500">↔ {item.counterparty_name}</div> : null}
             {item.reason ? <div className="text-xs text-neutral-400 truncate italic">{item.reason}</div> : null}

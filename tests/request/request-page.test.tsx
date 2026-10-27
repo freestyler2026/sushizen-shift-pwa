@@ -559,6 +559,16 @@ describe("HistoryTab — items display", () => {
     );
   });
 
+  // Joven Bermejo Jr.'s 2026-12-06, 2 days, showed one date and was refused
+  // for not saying which dates (2026-10-16).
+  it("shows every day a two-day request covers", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText("My History"));
+    await waitFor(() =>
+      expect(screen.getByText(/2026-05-10 → 2026-05-11/)).toBeInTheDocument()
+    );
+  });
+
   it("shows review note when present", async () => {
     serve({
       "/api/request/notifications/history": {
