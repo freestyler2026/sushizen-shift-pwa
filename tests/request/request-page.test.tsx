@@ -635,6 +635,20 @@ describe("InboxTab — display and review", () => {
     );
   });
 
+  // Dubai, 2026-10-27: a time change showed its reason and date but not the
+  // hours asked for, so it could not be judged.
+  it("shows the hours a time change asks for", async () => {
+    mockFetch.mockReset();
+    serve({ "/api/request/notifications/inbox": { items: [{
+      ...inboxItem, notification_type: "time_change", leave_type: null, leave_days: null,
+      requested: { from: "9-16", to: "10-18" } }] } });
+    await renderPage();
+    fireEvent.click(screen.getByText("Inbox"));
+    await waitFor(() =>
+      expect(screen.getByText("Requested: 9-16 → 10-18")).toBeInTheDocument()
+    );
+  });
+
   it("shows reason text", async () => {
     await renderPage();
     fireEvent.click(screen.getByText("Inbox"));

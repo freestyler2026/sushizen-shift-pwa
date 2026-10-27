@@ -1,6 +1,7 @@
 // src/app/admin/page.tsx
 "use client";
 
+import { requestedChangeText, type RequestedChange } from "@/lib/requested-change";
 import { isoToday } from "@/lib/date";
 import { motion } from "framer-motion";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -207,6 +208,8 @@ type AdminItem = {
   /** Days asked for, and the span they cover ("2026-12-06 → 2026-12-07 (2 days)"). */
   leave_days?: number | null;
   dates?: string;
+  /** from/to of a time change, with_staff/my_to/their_to of a swap. */
+  payload?: RequestedChange;
 };
 
 type Overview = {
@@ -449,6 +452,11 @@ function RequestCard({
             <div className="mt-1 text-xs text-neutral-500">
               <span className="tabular-nums">{item.dates || item.work_date}</span> • M:{item.manager_status} • HQ:{item.hq_status}
             </div>
+            {requestedChangeText(item.request_type, item.payload) ? (
+              <div className="mt-0.5 text-xs font-semibold text-neutral-200 tabular-nums">
+                Requested: {requestedChangeText(item.request_type, item.payload)}
+              </div>
+            ) : null}
             {item.counterparty_name ? <div className="text-xs text-neutral-500">↔ {item.counterparty_name}</div> : null}
             {item.reason ? <div className="text-xs text-neutral-400 truncate italic">{item.reason}</div> : null}
             {waitingDays != null || blockedOn ? (

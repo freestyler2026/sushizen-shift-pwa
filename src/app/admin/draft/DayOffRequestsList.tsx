@@ -41,9 +41,10 @@ export default function DayOffRequestsList({ days, rows, month }: { days: DayOff
   return (
     <details className={`${GLASS_CARD} mb-4 p-4`}>
       <summary className="cursor-pointer select-none text-sm text-white">
-        <span className="font-semibold">Day-off requests in {month}</span>
+        <span className="font-semibold">Days off asked for in {month}</span>
+        {/* One row per day: a request for two days is two rows. */}
         <span className="ml-2 text-xs text-white/60">
-          {approved} approved · {asked} waiting for an answer
+          {approved} approved day{approved === 1 ? "" : "s"} · {asked} day{asked === 1 ? "" : "s"} waiting for an answer
           {clash > 0 && <span className="ml-2 font-semibold text-rose-300">· {clash} still rostered on an approved day off</span>}
         </span>
       </summary>

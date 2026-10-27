@@ -2,6 +2,7 @@
 "use client";
 
 import { dayCount, MAX_DAYS, spanDates, spanWords } from "@/lib/leave-span";
+import { requestedChangeText, type RequestedChange } from "@/lib/requested-change";
 import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prepareIfImage } from "@/lib/image-compress";
@@ -99,6 +100,8 @@ type Notification = {
   hq_status?: string;
   urgency_status?: string | null;
   branch?: string | null;
+  /** The asked-for hours (time change) or new shifts (swap). */
+  requested?: RequestedChange;
 };
 
 function todayIso() { return isoToday(); }
@@ -181,6 +184,11 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
                     </span>
                     <StatusBadge status={n.status} />
                   </div>
+                  {requestedChangeText(n.notification_type, n.requested) && (
+                    <p className="mt-2 text-sm font-semibold text-white tabular-nums">
+                      Requested: {requestedChangeText(n.notification_type, n.requested)}
+                    </p>
+                  )}
                   <p className="mt-2 text-sm text-zinc-300">{n.reason}</p>
                   {n.leave_days != null && (
                     <p className={T_CAPTION + " mt-1 tabular-nums"}>
@@ -446,6 +454,11 @@ function InboxTab({
                     )}
                     {n.branch && <span className={BADGE_INFO}>{n.branch}</span>}
                   </div>
+                  {requestedChangeText(n.notification_type, n.requested) && (
+                    <p className="mt-1.5 text-sm font-semibold text-white tabular-nums">
+                      Requested: {requestedChangeText(n.notification_type, n.requested)}
+                    </p>
+                  )}
                   <p className="mt-1.5 text-sm text-zinc-300">{n.reason}</p>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
                     <span className="tabular-nums">
@@ -827,6 +840,7 @@ export default function RequestPage() {
       if (medicalDoc && !medicalDocumentFile) throw new Error("Please attach your medical document file.");
       if (requestType === "overtime_request" && (parseFloat(otHours) || 0) <= 0) throw new Error("Overtime hours must be greater than 0.");
       if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (parseFloat(leaveDays) || 0) <= 0) throw new Error("Leave days must be greater than 0.");
+      if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (parseFloat(leaveDays) || 0) > MAX_DAYS) throw new Error(`Leave days must be ${MAX_DAYS} or fewer.`);
 
       // One call.
       //
