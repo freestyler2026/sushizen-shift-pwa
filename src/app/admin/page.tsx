@@ -1,7 +1,7 @@
 // src/app/admin/page.tsx
 "use client";
 
-import { requestedChangeText, type RequestedChange } from "@/lib/requested-change";
+import { changeFromPayload, requestedChangeText, type RequestedChange } from "@/lib/requested-change";
 import { isoToday } from "@/lib/date";
 import { motion } from "framer-motion";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -452,9 +452,9 @@ function RequestCard({
             <div className="mt-1 text-xs text-neutral-500">
               <span className="tabular-nums">{item.dates || item.work_date}</span> • M:{item.manager_status} • HQ:{item.hq_status}
             </div>
-            {requestedChangeText(item.request_type, item.payload) ? (
+            {requestedChangeText(item.request_type, changeFromPayload(item.payload)) ? (
               <div className="mt-0.5 text-xs font-semibold text-neutral-200 tabular-nums">
-                Requested: {requestedChangeText(item.request_type, item.payload)}
+                Requested: {requestedChangeText(item.request_type, changeFromPayload(item.payload))}
               </div>
             ) : null}
             {item.counterparty_name ? <div className="text-xs text-neutral-500">↔ {item.counterparty_name}</div> : null}

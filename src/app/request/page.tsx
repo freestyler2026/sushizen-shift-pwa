@@ -2,7 +2,7 @@
 "use client";
 
 import { dayCount, MAX_DAYS, spanDates, spanWords } from "@/lib/leave-span";
-import { requestedChangeText, type RequestedChange } from "@/lib/requested-change";
+import { readableHours, requestedChangeText, type RequestedChange } from "@/lib/requested-change";
 import { isoToday } from "@/lib/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prepareIfImage } from "@/lib/image-compress";
@@ -234,6 +234,10 @@ function InboxTab({
   const [error, setError] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState("");
+  // The hours a time change is approved at. Starts as what was asked; changed,
+  // it approves at these hours instead (Abiskar Rai asked for 12-00, the store
+  // starts at 09:00 or 11:00).
+  const [approvedTo, setApprovedTo] = useState("");
   const [reviewBusy, setReviewBusy] = useState(false);
   const [lastLoaded, setLastLoaded] = useState<Date | null>(null);
   const loadRef = useRef(0);
@@ -323,15 +327,26 @@ function InboxTab({
     setError("");
     try {
       const auth = getAuth();
+      const item = items.find(i => i.id === id);
+      const asked = (item?.requested?.approved_to || item?.requested?.to || "").trim();
+      const given = approvedTo.trim();
       const r = await apiFetch(`/api/request/notifications/${id}/review`, {
         method: "PATCH",
         body: JSON.stringify({
           status: action,
           review_note: reviewNote.trim(),
           reviewed_by: auth?.staffName ?? "manager",
+          // Only when changed: approving as asked sends nothing extra.
+          ...(action === "approved" && item?.notification_type === "time_change" && given && given !== asked
+            ? { approved_to: given } : {}),
         }),
       });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) {
+        const text = await r.text();
+        let detail = "";
+        try { const j = JSON.parse(text) as { detail?: unknown }; detail = typeof j.detail === "string" ? j.detail : ""; } catch { /* not JSON */ }
+        throw new Error(detail || text);
+      }
       setItems(prev => prev.filter(i => i.id !== id));
       // The tab count and the left-nav badge both come from the badge endpoint,
       // so one event refreshes both. Without it the number the reviewer just
@@ -339,8 +354,9 @@ function InboxTab({
       dispatchBadgeRefresh("requests");
       setReviewingId(null);
       setReviewNote("");
+      setApprovedTo("");
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setReviewBusy(false);
     }
@@ -472,6 +488,26 @@ function InboxTab({
 
                   {reviewingId === n.id ? (
                     <div className="mt-3 space-y-2">
+                      {n.notification_type === "time_change" && (
+                        <div>
+                          <label className={T_LABEL} htmlFor={`approve-at-${n.id}`}>Approve at (hours)</label>
+                          <input
+                            id={`approve-at-${n.id}`}
+                            className={INPUT_CLASS + " mt-1 max-w-[14rem] tabular-nums"}
+                            value={approvedTo}
+                            onChange={e => setApprovedTo(e.target.value)}
+                            placeholder="e.g. 11-23"
+                          />
+                          <p className={T_CAPTION + " mt-1"}>
+                            Change it to the shift you approve, in whole hours as start-end (e.g. 11-23; past midnight 17-25). Left as asked, it approves what was asked.
+                          </p>
+                          {!readableHours(approvedTo) && (
+                            <p className="mt-1 text-xs text-amber-300">
+                              The schedule cannot read &ldquo;{approvedTo || "(empty)"}&rdquo;. Enter the hours to approve, e.g. 11-23, to approve it.
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <label className={T_LABEL}>Review note (optional)</label>
                       <textarea
                         className={TEXTAREA_CLASS}
@@ -483,7 +519,9 @@ function InboxTab({
                       <div className="flex gap-2">
                         <button
                           onClick={() => { void review(n.id, "approved"); }}
-                          disabled={reviewBusy}
+                          // A time change whose hours the schedule cannot read
+                          // would be approved and change nothing on the roster.
+                          disabled={reviewBusy || (n.notification_type === "time_change" && !readableHours(approvedTo))}
                           className="flex items-center gap-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition">
                           {reviewBusy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                           Approve
@@ -495,7 +533,7 @@ function InboxTab({
                           <XCircle size={12} /> Reject
                         </button>
                         <button
-                          onClick={() => { setReviewingId(null); setReviewNote(""); }}
+                          onClick={() => { setReviewingId(null); setReviewNote(""); setApprovedTo(""); }}
                           className={SMALL_BUTTON}>
                           Cancel
                         </button>
@@ -503,7 +541,10 @@ function InboxTab({
                     </div>
                   ) : (
                     <button
-                      onClick={() => setReviewingId(n.id)}
+                      onClick={() => {
+                        setReviewingId(n.id);
+                        setApprovedTo(n.requested?.approved_to || n.requested?.to || "");
+                      }}
                       className={SMALL_BUTTON + " mt-2"}>
                       Review
                     </button>
