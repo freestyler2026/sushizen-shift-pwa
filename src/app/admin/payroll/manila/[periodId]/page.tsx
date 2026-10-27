@@ -224,8 +224,10 @@ const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: 
     label: "loan twice?",
     cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
     title: "This loan is registered under Gov Loans and deducted automatically, and "
-         + "a hand-entered deduction here also reads like a loan. Delete the "
-         + "hand-entered one unless it is a different loan.",
+         + "a hand-entered deduction on this payslip, or on the 1st cut-off of the same "
+         + "month, also reads like a loan. Open the payslip: the warning names the "
+         + "deduction and what to do. Unless it is a different loan, the month is "
+         + "deducted twice.",
   },
   LOAN_BALANCE_NEEDED: {
     label: "loan balance?",
