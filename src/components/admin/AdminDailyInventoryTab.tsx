@@ -135,6 +135,11 @@ interface InvItem {
   source_type: string;
   supplier_name?: string;
   unit_cost?: number;
+  /** Dubai: the range of par the stores order to (their own patterns). Where it
+   *  differs from par_level, the Item Master figure is not the one in use yet. */
+  store_par_min?: number | null;
+  store_par_max?: number | null;
+  store_par_count?: number | null;
 }
 
 interface EntryState {
@@ -416,6 +421,16 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   function getEffectivePar(item: InvItem): number | null {
     if (activePattern && patternLookup[item.item_code] !== undefined) return patternLookup[item.item_code];
     return item.par_level;
+  }
+
+  // Which par the order uses. The store's own pattern overrides the Item Master,
+  // and the two read the same on screen otherwise (Business Bay ordered PD Shrimp
+  // to 7.28 kg while the Item Master said 2).
+  function parSourceLabel(item: InvItem): string {
+    // "store par", not a pattern's name: Manila merges a warehouse base under the
+    // branch's own, and the last pattern used is not always where a figure came from.
+    if (activePattern && patternLookup[item.item_code] !== undefined) return " (store par)";
+    return item.par_level != null ? " (Item Master par)" : "";
   }
 
   // Computed after patternLookup is available so effective par (pattern override) is used
@@ -819,7 +834,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
                           <p className="text-xs text-zinc-500">
-                            Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}
+                            Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}{parSourceLabel(item)}
                             <IncomingNote lines={incomingFor(item.item_name)} />
                           </p>
                         </div>
@@ -842,7 +857,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
                           <p className="text-xs text-zinc-500">
-                            Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}
+                            Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}{parSourceLabel(item)}
                             <IncomingNote lines={incomingFor(item.item_name)} />
                           </p>
                         </div>
@@ -1584,7 +1599,13 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Update failed");
-      setItems((prev) => prev.map((it) => it.item_code === itemCode ? { ...it, par_level: val } : it));
+      // Dubai: the server writes it to every store's par too, and says how many.
+      let stores = 0;
+      try { stores = Number((JSON.parse(text) as { item?: { stores_updated?: number } }).item?.stores_updated ?? 0); } catch { /* not JSON */ }
+      setItems((prev) => prev.map((it) => it.item_code === itemCode
+        ? { ...it, par_level: val, ...(stores > 0 ? { store_par_min: val, store_par_max: val } : {}) }
+        : it));
+      if (stores > 0) setMsg(`Par saved for all ${stores} stores.`);
       setEditParCode(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Update failed");
@@ -2131,6 +2152,20 @@ function ItemMasterView({ onBack, city }: ItemMasterProps) {
                                 ? <span className="text-violet-300" title="From WAREHOUSE pattern (not a fixed par level)">{parseFloat(String(patternLookup[item.item_code])).toFixed(3)}<sup className="text-zinc-500 text-[9px] ml-0.5">P</sup></span>
                                 : <span className="text-zinc-600">—</span>}
                           </button>
+                        )}
+                        {/* Dubai: orders use each store's own par. Where that is
+                            not this figure, say so -- saving it here sets it for
+                            every store (owner, 2026-10-27). */}
+                        {editParCode !== item.item_code && item.store_par_count != null && Number(item.store_par_count) > 0
+                          && (item.par_level == null
+                              || Math.abs(Number(item.store_par_min) - Number(item.par_level)) > 1e-6
+                              || Math.abs(Number(item.store_par_max) - Number(item.par_level)) > 1e-6) && (
+                          <div className="mt-0.5 text-[10px] leading-tight text-amber-300 tabular-nums"
+                               title="Stores order to their own par until it is saved here. Saving here sets it for every store.">
+                            Stores: {Number(item.store_par_min) === Number(item.store_par_max)
+                              ? Number(item.store_par_min).toFixed(3)
+                              : `${Number(item.store_par_min).toFixed(3)}–${Number(item.store_par_max).toFixed(3)}`}
+                          </div>
                         )}
                       </td>
                       <td className={`${TABLE_CELL} px-3 text-right`}>
