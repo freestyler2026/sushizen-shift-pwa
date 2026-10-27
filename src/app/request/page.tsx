@@ -699,6 +699,11 @@ function SwapInboxBanner({ staffName }: { staffName: string }) {
 export default function RequestPage() {
   const router = useRouter();
   const [auth, setAuth] = useState(() => getAuth());
+  // getAuth() and today's date come from the browser; the server prerenders
+  // without either, so the first client render disagreed with the HTML (React
+  // #418 on every load of this page). Render once mounted, as /admin/overtime does.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [activeTab, setActiveTab] = useState<Tab>("form");
   const [inboxCount, setInboxCount] = useState(0);
   // The inbox's city, kept apart from the form's. They were one piece of state,
@@ -893,7 +898,13 @@ export default function RequestPage() {
         }
       }
       const text = await res.text();
-      if (!res.ok) throw new Error(`Submit failed: ${res.status} ${text}`);
+      if (!res.ok) {
+        // The server's own sentence, not the raw JSON or an HTML error page.
+        let detail = "";
+        try { const j = JSON.parse(text) as { detail?: unknown }; detail = typeof j.detail === "string" ? j.detail : ""; } catch { /* not JSON */ }
+        if (!detail && /^\s*</.test(text)) detail = "The server is restarting or unavailable. Please try again in a minute.";
+        throw new Error(`Submit failed: ${detail || `${res.status} ${text.slice(0, 200)}`}`);
+      }
       setResult(JSON.parse(text) as Record<string, unknown>);
       setReason("");
     } catch (e: unknown) {
@@ -902,6 +913,10 @@ export default function RequestPage() {
       setLoading(false);
     }
   };
+
+  if (!mounted) {
+    return <div className="min-h-screen" aria-busy="true" />;
+  }
 
   return (
     <div className="min-h-screen">
@@ -1025,7 +1040,11 @@ export default function RequestPage() {
 
                 {/* 14-day advance notice warning */}
                 {(() => {
-                  const daysLeft = Math.ceil((new Date(workDate).getTime() - Date.now()) / 86400000);
+                  // Calendar days from today (the device's date) to the day asked
+                  // for. new Date(workDate) is UTC midnight, so before 08:00 in
+                  // Manila a day 13 days away counted as 14 and the warning hid.
+                  const daysLeft = Math.round(
+                    (Date.parse(`${workDate}T00:00:00Z`) - Date.parse(`${todayIso()}T00:00:00Z`)) / 86400000);
                   return daysLeft < 14 ? (
                     <div className="col-span-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
                       <span className="mt-0.5 shrink-0">⚠️</span>
@@ -1060,6 +1079,10 @@ export default function RequestPage() {
 
                 {["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (
                   <>
+                    {/* Only paid leave and vacation send a sub-type (and use SIL).
+                        A Day Off showed "Annual Leave (uses your 5 SIL days)"
+                        and took nothing, which read as if it would. */}
+                    {(requestType === "paid_leave" || requestType === "vacation") && (
                     <Field label="Leave sub-type">
                       <SelectDark
                         className={SELECT_CLASS}
@@ -1076,6 +1099,7 @@ export default function RequestPage() {
                         ]}
                       />
                     </Field>
+                    )}
                     <Field label="Days">
                       <input className={INPUT_CLASS} type="number" min="0.5" step="0.5" max={MAX_DAYS} value={leaveDays}
                         onChange={e => setLeaveDays(e.target.value)} />

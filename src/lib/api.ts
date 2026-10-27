@@ -58,13 +58,21 @@ export function qs(params: Record<string, any>) {
   return s ? `?${s}` : "";
 }
 
-function _extractErrorMessage(text: string, status: number): string {
+export function _extractErrorMessage(text: string, status: number): string {
   try {
     const j = JSON.parse(text);
     const msg = j?.detail || j?.message;
     if (msg && typeof msg === "string") return msg;
   } catch {
     // not JSON
+  }
+  // An HTML page is the host's error page, not a message: Heroku's
+  // "Application Error" while the backend restarts after a deploy was printed
+  // on My Shift as raw markup (2026-10-27).
+  if (/^\s*</.test(text || "")) {
+    return status >= 500 || !status
+      ? "The server is restarting or unavailable. Please try again in a minute."
+      : `Request failed (HTTP ${status}).`;
   }
   return text || `HTTP ${status}`;
 }
