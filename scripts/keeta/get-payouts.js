@@ -88,7 +88,11 @@ const SHOP_MAP = {
   // blank, so label-based derivation cannot identify them and a year of history
   // was being skipped. The ids are stable, so map them outright.
   '1644200182': { code: 'KEETA_RZ_ARJ', name: 'Ramen ZEN Arjan',             brand: 'ramen_zen' },
-  '1644320430': { code: 'KEETA_RZ_AB3', name: 'Ramen ZEN Al Barsha 3',       brand: 'ramen_zen' },
+  // On the Ramen ZEN login, but All Veggie Sushi Al Barsha: its daily orders equal
+  // what staff typed for AVS on Keeta on 124 of 125 days, and Ramen ZEN has no
+  // Al Barsha outlet. Filed as Ramen ZEN until 2026-10-28 (owner: each brand's
+  // payouts, orders and sales are needed separately).
+  '1644320430': { code: 'KEETA_AVS_AB3', name: 'All Veggie Sushi Al Barsha 3', brand: 'all_veggie' },
   '1644173192': { code: 'KEETA_RZ_BB',  name: 'Ramen ZEN Business Bay',      brand: 'ramen_zen' },
   '1644193201': { code: 'KEETA_RZ_JLT', name: 'Ramen ZEN Jumeirah Lake',     brand: 'ramen_zen' },
   '1644179577': { code: 'KEETA_RZ_AM',  name: 'Ramen ZEN Al Mina',           brand: 'ramen_zen' },

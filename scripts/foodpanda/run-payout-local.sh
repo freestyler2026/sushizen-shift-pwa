@@ -83,6 +83,19 @@ for LOCATION in paranaque taft qc; do
     EXIT_CODE=1
   fi
 
+  # Order ledger (aggregator_orders): what the Daily Check and the shift
+  # planner read for foodpanda. 3 days each run, upserted on the order id, so
+  # a morning the Mac slept through is filled the next day. It ran in CI until
+  # that workflow was disabled; nothing came in from 2026-09-11 to 10-28.
+  ORD_FROM=$(python3 -c "from datetime import datetime, timedelta, timezone; print((datetime.now(timezone.utc) - timedelta(days=3)).strftime('%Y-%m-%d'))")
+  ORD_TO=$(python3 -c "from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
+  if WEBHOOK_URL="$WEBHOOK_URL" "$NODE" "$SCRIPT_DIR/get-orders.js" "$LOCATION" "$ORD_FROM" "$ORD_TO" > /dev/null 2>> "$LOG_FILE"; then
+    echo "  ✓ $LOCATION order ledger done ($ORD_FROM..$ORD_TO)" >> "$LOG_FILE"
+  else
+    echo "  ✗ $LOCATION order ledger failed (exit $?)" >> "$LOG_FILE"
+    EXIT_CODE=1
+  fi
+
   # Cancellations are NOT synced on a schedule. Reading them needs a live portal
   # session and can trip a press-and-hold check, so whoever runs it has to keep a
   # session alive — and a session nobody notices expiring produces days with no
