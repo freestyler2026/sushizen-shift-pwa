@@ -26,14 +26,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # One call per day: a week in one request ran past Heroku's 30-second
+      # limit once lost orders, items and Op Time were added.
       - name: Sync from UrbanPiper Atlas
         run: |
-          BODY=$(jq -nc --arg f "${{ github.event.inputs.date_from }}" --arg t "${{ github.event.inputs.date_to }}" \
-            '{date_from: $f, date_to: $t} | with_entries(select(.value != ""))')
-          RESP=$(curl -sS --fail-with-body -X POST \
-            "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/aggregator/urbanpiper/sync" \
-            -H "Content-Type: application/json" \
-            -H "X-Cron-Secret: ${{ secrets.MGMT_CRON_SECRET }}" \
-            --max-time 600 -d "$BODY")
-          echo "$RESP"
-          echo "$RESP" | jq -e '.ok == true' > /dev/null
+          TODAY=$(TZ=Asia/Dubai date +%Y-%m-%d)
+          FROM="${{ github.event.inputs.date_from }}"; TO="${{ github.event.inputs.date_to }}"
+          FROM="${FROM:-$(date -d "$TODAY -7 days" +%Y-%m-%d)}"
+          TO="${TO:-$(date -d "$TODAY -1 day" +%Y-%m-%d)}"
+          FAIL=0
+          D="$FROM"
+          while [ "$(date -d "$D" +%s)" -le "$(date -d "$TO" +%s)" ]; do
+            RESP=$(curl -sS --fail-with-body -X POST \
+              "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/aggregator/urbanpiper/sync" \
+              -H "Content-Type: application/json" \
+              -H "X-Cron-Secret: ${{ secrets.MGMT_CRON_SECRET }}" \
+              --max-time 120 -d "{\"date_from\":\"$D\",\"date_to\":\"$D\"}") || FAIL=1
+            echo "$D $RESP"
+            echo "$RESP" | jq -e '.ok == true' > /dev/null || FAIL=1
+            D=$(date -d "$D +1 day" +%Y-%m-%d)
+          done
+          exit $FAIL
