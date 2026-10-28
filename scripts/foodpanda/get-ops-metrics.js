@@ -25,7 +25,9 @@
  * Usage:
  *   FP_SESSION_TAFT=<b64> WEBHOOK_URL=... MGMT_CRON_SECRET=... \
  *   node scripts/foodpanda/get-ops-metrics.js taft [from] [to]
- * Default: the last 14 days up to yesterday (Manila).
+ * Default: the last 14 days up to yesterday (Manila). Runs each morning from
+ * run-payout-local.sh (launchd on the office Mac), like the payouts: the CI
+ * workflow for foodpanda is disabled.
  */
 'use strict';
 const { chromium } = require('playwright');

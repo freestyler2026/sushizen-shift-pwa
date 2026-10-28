@@ -146,38 +146,6 @@ jobs:
           FP_SESSION_QC:          ${{ secrets.FP_SESSION_QC }}
         timeout-minutes: 8
 
-      # ── Operations metrics ──────────────────────────────────────────────
-      # Unavailable time, prep time, avoidable wait, rejection and contact rate
-      # per store and day (Analytics → Foodpanda) -- the per-metric CSVs staff
-      # dropped in Drive. 14 days each run: foodpanda keeps revising a day's
-      # prep time after the CSV was taken the next morning.
-      - name: Operations metrics — Paranaque
-        if: ${{ always() && env.FULL_RUN == '1' && ((github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'paranaque')) }}
-        run: node scripts/foodpanda/get-ops-metrics.js paranaque
-        env:
-          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
-          MGMT_CRON_SECRET:       ${{ secrets.MGMT_CRON_SECRET }}
-          FP_SESSION_PARANAQUE:  ${{ secrets.FP_SESSION_PARANAQUE }}
-        timeout-minutes: 5
-
-      - name: Operations metrics — Taft
-        if: ${{ always() && env.FULL_RUN == '1' && ((github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'taft')) }}
-        run: node scripts/foodpanda/get-ops-metrics.js taft
-        env:
-          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
-          MGMT_CRON_SECRET:       ${{ secrets.MGMT_CRON_SECRET }}
-          FP_SESSION_TAFT:       ${{ secrets.FP_SESSION_TAFT }}
-        timeout-minutes: 5
-
-      - name: Operations metrics — QC
-        if: ${{ always() && env.FULL_RUN == '1' && ((github.event.inputs.location == '' || github.event.inputs.location == 'all' || github.event.inputs.location == 'qc')) }}
-        run: node scripts/foodpanda/get-ops-metrics.js qc
-        env:
-          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
-          MGMT_CRON_SECRET:       ${{ secrets.MGMT_CRON_SECRET }}
-          FP_SESSION_QC:         ${{ secrets.FP_SESSION_QC }}
-        timeout-minutes: 5
-
       # ── Store status ────────────────────────────────────────────────────
       # What the Daily Check asks a person to confirm, asked of the platform
       # instead. Runs on every trigger including the status-only crons, where
