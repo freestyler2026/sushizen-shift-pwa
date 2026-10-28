@@ -6,9 +6,12 @@
  * stored its token this reads it, checks which business it belongs to, and sets
  * it on Heroku, where the daily Dubai sync reads it. Nothing holds a password.
  *
- * Two logins, one per business:
- *   node scripts/urbanpiper/setup-session.js sushi    # Sushi ZEN          → URBANPIPER_TOKEN
- *   node scripts/urbanpiper/setup-session.js ramen    # Ramen ZEN & AVS    → URBANPIPER_RAMEN_TOKEN
+ * Two logins, one per business. Whichever you sign in with is recognised from
+ * the token and set on its own variable:
+ *   Sushi ZEN          → URBANPIPER_TOKEN
+ *   Ramen ZEN & AVS    → URBANPIPER_RAMEN_TOKEN
+ *   node scripts/urbanpiper/setup-session.js            # either account
+ *   node scripts/urbanpiper/setup-session.js sushi      # insist on Sushi ZEN
  *
  * The same tokens drive the price monitor (app/services/aggregator_price_monitor.py),
  * which has been down since its token expired on 2026-08-24.
@@ -23,11 +26,10 @@ const ACCOUNTS = {
   sushi: { env: 'URBANPIPER_TOKEN', biz: '55892580', label: 'Sushi ZEN' },
   ramen: { env: 'URBANPIPER_RAMEN_TOKEN', biz: '98750751', label: 'Ramen ZEN & All Veggie Sushi' },
 };
-const which = process.argv[2];
-const acct = ACCOUNTS[which];
+const which = process.argv.slice(2).find((a) => !a.startsWith('--'));
 const DRY = process.argv.includes('--dry-run');
-if (!acct) {
-  console.error('Usage: node scripts/urbanpiper/setup-session.js sushi|ramen [--dry-run]');
+if (which && !ACCOUNTS[which]) {
+  console.error('Usage: node scripts/urbanpiper/setup-session.js [sushi|ramen] [--dry-run]');
   process.exit(1);
 }
 
@@ -39,7 +41,7 @@ function payload(token) {
 }
 
 (async () => {
-  console.log(`\nSign in to UrbanPiper as ${acct.label}. This waits up to 5 minutes.\n`);
+  console.log(`\nSign in to UrbanPiper${which ? ` as ${ACCOUNTS[which].label}` : ''}. This waits up to 5 minutes.\n`);
   const browser = await chromium.launch({ headless: false });
   const page = await (await browser.newContext()).newPage();
   await page.goto('https://atlas.urbanpiper.com', { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
@@ -57,8 +59,10 @@ function payload(token) {
   if (!token) { console.error('No token after 5 minutes — sign-in not finished.'); process.exit(1); }
 
   const p = payload(token);
-  if (String(p.biz_id) !== acct.biz) {
-    console.error(`This login is business ${p.biz_id}, not ${acct.label} (${acct.biz}). Nothing changed.`);
+  const acct = Object.values(ACCOUNTS).find((a) => a.biz === String(p.biz_id));
+  if (!acct || (which && acct !== ACCOUNTS[which])) {
+    const want = which ? ACCOUNTS[which].label : 'Sushi ZEN or Ramen ZEN & AVS';
+    console.error(`This login is business ${p.biz_id}, not ${want}. Nothing changed.`);
     process.exit(1);
   }
   console.log(`✓ ${acct.label}: token valid until ${p.expires_on}`);
