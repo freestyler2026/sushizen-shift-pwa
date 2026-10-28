@@ -116,15 +116,23 @@ function loadSession() {
   const orders = new Map();
   let complete = false;
   let oldest = null;
-  for (let p = 1; p <= 400; p++) {
+  // ~70 pages a month; a year-to-date backfill reads about 700.
+  for (let p = 1; p <= 1500; p++) {
     base.searchParams.set('limit', '100');
     base.searchParams.set('filter', 'past');
     base.searchParams.set('sort', 'new');
     base.searchParams.set('page', String(p));
-    const out = await page.evaluate(async ([u, h]) => {
-      const r = await fetch(u, { headers: h, credentials: 'include' });
-      return { status: r.status, text: await r.text() };
-    }, [base.pathname + base.search, headers]);
+    // Deep pages can time out on Careem's side (MySQL error 3024 behind a 500);
+    // the same page usually answers on a second try.
+    let out = null;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      out = await page.evaluate(async ([u, h]) => {
+        const r = await fetch(u, { headers: h, credentials: 'include' });
+        return { status: r.status, text: await r.text() };
+      }, [base.pathname + base.search, headers]);
+      if (out.status !== 500) break;
+      await page.waitForTimeout(3000 * attempt);
+    }
     if (out.status !== 200) {
       console.error(`partner-orders-minimal page ${p}: HTTP ${out.status} ${out.text.slice(0, 160)}`);
       break;

@@ -79,8 +79,10 @@ function cookieHeader(s) {
   return parts.join('; ');
 }
 
-async function searchPage(cookie, page) {
-  const payload = { startDate: FROM, endDate: addDays(TO, 1), page };
+// The portal refuses a search longer than a month ("Search period length must
+// be <= a month"), so longer ranges are read in windows of up to 28 days.
+async function searchPage(cookie, page, from, to) {
+  const payload = { startDate: from, endDate: addDays(to, 1), page };
   let resp;
   if (WEBHOOK_URL) {
     resp = await fetch(`${WEBHOOK_URL}/api/noon/proxy`, {
@@ -121,15 +123,21 @@ async function searchPage(cookie, page) {
 (async () => {
   const cookie = cookieHeader(loadSession());
   const orders = new Map();
-  let pages = 1;
-  for (let p = 1; p <= pages; p++) {
-    const j = await searchPage(cookie, p);
-    pages = j.pages;
-    for (const [day, list] of Object.entries(j.orders)) {
-      for (const o of list || []) orders.set(o.orderNr, { ...o, day });
+  let pagesRead = 0;
+  for (let wFrom = FROM; wFrom <= TO; wFrom = addDays(wFrom, 28)) {
+    const wTo = addDays(wFrom, 27) < TO ? addDays(wFrom, 27) : TO;
+    let pages = 1;
+    for (let p = 1; p <= pages; p++) {
+      const j = await searchPage(cookie, p, wFrom, wTo);
+      pages = j.pages;
+      pagesRead += 1;
+      for (const [day, list] of Object.entries(j.orders)) {
+        for (const o of list || []) orders.set(o.orderNr, { ...o, day });
+      }
+      if (p > 60) throw new Error('more than 60 pages in one window');
     }
-    if (p > 60) throw new Error('more than 60 pages — narrow the range');
   }
+  const pages = pagesRead;
 
   // Every outlet, every day, zeros included: a day without a row would keep
   // whatever was typed before.
