@@ -21,6 +21,10 @@ on:
         description: 'To (YYYY-MM-DD). Default: today.'
         required: false
         default: ''
+      ramen_only:
+        description: 'true = Ramen ZEN counts only (backfill; leaves Sushi ZEN and the Prep Time ledger alone).'
+        required: false
+        default: 'false'
 
 jobs:
   extract-orders:
@@ -56,6 +60,7 @@ jobs:
       # re-reading costs nothing and a night with a dead session fills itself in
       # on the next run instead of leaving a hole nobody looks for.
       - name: Extract Keeta order ledger
+        if: ${{ github.event.inputs.ramen_only != 'true' }}
         run: |
           FROM="${DATE_FROM:-$(date -u -d '3 days ago' +%Y-%m-%d)}"
           TO="${DATE_TO:-$(date -u +%Y-%m-%d)}"
