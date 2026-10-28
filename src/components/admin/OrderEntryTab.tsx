@@ -456,7 +456,8 @@ export default function OrderEntryTab() {
 
       {autoCells.size > 0 ? (
         <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-          Green cells are read from the Noon, Careem and Keeta portals every morning and cannot be edited here.
+          Green cells are read every morning — Noon, Careem and Keeta from their portals, Talabat and Smiles from
+          UrbanPiper — and cannot be edited here.
           Enter only the white cells.
         </p>
       ) : null}
