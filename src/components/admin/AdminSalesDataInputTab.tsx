@@ -29,6 +29,8 @@ type SaleRow = {
   // Read from the Grab / foodpanda portals; the server keeps them on save.
   grab_auto?: boolean;
   foodpanda_auto?: boolean;
+  /** Dine-in and Beep read from the StoreHub POS. */
+  pos_auto?: boolean;
 };
 
 type EditableRow = {
@@ -46,6 +48,7 @@ type EditableRow = {
   beep_gross: string;
   grab_auto: boolean;
   foodpanda_auto: boolean;
+  pos_auto: boolean;
   saving: boolean;
   saved: boolean;
   error: string | null;
@@ -138,6 +141,7 @@ const EMPTY_ROW_FIELDS = {
   beep_gross: "",
   grab_auto: false,
   foodpanda_auto: false,
+  pos_auto: false,
   saving: false,
   saved: false,
   error: null,
@@ -159,6 +163,7 @@ function rowToEditable(r: SaleRow): EditableRow {
     beep_gross: r.beep_gross != null ? String(r.beep_gross) : "",
     grab_auto: Boolean(r.grab_auto),
     foodpanda_auto: Boolean(r.foodpanda_auto),
+    pos_auto: Boolean(r.pos_auto),
     saving: false,
     saved: false,
     error: null,
@@ -580,10 +585,11 @@ export default function AdminSalesDataInputTab() {
           </div>
         ) : null}
 
-        {!loadingDate && rows.some((r) => r.grab_auto || r.foodpanda_auto) ? (
+        {!loadingDate && rows.some((r) => r.grab_auto || r.foodpanda_auto || r.pos_auto) ? (
           <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-            Green cells are read from the Grab and foodpanda portals every morning and cannot be edited here.
-            foodpanda arrives about two days late. Grab gross, dine-in and Beep are still entered by hand.
+            Green cells are read every morning — Grab and foodpanda from their portals, dine-in and Beep from the
+            StoreHub POS — and cannot be edited here. foodpanda arrives about two days late. Only Grab gross is still
+            entered by hand.
           </p>
         ) : null}
 
@@ -665,9 +671,9 @@ export default function AdminSalesDataInputTab() {
                       </span>
                     </div>
                     {/* Dine-in */}
-                    <InputCell value={row.dine_in_orders} onChange={(v) => updateRow(idx, "dine_in_orders", v)} />
-                    <InputCell value={row.dine_in_amount} onChange={(v) => updateRow(idx, "dine_in_amount", v)} isAmount />
-                    <InputCell value={row.dine_in_gross} onChange={(v) => updateRow(idx, "dine_in_gross", v)} isAmount />
+                    <InputCell value={row.dine_in_orders} onChange={(v) => updateRow(idx, "dine_in_orders", v)} autoFrom={row.pos_auto ? "StoreHub POS" : undefined} />
+                    <InputCell value={row.dine_in_amount} onChange={(v) => updateRow(idx, "dine_in_amount", v)} isAmount autoFrom={row.pos_auto ? "StoreHub POS" : undefined} />
+                    <InputCell value={row.dine_in_gross} onChange={(v) => updateRow(idx, "dine_in_gross", v)} isAmount autoFrom={row.pos_auto ? "StoreHub POS" : undefined} />
                     {/* Grab */}
                     <InputCell value={row.grabfood_orders} onChange={(v) => updateRow(idx, "grabfood_orders", v)} autoFrom={row.grab_auto ? "Grab" : undefined} />
                     <InputCell value={row.grabfood_amount} onChange={(v) => updateRow(idx, "grabfood_amount", v)} isAmount autoFrom={row.grab_auto ? "Grab" : undefined} />
@@ -685,9 +691,9 @@ export default function AdminSalesDataInputTab() {
                       );
                     })()}
                     {/* Beep */}
-                    <InputCell value={row.beep_orders} onChange={(v) => updateRow(idx, "beep_orders", v)} />
-                    <InputCell value={row.beep_amount} onChange={(v) => updateRow(idx, "beep_amount", v)} isAmount />
-                    <InputCell value={row.beep_gross} onChange={(v) => updateRow(idx, "beep_gross", v)} isAmount />
+                    <InputCell value={row.beep_orders} onChange={(v) => updateRow(idx, "beep_orders", v)} autoFrom={row.pos_auto ? "StoreHub POS" : undefined} />
+                    <InputCell value={row.beep_amount} onChange={(v) => updateRow(idx, "beep_amount", v)} isAmount autoFrom={row.pos_auto ? "StoreHub POS" : undefined} />
+                    <InputCell value={row.beep_gross} onChange={(v) => updateRow(idx, "beep_gross", v)} isAmount autoFrom={row.pos_auto ? "StoreHub POS" : undefined} />
                     {/* Totals */}
                     <div className="text-right text-sm font-semibold text-white">
                       {hasData && orders > 0 ? orders.toLocaleString("en-PH") : <span className="text-white/20">—</span>}
