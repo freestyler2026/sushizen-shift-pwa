@@ -53,12 +53,14 @@ const BRANDS = {
     // Only Sushi ZEN feeds the Prep Time ledger: that table has no brand column.
     ledger: true,
   },
-  // Ids from get-payouts.js. Order Entry has no Ramen ZEN Al Barsha column;
-  // an order there is still counted, just not pre-filled as a zero.
+  // Ids from get-payouts.js. The Ramen ZEN login also holds All Veggie Sushi:
+  // shop 1644320430 ("Al Barsha 3") is AVS Al Barsha -- its daily counts equal
+  // what staff typed for AVS on Keeta on 124 of 125 days (2026-05..10).
   ramen_zen: {
     name: 'Ramen Zen',
     shops: ['1644200182', '1644320430', '1644173192', '1644193201', '1644179577'],
     branches: ['AM', 'ARJ', 'BB', 'JLT'],
+    shopBrand: { '1644320430': { name: 'All Veggie Sushi', branches: ['AB'] } },
     ledger: false,
   },
 };
@@ -102,9 +104,12 @@ async function postCounts(webhook, rows) {
   const last = TO < today ? TO : addDays(today, -1);
   if (FROM > last) return;
   const cells = new Map();
+  const brandsHere = [{ name: BRAND.name, branches: BRAND.branches }, ...Object.values(BRAND.shopBrand || {})];
   for (let d = FROM; d <= last; d = addDays(d, 1)) {
-    for (const b of BRAND.branches) {
-      cells.set(`${d}|${b}`, { order_date: d, brand: BRAND.name, branch: BRANCH_NAME[b], order_count: 0, revenue_aed: 0 });
+    for (const br of brandsHere) {
+      for (const b of br.branches) {
+        cells.set(`${d}|${br.name}|${b}`, { order_date: d, brand: br.name, branch: BRANCH_NAME[b], order_count: 0, revenue_aed: 0 });
+      }
     }
   }
   const skipped = {};
@@ -123,12 +128,13 @@ async function postCounts(webhook, rows) {
     seen.add(r.long_order_id);
     if (r.work_date < FROM || r.work_date > last) continue;
     if (!BRANCH_NAME[r.store]) { skipped[r.store] = (skipped[r.store] || 0) + 1; continue; }
-    const k = `${r.work_date}|${r.store}`;
-    if (!cells.has(k)) cells.set(k, { order_date: r.work_date, brand: BRAND.name, branch: BRANCH_NAME[r.store], order_count: 0, revenue_aed: 0 });
+    const brandName = ((BRAND.shopBrand || {})[r.shop_id] || {}).name || BRAND.name;
+    const k = `${r.work_date}|${brandName}|${r.store}`;
+    if (!cells.has(k)) cells.set(k, { order_date: r.work_date, brand: brandName, branch: BRANCH_NAME[r.store], order_count: 0, revenue_aed: 0 });
     cells.get(k).order_count += 1;
   }
   const out = [...cells.values()];
-  console.error(`  counts ${BRAND.name} ${FROM}..${last}: ${out.reduce((s, c) => s + c.order_count, 0)} orders`);
+  console.error(`  counts ${brandsHere.map((b) => b.name).join(' + ')} ${FROM}..${last}: ${out.reduce((s, c) => s + c.order_count, 0)} orders`);
   if (Object.keys(skipped).length) console.error('  ⚠ outlets not counted:', JSON.stringify(skipped));
   const secret = (process.env.CRON_SECRET || '').trim();
   if (!webhook || !secret) {
