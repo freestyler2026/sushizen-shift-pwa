@@ -137,6 +137,37 @@ jobs:
           GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_QC }}
         timeout-minutes: 6
 
+      # ── Insights → Operations ──────────────────────────────────────────
+      # The "Peak hour data" and "Store Offline Hours" CSVs staff downloaded
+      # into Drive (Analytics → Manila Sales, Grab Offline, store evaluation).
+      # Last 7 days each run, so a night with a dead session is filled later.
+      - name: Insights Paranaque (peak hours, offline hours)
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque') }}
+        run: node scripts/grab/get-insights.js paranaque
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          MGMT_CRON_SECRET:    ${{ secrets.MGMT_CRON_SECRET }}
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_PARANAQUE }}
+        timeout-minutes: 3
+
+      - name: Insights Taft (peak hours, offline hours)
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'taft') }}
+        run: node scripts/grab/get-insights.js taft
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          MGMT_CRON_SECRET:    ${{ secrets.MGMT_CRON_SECRET }}
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_TAFT }}
+        timeout-minutes: 3
+
+      - name: Insights Cubao (QC) (peak hours, offline hours)
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'qc') }}
+        run: node scripts/grab/get-insights.js qc
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          MGMT_CRON_SECRET:    ${{ secrets.MGMT_CRON_SECRET }}
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_QC }}
+        timeout-minutes: 3
+
       - name: Refresh Daily P&L cache
         if: always()
         run: |
