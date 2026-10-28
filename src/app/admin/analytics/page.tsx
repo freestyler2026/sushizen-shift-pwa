@@ -527,6 +527,7 @@ type ProductMixRankingResp = {
   coverage_from?: string | null;
   coverage_to?: string | null;
   source_file_name?: string;
+  latest_import_to?: string | null;
   items: ProductMixRankingRow[];
 };
 
@@ -2400,7 +2401,7 @@ export default function AdminAnalyticsPage() {
   const [posSalesRangeTotals, setPosSalesRangeTotals] = useState<PosSalesDailyTotals | null>(null);
   const [posMenuRankingRows, setPosMenuRankingRows] = useState<PosMenuRankingRow[]>([]);
   const [productMixRankingRows, setProductMixRankingRows] = useState<ProductMixRankingRow[]>([]);
-  const [productMixCoverage, setProductMixCoverage] = useState<{ from?: string | null; to?: string | null; source?: string }>({});
+  const [productMixCoverage, setProductMixCoverage] = useState<{ from?: string | null; to?: string | null; source?: string; latestTo?: string | null }>({});
   const [posBranchOrderRows, setPosBranchOrderRows] = useState<PosBranchOrderRow[]>([]);
   const [posBrandOrderRows, setPosBrandOrderRows] = useState<PosBrandOrderRow[]>([]);
   const [posBranchDailyRows, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
@@ -3449,6 +3450,7 @@ export default function AdminAnalyticsPage() {
                   from: productMix.coverage_from ?? null,
                   to: productMix.coverage_to ?? null,
                   source: productMix.source_file_name || "",
+                  latestTo: productMix.latest_import_to ?? null,
                 });
               },
               () => {
@@ -8073,7 +8075,9 @@ export default function AdminAnalyticsPage() {
                     <p className="mt-0.5 text-[11px] text-neutral-500">
                       {productMixCoverage.from && productMixCoverage.to
                         ? `Coverage: ${productMixCoverage.from} → ${productMixCoverage.to}`
-                        : "No Product Mix import found yet."}
+                        : productMixCoverage.latestTo
+                          ? `No Product Mix import covers the Summary Range. The latest import ends ${productMixCoverage.latestTo}.`
+                          : "No Product Mix import found yet."}
                       {summaryBranchCode && ` · ${(BRANCH_OPTIONS[salesCity] || []).find((opt) => opt.value === summaryBranchCode)?.label || summaryBranchCode}`}
                     </p>
                   </div>
@@ -8716,7 +8720,7 @@ export default function AdminAnalyticsPage() {
 
             {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
               <div id="sales-order-counts">
-                <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} externalDateFrom={dateFrom} externalDateTo={dateTo} externalBranchCode={summaryBranchCode} />
+                <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} externalDateFrom={summaryDateFrom} externalDateTo={summaryDateTo} externalBranchCode={summaryBranchCode} />
               </div>
             ) : null}
             {salesSectionView === "all" || salesSectionView === "manilaOverallRatings" ? (
@@ -8786,8 +8790,8 @@ export default function AdminAnalyticsPage() {
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
                   <ManilaOrderCountsTab
-                    dateFrom={dateFrom}
-                    dateTo={dateTo}
+                    dateFrom={summaryDateFrom}
+                    dateTo={summaryDateTo}
                     approverName={approverName}
                     pin={pin}
                     stepUpReady={salesStepUpReady}

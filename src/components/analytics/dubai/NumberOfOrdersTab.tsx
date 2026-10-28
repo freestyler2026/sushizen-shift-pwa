@@ -399,21 +399,6 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
   dateFromRef.current = dateFrom;
   dateToRef.current = dateTo;
 
-  // Sync when the analytics page-level date range changes
-  useEffect(() => {
-    if (externalDateFrom && externalDateFrom !== dateFromRef.current) {
-      setDateFrom(externalDateFrom);
-      setActivePreset(null);
-    }
-  }, [externalDateFrom]);
-
-  useEffect(() => {
-    if (externalDateTo && externalDateTo !== dateToRef.current) {
-      setDateTo(externalDateTo);
-      setActivePreset(null);
-    }
-  }, [externalDateTo]);
-
   const canLoad = !!approverName.trim() && !!pin.trim() && stepUpReady;
 
   const fetchData = useCallback(
@@ -464,6 +449,22 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
     if (!canLoad) return;
     void fetchData();
   }, [brand, fetchData, canLoad]);
+
+  // Follow the page's Summary Range, and load it: updating the dates alone
+  // left the previous period's numbers on screen under the new dates.
+  useEffect(() => {
+    const from = externalDateFrom || "";
+    const to = externalDateTo || "";
+    if (!from || !to) return;
+    if (from === dateFromRef.current && to === dateToRef.current) return;
+    setDateFrom(from);
+    setDateTo(to);
+    dateFromRef.current = from;
+    dateToRef.current = to;
+    setActivePreset(null);
+    if (canLoad) void fetchData({ from, to });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a range change should refetch here
+  }, [externalDateFrom, externalDateTo]);
 
   const fetchTotalForRange = useCallback(async (from: string, to: string): Promise<number> => {
     if (brand === "Overall") {
@@ -601,7 +602,7 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
       out[br][ag] = (out[br][ag] ?? 0) + (r.order_count || 0);
     }
     return out;
-  }, [data?.raw]);
+  }, [displayData]);
 
   const maxCellValue = useMemo(() => {
     let m = 0;

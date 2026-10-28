@@ -263,14 +263,15 @@ export function ManilaOrderCountsTab({
   // Local date inputs
   const [localFrom, setLocalFrom] = useState(dateFrom);
   const [localTo, setLocalTo]     = useState(dateTo);
-  const [activePreset, setActivePreset] = useState<string | null>("30D");
+  const [activePreset, setActivePreset] = useState<string | null>(null);
 
-  // Sync when parent changes (city switch)
+  // Follow the page's Summary Range (the reload follows from load's deps).
+  // It is a month, not the last 30 days, so no preset is lit.
   useEffect(() => {
     setLocalFrom(dateFrom);
     setLocalTo(dateTo);
     setSelectedMonth("");
-    setActivePreset("30D");
+    setActivePreset(null);
   }, [dateFrom, dateTo]);
 
   const effectiveDateFrom = selectedMonth ? monthToRange(selectedMonth).from : localFrom;
