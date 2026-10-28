@@ -340,7 +340,10 @@ function pick(obj, name) {
 
   const webhook = (process.env.WEBHOOK_URL || '').trim();
   // Ledger first: a failed count write must not cost the night's Prep Time.
-  if (webhook && rows.length && BRAND.ledger) {
+  // KEETA_LEDGER=0 writes the counts only, for a backfill that should not
+  // also add months of orders to the Prep Time ledger.
+  const ledgerOn = BRAND.ledger && process.env.KEETA_LEDGER !== '0';
+  if (webhook && rows.length && ledgerOn) {
     let written = 0;
     for (let i = 0; i < rows.length; i += 200) {
       const chunk = rows.slice(i, i + 200);
