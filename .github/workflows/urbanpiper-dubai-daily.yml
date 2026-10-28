@@ -24,7 +24,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       # One call per day: a week in one request ran past Heroku's 30-second
       # limit once lost orders, items and Op Time were added.
@@ -44,6 +44,46 @@ jobs:
               --max-time 120 -d "{\"date_from\":\"$D\",\"date_to\":\"$D\"}") || FAIL=1
             echo "$D $RESP"
             echo "$RESP" | jq -e '.ok == true' > /dev/null || FAIL=1
+            D=$(date -d "$D +1 day" +%Y-%m-%d)
+          done
+          exit $FAIL
+
+      # The Order transactions + Items-wise reports staff exported into Drive
+      # every morning (POS sales by brand, channel, hour and menu item). Atlas
+      # builds each report in the background, so: request, wait, collect.
+      # Default: the last two days -- the day before is taken again because an
+      # order still on its way at midnight is only Completed afterwards.
+      - name: Order reports from UrbanPiper Atlas
+        if: always()
+        run: |
+          TODAY=$(TZ=Asia/Dubai date +%Y-%m-%d)
+          FROM="${{ github.event.inputs.date_from }}"; TO="${{ github.event.inputs.date_to }}"
+          FROM="${FROM:-$(date -d "$TODAY -2 days" +%Y-%m-%d)}"
+          TO="${TO:-$(date -d "$TODAY -1 day" +%Y-%m-%d)}"
+          URL="https://sushizen-shift-app-038d846023bc.herokuapp.com/api/aggregator/urbanpiper/order-reports"
+          call() {
+            curl -sS --fail-with-body -X POST "$URL" -H "Content-Type: application/json" \
+              -H "X-Cron-Secret: ${{ secrets.MGMT_CRON_SECRET }}" --max-time 120 -d "$1"
+          }
+          FAIL=0
+          D="$FROM"
+          while [ "$(date -d "$D" +%s)" -le "$(date -d "$TO" +%s)" ]; do
+            RESP=$(call "{\"step\":\"request\",\"day\":\"$D\"}") || FAIL=1
+            echo "$D request $RESP"
+            if echo "$RESP" | jq -e '.ok == true' > /dev/null; then
+              DONE=0
+              for i in 1 2 3 4 5 6 7 8; do
+                sleep 20
+                RESP=$(call "{\"step\":\"collect\",\"day\":\"$D\"}") || { FAIL=1; break; }
+                if echo "$RESP" | jq -e '.ready == true' > /dev/null; then DONE=1; break; fi
+                echo "$RESP" | jq -e '.ok == true' > /dev/null || break
+              done
+              echo "$D collect $RESP"
+              echo "$RESP" | jq -e '.ok == true and .written == true' > /dev/null || FAIL=1
+              [ "$DONE" = 1 ] || FAIL=1
+            else
+              FAIL=1
+            fi
             D=$(date -d "$D +1 day" +%Y-%m-%d)
           done
           exit $FAIL
