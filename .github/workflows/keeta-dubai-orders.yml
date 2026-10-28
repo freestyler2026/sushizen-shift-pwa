@@ -22,7 +22,7 @@ on:
         required: false
         default: ''
       ramen_only:
-        description: 'true = Ramen ZEN counts only (backfill; leaves Sushi ZEN and the Prep Time ledger alone).'
+        description: 'true = the Ramen ZEN & AVS login only (backfill; leaves Sushi ZEN alone).'
         required: false
         default: 'false'
 
