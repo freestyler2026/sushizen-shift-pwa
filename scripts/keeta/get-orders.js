@@ -50,8 +50,10 @@ const BRANDS = {
     name: 'Sushi Zen',
     shops: ['1644178222', '1644171212', '1644198211', '1644191210', '1644184196'],
     branches: ['AB', 'AM', 'ARJ', 'BB', 'JLT'],
-    // Only Sushi ZEN feeds the Prep Time ledger: that table has no brand column.
     ledger: true,
+    // The ledger table has no brand column, so a brand's stores carry it in the
+    // store code: Sushi ZEN keeps the bare branch ("ARJ") it always had.
+    ledgerPrefix: '',
   },
   // Ids from get-payouts.js. The Ramen ZEN login also holds All Veggie Sushi:
   // shop 1644320430 ("Al Barsha 3") is AVS Al Barsha -- its daily counts equal
@@ -60,8 +62,11 @@ const BRANDS = {
     name: 'Ramen Zen',
     shops: ['1644200182', '1644320430', '1644173192', '1644193201', '1644179577'],
     branches: ['AM', 'ARJ', 'BB', 'JLT'],
-    shopBrand: { '1644320430': { name: 'All Veggie Sushi', branches: ['AB'] } },
-    ledger: false,
+    shopBrand: { '1644320430': { name: 'All Veggie Sushi', branches: ['AB'], ledgerPrefix: 'AVS_' } },
+    // In the Prep Time ledger as RZ_ARJ / AVS_AB, beside Sushi ZEN's ARJ / AB,
+    // so the brands never mix (owner, 2026-10-28: every brand's data is needed).
+    ledger: true,
+    ledgerPrefix: 'RZ_',
   },
 };
 const BRAND = BRANDS[KEETA_BRAND];
@@ -352,7 +357,8 @@ function pick(obj, name) {
   if (webhook && rows.length && ledgerOn) {
     let written = 0;
     for (let i = 0; i < rows.length; i += 200) {
-      const chunk = rows.slice(i, i + 200);
+      const chunk = rows.slice(i, i + 200).map((r) => ({
+        ...r, store: (((BRAND.shopBrand || {})[r.shop_id] || {}).ledgerPrefix ?? BRAND.ledgerPrefix) + r.store }));
       const res = await fetch(`${webhook}/api/aggregator/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

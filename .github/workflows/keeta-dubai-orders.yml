@@ -72,9 +72,10 @@ jobs:
           CRON_SECRET:         ${{ secrets.MGMT_CRON_SECRET }}
         timeout-minutes: 12
 
-      # Ramen ZEN has its own Keeta login. Counts only: the Prep Time ledger
-      # has no brand column, so its orders are not added there.
-      - name: Keeta order counts — Ramen ZEN
+      # Ramen ZEN has its own Keeta login (All Veggie Sushi Al Barsha is on it
+      # too). Counts to Order Entry, and orders to the Prep Time ledger under
+      # RZ_<branch> / AVS_AB so they stay apart from Sushi ZEN's.
+      - name: Keeta orders and counts — Ramen ZEN & All Veggie Sushi
         if: ${{ always() && env.KEETA_RZ_SESSION != '' }}
         run: |
           FROM="${DATE_FROM:-$(date -u -d '3 days ago' +%Y-%m-%d)}"
