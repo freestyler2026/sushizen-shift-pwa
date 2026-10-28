@@ -12,7 +12,8 @@ type OrderEntryDraft = { gridData: GridData; revenueData: GridData; dirty: Parti
 
 export const BRAND_GRID_CONFIG = {
   "Sushi Zen": {
-    aggregators: ["Careem", "NOON", "Talabat", "Deliveroo", "Smiles", "Keeta", "Dine-in"],
+    // Dine-in removed 2026-10-28: Dubai has no dine-in; 990 days of 2026 were all 0.
+    aggregators: ["Careem", "NOON", "Talabat", "Deliveroo", "Smiles", "Keeta"],
     branches: ["Business Bay", "JLT", "Arjan", "Al Hudaiba", "Al Barsha"],
   },
   "Ramen Zen": {
@@ -517,7 +518,7 @@ function branchShortLabel(branch: string) {
 
 // All unique branches and aggregators across every brand (union)
 const ALL_COMBINED_BRANCHES = ["Business Bay", "JLT", "Arjan", "Al Hudaiba", "Al Barsha"];
-const ALL_COMBINED_AGGS = ["Careem", "NOON", "Talabat", "Deliveroo", "Smiles", "Keeta", "Dine-in"];
+const ALL_COMBINED_AGGS = ["Careem", "NOON", "Talabat", "Deliveroo", "Smiles", "Keeta"];
 
 function CombinedGrid({ gridData, selectedDate }: { gridData: GridData; selectedDate: string }) {
   const combinedValue = (agg: string, branch: string) => {

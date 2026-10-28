@@ -31,6 +31,8 @@ type SaleRow = {
   foodpanda_auto?: boolean;
   /** Dine-in and Beep read from the StoreHub POS. */
   pos_auto?: boolean;
+  /** Grab gross read from Grab Insights (from 2026-10-29 on). */
+  grab_gross_auto?: boolean;
 };
 
 type EditableRow = {
@@ -49,6 +51,7 @@ type EditableRow = {
   grab_auto: boolean;
   foodpanda_auto: boolean;
   pos_auto: boolean;
+  grab_gross_auto: boolean;
   saving: boolean;
   saved: boolean;
   error: string | null;
@@ -142,6 +145,7 @@ const EMPTY_ROW_FIELDS = {
   grab_auto: false,
   foodpanda_auto: false,
   pos_auto: false,
+  grab_gross_auto: false,
   saving: false,
   saved: false,
   error: null,
@@ -164,6 +168,7 @@ function rowToEditable(r: SaleRow): EditableRow {
     grab_auto: Boolean(r.grab_auto),
     foodpanda_auto: Boolean(r.foodpanda_auto),
     pos_auto: Boolean(r.pos_auto),
+    grab_gross_auto: Boolean(r.grab_gross_auto),
     saving: false,
     saved: false,
     error: null,
@@ -588,8 +593,8 @@ export default function AdminSalesDataInputTab() {
         {!loadingDate && rows.some((r) => r.grab_auto || r.foodpanda_auto || r.pos_auto) ? (
           <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
             Green cells are read every morning — Grab and foodpanda from their portals, dine-in and Beep from the
-            StoreHub POS — and cannot be edited here. foodpanda arrives about two days late. Only Grab gross is still
-            entered by hand.
+            StoreHub POS — and cannot be edited here. foodpanda arrives about two days late; Grab gross is read
+            each morning for the day before.
           </p>
         ) : null}
 
@@ -677,7 +682,7 @@ export default function AdminSalesDataInputTab() {
                     {/* Grab */}
                     <InputCell value={row.grabfood_orders} onChange={(v) => updateRow(idx, "grabfood_orders", v)} autoFrom={row.grab_auto ? "Grab" : undefined} />
                     <InputCell value={row.grabfood_amount} onChange={(v) => updateRow(idx, "grabfood_amount", v)} isAmount autoFrom={row.grab_auto ? "Grab" : undefined} />
-                    <InputCell value={row.grabfood_gross} onChange={(v) => updateRow(idx, "grabfood_gross", v)} isAmount />
+                    <InputCell value={row.grabfood_gross} onChange={(v) => updateRow(idx, "grabfood_gross", v)} isAmount autoFrom={row.grab_gross_auto ? "Grab Insights" : undefined} />
                     {/* FoodPanda */}
                     <InputCell value={row.foodpanda_orders} onChange={(v) => updateRow(idx, "foodpanda_orders", v)} autoFrom={row.foodpanda_auto ? "foodpanda" : undefined} />
                     <InputCell value={row.foodpanda_gross} onChange={(v) => updateRow(idx, "foodpanda_gross", v)} isAmount autoFrom={row.foodpanda_auto ? "foodpanda" : undefined} />

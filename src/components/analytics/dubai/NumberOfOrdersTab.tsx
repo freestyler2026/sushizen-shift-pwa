@@ -25,7 +25,7 @@ const BRANDS = ["Sushi Zen", "Ramen Zen", "All Veggie Sushi", "J-Deli"] as const
 const ALL_BRAND_TABS = ["Overall", ...BRANDS] as const;
 const BRANCHES = ["Business Bay", "JLT", "Arjan", "Al Hudaiba", "Al Barsha"] as const;
 const DISPLAY_AGGS = ["Careem", "NOON", "Talabat", "Keeta", "Deliveroo", "Smiles"] as const;
-const CHART_AGG_KEYS = ["Careem", "NOON", "Talabat", "Keeta", "Deliveroo", "Smiles", "Dine-in"] as const;
+const CHART_AGG_KEYS = ["Careem", "NOON", "Talabat", "Keeta", "Deliveroo", "Smiles"] as const;
 
 type BrandTab = (typeof ALL_BRAND_TABS)[number];
 

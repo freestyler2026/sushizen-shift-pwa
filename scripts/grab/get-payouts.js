@@ -307,6 +307,37 @@ async function main() {
     console.log(`  (${skippedOld} day(s) predate Grab's retention window and cannot be fetched)`);
   }
 
+  // Gross sales for yesterday, from Insights -- the figure staff typed as Grab
+  // gross (Paranaque 2026-10-27: 97,953 = 97,953). Insights only answers for
+  // the last day ("1_DAY" returns lastUpdatedTime = yesterday), so it is read
+  // every morning and attached to that day; the backend merges it into the
+  // stored row so the next 29 re-posts keep it. A failure here never stops
+  // the payout import.
+  try {
+    const url = `https://merchant.grab.com/troy/insights/v1/trends?merchant_group_id=${MERCHANT_GROUP}`
+              + '&businessLine=All&duration=1_DAY&grabPayGrabID=&currency=PHP';
+    const { status, text } = await grabGet(cookieStr, url);
+    if (status === 200) {
+      const j = JSON.parse(text);
+      const t = Object.fromEntries((j.trends || []).map(x => [x.name, x.value]));
+      const day = String(j.lastUpdatedTime || '').slice(0, 10);
+      const row = rows.find(r => r.day === day);
+      const net = Number(t.net_sales);
+      // Only when Insights is talking about the same day, with the same net,
+      // as the settlement summary: then its gross belongs to that row.
+      if (row && t.gross_sales !== undefined && Math.abs(net - row.netSales) < 0.5) {
+        row.grossSales = Number(t.gross_sales);
+        console.log(`✓ Insights gross for ${day}: ${row.grossSales.toFixed(2)}`);
+      } else {
+        console.log(`  (Insights gross not attached: day ${day}, net ${t.net_sales} vs summary ${row ? row.netSales : 'none'})`);
+      }
+    } else {
+      console.log(`  (Insights HTTP ${status} — gross not read today)`);
+    }
+  } catch (err) {
+    console.log(`  (Insights gross not read: ${err.message})`);
+  }
+
   const withMoney = rows.filter(r => r.netEarning !== 0);
   console.log(`✓ ${withMoney.length} day(s) with a settlement`);
   if (withMoney.length === 0) {
@@ -347,6 +378,7 @@ async function main() {
         raw: {
           data_type:          'net_payout',
           net_sales:          r.netSales,
+          ...(r.grossSales !== undefined ? { gross_sales: r.grossSales } : {}),
           orders:             r.orders,
           business_date:      r.day,
           is_inaccurate_data: r.inaccurate,
