@@ -43,19 +43,32 @@ function payload(token) {
 (async () => {
   console.log(`\nSign in to UrbanPiper${which ? ` as ${ACCOUNTS[which].label}` : ''}. This waits up to 5 minutes.\n`);
   const browser = await chromium.launch({ headless: false });
-  const page = await (await browser.newContext()).newPage();
-  await page.goto('https://atlas.urbanpiper.com', { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+  const ctx = await browser.newContext();
+  const first = await ctx.newPage();
+  await first.goto('https://atlas.urbanpiper.com', { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
 
+  // The sign-in can finish in another tab, and a tab can close on the way
+  // (the login page hands over to Atlas). Look at every open Atlas tab each
+  // second instead of holding on to the first one.
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let token = null;
-  for (let i = 0; i < 300 && !token; i++) {
-    await page.waitForTimeout(1000);
-    token = await page.evaluate(() => {
-      const v = (() => { try { return localStorage.getItem('AT') || ''; } catch { return ''; } })();
-      const m = v.match(/eyJ[\w-]+\.[\w-]+\.[\w-]+/);
-      return m ? m[0] : null;
-    }).catch(() => null);
+  for (let i = 0; i < 300 && !token && browser.isConnected(); i++) {
+    await sleep(1000);
+    for (const page of ctx.pages()) {
+      if (!/atlas\.urbanpiper\.com/.test(page.url())) continue;
+      token = await page.evaluate(() => {
+        const v = (() => { try { return localStorage.getItem('AT') || ''; } catch { return ''; } })();
+        const m = v.match(/eyJ[\w-]+\.[\w-]+\.[\w-]+/);
+        return m ? m[0] : null;
+      }).catch(() => null);
+      if (token) break;
+    }
+    if (!ctx.pages().length && !token) {
+      // Every tab closed before Atlas stored a token: open it again.
+      await ctx.newPage().then((p) => p.goto('https://atlas.urbanpiper.com').catch(() => {})).catch(() => {});
+    }
   }
-  await browser.close();
+  await browser.close().catch(() => {});
   if (!token) { console.error('No token after 5 minutes — sign-in not finished.'); process.exit(1); }
 
   const p = payload(token);
