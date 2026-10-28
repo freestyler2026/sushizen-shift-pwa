@@ -25,7 +25,11 @@ on:
 jobs:
   extract-orders:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+
+    # The secrets context is not dependable inside a step-level `if`.
+    env:
+      KEETA_RZ_SESSION: ${{ secrets.KEETA_RZ_SESSION }}
 
     steps:
       - uses: actions/checkout@v4
@@ -59,4 +63,21 @@ jobs:
         env:
           WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
           KEETA_SESSION_STATE: ${{ secrets.KEETA_SESSION }}
+          # Also writes the day's order counts to Order Entry (finished days only).
+          CRON_SECRET:         ${{ secrets.MGMT_CRON_SECRET }}
+        timeout-minutes: 12
+
+      # Ramen ZEN has its own Keeta login. Counts only: the Prep Time ledger
+      # has no brand column, so its orders are not added there.
+      - name: Keeta order counts — Ramen ZEN
+        if: ${{ always() && env.KEETA_RZ_SESSION != '' }}
+        run: |
+          FROM="${DATE_FROM:-$(date -u -d '3 days ago' +%Y-%m-%d)}"
+          TO="${DATE_TO:-$(date -u +%Y-%m-%d)}"
+          node scripts/keeta/get-orders.js "$FROM" "$TO" > /dev/null
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          KEETA_SESSION_STATE: ${{ env.KEETA_RZ_SESSION }}
+          KEETA_BRAND:         ramen_zen
+          CRON_SECRET:         ${{ secrets.MGMT_CRON_SECRET }}
         timeout-minutes: 12

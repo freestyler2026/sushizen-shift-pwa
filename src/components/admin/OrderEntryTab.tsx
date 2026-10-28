@@ -142,6 +142,9 @@ export default function OrderEntryTab() {
   const [saveError, setSaveError] = useState("");
   const [revenueData, setRevenueData] = useState<GridData>({});
   const [wowPrevData, setWowPrevData] = useState<GridData>({});
+  // Cells read from the Noon / Careem / Keeta portals. Shown read-only: the
+  // server keeps the portal figure whatever is saved over it.
+  const [autoCells, setAutoCells] = useState<Set<CellKey>>(new Set());
 
   useEffect(() => {
     const a = getAuth();
@@ -169,17 +172,20 @@ export default function OrderEntryTab() {
           pin: p,
         });
         const json = await apiGet<{
-          rows?: Array<{ brand: string; aggregator: string; branch: string; order_count: number; revenue_aed?: number }>;
+          rows?: Array<{ brand: string; aggregator: string; branch: string; order_count: number; revenue_aed?: number; source?: string }>;
           prev_rows?: Array<{ brand: string; aggregator: string; branch: string; order_count: number }>;
         }>(`/api/admin/analytics/dubai/order-counts/by-date?${qs}`);
         const next: GridData = {};
         const nextRevenue: GridData = {};
         const nextWowPrev: GridData = {};
+        const nextAuto = new Set<CellKey>();
         for (const row of json.rows || []) {
           const k = cellKey(row.brand, row.aggregator, row.branch);
           next[k] = Number(row.order_count) || 0;
           if (row.revenue_aed) nextRevenue[k] = Number(row.revenue_aed) || 0;
+          if (row.source === "api") nextAuto.add(k);
         }
+        setAutoCells(nextAuto);
         for (const row of json.prev_rows || []) {
           const k = cellKey(row.brand, row.aggregator, row.branch);
           nextWowPrev[k] = Number(row.order_count) || 0;
@@ -189,8 +195,11 @@ export default function OrderEntryTab() {
         // the staff's in-progress edits on top of the latest saved server values.
         const draft = loadDraft<OrderEntryDraft>(orderEntryDraftKey(date));
         if (draft && draft.dirty && Object.values(draft.dirty).some(Boolean)) {
-          setGridData({ ...next, ...draft.gridData });
-          setRevenueData({ ...nextRevenue, ...(draft.revenueData || {}) });
+          // A draft never overrides a portal figure.
+          const keepAuto = (d: GridData = {}) =>
+            Object.fromEntries(Object.entries(d).filter(([k]) => !nextAuto.has(k)));
+          setGridData({ ...next, ...keepAuto(draft.gridData) });
+          setRevenueData({ ...nextRevenue, ...keepAuto(draft.revenueData || {}) });
           setDirty(draft.dirty);
           setLoadError("Restored unsaved changes from your last session. Review and save.");
         } else {
@@ -199,6 +208,7 @@ export default function OrderEntryTab() {
         }
       } catch (e: unknown) {
         setGridData({});
+        setAutoCells(new Set());
         setLoadError(e instanceof Error ? e.message : String(e));
       } finally {
         setLoading(false);
@@ -444,6 +454,13 @@ export default function OrderEntryTab() {
         <p className="text-sm text-amber-300">Fill approver name and PIN above to load and save.</p>
       ) : null}
 
+      {autoCells.size > 0 ? (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          Green cells are read from the Noon, Careem and Keeta portals every morning and cannot be edited here.
+          Enter only the white cells.
+        </p>
+      ) : null}
+
       {/* 2×2 layout: the data-heavy brands (Sushi Zen + Ramen Zen) on top,
           the smaller ones (All Veggie + J-Deli) below — keeps each card roomy
           instead of squeezing three brands into one narrow row. */}
@@ -456,6 +473,7 @@ export default function OrderEntryTab() {
             gridData={gridData}
             revenueData={revenueData}
             wowPrevData={wowPrevData}
+            autoCells={autoCells}
             onChange={handleCellChange}
             onRevenueChange={handleRevenueChange}
             onKeyDown={handleKeyDown}
@@ -480,6 +498,7 @@ interface BrandGridProps {
   gridData: GridData;
   revenueData: GridData;
   wowPrevData: GridData;
+  autoCells: Set<CellKey>;
   onChange: (brand: Brand, agg: string, branch: string, val: string) => void;
   onRevenueChange: (brand: Brand, agg: string, branch: string, val: string) => void;
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>, brand: Brand, aggIdx: number, branchIdx: number) => void;
@@ -628,6 +647,7 @@ function BrandGrid({
   gridData,
   revenueData,
   wowPrevData,
+  autoCells,
   onChange,
   onRevenueChange,
   onKeyDown,
@@ -722,19 +742,24 @@ function BrandGrid({
                   {branches.map((branch, branchIdx) => {
                     const k = cellKey(brand, agg, branch);
                     const val = gridData[k] ?? 0;
+                    const auto = autoCells.has(k);
                     return (
                       <td key={branch} className="px-1 py-1">
                         <input
                           id={`cell-${k}`}
                           type="text"
                           inputMode="numeric"
-                          value={val === 0 ? "" : String(val)}
+                          value={auto ? String(val) : val === 0 ? "" : String(val)}
                           placeholder="0"
+                          readOnly={auto}
+                          title={auto ? `Read from the ${agg} portal automatically` : undefined}
                           onChange={(e) => onChange(brand, agg, branch, e.target.value)}
                           onKeyDown={(e) => onKeyDown(e, brand, aggIdx, branchIdx)}
                           onFocus={(e) => e.target.select()}
                           className={`w-full rounded-md border px-1 py-1.5 text-center text-sm outline-none transition-all focus:ring-1 focus:ring-indigo-500/40 ${
-                            val > 0
+                            auto
+                              ? "cursor-default border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                              : val > 0
                               ? "border-white/15 bg-white/[0.07] text-white"
                               : "border-white/5 bg-transparent text-gray-600 placeholder:text-gray-700"
                           } focus:border-indigo-500/70 focus:bg-white/10 focus:text-white`}
@@ -753,6 +778,7 @@ function BrandGrid({
                   {branches.map((branch) => {
                     const k = cellKey(brand, agg, branch);
                     const rev = revenueData[k] ?? 0;
+                    const auto = autoCells.has(k);
                     return (
                       <td key={branch} className="px-1 py-0.5">
                         <input
@@ -760,6 +786,7 @@ function BrandGrid({
                           inputMode="decimal"
                           value={rev === 0 ? "" : String(rev)}
                           placeholder="0"
+                          readOnly={auto}
                           onChange={(e) => onRevenueChange(brand, agg, branch, e.target.value)}
                           onFocus={(e) => e.target.select()}
                           className={`w-full rounded border px-1 py-0.5 text-center text-[11px] outline-none transition-all focus:ring-1 focus:ring-amber-500/30 ${

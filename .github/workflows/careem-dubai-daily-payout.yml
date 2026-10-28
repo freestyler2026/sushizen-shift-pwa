@@ -38,7 +38,7 @@ on:
 jobs:
   snapshot-balances:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +91,17 @@ jobs:
         env:
           WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
           CAREEM_SESSION:         ${{ secrets.CAREEM_SESSION }}
+        timeout-minutes: 8
+
+      # Order counts for Order Entry, read from Past Orders. Seven finished
+      # days, so a dead-session morning fills in after the next login.
+      - name: Record order counts
+        if: always()
+        run: node scripts/careem/get-orders.js
+        env:
+          WEBHOOK_URL:            https://sushizen-shift-app-038d846023bc.herokuapp.com
+          CAREEM_SESSION:         ${{ secrets.CAREEM_SESSION }}
+          CRON_SECRET:            ${{ secrets.MGMT_CRON_SECRET }}
         timeout-minutes: 8
 
       - name: Refresh Daily P&L cache

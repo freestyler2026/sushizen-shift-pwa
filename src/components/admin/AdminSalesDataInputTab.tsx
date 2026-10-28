@@ -26,6 +26,9 @@ type SaleRow = {
   total_orders: number | null;
   total_amount: number | null;
   ratio_to_prev_week: number | null;
+  // Read from the Grab / foodpanda portals; the server keeps them on save.
+  grab_auto?: boolean;
+  foodpanda_auto?: boolean;
 };
 
 type EditableRow = {
@@ -41,6 +44,8 @@ type EditableRow = {
   beep_orders: string;
   beep_amount: string;
   beep_gross: string;
+  grab_auto: boolean;
+  foodpanda_auto: boolean;
   saving: boolean;
   saved: boolean;
   error: string | null;
@@ -131,6 +136,8 @@ const EMPTY_ROW_FIELDS = {
   beep_orders: "",
   beep_amount: "",
   beep_gross: "",
+  grab_auto: false,
+  foodpanda_auto: false,
   saving: false,
   saved: false,
   error: null,
@@ -150,6 +157,8 @@ function rowToEditable(r: SaleRow): EditableRow {
     beep_orders: r.beep_orders != null ? String(r.beep_orders) : "",
     beep_amount: r.beep_amount != null ? String(r.beep_amount) : "",
     beep_gross: r.beep_gross != null ? String(r.beep_gross) : "",
+    grab_auto: Boolean(r.grab_auto),
+    foodpanda_auto: Boolean(r.foodpanda_auto),
     saving: false,
     saved: false,
     error: null,
@@ -232,12 +241,26 @@ function InputCell({
   onChange,
   placeholder,
   isAmount,
+  autoFrom,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   isAmount?: boolean;
+  /** Portal the figure was read from; the cell is then read-only. */
+  autoFrom?: string;
 }) {
+  if (autoFrom) {
+    return (
+      <input
+        type="text"
+        value={value}
+        readOnly
+        title={`Read from the ${autoFrom} portal automatically`}
+        className="w-full cursor-default rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-right text-sm text-emerald-200 focus:outline-none"
+      />
+    );
+  }
   return (
     <input
       type="text"
@@ -557,6 +580,13 @@ export default function AdminSalesDataInputTab() {
           </div>
         ) : null}
 
+        {!loadingDate && rows.some((r) => r.grab_auto || r.foodpanda_auto) ? (
+          <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+            Green cells are read from the Grab and foodpanda portals every morning and cannot be edited here.
+            foodpanda arrives about two days late. Grab gross, dine-in and Beep are still entered by hand.
+          </p>
+        ) : null}
+
         {/* Input table */}
         {!loadingDate ? (
           <div className="space-y-3 overflow-x-auto">
@@ -639,12 +669,12 @@ export default function AdminSalesDataInputTab() {
                     <InputCell value={row.dine_in_amount} onChange={(v) => updateRow(idx, "dine_in_amount", v)} isAmount />
                     <InputCell value={row.dine_in_gross} onChange={(v) => updateRow(idx, "dine_in_gross", v)} isAmount />
                     {/* Grab */}
-                    <InputCell value={row.grabfood_orders} onChange={(v) => updateRow(idx, "grabfood_orders", v)} />
-                    <InputCell value={row.grabfood_amount} onChange={(v) => updateRow(idx, "grabfood_amount", v)} isAmount />
+                    <InputCell value={row.grabfood_orders} onChange={(v) => updateRow(idx, "grabfood_orders", v)} autoFrom={row.grab_auto ? "Grab" : undefined} />
+                    <InputCell value={row.grabfood_amount} onChange={(v) => updateRow(idx, "grabfood_amount", v)} isAmount autoFrom={row.grab_auto ? "Grab" : undefined} />
                     <InputCell value={row.grabfood_gross} onChange={(v) => updateRow(idx, "grabfood_gross", v)} isAmount />
                     {/* FoodPanda */}
-                    <InputCell value={row.foodpanda_orders} onChange={(v) => updateRow(idx, "foodpanda_orders", v)} />
-                    <InputCell value={row.foodpanda_gross} onChange={(v) => updateRow(idx, "foodpanda_gross", v)} isAmount />
+                    <InputCell value={row.foodpanda_orders} onChange={(v) => updateRow(idx, "foodpanda_orders", v)} autoFrom={row.foodpanda_auto ? "foodpanda" : undefined} />
+                    <InputCell value={row.foodpanda_gross} onChange={(v) => updateRow(idx, "foodpanda_gross", v)} isAmount autoFrom={row.foodpanda_auto ? "foodpanda" : undefined} />
                     {(() => {
                       const fpGross = floatOrNull(row.foodpanda_gross);
                       const fpNet = fpGross != null ? fpGross * 0.7 : null;
