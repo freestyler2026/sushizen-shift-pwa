@@ -10,6 +10,14 @@ LOG_FILE="$HOME/Library/Logs/sushizen-foodpanda-payouts.log"
 WEBHOOK_URL="https://sushizen-shift-app-038d846023bc.herokuapp.com"
 
 echo "======================================" >> "$LOG_FILE"
+
+# This Mac's network has refused TLS to *.herokuapp.com at times (2026-10-29
+# evening: every HTTPS connection reset, plain HTTP and other hosts fine). The
+# frontend proxies /api/* to the same backend, so fall back to it.
+if ! curl -s -m 15 -o /dev/null "$WEBHOOK_URL/api/auth/session-check"; then
+  echo "  ⚠ $WEBHOOK_URL unreachable from this Mac — sending through the frontend proxy" >> "$LOG_FILE"
+  WEBHOOK_URL="https://sushizen-shift-pwa.vercel.app"
+fi
 echo "$(date '+%Y-%m-%d %H:%M:%S') — FoodPanda payout run starting" >> "$LOG_FILE"
 
 # Compute date range in PHT (UTC+8)
@@ -124,6 +132,35 @@ for LOCATION in paranaque taft qc; do
     echo "  – $LOCATION cancellations skipped (staff enter these by hand)" >> "$LOG_FILE"
   fi
 done
+
+# Days whose orders have no time yet: the backfill of 2026-09-10..10-28 was
+# refused on some days and those were filled from the invoice lines (id, date,
+# amount -- no time). Re-read two 3-day windows per store each morning, while
+# the portal lets this Mac in, until the backend lists none.
+if [ -n "${MGMT_CRON_SECRET:-}" ]; then
+  UNTIMED=$(curl -s -m 30 -H "X-Cron-Secret: $MGMT_CRON_SECRET" "$WEBHOOK_URL/api/aggregator/orders/untimed?platform=foodpanda")
+  for PAIR in "TAFT taft" "CUB qc" "PAR paranaque"; do
+    CODE=${PAIR% *}; LOCATION=${PAIR#* }
+    STARTS=$(echo "$UNTIMED" | python3 -c "
+import json, sys, datetime as dt
+days = (json.load(sys.stdin).get('days') or {}).get('$CODE') or []
+out, covered = [], None
+for d in days:
+    if covered and d < covered: continue
+    out.append(d); covered = (dt.date.fromisoformat(d) + dt.timedelta(days=3)).isoformat()
+    if len(out) == 2: break
+print(' '.join(out))" 2>/dev/null)
+    for A in $STARTS; do
+      B=$(python3 -c "import datetime as d; print((d.date.fromisoformat('$A') + d.timedelta(days=3)).isoformat())")
+      if WEBHOOK_URL="$WEBHOOK_URL" "$NODE" "$SCRIPT_DIR/get-orders.js" "$LOCATION" "$A" "$B" > /dev/null 2>> "$LOG_FILE"; then
+        echo "  ✓ $LOCATION times filled for $A..$B" >> "$LOG_FILE"
+      else
+        echo "  – $LOCATION $A..$B refused, left for tomorrow" >> "$LOG_FILE"
+      fi
+      sleep 60
+    done
+  done
+fi
 
 echo "" >> "$LOG_FILE"
 echo "$(date '+%Y-%m-%d %H:%M:%S') — Done (exit $EXIT_CODE)" >> "$LOG_FILE"

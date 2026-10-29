@@ -11,6 +11,14 @@ LOG_FILE="$HOME/Library/Logs/sushizen-foodpanda-status.log"
 WEBHOOK_URL="https://sushizen-shift-app-038d846023bc.herokuapp.com"
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') — store status run" >> "$LOG_FILE"
+
+# This Mac's network has refused TLS to *.herokuapp.com at times (2026-10-29
+# evening: every HTTPS connection reset, plain HTTP and other hosts fine). The
+# frontend proxies /api/* to the same backend, so fall back to it.
+if ! curl -s -m 15 -o /dev/null "$WEBHOOK_URL/api/auth/session-check"; then
+  echo "  ⚠ $WEBHOOK_URL unreachable from this Mac — sending through the frontend proxy" >> "$LOG_FILE"
+  WEBHOOK_URL="https://sushizen-shift-pwa.vercel.app"
+fi
 NODE=""
 for CANDIDATE in "$HOME/.volta/bin/node" "/opt/homebrew/bin/node" "/usr/local/bin/node"; do
   if [ -x "$CANDIDATE" ]; then NODE="$CANDIDATE"; break; fi
