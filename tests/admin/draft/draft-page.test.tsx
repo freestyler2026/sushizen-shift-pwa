@@ -274,9 +274,38 @@ describe("AdminDraftPage — Draft Management controls", () => {
     expect(screen.getByDisplayValue("All Dubai stores")).toBeInTheDocument();
   });
 
-  it("shows Dubai draft spreadsheet link for Dubai city", () => {
-    const link = screen.getByText(/Open Dubai draft spreadsheet/i).closest("a");
-    expect(link).toHaveAttribute("href", expect.stringContaining("docs.google.com"));
+  it("shows the Open Dubai draft spreadsheet button for Dubai city", () => {
+    expect(screen.getByRole("button", { name: /Open Dubai draft spreadsheet/i })).toBeInTheDocument();
+  });
+
+  // The sheet used to open on whatever its tabs last held. Sharon Namale stayed
+  // at Arjan on it three weeks after Manual Shift moved her. The button now
+  // brings the stale branch tabs level first, and opens the month's tab.
+  it("syncs only the stale branch tabs, then opens the tab it synced", async () => {
+    const opened = { location: { href: "" } } as unknown as Window;
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(opened);
+    const calls: string[] = [];
+    const fetchMock = makeDraftFetch([
+      { match: "/api/admin/sheets/sync_status", body: { branches: [
+          { branch_code: "ARJ", stale: true, has_data: true },
+          { branch_code: "AB", stale: false, has_data: true, url: "https://docs.google.com/x#gid=2" },
+          { branch_code: "BB", stale: false, has_data: false },
+        ] } },
+      { match: "/api/admin/sheets/sync", body: { main_url: "https://docs.google.com/x#gid=1" } },
+    ]);
+    const spy = vi.fn(async (url: string, opts?: RequestInit) => {
+      calls.push(`${(opts?.method || "GET").toUpperCase()} ${String(url)}`);
+      return (fetchMock as any)(url, opts);
+    });
+    vi.stubGlobal("fetch", spy);
+    fireEvent.click(screen.getByRole("button", { name: /Open Dubai draft spreadsheet/i }));
+    expect(openSpy).toHaveBeenCalledTimes(1);           // opened inside the click
+    await waitFor(() => expect((opened as any).location.href).toContain("docs.google.com"), { timeout: 3000 });
+    const syncs = calls.filter((c) => c.startsWith("POST") && c.includes("/api/admin/sheets/sync"));
+    // ARJ is stale in both months asked about; AB is current and BB has no rows.
+    expect(syncs.length).toBeGreaterThan(0);
+    expect(calls.some((c) => c.includes("/api/admin/sheets/sync_status"))).toBe(true);
+    openSpy.mockRestore();
   });
 
   it("shows forecast methodology info panel", () => {
@@ -719,6 +748,138 @@ describe("AdminDraftPage — Apply section", () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────────
+describe("AdminDraftPage — apply refused for a two-branch clash", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("offers apply anyway, and the retry does not resend weeks already applied", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    let prepared = 0;
+    const confirms: { token: string; allowCross: boolean }[] = [];
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    const base = makeDraftFetch([
+      { match: "/api/auth/verify", body: { ok: true, role: "HQ" } },
+      { match: "/api/draft/generate_month", method: "POST", body: {
+          ok: true, version_id: "v-x", city: "dubai", branch_code: "BB",
+          rows_inserted: 30, days_generated: 31, version_week_start: "2026-05-30", source_days: [],
+          summary: { avg_branch_reliability: 0.9, total_overtime_hours: 0, total_unresolved_hours: 0 },
+        } },
+    ]);
+    vi.stubGlobal("fetch", vi.fn(async (url: string, opts?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/api/draft/apply/prepare")) {
+        prepared += 1;
+        return json({ ok: true, confirm_token: `tok-${prepared}`, preview: { rows_count: 1, staff_count: 1 } });
+      }
+      if (u.includes("/api/draft/apply/confirm")) {
+        const b = JSON.parse(String(opts?.body || "{}"));
+        confirms.push({ token: b.confirm_token, allowCross: !!b.allow_cross_branch_overlap });
+        if (b.confirm_token === "tok-2" && !b.allow_cross_branch_overlap) {
+          return json({ detail: {
+            code: "cross_branch_overlap", message: "clash",
+            cross_branch_overlaps: [{ staff_name: "Sharon Namale", work_date: "2026-10-12",
+              start_hour: 15, end_hour: 24, other_branch: "ARJ", other_start_hour: 15, other_end_hour: 24 }],
+          } }, 409);
+        }
+        return json({ ok: true, published_version_id: "p", rows_copied: 1 });
+      }
+      return base(url, opts);
+    }));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Prepared:.*Dubai stores/i, {}, { timeout: 5000 });
+    const unchecked = screen.getAllByRole("checkbox").find((cb) => !(cb as HTMLInputElement).checked);
+    if (unchecked) fireEvent.click(unchecked);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm Generate/i })).not.toBeDisabled();
+    }, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Confirm Apply/i }, { timeout: 10000 }));
+
+    await screen.findByText(/already published at ARJ 15:00–00:00/i, {}, { timeout: 5000 });
+    expect(screen.getByText(/1 earlier week was applied before this one stopped/i)).toBeInTheDocument();
+    expect(confirms.map((c) => c.token)).toEqual(["tok-1", "tok-2"]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Apply anyway — they are expected at both/i }));
+    await waitFor(() => { expect(confirms.length).toBe(prepared + 1); }, { timeout: 5000 });
+    // tok-1 was spent on the first pass and is not sent again; tok-2 goes with the waiver.
+    expect(confirms.filter((c) => c.token === "tok-1")).toHaveLength(1);
+    expect(confirms.filter((c) => c.token === "tok-2").map((c) => c.allowCross)).toEqual([false, true]);
+    // The waiver answers the clash that was shown -- that week only. Later
+    // weeks are sent without it, so a clash there is shown, not waived unseen.
+    // confirms: tok-1, tok-2 (refused), tok-2 (waived), then the rest.
+    expect(confirms.slice(3).length).toBeGreaterThan(0);
+    expect(confirms.slice(3).every((c) => !c.allowCross)).toBe(true);
+  });
+});
+
+describe("AdminDraftPage — confirming again after a full apply", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("prepares again and applies, instead of skipping every week as already applied", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    let prepared = 0;
+    const confirmed: string[] = [];
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    const base = makeDraftFetch([
+      { match: "/api/auth/verify", body: { ok: true, role: "HQ" } },
+      { match: "/api/draft/generate_month", method: "POST", body: {
+          ok: true, version_id: "v-x", city: "dubai", branch_code: "BB",
+          rows_inserted: 30, days_generated: 31, version_week_start: "2026-05-30", source_days: [],
+          summary: { avg_branch_reliability: 0.9, total_overtime_hours: 0, total_unresolved_hours: 0 },
+        } },
+    ]);
+    vi.stubGlobal("fetch", vi.fn(async (url: string, opts?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/api/draft/apply/prepare")) {
+        prepared += 1;
+        return json({ ok: true, confirm_token: `tok-${prepared}`, preview: { rows_count: 1, staff_count: 1 } });
+      }
+      if (u.includes("/api/draft/apply/confirm")) {
+        confirmed.push(JSON.parse(String(opts?.body || "{}")).confirm_token);
+        return json({ ok: true, published_version_id: "p", rows_copied: 1 });
+      }
+      return base(url, opts);
+    }));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Prepared:.*Dubai stores/i, {}, { timeout: 5000 });
+    const unchecked = screen.getAllByRole("checkbox").find((cb) => !(cb as HTMLInputElement).checked);
+    if (unchecked) fireEvent.click(unchecked);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm Generate/i })).not.toBeDisabled();
+    }, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+    const confirmBtn = await screen.findByRole("button", { name: /Confirm Apply/i }, { timeout: 10000 });
+    fireEvent.click(confirmBtn);
+    await waitFor(() => { expect(prepared).toBeGreaterThan(0); expect(confirmed.length).toBe(prepared); }, { timeout: 5000 });
+    const firstRun = prepared;
+    await waitFor(() => { expect(screen.getByRole("button", { name: /Confirm Apply/i })).not.toBeDisabled(); }, { timeout: 5000 });
+
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Apply/i }));
+    await waitFor(() => { expect(prepared).toBe(firstRun * 2); expect(confirmed.length).toBe(firstRun * 2); }, { timeout: 5000 });
+    expect(new Set(confirmed).size).toBe(confirmed.length);   // fresh tokens, each sent once
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────
 describe("AdminDraftPage — error handling", () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -753,7 +914,104 @@ describe("AdminDraftPage — error handling", () => {
     }, { timeout: 2000 });
     // Confirm → all branch API calls fail → error message rendered
     fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
-    await screen.findByText(/Failed to generate monthly drafts/i, {}, { timeout: 10000 });
+    // Each branch's reason is named, and the retry is spelled out.
+    await screen.findByText(/Nothing was generated\. The failed branches are still ticked/i, {}, { timeout: 10000 });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────
+describe("AdminDraftPage — drafts that already exist (2026-10-20)", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("lists the month's existing drafts on open, so Schedule View is not empty after a reload", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", makeDraftFetch([
+      { match: "/api/draft/month_versions", body: { ok: true, items: [
+        { branch_code: "BB", version_id: "v-bb", version_week_start: "2026-10-26", rows: 194, days: 30 },
+      ] } },
+    ]));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    await waitFor(() => {
+      expect(screen.queryByText("No shift data yet")).toBeNull();
+    }, { timeout: 5000 });
+    // Publishing is reachable without generating again.
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Apply Draft To Published", {}, { timeout: 5000 });
+  });
+
+  it("Prepare leaves a branch that already has a draft unticked", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", makeDraftFetch([
+      { match: "/api/auth/verify", body: { ok: true, role: "HQ" } },
+      { match: "/api/draft/month_versions", body: { ok: true, items: [
+        { branch_code: "BB", version_id: "v-bb", version_week_start: "2026-10-26", rows: 194, days: 30 },
+      ] } },
+    ]));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Apply Draft To Published", {}, { timeout: 5000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Branches to generate/i, {}, { timeout: 5000 });
+    const bb = screen.getByText(/\(has a draft\)/).closest("label")!.querySelector("input") as HTMLInputElement;
+    expect(bb.checked).toBe(false);
+  });
+
+  it("after one branch fails, only that branch stays ticked for the retry", async () => {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    const base = makeDraftFetch([{ match: "/api/auth/verify", body: { ok: true, role: "HQ" } }]);
+    let failCode = "";
+    const generated: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/draft/generate_month")) {
+        const body = JSON.parse(String(opts?.body || "{}"));
+        generated.push(body.branch_code);
+        if (!failCode) failCode = body.branch_code;          // the first branch fails
+        if (body.branch_code === failCode) {
+          return new Response("<!DOCTYPE html><html><head><title>Application Error</title></head></html>",
+            { status: 503, headers: { "Content-Type": "text/html" } });
+        }
+        return new Response(JSON.stringify({ ok: true, branch_code: body.branch_code, version_id: `v-${body.branch_code}`,
+          version_week_start: "2026-10-26", rows_inserted: 10, days_generated: 30, summary: {} }),
+          { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    }));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Branches to generate/i, {}, { timeout: 5000 });
+    fireEvent.click(screen.getByText(/I confirm generating a new monthly draft/i));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm Generate/i })).not.toBeDisabled();
+    }, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+    // The router's HTML page is not dumped on screen.
+    await screen.findByText(/still ticked/i, {}, { timeout: 10000 });
+    expect(screen.queryByText(/Application Error/)).toBeNull();
+    const n = generated.length;
+    expect(n).toBeGreaterThan(1);
+    // Retry: only the failed branch is sent.
+    fireEvent.click(screen.getByText(/I confirm generating a new monthly draft/i));
+    fireEvent.click(screen.getByText(/I confirm generating a new monthly draft/i));
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+    await waitFor(() => { expect(generated.length).toBe(n + 1); }, { timeout: 10000 });
+    expect(generated[n]).toBe(failCode);
   });
 });
 
@@ -1132,5 +1390,70 @@ describe("AdminDraftPage — Excel import onto an approved day off", () => {
     // "[object Object]" is what reading that detail as a string would have shown.
     expect(screen.queryByText(/object Object/)).toBeNull();
     expect(screen.getByRole("button", { name: /Import anyway/i })).toBeInTheDocument();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Yusuke, 2026-10-19: the Staff Roster Check could not be edited — wrong branch
+// for CK/Cubao staff, current staff missing, no way to add, move or reorder.
+describe("AdminDraftPage — editable Staff Roster Check", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  async function openRoster(fetchMock: ReturnType<typeof makeDraftFetch>) {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", fetchMock);
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled(), { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText("Ana", {}, { timeout: 5000 });
+  }
+
+  const ROSTER = {
+    saved: false,
+    branches: {
+      BB: [
+        { staff_name: "Ana", days: 20, home_branch: "BB", included: true, note: "" },
+        { staff_name: "Ben", days: 18, home_branch: "JLT", included: true, note: "" },
+      ],
+    },
+    available: [{ staff_name: "Cara", home_branch: "BB" }],
+  };
+
+  it("reorders, moves, unticks and saves the roster", async () => {
+    const fetchMock = makeDraftFetch([
+      { match: "/api/draft/roster", body: ROSTER, method: "GET" },
+      { match: "/api/draft/roster", body: { ok: true, saved: 2 }, method: "PUT" },
+    ]);
+    await openRoster(fetchMock);
+    // Ben's staff record says JLT: shown so the mismatch is visible
+    expect(screen.getByText("staff record: JLT")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Move Ben up" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include Ana" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Branch for Ben" }));
+    fireEvent.click(await screen.findByRole("option", { name: "JLT" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save roster" }));
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(([u, o]) => String(u).includes("/api/draft/roster") && (o as RequestInit)?.method === "PUT");
+      expect(put).toBeTruthy();
+    });
+    const put = fetchMock.mock.calls.find(([u, o]) => String(u).includes("/api/draft/roster") && (o as RequestInit)?.method === "PUT")!;
+    const body = JSON.parse(String((put[1] as RequestInit).body));
+    expect(body.entries).toEqual(expect.arrayContaining([
+      { staff_name: "Ana", branch_code: "BB", sort_order: 0, included: false },
+      { staff_name: "Ben", branch_code: "JLT", sort_order: 0, included: true },
+    ]));
+    await screen.findByText(/Saved 2 staff/);
+  });
+
+  it("removing someone puts them back in the add list", async () => {
+    const fetchMock = makeDraftFetch([{ match: "/api/draft/roster", body: ROSTER, method: "GET" }]);
+    await openRoster(fetchMock);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Ana" }));
+    expect(screen.queryByRole("checkbox", { name: "Include Ana" })).toBeNull();
   });
 });

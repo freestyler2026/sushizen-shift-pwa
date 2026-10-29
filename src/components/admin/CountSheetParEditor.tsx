@@ -1,0 +1,341 @@
+"use client";
+
+/**
+ * The par the Daily Inventory count sheet shows, editable in the page.
+ *
+ * Until now the only way to change these numbers was to download an Excel
+ * template, fill in a column and upload it back. That round trip is what this
+ * replaces; the Excel import is still there for setting many at once.
+ *
+ * This is a different par from the one above it on this page. The table the
+ * store catalogue above writes (`store_supplier_catalog`) drives what a store
+ * orders from its suppliers; this one (`daily_inv_par_patterns`) is what the
+ * count sheet prints beside each item, per branch and weekday. Four par systems
+ * exist in this OS and the quickest way to a fifth is to assume two of them are
+ * the same one, so both say on screen what they drive.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, RefreshCw, Save, Search } from "lucide-react";
+
+import SelectDark from "@/components/SelectDark";
+import {
+  asInventoryCity,
+  INVENTORY_CITIES,
+  withCity,
+  type InventoryCity,
+} from "@/lib/daily-inventory-city";
+import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { API_BASE } from "@/lib/api";
+import {
+  BADGE_INFO,
+  GLASS_CARD,
+  INPUT_CLASS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  T_SECTION,
+} from "@/lib/ui-tokens";
+
+type PatternItem = {
+  item_code: string;
+  item_name: string;
+  default_unit: string;
+  par_level: number | null;
+  /** その支店の発注の刻み。null は「指定なし＝発注カタログの刻みを使う」、
+   *  0 は「丸めない」。別の意味なので潰さない。
+   *  ここでは**読むだけ**。設定はExcelテンプレート（Order Step 列）で入れる。
+   *  受け取っていながら出していなかったので、効いている設定が画面のどこにも
+   *  無い状態だった（使われなくなる型 #9: ルールが画面に無い＝信用されない）。 */
+  order_step?: number | null;
+  /** CK品。**支店ごとの刻みを取らない** — CKの小分け単位はカタログ行が品目に
+   *  1つ持っていて、どの支店が頼んでも同じ（実測: 刻みを持つカタログ行は
+   *  両都市で1つの例外もなく order_type='CK'）。 */
+  is_commissary?: boolean;
+};
+
+type SaveResult = {
+  written?: number;
+  unchanged?: number;
+  refused?: string[];
+  /** Blanked rows that have no par to keep. The column is NOT NULL, so there is
+   *  no row to write -- and that used to come back as a 500 with no reason. */
+  no_par?: string[];
+  /** CK品に刻みを送ったので保存しなかった行。黙って無視すると
+   *  「設定したのに効かない」になる。 */
+  step_not_applicable?: string[];
+};
+
+export default function CountSheetParEditor() {
+  // The person's own city to start with, and a picker rather than a constant:
+  // both cities have items now, and the pattern name alone cannot settle it --
+  // WAREHOUSE_Sunday will exist for both.
+  const [city, setCity] = useState<InventoryCity>(() => asInventoryCity(getAuth()?.city));
+  const [patterns, setPatterns] = useState<string[]>([]);
+  const [pattern, setPattern] = useState("");
+  const [rows, setRows] = useState<PatternItem[]>([]);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<SaveResult | null>(null);
+
+  useEffect(() => {
+    void fetch(API_BASE + withCity("/api/daily-inventory/par-patterns", city), { headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((d: { patterns?: string[] }) => {
+        const list = d.patterns || [];
+        setPatterns(list);
+        // Patterns are named "<branch>_<weekday>", so changing city changes
+        // which ones make sense. Re-pick rather than keep the other city's.
+        setPattern((p) => (p && list.includes(p) ? p : list[0] || ""));
+      })
+      .catch(() => setError("Could not read the pattern list."));
+  }, [city]);
+
+  const load = useCallback(async () => {
+    if (!pattern) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        API_BASE + withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(pattern)}/items`, city),
+        { headers: getAuthHeaders() },
+      );
+      const d = (await res.json()) as { items?: PatternItem[] };
+      setRows(d.items || []);
+      setEdits({});
+    } catch {
+      setError("Could not read this pattern's items.");
+    } finally {
+      setLoading(false);
+    }
+  }, [pattern, city]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // A "Saved 3" from one pattern must not sit above another one's numbers.
+  useEffect(() => {
+    setResult(null);
+    setError(null);
+  }, [pattern, city]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (r) => r.item_name.toLowerCase().includes(q) || r.item_code.toLowerCase().includes(q),
+    );
+  }, [rows, search]);
+
+  /** Only the rows whose number the person actually changed are sent. */
+  const changed = useMemo(
+    () =>
+      rows.filter((r) => {
+        const typed = edits[r.item_code];
+        if (typed === undefined) return false;
+        const was = r.par_level == null ? "" : String(r.par_level);
+        return typed.trim() !== was;
+      }),
+    [rows, edits],
+  );
+
+  async function save() {
+    if (!changed.length) return;
+    setSaving(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch(
+        API_BASE + withCity(`/api/daily-inventory/par-patterns/${encodeURIComponent(pattern)}/items`, city),
+        {
+          method: "PUT",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            items: changed.map((r) => ({
+              item_code: r.item_code,
+              par_level: edits[r.item_code].trim() === "" ? null : Number(edits[r.item_code]),
+            })),
+          }),
+        },
+      );
+      if (!res.ok) {
+        // A save that failed must not look like a save that worked: the old
+        // screen reloaded the list either way and 403 read exactly like 200.
+        setError(`Save failed (${res.status}).`);
+        return;
+      }
+      setResult((await res.json()) as SaveResult);
+      await load();
+    } catch {
+      setError("Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={GLASS_CARD + " p-4 space-y-4"}>
+      <div>
+        <h2 className={T_SECTION}>Count sheet par</h2>
+        <p className="mt-1 text-xs text-zinc-400">
+          What the Daily Inventory sheet prints beside each item, per branch and weekday.
+          A branch pattern overrides the warehouse one for the same day. This is not the
+          supplier ordering par above — that one decides what the store orders.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <SelectDark
+          className={SELECT_CLASS + " max-w-[130px]"}
+          value={city}
+          onChange={(v) => setCity(asInventoryCity(v))}
+          options={INVENTORY_CITIES.map((c) => ({ value: c, label: c === "dubai" ? "Dubai" : "Manila" }))}
+        />
+        <SelectDark
+          className={SELECT_CLASS + " max-w-[240px]"}
+          value={pattern}
+          onChange={(v) => setPattern(v)}
+          options={patterns.map((p) => ({ value: p, label: p.replace("_", " · ") }))}
+        />
+        <div className="relative min-w-[180px] flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <input
+            className={INPUT_CLASS + " pl-9"}
+            placeholder="Search items…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <button onClick={() => void load()} className={SECONDARY_BUTTON + " flex items-center gap-2"} title="Refresh">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        </button>
+        <span className={BADGE_INFO}>
+          {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+        </span>
+        <button
+          onClick={() => void save()}
+          disabled={saving || !changed.length}
+          className={PRIMARY_BUTTON + " flex items-center gap-2 disabled:opacity-40"}
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {changed.length ? `Save ${changed.length} change${changed.length !== 1 ? "s" : ""}` : "Save"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>
+      )}
+
+      {result && (
+        <div
+          role="status"
+          className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 p-3 text-sm text-emerald-300"
+        >
+          {/* The server's own count, not the number of rows sent, and built as
+              one string so it reads as one sentence rather than five nodes. */}
+          {[
+            `Saved ${result.written ?? 0}.`,
+            result.unchanged ? `${result.unchanged} were already that number.` : "",
+            result.refused?.length
+              ? `Not saved, because they are not this city's items: ${result.refused.join(", ")}.`
+              : "",
+            // Blanking a par used to 500. Now it comes back named, because a
+            // save that did nothing must not read like a save that worked.
+            result.no_par?.length
+              ? `Left blank, so nothing was written -- a par is required here. To remove one, delete the pattern: ${result.no_par.join(", ")}.`
+              : "",
+            result.step_not_applicable?.length
+              ? `Step not saved for Central Kitchen items -- the CK's pack size lives on its catalogue row, not per branch: ${result.step_not_applicable.join(", ")}.`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        </div>
+      )}
+
+      {/* 刻みの出どころを書く。画面に無いルールは信用されない（型 #9）。 */}
+      <p className="text-[11px] text-zinc-500">
+        <span className="text-zinc-400">Step</span> is how this branch rounds its order quantity
+        (order 7 with a step of 3 and 9 are ordered). It is read-only here &mdash; set it in the
+        Order Step column of this pattern&rsquo;s Excel template. A dash means no step for this
+        branch, so the ordering catalogue&rsquo;s own step applies. Central Kitchen items read
+        <span className="text-zinc-400"> n/a</span> &mdash; the CK&rsquo;s pack size is one number
+        per item on its catalogue row, the same for every branch.
+      </p>
+
+      {loading ? (
+        <div className="py-10 text-center text-zinc-500">Loading…</div>
+      ) : !filtered.length ? (
+        <div className="py-10 text-center text-sm text-zinc-500">
+          {rows.length ? "No item matches that search." : "This pattern has no items yet."}
+        </div>
+      ) : (
+        <div className="max-h-[520px] overflow-y-auto rounded-xl border border-white/8">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-[#101726]">
+              <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
+                <th className="px-3 py-2">Item</th>
+                <th className="px-3 py-2 w-20">Unit</th>
+                <th className="px-3 py-2 w-28 text-right">Par</th>
+                <th className="px-3 py-2 w-24 text-right">Step</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => {
+                const typed = edits[r.item_code];
+                const value = typed !== undefined ? typed : r.par_level == null ? "" : String(r.par_level);
+                const isChanged = changed.some((c) => c.item_code === r.item_code);
+                return (
+                  <tr key={r.item_code} className="border-t border-white/5">
+                    <td className="px-3 py-2 text-zinc-200">
+                      {r.item_name}
+                      <span className="ml-2 text-[11px] text-zinc-600">{r.item_code}</span>
+                    </td>
+                    <td className="px-3 py-2 text-zinc-400">{r.default_unit}</td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="any"
+                        min="0"
+                        aria-label={`Par level for ${r.item_name}`}
+                        className={
+                          INPUT_CLASS +
+                          " text-right tabular-nums" +
+                          (isChanged ? " border-amber-400/60 bg-amber-400/5" : "")
+                        }
+                        value={value}
+                        onChange={(e) =>
+                          setEdits((prev) => ({ ...prev, [r.item_code]: e.target.value }))
+                        }
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs tabular-nums">
+                      {r.is_commissary ? (
+                        <span className="text-zinc-600" title="Central Kitchen item — the CK's pack size is on its catalogue row and is the same for every branch.">
+                          n/a
+                        </span>
+                      ) : r.order_step == null ? (
+                        <span className="text-zinc-600" title="No step for this branch — the ordering catalogue's step applies.">
+                          &mdash;
+                        </span>
+                      ) : Number(r.order_step) === 0 ? (
+                        <span className="text-zinc-400" title="0 means do not round at all.">no rounding</span>
+                      ) : (
+                        <span className="text-zinc-300">{Number(r.order_step)}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

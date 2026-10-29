@@ -1,0 +1,810 @@
+<title>VAT Ledger Handbook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: a sticky contents rail on the left, one reading column, screenshots allowed wider than the text. */
+  :root {
+    --bg: #f3f6f5;
+    --surface: #ffffff;
+    --ink: #14211d;
+    --muted: #4b5b56;
+    --line: #d6e0dc;
+    --accent: #0b6b55;      /* the green of a peso note, used for "counts" */
+    --accent-soft: #e2f1ec;
+    --warn: #8a5300;
+    --warn-soft: #fbf0dc;
+    --stop: #a3261c;
+    --stop-soft: #f9e3e0;
+    --code-bg: #e9efed;
+    --shot-bg: #0e1218;
+    --font-body: "IBM Plex Sans", "IBM Plex Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-ja: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1514; --surface: #162020; --ink: #e5eeeb; --muted: #a4b5b0; --line: #2a3936;
+      --accent: #5ccfae; --accent-soft: #15302a; --warn: #f0b75a; --warn-soft: #33270f;
+      --stop: #f08a80; --stop-soft: #3a1c19; --code-bg: #1e2a29; --shot-bg: #070a0e;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1514; --surface: #162020; --ink: #e5eeeb; --muted: #a4b5b0; --line: #2a3936;
+    --accent: #5ccfae; --accent-soft: #15302a; --warn: #f0b75a; --warn-soft: #33270f;
+    --stop: #f08a80; --stop-soft: #3a1c19; --code-bg: #1e2a29; --shot-bg: #070a0e;
+    color-scheme: dark;
+  }
+
+  :root[data-lang="ja"] .en { display: none !important; }
+  :root:not([data-lang="ja"]) .ja { display: none !important; }
+  :root[data-lang="ja"] body { font-family: var(--font-ja); }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--font-body); font-size: 16px; line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1240px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 28px 80px;
+    display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px;
+  }
+  @media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+
+  header.top { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 20px; }
+  .eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin: 0 0 6px; }
+  h1 { font-size: clamp(30px, 4vw, 42px); line-height: 1.1; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+  .sub { margin: 8px 0 0; color: var(--muted); max-width: 62ch; }
+  .langs { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); }
+  .langs button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+  .langs button[aria-pressed="true"] { background: var(--accent); color: var(--surface); font-weight: 600; }
+  .langs button:focus-visible, a:focus-visible, .zoom:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start; font-size: 14px; }
+  nav.toc p { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  nav.toc a { display: block; padding: 5px 10px; border-left: 2px solid var(--line); color: var(--muted); text-decoration: none; }
+  nav.toc a:hover { color: var(--ink); border-left-color: var(--accent); }
+  @media (max-width: 900px) {
+    nav.toc { position: static; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+    nav.toc ol { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  }
+
+  main { min-width: 0; }
+  section { padding-top: 12px; margin-bottom: 56px; scroll-margin-top: 16px; }
+  h2 { font-size: 26px; line-height: 1.25; margin: 0 0 6px; text-wrap: balance; letter-spacing: -.005em; }
+  h2 .sec { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-bottom: 6px; }
+  h3 { font-size: 19px; margin: 32px 0 6px; text-wrap: balance; }
+  p, li { max-width: 68ch; }
+  p { margin: 0 0 14px; }
+  .lead { font-size: 18px; color: var(--ink); }
+  ul, ol { padding-left: 22px; margin: 0 0 16px; }
+  li { margin-bottom: 6px; }
+  strong { font-weight: 600; }
+  .ui { font-weight: 600; background: var(--code-bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; white-space: nowrap; font-size: .93em; }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: .95em; }
+  a { color: var(--accent); }
+
+  .note { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 14px 18px; margin: 18px 0; max-width: 72ch; }
+  .note p:last-child, .note ul:last-child { margin-bottom: 0; }
+  .note.warn { background: var(--warn-soft); border-color: transparent; }
+  .note.warn strong:first-child { color: var(--warn); }
+  .note.stop { background: var(--stop-soft); border-color: transparent; }
+  .note.stop strong:first-child { color: var(--stop); }
+
+  /* The worked sums: a receipt, because that is where these numbers come from. */
+  .receipt { font-family: var(--font-num); font-variant-numeric: tabular-nums; background: var(--surface); border: 1px dashed var(--line); border-radius: 6px; padding: 16px 20px; max-width: 460px; margin: 16px 0 20px; font-size: 14.5px; }
+  .receipt .row { display: flex; justify-content: space-between; gap: 16px; padding: 2px 0; }
+  .receipt .row.total { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 8px; font-weight: 500; }
+  .receipt .row.hl span:last-child { color: var(--accent); font-weight: 500; }
+  .receipt .cap { font-family: var(--font-body); font-size: 12.5px; color: var(--muted); margin: 0 0 8px; letter-spacing: .02em; }
+  .pair { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .pair .receipt { flex: 1 1 300px; margin: 0; }
+
+  .tablebox { overflow-x: auto; margin: 16px 0 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.n { font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  figure.shot { margin: 18px 0 26px; }
+  .zoom { display: block; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--shot-bg); cursor: zoom-in; }
+  .zoom img { display: block; width: 100%; height: auto; }
+  figure.shot.narrow { max-width: 300px; }
+  figcaption { font-size: 13.5px; color: var(--muted); margin-top: 8px; max-width: 72ch; }
+
+  ol.steps { counter-reset: s; list-style: none; padding-left: 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding-left: 40px; margin-bottom: 12px; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 13px; display: grid; place-items: center; font-family: var(--font-num); }
+
+  .check { list-style: none; padding-left: 0; }
+  .check li { position: relative; padding-left: 30px; }
+  .check li::before { content: ""; position: absolute; left: 2px; top: 6px; width: 15px; height: 15px; border: 1.5px solid var(--accent); border-radius: 4px; }
+
+  dl.gloss { display: grid; grid-template-columns: minmax(120px, max-content) minmax(0, 1fr); gap: 8px 20px; max-width: 76ch; }
+  dl.gloss dt { font-weight: 600; }
+  dl.gloss dd { margin: 0; color: var(--muted); }
+  @media (max-width: 560px) { dl.gloss { grid-template-columns: minmax(0, 1fr); gap: 2px; } dl.gloss dd { margin-bottom: 10px; } }
+
+  .lightbox { position: fixed; inset: 0; background: rgba(5, 8, 10, .92); display: flex; align-items: flex-start; justify-content: center; overflow: auto; padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 20px max(16px, env(safe-area-inset-left, 0px)); z-index: 10; cursor: zoom-out; }
+  .lightbox[hidden] { display: none; }
+  .lightbox img { max-width: min(100%, 2200px); height: auto; margin: auto; border-radius: 6px; }
+  .lightbox button { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); right: max(12px, env(safe-area-inset-right, 0px)); border: 0; border-radius: 999px; background: #ffffff; color: #111; font: inherit; font-size: 14px; padding: 6px 14px; cursor: pointer; }
+
+  footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); padding-top: 16px; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow"><span class="en">Sushi ZEN Manila · Procurement &amp; Tax</span><span class="ja">Sushi ZEN マニラ · Procurement &amp; Tax</span></p>
+      <h1><span class="en">VAT Ledger Handbook</span><span class="ja">VAT Ledger 手引き</span></h1>
+      <p class="sub en">How the VAT Ledger works, how VAT is calculated, and what to do each quarter so the BIR Form 2550Q is right. Written for the people who file it.</p>
+      <p class="sub ja">VAT Ledger の使い方、VATの計算のしかた、四半期ごとにやること。BIR Form 2550Q を申告する担当者向けです。</p>
+    </div>
+    <div class="langs" role="group" aria-label="Language">
+      <button type="button" data-set="en" aria-pressed="true">English</button>
+      <button type="button" data-set="ja" aria-pressed="false">日本語</button>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Contents">
+    <p><span class="en">Contents</span><span class="ja">目次</span></p>
+    <ol>
+      <li><a href="#start"><span class="en">Open the page</span><span class="ja">画面を開く</span></a></li>
+      <li><a href="#vat"><span class="en">VAT in plain words</span><span class="ja">VATのしくみ</span></a></li>
+      <li><a href="#credit"><span class="en">Why purchase VAT matters</span><span class="ja">仕入のVATを差し引く意味</span></a></li>
+      <li><a href="#invoice"><span class="en">Which invoices count</span><span class="ja">控除できる請求書</span></a></li>
+      <li><a href="#screen"><span class="en">Reading the screen</span><span class="ja">画面の見方</span></a></li>
+      <li><a href="#check"><span class="en">Checking invoices</span><span class="ja">請求書を確認する</span></a></li>
+      <li><a href="#apps"><span class="en">Grab and the apps</span><span class="ja">Grab とデリバリー</span></a></li>
+      <li><a href="#slsp"><span class="en">Summary lists (SLSP)</span><span class="ja">明細リスト（SLSP）</span></a></li>
+      <li><a href="#file"><span class="en">Filing and closing</span><span class="ja">申告と締め</span></a></li>
+      <li><a href="#calendar"><span class="en">The quarter, step by step</span><span class="ja">四半期の流れ</span></a></li>
+      <li><a href="#words"><span class="en">Words used</span><span class="ja">用語</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <!-- ───────────────────────────── 1 -->
+    <section id="start">
+      <h2><span class="sec en">Start here</span><span class="sec ja">はじめに</span>
+        <span class="en">Open the VAT Ledger</span><span class="ja">VAT Ledger を開く</span></h2>
+      <p class="lead en">The VAT Ledger works out, from the stores' sales and the suppliers' invoices, how much VAT the business owes the BIR each quarter. It shows every figure you need for Form 2550Q and every invoice that still needs a person.</p>
+      <p class="lead ja">VAT Ledger は、店舗の売上と仕入先の請求書から、その四半期にBIRへ納めるVATの額を計算する画面です。Form 2550Q に書く数字と、人の確認が必要な請求書がすべてここに出ます。</p>
+
+      <div class="pair">
+        <figure class="shot narrow">
+          <button class="zoom" type="button"><img src="vat-guide/00-menu.jpg" alt="Menu with VAT Ledger under Procurement &amp; Tax" width="480" height="840"></button>
+          <figcaption class="en">Menu → <strong>Procurement &amp; Tax</strong> → <strong>VAT Ledger</strong>.</figcaption>
+          <figcaption class="ja">メニュー → <strong>Procurement &amp; Tax</strong> → <strong>VAT Ledger</strong>。</figcaption>
+        </figure>
+        <div style="flex: 1 1 320px; min-width: 0;">
+          <ol class="steps">
+            <li class="en">Log in to the OS on a PC with your own name.</li>
+            <li class="ja">PCで、自分の名前でOSにログインします。</li>
+            <li class="en">Open the menu, then <strong>Procurement &amp; Tax</strong>, then <strong>VAT Ledger</strong>.</li>
+            <li class="ja">メニューを開き、<strong>Procurement &amp; Tax</strong> → <strong>VAT Ledger</strong> を押します。</li>
+            <li class="en">Pick the quarter at the top (for example <span class="ui">2026 Q4</span>). The page opens on the quarter you are most likely filing: from the 1st to the 25th of a quarter's first month, the quarter that just ended (on 10 January, 2026 Q4); after that, the current one.</li>
+            <li class="ja">上部で四半期を選びます（例: <span class="ui">2026 Q4</span>）。開いたときは、申告中の四半期が出ます。四半期の最初の月の1日〜25日は、終わったばかりの四半期（1月10日なら 2026 Q4）、それ以降は今の四半期です。</li>
+          </ol>
+          <div class="note">
+            <p class="en"><strong>Nothing is sent to the BIR from this page.</strong> You copy the figures into eBIRForms yourself, and you send the summary files yourself. The page only calculates and checks.</p>
+            <p class="ja"><strong>この画面からBIRには何も送られません。</strong>数字は自分で eBIRForms に写し、明細ファイルも自分で送ります。この画面は計算と確認だけをします。</p>
+          </div>
+          <div class="note warn">
+            <p class="en"><strong>The page says "Your role does not include the VAT Ledger", or there are no buttons?</strong> Your account is missing a permission. Ask Yukihiro to give you, in Role Management, <strong>View VAT Ledger</strong> (to open the page) and <strong>Manage VAT Ledger</strong> (to make the decisions, save details and close the quarter).</p>
+            <p class="ja"><strong>「Your role does not include the VAT Ledger」と出る、またはボタンが出ない場合</strong>は、権限が足りません。Role Management で <strong>View VAT Ledger</strong>（画面を開く）と <strong>Manage VAT Ledger</strong>（判断・保存・締め）を付けてもらうよう Yukihiro に伝えてください。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────────── 2 -->
+    <section id="vat">
+      <h2><span class="sec en">The basics</span><span class="sec ja">基本</span>
+        <span class="en">VAT in plain words</span><span class="ja">VATのしくみ</span></h2>
+
+      <p class="en"><strong>VAT</strong> (Value Added Tax) is a 12% tax inside the price of almost everything sold in the Philippines. The customer pays it, the seller collects it, and the seller passes it to the BIR. Our restaurant is on both sides:</p>
+      <p class="ja"><strong>VAT</strong>（付加価値税）は、フィリピンで売られるほぼ全ての物の値段に含まれている12%の税金です。お客さんが払い、売った側が預かり、BIRに納めます。私たちのレストランは、その両方の立場にいます。</p>
+      <ul>
+        <li class="en"><strong>Output VAT</strong> — the VAT inside what our customers pay us. We collected it, so we owe it.</li>
+        <li class="ja"><strong>Output VAT（売上のVAT）</strong> — お客さんが私たちに払った金額に含まれるVAT。預かったので、納める義務があります。</li>
+        <li class="en"><strong>Input VAT</strong> — the VAT inside what we pay our suppliers. We already paid it, so we can subtract it — but only when we hold a proper VAT invoice.</li>
+        <li class="ja"><strong>Input VAT（仕入のVAT）</strong> — 私たちが仕入先に払った金額に含まれるVAT。すでに払っているので差し引けます。ただし、正しいVAT請求書がある場合だけです。</li>
+      </ul>
+      <p class="en">What we pay the BIR is the difference:</p>
+      <p class="ja">BIRに納めるのは、その差額です。</p>
+      <div class="receipt" aria-label="VAT payable formula">
+        <div class="row"><span>Output VAT</span><span>what we collected</span></div>
+        <div class="row"><span>− Input VAT</span><span>what we already paid</span></div>
+        <div class="row total hl"><span>= VAT payable</span><span>what we pay</span></div>
+      </div>
+
+      <h3><span class="en">Why 12/112</span><span class="ja">なぜ 12/112 なのか</span></h3>
+      <p class="en">StoreHub keeps each menu price <strong>before VAT</strong> and adds 12% at the till, so the customer pays a whole-peso amount that includes VAT. Aburi Salmon Nigiri 2pcs is registered at ₱164.29; ₱164.29 + 12% = <strong>₱184</strong>, which is what the customer pays. (On 22 October 2026, 229 of the 243 products came to a whole peso this way, and every dine-in receipt checked was price + VAT = total.)</p>
+      <p class="ja">StoreHub はメニューの価格を<strong>税抜き</strong>で持ち、レジで12%を足します。お客さんが払うのは、VATを含んだきりのいい金額です。Aburi Salmon Nigiri 2pcs の登録価格は ₱164.29 で、₱164.29 ＋ 12% ＝ <strong>₱184</strong> がお客さんの払う額です（2026年10月22日に確認: 243品中229品がこの計算でぴったりの金額になり、確認した店内の会計はすべて「税抜き ＋ VAT ＝ 合計」でした）。</p>
+      <p class="en">The page works from <strong>what was paid</strong>, which already has the VAT inside. To take the VAT back out of a paid amount, the calculation is <span class="num">paid × 12 ÷ 112</span>. It gives the same VAT as 12% of the price before VAT.</p>
+      <p class="ja">画面は<strong>払われた金額</strong>（VATを含んだ額）から計算します。払われた金額からVATを取り出す式が <span class="num">払った額 × 12 ÷ 112</span> です。税抜き価格の12%と同じ額になります。</p>
+      <div class="pair">
+        <div class="receipt">
+          <p class="cap"><span class="en">One dine-in item</span><span class="ja">店内飲食の1品</span></p>
+          <div class="row"><span>Price in StoreHub (before VAT)</span><span>₱164.29</span></div>
+          <div class="row"><span>+ VAT 12%</span><span>₱19.71</span></div>
+          <div class="row total"><span>Customer pays</span><span>₱184.00</span></div>
+          <div class="row" style="margin-top:8px"><span>Check: 184 × 12 ÷ 112</span><span>₱19.71</span></div>
+        </div>
+        <div class="receipt">
+          <p class="cap"><span class="en">A supplier invoice</span><span class="ja">仕入先の請求書</span></p>
+          <div class="row"><span>Invoice total</span><span>₱5,600.00</span></div>
+          <div class="row"><span>VAT printed on it</span><span>₱600.00</span></div>
+          <div class="row total hl"><span>Input VAT we subtract</span><span>₱600.00</span></div>
+        </div>
+      </div>
+      <p class="en">The page adds up every store and channel for the quarter and rounds <strong>once</strong>, at the end. That is why the store boxes, each rounded on its own, can differ from the total by a few centavos. The quarter total is the right one.</p>
+      <p class="ja">画面は四半期の全店舗・全チャネルを合計し、最後に<strong>1回だけ</strong>端数処理します。店舗ごとの箱をそれぞれ丸めると、合計と数センタボずれることがあるのはこのためです。正しいのは四半期の合計です。</p>
+
+      <h3><span class="en">Seniors and PWD</span><span class="ja">シニア・PWD（障がい者）</span></h3>
+      <p class="en">A senior citizen or a person with disability does not pay VAT on their own meal, and also gets 20% off. The 20% is taken from the price before VAT:</p>
+      <p class="ja">シニア・PWDのお客さんは、本人の食事にVATがかからず、さらに20%割引になります。20%は税抜き価格から引きます。</p>
+      <div class="receipt">
+        <p class="cap"><span class="en">One senior's meal</span><span class="ja">シニア1名の食事</span></p>
+        <div class="row"><span>Price before VAT</span><span>₱1,000.00</span></div>
+        <div class="row"><span>VAT</span><span>none</span></div>
+        <div class="row"><span>20% discount</span><span>− ₱200.00</span></div>
+        <div class="row total"><span>The senior pays</span><span>₱800.00</span></div>
+        <div class="row hl" style="margin-top:8px"><span>VAT-exempt sale (item 34)</span><span>₱1,000.00</span></div>
+        <div class="row" style="margin-top:8px"><span>An ordinary customer pays</span><span>₱1,120.00</span></div>
+      </div>
+      <p class="en">The exempt sale on the 2550Q is the senior's share <strong>before</strong> the discount (₱1,000), not what they paid (₱800): the law counts the discount back into gross sales, and the business deducts it as an expense instead. The page does this for you — on a bill shared with friends, only the senior's own share is exempt; the rest is taxed as usual.</p>
+      <p class="ja">2550Q の免税売上は、お客さんが払った額（₱800）ではなく、<strong>割引前</strong>のシニア本人の分（₱1,000）です。法律上、割引分は売上に戻して計上し、店の経費として差し引くためです。画面が自動で計算します。友人と一緒の会計では、免税になるのはシニア本人の分だけで、残りは通常どおり課税です。</p>
+      <div class="note stop">
+        <p class="en"><strong>The cashier must use the Senior/PWD button in StoreHub.</strong> If the 20% is given with the ordinary-discount button, StoreHub charges VAT on the whole bill and prints it. The senior then pays VAT they should not have paid, and because the receipt shows it, the business owes that VAT to the BIR. The page shows, for each store, how many bills used the ordinary-discount button and how much VAT that billed (see <a href="#screen">Output VAT</a>). When you see a line, tell that store's manager.</p>
+        <p class="ja"><strong>レジでは StoreHub の Senior/PWD ボタンを使う必要があります。</strong>通常の割引ボタンで20%を引くと、StoreHub は会計全体にVATをかけて印字します。シニアは払わなくてよいVATを払い、レシートに印字されているので、店はそのVATをBIRに納めなければなりません。画面には店舗ごとに、通常の割引ボタンを使った会計の件数と、それで印字されたVATの額が出ます（<a href="#screen">Output VAT</a> 参照）。出ていたら、その店舗の店長に伝えてください。</p>
+      </div>
+
+      <h3><span class="en">A small part of input VAT is not ours to subtract</span><span class="ja">仕入のVATのうち、差し引けない少しの部分</span></h3>
+      <p class="en">Because some sales are VAT-exempt (the seniors and PWD above), the share of input VAT that belongs to those sales cannot be subtracted. The page works it out for you as item 51 of the 2550Q:</p>
+      <p class="ja">売上の一部がVAT免除（上のシニア・PWD）なので、その売上に対応する仕入のVATは差し引けません。画面が 2550Q の項目51として自動で計算します。</p>
+      <div class="receipt">
+        <p class="cap"><span class="en">2026 Q4 so far, from the screen</span><span class="ja">画面の 2026 Q4（途中経過）</span></p>
+        <div class="row"><span>Input VAT</span><span>₱32,026.41</span></div>
+        <div class="row"><span>× exempt sales ₱21,591.15</span><span></span></div>
+        <div class="row"><span>÷ total sales ₱4,623,738.75</span><span></span></div>
+        <div class="row total"><span>Item 51</span><span>₱149.55</span></div>
+      </div>
+      <p class="en">So in full: <strong>VAT payable = output VAT − (carried over + input VAT − item 51)</strong>. This is item 56 on the form. "Carried over" (item 36) is the excess input VAT of the previous quarter, and is only there when that quarter was closed with more input VAT than output VAT; usually it is 0.</p>
+      <p class="ja">まとめると <strong>納めるVAT ＝ 売上のVAT −（繰越 ＋ 仕入のVAT − 項目51）</strong>。これが申告書の項目56です。「繰越」（項目36）は前の四半期で余った仕入のVATで、前の四半期を「仕入のVATが売上のVATより多い」状態で締めたときだけ入ります。普段は0です。</p>
+
+      <h3><span class="en">When it is due</span><span class="ja">期限</span></h3>
+      <p class="en">Form 2550Q is filed and paid by the 25th day after the quarter ends. The page shows the date and the days left at the top.</p>
+      <p class="ja">Form 2550Q は、四半期が終わった翌月から数えて25日目までに申告・納付します。画面の上部に期限と残り日数が出ます。</p>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th><span class="en">Quarter</span><span class="ja">四半期</span></th><th><span class="en">Months</span><span class="ja">対象月</span></th><th><span class="en">Due</span><span class="ja">期限</span></th></tr></thead>
+          <tbody>
+            <tr><td>Q1</td><td><span class="en">January – March</span><span class="ja">1月〜3月</span></td><td class="n">April 25</td></tr>
+            <tr><td>Q2</td><td><span class="en">April – June</span><span class="ja">4月〜6月</span></td><td class="n">July 25</td></tr>
+            <tr><td>Q3</td><td><span class="en">July – September</span><span class="ja">7月〜9月</span></td><td class="n">October 25</td></tr>
+            <tr><td>Q4</td><td><span class="en">October – December</span><span class="ja">10月〜12月</span></td><td class="n">January 25</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ───────────────────────────── 2b -->
+    <section id="credit">
+      <h2><span class="sec en">The most important idea</span><span class="sec ja">一番大事な考え方</span>
+        <span class="en">Why the VAT we pay suppliers comes back to us</span><span class="ja">仕入先に払ったVATが戻ってくる理由</span></h2>
+
+      <p class="lead en">Every time we buy from a VAT-registered supplier, part of what we pay is VAT. That VAT is not a cost to the restaurant: with a proper invoice, we subtract it from the VAT we owe on our sales. Without the invoice, we pay it twice — once to the supplier, and once more to the BIR.</p>
+      <p class="lead ja">VAT登録している仕入先から買うたびに、払った金額の一部はVATです。このVATは、正しい請求書があればレストランの費用になりません。売上で納めるVATから差し引けるからです。請求書が無いと、同じVATを2回払うことになります。1回目は仕入先に、2回目はBIRに。</p>
+
+      <h3><span class="en">One fish, from the sea to the table</span><span class="ja">1匹の魚が食卓に届くまで</span></h3>
+      <p class="en">Follow one salmon. The supplier sells it to us; we turn it into sushi and sell it to a customer. Each seller charges 12% VAT on its own price and hands that VAT to the BIR.</p>
+      <p class="ja">1匹のサーモンを追ってみます。仕入先が私たちに売り、私たちが寿司にしてお客さんに売ります。売る側はそれぞれ、自分の値段に12%のVATを付け、そのVATをBIRに納めます。</p>
+      <div class="tablebox">
+        <table>
+          <thead><tr>
+            <th><span class="en">Step</span><span class="ja">段階</span></th>
+            <th><span class="en">Price before VAT</span><span class="ja">税抜き価格</span></th>
+            <th><span class="en">VAT charged</span><span class="ja">付けたVAT</span></th>
+            <th><span class="en">Paid to the BIR by that seller</span><span class="ja">その売り手がBIRに納める額</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td><span class="en">Supplier sells the salmon to us</span><span class="ja">仕入先 → 私たち（サーモン）</span></td><td class="n">₱1,000</td><td class="n">₱120</td><td class="n">₱120</td></tr>
+            <tr><td><span class="en">We sell the sushi to a customer</span><span class="ja">私たち → お客さん（寿司）</span></td><td class="n">₱3,000</td><td class="n">₱360</td><td class="n">₱360 − ₱120 = <strong>₱240</strong></td></tr>
+            <tr><td><strong><span class="en">The BIR receives in total</span><span class="ja">BIRが受け取る合計</span></strong></td><td></td><td></td><td class="n"><strong>₱360</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="en">The BIR collects exactly 12% of the final price (₱360 on ₱3,000), in two pieces. We only pay VAT on the value <em>we added</em> — the work of turning ₱1,000 of fish into ₱3,000 of sushi. That is why it is called <strong>Value Added</strong> Tax.</p>
+      <p class="ja">BIRが受け取るのは、最終価格のちょうど12%（₱3,000に対して₱360）で、2回に分かれて入ります。私たちが納めるのは、<em>私たちが加えた価値</em>（₱1,000の魚を₱3,000の寿司にした分）にかかるVATだけです。だから<strong>付加価値税</strong>と呼ばれます。</p>
+      <div class="note stop">
+        <p class="en"><strong>Without our TIN on the supplier's invoice</strong>, we cannot subtract the ₱120. We pay the full ₱360 to the BIR, and the BIR receives ₱480 on a ₱3,000 sale. The extra ₱120 is simply lost money for the restaurant — the same as throwing ₱120 in cash away.</p>
+        <p class="ja"><strong>仕入先の請求書に当社のTINが無いと</strong>、₱120を差し引けません。BIRに₱360を全額納めることになり、₱3,000の売上に対してBIRは₱480を受け取ります。余分な₱120は、レストランがただ失うお金です。現金₱120を捨てるのと同じです。</p>
+      </div>
+
+      <h3><span class="en">One month at one store</span><span class="ja">ある店舗の1か月</span></h3>
+      <p class="en">A simple month, with round numbers:</p>
+      <p class="ja">分かりやすい数字で、1か月を見てみます。</p>
+      <div class="pair">
+        <div class="receipt">
+          <p class="cap"><span class="en">Sales</span><span class="ja">売上</span></p>
+          <div class="row"><span>Customers paid</span><span>₱448,000</span></div>
+          <div class="row total"><span>Output VAT (× 12 ÷ 112)</span><span>₱48,000</span></div>
+        </div>
+        <div class="receipt">
+          <p class="cap"><span class="en">Purchases</span><span class="ja">仕入</span></p>
+          <div class="row"><span>Fish, rice, sauces · VAT suppliers</span><span>₱112,000</span></div>
+          <div class="row"><span>  VAT inside (× 12 ÷ 112)</span><span>₱12,000</span></div>
+          <div class="row"><span>Vegetables · Non-VAT market</span><span>₱30,000</span></div>
+          <div class="row"><span>  VAT inside</span><span>₱0</span></div>
+        </div>
+      </div>
+      <div class="tablebox">
+        <table>
+          <thead><tr>
+            <th><span class="en">What we hold</span><span class="ja">手元の請求書</span></th>
+            <th><span class="en">Input VAT we can subtract</span><span class="ja">差し引ける仕入のVAT</span></th>
+            <th><span class="en">VAT we pay the BIR</span><span class="ja">BIRに納めるVAT</span></th>
+          </tr></thead>
+          <tbody>
+            <tr><td><span class="en">Every VAT invoice is correct</span><span class="ja">VAT請求書が全部正しい</span></td><td class="n">₱12,000</td><td class="n"><strong>₱36,000</strong></td></tr>
+            <tr><td><span class="en">Half are missing our TIN</span><span class="ja">半分に当社のTINが無い</span></td><td class="n">₱6,000</td><td class="n">₱42,000 <span style="color:var(--stop)">(+₱6,000)</span></td></tr>
+            <tr><td><span class="en">No proper invoices at all</span><span class="ja">正しい請求書が1枚も無い</span></td><td class="n">₱0</td><td class="n">₱48,000 <span style="color:var(--stop)">(+₱12,000)</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="en">The food cost is the same in all three rows. Only the paperwork changed, and the bad paperwork cost up to ₱12,000 in one month at one store. The vegetables from the market never had VAT, so they change nothing either way.</p>
+      <p class="ja">3行とも、食材の量も値段も同じです。違うのは書類だけで、書類が悪いと1店舗1か月で最大₱12,000多く払います。市場の野菜は最初からVATが無いので、どちらにしても何も変わりません。</p>
+
+      <h3><span class="en">In our real 2026 Q4 so far</span><span class="ja">実際の 2026 Q4（途中経過）</span></h3>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th><span class="en">Input VAT</span><span class="ja">仕入のVAT</span></th><th><span class="en">Amount</span><span class="ja">金額</span></th><th><span class="en">What it means</span><span class="ja">意味</span></th></tr></thead>
+          <tbody>
+            <tr><td>Deductible</td><td class="n">₱32,026.41</td><td><span class="en">Already lowers what we pay.</span><span class="ja">すでに納める額を下げている。</span></td></tr>
+            <tr><td>To check</td><td class="n">₱4,315.11</td><td><span class="en">Lowers it once someone checks the photo.</span><span class="ja">誰かが写真を確認すれば下がる。</span></td></tr>
+            <tr><td>Waiting for Grab's invoice</td><td class="n">₱120,606.72</td><td><span class="en">Lowers it once Grab sends its VAT invoice. The biggest single amount.</span><span class="ja">Grab のVAT請求書が届けば下がる。一番大きな金額。</span></td></tr>
+            <tr><td>Not deductible</td><td class="n">₱5,753.20</td><td><span class="en">VAT we paid and cannot get back unless the supplier corrects the invoice.</span><span class="ja">払ったのに、仕入先が請求書を直さない限り取り戻せないVAT。</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="en">Every peso of input VAT that is checked and kept lowers what we pay the BIR by almost a peso. A small share (about 0.5% this quarter) belongs to the senior/PWD sales and stays out, as item 51.</p>
+      <p class="ja">確認して残せた仕入のVATは、1ペソごとに、BIRに払う額をほぼ1ペソ下げます。ごく一部（この四半期は約0.5%）はシニア・PWDの売上の分として差し引けず、項目51になります。</p>
+
+      <h3><span class="en">A real example from the screen</span><span class="ja">画面の実例</span></h3>
+      <p class="en">On 22 October 2026, Cash &amp; Carry Supermarket invoice 728663 shows <strong>VAT ₱1,174.63</strong>, but it is not made out to our TIN and has no buyer name. That VAT is in "Not deductible". The restaurant paid it at the counter, and it will pay the same ₱1,174.63 again to the BIR. Had the cashier been given our TIN and name, those ₱1,174.63 would have come off the VAT we pay.</p>
+      <p class="ja">2026年10月22日の Cash &amp; Carry Supermarket の請求書 728663 には <strong>VAT ₱1,174.63</strong> と書かれていますが、当社のTIN宛てではなく、買い手の名前もありません。このVATは「Not deductible」に入っています。レストランはこのVATをレジで払い、さらに同じ₱1,174.63をBIRにも払うことになります。レジでTINと名前を伝えていれば、この₱1,174.63は納めるVATから引けていました。</p>
+
+      <h3><span class="en">Comparing two suppliers' prices</span><span class="ja">2つの仕入先の値段を比べるとき</span></h3>
+      <p class="en">Because VAT on a proper invoice comes back, compare suppliers on the price <strong>before VAT</strong>:</p>
+      <p class="ja">正しい請求書のVATは戻ってくるので、仕入先は<strong>税抜き</strong>の値段で比べます。</p>
+      <div class="pair">
+        <div class="receipt">
+          <p class="cap"><span class="en">VAT supplier, proper invoice</span><span class="ja">VAT仕入先・正しい請求書</span></p>
+          <div class="row"><span>Pay</span><span>₱1,120</span></div>
+          <div class="row"><span>VAT we get back</span><span>− ₱120</span></div>
+          <div class="row total hl"><span>Real cost</span><span>₱1,000</span></div>
+        </div>
+        <div class="receipt">
+          <p class="cap"><span class="en">Non-VAT stall</span><span class="ja">Non-VAT の店</span></p>
+          <div class="row"><span>Pay</span><span>₱1,050</span></div>
+          <div class="row"><span>VAT we get back</span><span>₱0</span></div>
+          <div class="row total"><span>Real cost</span><span>₱1,050</span></div>
+        </div>
+      </div>
+      <p class="en">The stall looks cheaper at the counter but costs ₱50 more. The same VAT supplier <em>without</em> our TIN on the invoice would cost the full ₱1,120.</p>
+      <p class="ja">レジでは市場の店の方が安く見えますが、実際は₱50高くなります。同じVAT仕入先でも、請求書に当社のTINが<em>無ければ</em>、実際の費用は₱1,120のままです。</p>
+
+      <h3><span class="en">Common misunderstandings</span><span class="ja">よくある誤解</span></h3>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th><span class="en">What people think</span><span class="ja">よくある考え</span></th><th><span class="en">What is true</span><span class="ja">実際</span></th></tr></thead>
+          <tbody>
+            <tr><td><span class="en">"We paid VAT to the supplier, so it is already counted."</span><span class="ja">「仕入先にVATを払ったから、もう数えられているはず」</span></td><td><span class="en">Only a VAT invoice with our TIN and name proves it to the BIR. A receipt without them counts for nothing.</span><span class="ja">BIRに証明できるのは、当社のTINと名前が入ったVAT請求書だけです。それが無いレシートは何の証明にもなりません。</span></td></tr>
+            <tr><td><span class="en">"Input VAT is a refund we receive."</span><span class="ja">「仕入のVATは返金されるお金」</span></td><td><span class="en">No cash comes back. It lowers the VAT we pay each quarter. If input VAT is ever larger than output VAT, the extra is carried to the next quarter.</span><span class="ja">現金は戻ってきません。四半期ごとに納めるVATが減ります。仕入のVATの方が多い四半期は、余りを次の四半期に繰り越します。</span></td></tr>
+            <tr><td><span class="en">"A small receipt is not worth the trouble."</span><span class="ja">「少額のレシートは気にしなくていい」</span></td><td><span class="en">₱100 of VAT a day at each of three stores is about ₱27,600 a quarter (₱100 × 3 × 92 days).</span><span class="ja">3店舗それぞれで1日₱100のVATは、1四半期で約₱27,600になります（₱100 × 3 × 92日）。</span></td></tr>
+            <tr><td><span class="en">"Only food invoices matter."</span><span class="ja">「食材の請求書だけが大事」</span></td><td><span class="en">Anything bought for the business from a VAT seller has VAT in it: packaging, cleaning supplies, repairs, equipment, delivery-app fees. It counts only when its invoice reaches the OS as a photo (Invoice Inbox, receiving or PO check) or, for foodpanda, its own invoices.</span><span class="ja">事業のためにVAT登録の売り手から買ったものには、すべてVATが入っています。容器・清掃用品・修理・備品・デリバリーアプリの手数料も同じです。数えられるのは、その請求書が写真でOSに入ったもの（Invoice Inbox・受領・POチェック）と、foodpanda 自身の請求書だけです。</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <p class="en"><strong>What each person can do</strong></p>
+        <p class="ja"><strong>それぞれができること</strong></p>
+        <ul>
+          <li class="en">Stores: at the counter, give <span class="num">457-994-635-00000</span> and SUSHIZEN JAPANESE RESTAURANT before paying. Photograph every supplier invoice, whole and readable.</li>
+          <li class="ja">店舗: 払う前にレジで <span class="num">457-994-635-00000</span> と SUSHIZEN JAPANESE RESTAURANT を伝える。仕入先の請求書は全部、全体が読めるように撮る。</li>
+          <li class="en">Purchasing: ask suppliers on the "Not deductible" list for corrected invoices.</li>
+          <li class="ja">購買: 「Not deductible」に出ている仕入先に、訂正した請求書を依頼する。</li>
+          <li class="en">Filers: clear "To check" every week, so no checked VAT is left out of the return.</li>
+          <li class="ja">申告担当: 毎週「To check」を片付け、確認できるVATを申告から漏らさない。</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ───────────────────────────── 3 -->
+    <section id="invoice">
+      <h2><span class="sec en">Input VAT</span><span class="sec ja">仕入のVAT</span>
+        <span class="en">Which invoices count</span><span class="ja">控除できる請求書</span></h2>
+      <p class="en">The BIR only lets us subtract VAT from an invoice that shows all of the following (RMC 77-2024). The page checks each one, from the photo, for every purchase.</p>
+      <p class="ja">BIRが差し引きを認めるのは、次の全てが書かれている請求書だけです（RMC 77-2024）。画面は仕入1件ごとに、写真からこれを確認します。</p>
+      <ul class="check">
+        <li class="en">The word VAT and the VAT amount, as a VAT invoice</li>
+        <li class="ja">VAT請求書として、VATの額が書かれている</li>
+        <li class="en">The supplier's TIN and registered name</li>
+        <li class="ja">仕入先のTINと登録名</li>
+        <li class="en">Our TIN: <span class="num">457-994-635-00000</span></li>
+        <li class="ja">当社のTIN: <span class="num">457-994-635-00000</span></li>
+        <li class="en">Our name: SUSHIZEN JAPANESE RESTAURANT (registered to OMACHI JANINE THERESE DIAZ)</li>
+        <li class="ja">当社の名前: SUSHIZEN JAPANESE RESTAURANT（登録者 OMACHI JANINE THERESE DIAZ）</li>
+        <li class="en">The invoice number and the date</li>
+        <li class="ja">請求書番号と日付</li>
+      </ul>
+      <p class="en">A <strong>Non-VAT</strong> seller (a small market stall, for example) charges no VAT, so there is nothing to subtract — that is normal, not a mistake. An <strong>official receipt</strong> is not a VAT invoice and supports no input VAT either.</p>
+      <p class="ja"><strong>Non-VAT</strong>の売り手（小さな市場の店など）はVATを取らないので、差し引くものがありません。これは誤りではなく普通のことです。<strong>Official receipt（領収書）</strong>はVAT請求書ではないので、これもVATを差し引けません。</p>
+      <div class="note">
+        <p class="en"><strong>Tip for the stores.</strong> The most common reason we lose input VAT is a supermarket receipt without our TIN. Before paying at Cash &amp; Carry, Robinson's or similar, give the cashier our TIN <span class="num">457-994-635-00000</span> and name so they print it on the invoice.</p>
+        <p class="ja"><strong>店舗へのお願い。</strong>仕入のVATを失う一番多い原因は、当社のTINが無いスーパーのレシートです。Cash &amp; Carry や Robinson's などで払う前に、TIN <span class="num">457-994-635-00000</span> と名前をレジに伝えて、請求書に印字してもらってください。</p>
+      </div>
+    </section>
+
+    <!-- ───────────────────────────── 4 -->
+    <section id="screen">
+      <h2><span class="sec en">The page, top to bottom</span><span class="sec ja">画面を上から順に</span>
+        <span class="en">Reading the screen</span><span class="ja">画面の見方</span></h2>
+      <p class="en">The examples are the real 2026 Q4 page on 22 October 2026, while the quarter was still running. Click any screenshot to see it full size.</p>
+      <p class="ja">例は 2026年10月22日時点（四半期の途中）の実際の 2026 Q4 の画面です。スクリーンショットは押すと大きく表示されます。</p>
+
+      <h3><span class="en">The four boxes at the top</span><span class="ja">上部の4つの箱</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/01-header.jpg" alt="Quarter tabs and four summary boxes" loading="lazy" width="2400" height="754"></button>
+      </figure>
+      <ul>
+        <li class="en"><strong>VAT payable (so far)</strong> — item 56 of the 2550Q today. The small text says how much lower it can still go once the invoices to check and Grab's invoice come in.</li>
+        <li class="ja"><strong>VAT payable (so far)</strong> — 今日時点の 2550Q 項目56。小さい文字は、確認待ちの請求書と Grab の請求書が揃ったら最大いくら下がるかを示します。</li>
+        <li class="en"><strong>2550Q due</strong> — the deadline and the days left.</li>
+        <li class="ja"><strong>2550Q due</strong> — 期限と残り日数。</li>
+        <li class="en"><strong>Invoices to check</strong> — invoices whose VAT is waiting for a person. This is your main daily work (<a href="#check">how to clear them</a>).</li>
+        <li class="ja"><strong>Invoices to check</strong> — 人の確認を待っているVAT。毎日の主な作業はここです（<a href="#check">片付け方</a>）。</li>
+        <li class="en"><strong>Waiting for Grab's invoice</strong> — VAT on Grab's fees that we can only subtract once Grab sends its VAT invoice (<a href="#apps">more</a>).</li>
+        <li class="ja"><strong>Waiting for Grab's invoice</strong> — Grab の手数料にかかるVAT。Grab のVAT請求書が届くまで差し引けません（<a href="#apps">詳しく</a>）。</li>
+      </ul>
+
+      <h3><span class="en">BIR Form 2550Q</span><span class="ja">BIR Form 2550Q</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/02-form-2550q.jpg" alt="The 2550Q table with warnings above it" loading="lazy" width="2256" height="1856"></button>
+      </figure>
+      <p class="en">This is the form itself, line by line. Column <strong>A</strong> is sales or purchases, column <strong>B</strong> is the tax. When you file, you copy each line into eBIRForms by its item number.</p>
+      <p class="ja">申告書そのものを1行ずつ並べたものです。<strong>A</strong>列は売上・仕入、<strong>B</strong>列は税額です。申告するときは、項目番号ごとに eBIRForms に写します。</p>
+      <ul>
+        <li class="en">The yellow lines above the table say what is still open. <strong>File only when they are gone</strong>, or when you have decided to file without them.</li>
+        <li class="ja">表の上の黄色い行は、まだ終わっていないことです。<strong>黄色が消えてから申告する</strong>のが原則です（消えないまま申告すると決めた場合を除く）。</li>
+        <li class="en">The item numbers are those of the January 2023 form. On the April 2024 form, match the lines by their label.</li>
+        <li class="ja">項目番号は2023年1月版の様式のものです。2024年4月版では、行の名前で合わせてください。</li>
+        <li class="en">The badge top right says <span class="ui">Not closed · computed now</span> until the quarter is closed (<a href="#file">closing</a>).</li>
+        <li class="ja">右上の印は、四半期を締めるまで <span class="ui">Not closed · computed now</span> です（<a href="#file">締め方</a>）。</li>
+      </ul>
+
+      <h3><span class="en">Output VAT — our sales</span><span class="ja">Output VAT — 売上</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/03-output-vat.jpg" alt="Sales by store and channel with senior/PWD box" loading="lazy" width="2256" height="1142"></button>
+      </figure>
+      <ul>
+        <li class="en">Each store's dine-in, GrabFood and foodpanda sales, with the VAT inside each.</li>
+        <li class="ja">店舗ごとの店内・GrabFood・foodpanda の売上と、それぞれに含まれるVAT。</li>
+        <li class="en"><strong>"Not yet re-read 7 days later"</strong> — sales are read from StoreHub again a week later, because orders can still be cancelled. Those days can still move a little. This clears by itself.</li>
+        <li class="ja"><strong>「not yet re-read 7 days later」</strong> — 注文は後から取り消されることがあるので、売上は1週間後にもう一度 StoreHub から読み直します。それまでは少し動くことがあります。自然に消えます。</li>
+        <li class="en"><strong>Delivery apps</strong> — when the platform compensates us for a cancelled order, that compensation is a taxable sale and is added. Chargebacks are not deducted (owner decision, 21 October 2026).</li>
+        <li class="ja"><strong>Delivery apps</strong> — 取り消された注文をプラットフォームが補償した場合、その補償は課税売上として足されます。チャージバックは差し引きません（2026年10月21日のオーナー決定）。</li>
+        <li class="en"><strong>Senior / PWD</strong> — the exempt sales, and one yellow line per store with how many bills used the wrong discount button and the VAT they billed. Pass those to the store manager.</li>
+        <li class="ja"><strong>Senior / PWD</strong> — 免税の売上と、店舗ごとの黄色い行（割引ボタンを間違えた会計の件数と、印字されたVATの額）。店長に伝えてください。</li>
+      </ul>
+
+      <h3><span class="en">Input VAT — our purchases</span><span class="ja">Input VAT — 仕入</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/04-input-vat.jpg" alt="Deductible, to check and not deductible boxes" loading="lazy" width="2256" height="434"></button>
+      </figure>
+      <ul>
+        <li class="en"><strong>Deductible</strong> (green) — invoices that meet every rule. This total goes into the 2550Q.</li>
+        <li class="ja"><strong>Deductible</strong>（緑） — 全ての条件を満たした請求書。この合計が 2550Q に入ります。</li>
+        <li class="en"><strong>To check</strong> (yellow) — waiting for a person. Not counted until you decide.</li>
+        <li class="ja"><strong>To check</strong>（黄） — 人の判断待ち。判断するまで数えません。</li>
+        <li class="en"><strong>Not deductible</strong> — VAT printed but something the BIR requires is missing, or the seller is Non-VAT.</li>
+        <li class="ja"><strong>Not deductible</strong> — VATは印字されているがBIRの必須項目が欠けている、または Non-VAT の売り手。</li>
+      </ul>
+      <p class="en">Every purchase photo is read twice by the system. When the two readings agree and nothing is missing, it counts with no work from you.</p>
+      <p class="ja">仕入の写真は、システムが全て2回読み取ります。2回が一致し、欠けている項目が無ければ、何もしなくても数えられます。</p>
+    </section>
+
+    <!-- ───────────────────────────── 5 -->
+    <section id="check">
+      <h2><span class="sec en">Daily work</span><span class="sec ja">毎日の作業</span>
+        <span class="en">Checking invoices</span><span class="ja">請求書を確認する</span></h2>
+      <p class="en">The <strong>To check</strong> list holds VAT that only a person can decide. It is sorted oldest first. Each row takes under a minute.</p>
+      <p class="ja"><strong>To check</strong> の一覧は、人にしか決められないVATです。古い順に並んでいます。1件1分もかかりません。</p>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/05-to-check.jpg" alt="To check list with Our TIN, Not ours and reading buttons" loading="lazy" width="2256" height="1952"></button>
+      </figure>
+
+      <ol class="steps">
+        <li class="en">Press <span class="ui">Photo</span> on the right of the row. The invoice photo opens in a new tab.</li>
+        <li class="ja">行の右の <span class="ui">Photo</span> を押します。請求書の写真が新しいタブで開きます。</li>
+        <li class="en">Find <strong>Sold To</strong> and <strong>TIN</strong> on the photo, and compare them with what the row says was read.</li>
+        <li class="ja">写真の <strong>Sold To</strong> と <strong>TIN</strong> を探し、行に書かれた読み取り結果と比べます。</li>
+        <li class="en">Decide:
+          <ul>
+            <li>The photo shows <strong>our TIN exactly</strong> (457-994-635-00000) and our name (the restaurant's, or the owner's: OMACHI JANINE THERESE DIAZ) → press <span class="ui">Our TIN</span>. The system had misread it.</li>
+            <li>The photo shows <strong>another number or another business</strong> → press <span class="ui">Not ours</span>. If the supplier misprinted our TIN, it is still <em>not ours</em>: ask them for a corrected invoice.</li>
+          </ul>
+        </li>
+        <li class="ja">判断します。
+          <ul>
+            <li>写真に<strong>当社のTINが正確に</strong>（457-994-635-00000）、当社の名前（店名、またはオーナー名 OMACHI JANINE THERESE DIAZ）と一緒に印字されている → <span class="ui">Our TIN</span>。システムの読み間違いです。</li>
+            <li>写真に<strong>別の番号・別の会社</strong>が書かれている → <span class="ui">Not ours</span>。仕入先が当社のTINを書き間違えた場合も <em>Not ours</em> です。訂正した請求書を仕入先に依頼してください。</li>
+          </ul>
+        </li>
+        <li class="en">If the row says <strong>"Two readings of …"</strong>, the two readings disagreed. Press the button that matches what is printed on the photo.</li>
+        <li class="ja">行に <strong>「Two readings of …」</strong> と出ている場合は、2回の読み取りが食い違っています。写真に印字されている方のボタンを押します。</li>
+        <li class="en">When a row has both (an <span class="ui">Our TIN</span> question and two readings), answer both. It only counts once nothing is left open on it.</li>
+        <li class="ja">1つの行に両方（<span class="ui">Our TIN</span> の判断と2つの読み取り）がある場合は、両方に答えます。何も残っていない状態になって初めて数えられます。</li>
+        <li class="en">The row leaves the list. <span class="ui">Our TIN</span> moves it to <strong>Counted by a VAT decision</strong>; <span class="ui">Not ours</span> moves it to <strong>VAT printed but not deductible</strong>, marked "Decided not ours". Both show who decided, with an <span class="ui">Undo</span>.</li>
+        <li class="ja">行は一覧から消えます。<span class="ui">Our TIN</span> は <strong>Counted by a VAT decision</strong> へ、<span class="ui">Not ours</span> は「Decided not ours」と付いて <strong>VAT printed but not deductible</strong> へ移ります。どちらも判断した人の名前と <span class="ui">Undo</span> が出ます。</li>
+      </ol>
+
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/15-photo.jpg" alt="Invoice photo opened from the Photo link" loading="lazy" width="2880" height="1800"></button>
+        <figcaption class="en">What <span class="ui">Photo</span> opens: the paper invoice as the store photographed it. Sold To, TIN, invoice number, date and VAT amount are all on it.</figcaption>
+        <figcaption class="ja"><span class="ui">Photo</span> で開くもの: 店舗が撮った紙の請求書です。Sold To・TIN・請求書番号・日付・VAT額が全てここにあります。</figcaption>
+      </figure>
+
+      <div class="note">
+        <p class="en"><strong>What is "Pending #…" (or "Approved #…")?</strong> It opens the same invoice in the Invoice Inbox, where the purchasing team records it as a purchase. Approving there <strong>does not</strong> decide Our TIN / Not ours, or a choice between two readings: those are decided here. One exception: if a row says "Two readings disagree" but shows no buttons, the difference is between the values approved in the Inbox and a later reading; settle that one in the Inbox.</p>
+        <p class="ja"><strong>「Pending #…」（または「Approved #…」）とは</strong> — 同じ請求書を Invoice Inbox で開きます。そこは購買担当が仕入として記録する画面です。そこで承認しても、Our TIN / Not ours や2つの読み取りの選択は<strong>決まりません</strong>。それはこの画面で決めます。例外が1つあります。「Two readings disagree」と出ているのにボタンが無い行は、Inbox で承認した値と後の読み取りの違いです。それは Inbox で直してください。</p>
+      </div>
+      <div class="note warn">
+        <p class="en"><strong>A decision belongs to what was read.</strong> If the same invoice is read again later and the TIN or name comes out different, your decision stops applying and the invoice comes back to the list. This is on purpose: you decided on what you saw.</p>
+        <p class="ja"><strong>判断は、そのときの読み取りに対するものです。</strong>同じ請求書が後で読み直され、TINや名前が違って読めた場合、判断は効かなくなり、一覧に戻ります。これは意図した動きです（見たものについて判断したので）。</p>
+      </div>
+
+      <h3><span class="en">Counted by a VAT decision</span><span class="ja">Counted by a VAT decision（判断で数えたもの）</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/08-decided.jpg" alt="An invoice counted by a decision, with Undo" loading="lazy" width="2256" height="320"></button>
+      </figure>
+      <p class="en">Every invoice a person decided, with who decided it. Press <span class="ui">Undo</span> next to the decision to send it back to <strong>To check</strong>.</p>
+      <p class="ja">人が判断した請求書と、判断した人の名前です。判断の横の <span class="ui">Undo</span> を押すと <strong>To check</strong> に戻ります。</p>
+
+      <h3><span class="en">VAT printed but not deductible</span><span class="ja">VATは印字されているが控除できない</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/06-not-deductible.jpg" alt="Not deductible list with what each invoice misses" loading="lazy" width="2256" height="2262"></button>
+      </figure>
+      <p class="en">Each row says what is missing. The fix is with the supplier, not with us:</p>
+      <p class="ja">各行に、欠けている項目が書かれています。直すのは私たちではなく仕入先です。</p>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th><span class="en">The row says</span><span class="ja">表示</span></th><th><span class="en">What to do</span><span class="ja">対応</span></th></tr></thead>
+          <tbody>
+            <tr><td>Not made out to our TIN</td><td><span class="en">Ask the supplier for an invoice with our TIN and name. For supermarkets, the store gives the TIN at the counter next time.</span><span class="ja">当社のTINと名前を入れた請求書を仕入先に依頼します。スーパーの場合は、次回から店舗がレジでTINを伝えます。</span></td></tr>
+            <tr><td>Seller TIN missing</td><td><span class="en">The supplier's own TIN is not on the paper. Ask for a proper VAT invoice.</span><span class="ja">仕入先自身のTINが無い。正しいVAT請求書を依頼します。</span></td></tr>
+            <tr><td>No buyer name</td><td><span class="en">Our name is missing. Ask for a corrected invoice.</span><span class="ja">当社の名前が無い。訂正した請求書を依頼します。</span></td></tr>
+            <tr><td>Two readings disagree</td><td><span class="en">Open the photo and press the reading that is printed. If the right reading is complete, the invoice moves to Deductible. No buttons under it? Settle it in the Invoice Inbox (Pending/Approved #).</span><span class="ja">写真を開き、印字されている方を押します。正しい方の読み取りが揃っていれば Deductible に移ります。ボタンが無い場合は Invoice Inbox（Pending/Approved #）で直します。</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3><span class="en">Left out as a copy</span><span class="ja">重複として除いたもの</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/07-copies.jpg" alt="An invoice left out as a copy" loading="lazy" width="2256" height="218"></button>
+      </figure>
+      <p class="en">The same paper is sometimes photographed twice (once at receiving, once for the PO check). When the supplier TIN and invoice number match within the same quarter, the page counts it once by itself. It does not catch two copies whose dates were read into different quarters, or two photos read with different numbers, a person leaves one out; it is listed here and is in no total. <span class="ui">Undo</span> puts it back.</p>
+      <p class="ja">同じ紙が2回撮られることがあります（受領時と、POチェック時）。同じ四半期の中で仕入先TINと請求書番号が同じなら、画面が自動で1回だけ数えます。2枚の日付が別の四半期として読まれた場合や、違う番号で読まれた場合は自動では分かりません。その場合は、人が片方を除きます。除いたものはここに出て、どの合計にも入りません。<span class="ui">Undo</span> で戻せます。</p>
+      <div class="note warn">
+        <p class="en"><strong>There is no button on this page to leave a copy out yet.</strong> If you see the same invoice counted twice, send both photo links to Yukihiro.</p>
+        <p class="ja"><strong>重複を除くボタンは、この画面にはまだありません。</strong>同じ請求書が2回数えられているのを見つけたら、2つの Photo のリンクを Yukihiro に送ってください。</p>
+      </div>
+    </section>
+
+    <!-- ───────────────────────────── 6 -->
+    <section id="apps">
+      <h2><span class="sec en">Delivery platforms</span><span class="sec ja">デリバリー</span>
+        <span class="en">Grab and the delivery apps</span><span class="ja">Grab とデリバリーアプリ</span></h2>
+      <h3><span class="en">Waiting for Grab's VAT invoice</span><span class="ja">Grab のVAT請求書待ち</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/09-grab.jpg" alt="Grab commission, ads and cancelled-order fees by store" loading="lazy" width="2256" height="504"></button>
+      </figure>
+      <p class="en">Grab charges us commission, ads and cancelled-order fees, with VAT. The amounts are exact (Grab's own transactions), but the BIR only accepts the VAT with <strong>Grab's VAT invoice made out to our TIN and name</strong>. Until we have it, this VAT is not subtracted.</p>
+      <p class="ja">Grab は手数料・広告・キャンセル手数料をVAT込みで請求します。金額は Grab 自身の取引記録なので正確ですが、BIRが認めるのは<strong>当社のTINと名前宛の Grab のVAT請求書</strong>がある場合だけです。届くまで、このVATは差し引きません。</p>
+      <ul>
+        <li class="en">Request it from Grab Help &amp; Support, or open Finance → Reports in the Grab portal with the business-owner account.</li>
+        <li class="ja">Grab Help &amp; Support に依頼するか、Grab のポータルで事業主アカウントの Finance → Reports を開きます。</li>
+        <li class="en">The VAT is claimed in the quarter the invoice is received (or the return is amended).</li>
+        <li class="ja">VATは請求書を受け取った四半期で差し引きます（または申告を修正します）。</li>
+      </ul>
+      <p class="en">foodpanda's own invoices to us are already collected every day and count normally.</p>
+      <p class="ja">foodpanda から当社への請求書は毎日自動で取り込まれ、普通に数えられています。</p>
+
+      <h3><span class="en">Tax withheld by the delivery apps</span><span class="ja">デリバリーアプリの源泉徴収</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/10-withholding.jpg" alt="Tax withheld box" loading="lazy" width="2256" height="264"></button>
+      </figure>
+      <p class="en">Some platforms keep back a small tax from what they pay us. <strong>This is not VAT.</strong> It is income tax, and it can only be used with the platform's <strong>Form 2307</strong>. That is why item 16 of the 2550Q stays at 0. When a platform has withheld something, its row shows "Form 2307 not received": when the 2307 arrives, type the amount printed on it and press <span class="ui">2307 received</span> (<span class="ui">Undo</span> takes it back). Keep the 2307s for the income tax return. In 2026 Q4 so far, nothing was withheld.</p>
+      <p class="ja">プラットフォームによっては、入金の一部を税金として差し引きます。<strong>これはVATではありません。</strong>所得税で、プラットフォームの <strong>Form 2307</strong> がある場合だけ使えます。だから 2550Q の項目16は0のままです。プラットフォームが差し引いた場合、その行に「Form 2307 not received」と出ます。2307 が届いたら、印字された金額を入れて <span class="ui">2307 received</span> を押します（<span class="ui">Undo</span> で取り消せます）。2307 は所得税の申告用に保管してください。2026 Q4 は今のところ差し引きはありません。</p>
+    
+      <h3><span class="en">Dubai — Keeta's fees</span><span class="ja">ドバイ — Keeta の手数料</span></h3>
+      <p class="en">The last section of the page is for Dubai, not Manila. Each week the Keeta job reads Keeta's billing report and stores, by brand, store and day, what Keeta charged us (commission, bank fee, delivery subsidy) and the item discounts Keeta paid for. Amounts include VAT. <span class="ui">Keeta invoiced</span> equals Keeta's own invoice amount to the fils. The VAT in it (5/105) is <strong>not counted</strong>: in the UAE it is input tax only with Keeta's tax invoice, and Keeta's portal does not give one, so it waits until the invoice is found. Keeta's item discount is money we receive from Keeta for the food, so it belongs in taxable sales.</p>
+      <p class="ja">画面の最後の節はマニラではなくドバイ用です。週1回の Keeta の取込が Keeta の請求レポートを読み、ブランド×店舗×日で、Keeta が当店に請求したもの（手数料・銀行手数料・配達補助）と、Keeta が負担した商品割引を保存します。金額は VAT 込み。<span class="ui">Keeta invoiced</span> は Keeta 自身の請求額と1フィルスまで一致します。中の VAT（5/105）は<strong>数えていません</strong>。UAE では Keeta の税額票がある場合だけ差し引けますが、Keeta のポータルには税額票が無いため、見つかるまで待ちにしています。Keeta 負担の商品割引は Keeta から受け取る料理の対価なので、課税売上に入ります。</p>
+    </section>
+
+    <!-- ───────────────────────────── 7 -->
+    <section id="slsp">
+      <h2><span class="sec en">Quarter end</span><span class="sec ja">四半期末</span>
+        <span class="en">Summary lists (SLSP)</span><span class="ja">明細リスト（SLSP）</span></h2>
+      <p class="en">With the 2550Q, the BIR wants the Summary List of Sales and Purchases: one sales file and one purchase file for each month, six files a quarter. The page builds them in BIR's RELIEF format once the details below are filled in.</p>
+      <p class="ja">2550Q と一緒に、BIRは売上・仕入の明細リスト（SLSP）を求めます。月ごとに売上1つ・仕入1つ、四半期で6ファイルです。下の項目が揃えば、画面が BIR の RELIEF 形式で作ります。</p>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/11-slsp.jpg" alt="Sales and purchases readiness lists" loading="lazy" width="2256" height="628"></button>
+        <figcaption class="en">Each list says why it is not ready. The download buttons stay grey until nothing is left.</figcaption>
+        <figcaption class="ja">それぞれ、まだ作れない理由が出ます。理由が無くなるまでダウンロードボタンは押せません。</figcaption>
+      </figure>
+
+      <h3><span class="en">1 · Taxpayer details</span><span class="ja">1 · 納税者の情報</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/12-taxpayer.jpg" alt="Taxpayer form and month table with matching checks" loading="lazy" width="2256" height="1236"></button>
+      </figure>
+      <ol class="steps">
+        <li class="en">Have the <strong>Certificate of Registration</strong> (BIR Form 2303) in front of you.</li>
+        <li class="ja"><strong>登録証明書（BIR Form 2303）</strong>を手元に用意します。</li>
+        <li class="en">Press <span class="ui">Check and save</span>. Compare every field with the certificate. Fill in the <strong>RDO code</strong> and the <strong>registered address</strong>, which are only on the certificate.</li>
+        <li class="ja"><span class="ui">Check and save</span> を押します。全ての欄を証明書と見比べます。証明書にしか無い <strong>RDO code</strong> と <strong>登録住所</strong> を入力します。</li>
+        <li class="en">Press <span class="ui">Save</span>. This is needed once, not every quarter. Afterwards the button reads <span class="ui">Edit</span>.</li>
+        <li class="ja"><span class="ui">Save</span> を押します。毎回ではなく、最初の1回だけです。保存後はボタンが <span class="ui">Edit</span> になります。</li>
+      </ol>
+      <p class="en">Below the form, the green ticks show that each list total equals its 2550Q line. If one shows a yellow warning instead, the lists do not match the return, and the download stays off until they do.</p>
+      <p class="ja">フォームの下の緑のチェックは、リストの合計が 2550Q の各行と一致していることを示します。黄色の警告になっている行があれば、リストが申告書と合っていません。合うまでダウンロードはできません。</p>
+
+      <h3><span class="en">2 · Supplier addresses</span><span class="ja">2 · 仕入先の住所</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/13-supplier-addresses.jpg" alt="Supplier address list with Save, Read from photo and Confirm" loading="lazy" width="2256" height="2600"></button>
+      </figure>
+      <p class="en">BIR's checker refuses a purchase line without the supplier's address. Each supplier needs it once.</p>
+      <p class="ja">BIRの検証ツールは、仕入先の住所が無い行を受け付けません。仕入先ごとに1回入れれば済みます。</p>
+      <ul>
+        <li class="en"><strong>"no address"</strong> — type the address as printed on the supplier's invoice and press <span class="ui">Save</span>. Or press <span class="ui">Read from photo</span> to have it read (the button is there only when the supplier has a photo on file).</li>
+        <li class="ja"><strong>「no address」</strong> — 仕入先の請求書に印字された住所を入力して <span class="ui">Save</span>。または <span class="ui">Read from photo</span> で読み取らせます（写真がある仕入先にだけボタンが出ます）。</li>
+        <li class="en"><strong>"read from … — check"</strong> — an address was read from a photo. Compare it with the supplier's invoice (when the row has a <span class="ui">Photo</span> link, it opens that invoice in the Invoice Inbox; otherwise use the paper invoice), correct the text if needed, and press <span class="ui">Confirm</span>. A read address only counts after a person confirms it.</li>
+        <li class="ja"><strong>「read from … — check」</strong> — 写真から住所を読み取ったもの。仕入先の請求書と見比べ（行に <span class="ui">Photo</span> があれば Invoice Inbox でその請求書が開きます。無ければ紙の請求書で）、必要なら文字を直して <span class="ui">Confirm</span>。読み取った住所は、人が確認するまで使われません。</li>
+      </ul>
+
+      <h3><span class="en">3 · Download and validate</span><span class="ja">3 · ダウンロードと検証</span></h3>
+      <ol class="steps">
+        <li class="en">When both lists say ready, press <span class="ui">Sales files (3 + check workbook)</span> and <span class="ui">Purchase files (3 + check workbook)</span>. Each gives three monthly files plus a workbook to look through.</li>
+        <li class="ja">両方が ready になったら、<span class="ui">Sales files (3 + check workbook)</span> と <span class="ui">Purchase files (3 + check workbook)</span> を押します。それぞれ、月ごとの3ファイルと確認用のワークブックが出ます。</li>
+        <li class="en">Run the files through <strong>BIR's RELIEF validation module</strong> on the PC before sending them, and send them as it instructs.</li>
+        <li class="ja">送る前に、PCの <strong>BIR RELIEF 検証モジュール</strong>に通し、その指示どおりに送ります。</li>
+      </ol>
+      <p class="en">Sales are one "END CONSUMER" line a month, because the POS does not record buyers' TINs. A sale to a business that must be listed by name (a regular buyer, or ₱100,000 or more in one sale) has to be added by hand.</p>
+      <p class="ja">売上は月1行の「END CONSUMER」です（POSは買い手のTINを記録しないため）。名前で載せる必要がある事業者への売上（常連の法人、または1回₱100,000以上）は、手で追加する必要があります。</p>
+
+      <h3><span class="en">Deadline reminders</span><span class="ja">期限のリマインダー</span></h3>
+      <figure class="shot">
+        <button class="zoom" type="button"><img src="vat-guide/14-reminders.jpg" alt="Deadline reminders list with Add and Send me a test" loading="lazy" width="2256" height="652"></button>
+      </figure>
+      <p class="en">On the quarter's last day, and 10 days before the 2550Q is due, the people listed here get a Discord message saying what is still open. Type a name exactly as in the Staff list and press <span class="ui">Add</span>. <span class="ui">Send me a test</span> sends one only to you; it works once you are on the list with your Discord id. The next two dates are shown at the bottom. If a person shows "no Discord id", the reminder cannot reach them: type their Discord user id (17–20 digits) in the box on their row and save it.</p>
+      <p class="ja">四半期の最終日と、2550Q の期限の10日前に、ここに載っている人へ、まだ終わっていないことを Discord で知らせます。Staff 一覧と同じ名前を入れて <span class="ui">Add</span>。<span class="ui">Send me a test</span> は自分にだけ届きます（自分が一覧に入り、Discord ID が登録されている必要があります）。次の2回の日付が下に出ます。「no Discord id」と出ている人には届きません。その行の欄に Discord のユーザーID（17〜20桁）を入れて保存してください。</p>
+    </section>
+
+    <!-- ───────────────────────────── 8 -->
+    <section id="file">
+      <h2><span class="sec en">The last step</span><span class="sec ja">最後の作業</span>
+        <span class="en">Filing and closing the quarter</span><span class="ja">申告と四半期の締め</span></h2>
+      <ol class="steps">
+        <li class="en">Check that the yellow lines above the 2550Q table are gone (or that you have decided to file without them).</li>
+        <li class="ja">2550Q の表の上の黄色い行が消えていることを確認します（または、残したまま申告すると決めていること）。</li>
+        <li class="en">Open eBIRForms, Form 2550Q. Copy each line from the page, column A and column B, by item number.</li>
+        <li class="ja">eBIRForms で Form 2550Q を開きます。画面の各行の A列・B列を、項目番号ごとに写します。</li>
+        <li class="en">File and pay by the due date. Send the six SLSP files.</li>
+        <li class="ja">期限までに申告・納付します。SLSPの6ファイルを送ります。</li>
+        <li class="en">Back on the page, press <span class="ui">Close 2026 Q4</span> (the button appears once the quarter has ended). The figures are frozen as filed, and if input VAT was larger than output VAT, the next quarter carries it over as item 36.</li>
+        <li class="ja">画面に戻り <span class="ui">Close 2026 Q4</span> を押します（四半期が終わると出ます）。数字は申告したとおりに固定され、仕入のVATが売上のVATより多かった場合、次の四半期が項目36として繰り越します。</li>
+      </ol>
+      <div class="note">
+        <p class="en"><strong>Need to change a closed quarter?</strong> Press <span class="ui">Reopen…</span>, write why in a few words, then <span class="ui">Reopen</span>. The reason stays on record. Close again once the figures are right. A quarter cannot be reopened while the next one is closed, and a quarter cannot be closed while the one before it is reopened: close that one first. Close and Reopen appear only for people with Manage VAT Ledger.</p>
+        <p class="ja"><strong>締めた四半期を直したいとき</strong>は、<span class="ui">Reopen…</span> を押し、理由を短く書いて <span class="ui">Reopen</span>。理由は記録に残ります。数字が正しくなったら、もう一度締めます。次の四半期が締まっている間は開き直せません。また、前の四半期を開き直している間は締められません（先にそちらを締めます）。Close と Reopen は Manage VAT Ledger の権限がある人にだけ出ます。</p>
+      </div>
+    </section>
+
+    <!-- ───────────────────────────── 9 -->
+    <section id="calendar">
+      <h2><span class="sec en">Checklist</span><span class="sec ja">チェックリスト</span>
+        <span class="en">The quarter, step by step</span><span class="ja">四半期の流れ</span></h2>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th><span class="en">When</span><span class="ja">いつ</span></th><th><span class="en">What</span><span class="ja">やること</span></th></tr></thead>
+          <tbody>
+            <tr><td><span class="en">Every week</span><span class="ja">毎週</span></td><td><span class="en">Clear <strong>To check</strong>. Ask suppliers for corrected invoices from <strong>Not deductible</strong>. Pass senior/PWD wrong-button bills to the store managers.</span><span class="ja"><strong>To check</strong> を片付ける。<strong>Not deductible</strong> の仕入先に訂正請求書を依頼する。シニア・PWDのボタン間違いを店長に伝える。</span></td></tr>
+            <tr><td><span class="en">Quarter's last day</span><span class="ja">四半期の最終日</span></td><td><span class="en">Discord reminder. Request Grab's VAT invoice for the quarter. Ask the platforms for their Form 2307s.</span><span class="ja">Discord のリマインダー。Grab にその四半期のVAT請求書を依頼する。各プラットフォームに Form 2307 を依頼する。</span></td></tr>
+            <tr><td><span class="en">From the 8th of the next month</span><span class="ja">翌月8日以降</span></td><td><span class="en">Sales have been re-read; the "not yet re-read" line is gone. Fill in the taxpayer details (first time only) and supplier addresses.</span><span class="ja">売上の読み直しが終わり「not yet re-read」が消える。納税者情報（初回のみ）と仕入先の住所を入れる。</span></td></tr>
+            <tr><td><span class="en">10 days before the due date</span><span class="ja">期限の10日前</span></td><td><span class="en">Discord reminder. Download the SLSP files and run them through RELIEF.</span><span class="ja">Discord のリマインダー。SLSPファイルをダウンロードして RELIEF に通す。</span></td></tr>
+            <tr><td><span class="en">By the 25th</span><span class="ja">25日まで</span></td><td><span class="en">Copy the 2550Q into eBIRForms, file and pay. Send the SLSP files. Press <strong>Close</strong>.</span><span class="ja">2550Q を eBIRForms に写し、申告・納付。SLSPを送る。<strong>Close</strong> を押す。</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ───────────────────────────── 10 -->
+    <section id="words">
+      <h2><span class="sec en">Reference</span><span class="sec ja">参考</span>
+        <span class="en">Words used on the page</span><span class="ja">画面に出てくる言葉</span></h2>
+      <dl class="gloss">
+        <dt>BIR</dt><dd><span class="en">Bureau of Internal Revenue, the Philippine tax office.</span><span class="ja">フィリピンの国税庁。</span></dd>
+        <dt>TIN</dt><dd><span class="en">Tax Identification Number. Ours is 457-994-635-00000.</span><span class="ja">納税者番号。当社は 457-994-635-00000。</span></dd>
+        <dt>2550Q</dt><dd><span class="en">The quarterly VAT return.</span><span class="ja">四半期ごとのVAT申告書。</span></dd>
+        <dt>eBIRForms</dt><dd><span class="en">BIR's program where the 2550Q is filled in and filed.</span><span class="ja">2550Q を入力・申告するBIRのプログラム。</span></dd>
+        <dt>VATable sales</dt><dd><span class="en">Sales with VAT, shown without the VAT inside them.</span><span class="ja">VATがかかる売上（中のVATを除いた額）。</span></dd>
+        <dt>Exempt sales</dt><dd><span class="en">Sales with no VAT at all: seniors' and PWD meals.</span><span class="ja">VATがかからない売上。シニア・PWDの食事。</span></dd>
+        <dt>Zero-rated</dt><dd><span class="en">Sales taxed at 0% (exports). We have none.</span><span class="ja">税率0%の売上（輸出など）。当社には無い。</span></dd>
+        <dt>Non-VAT</dt><dd><span class="en">A seller not registered for VAT. Their invoices carry no VAT to subtract.</span><span class="ja">VAT登録していない売り手。差し引けるVATは無い。</span></dd>
+        <dt>COR · Form 2303</dt><dd><span class="en">Certificate of Registration. Has our RDO code and registered address.</span><span class="ja">登録証明書。RDO code と登録住所が書かれている。</span></dd>
+        <dt>RDO</dt><dd><span class="en">Revenue District Office, the BIR office we are registered with.</span><span class="ja">当社が登録している BIR の管轄事務所。</span></dd>
+        <dt>Form 2307</dt><dd><span class="en">Certificate of tax withheld, given by a platform. For income tax, not VAT.</span><span class="ja">源泉徴収の証明書（プラットフォームが発行）。所得税用でVATではない。</span></dd>
+        <dt>SLSP</dt><dd><span class="en">Summary List of Sales and Purchases, filed with the 2550Q.</span><span class="ja">売上・仕入の明細リスト。2550Q と一緒に出す。</span></dd>
+        <dt>RELIEF</dt><dd><span class="en">BIR's program that checks the SLSP files before they are sent.</span><span class="ja">SLSPファイルを送る前に検証するBIRのプログラム。</span></dd>
+        <dt>RMC 77-2024</dt><dd><span class="en">The BIR circular listing what a VAT invoice must show.</span><span class="ja">VAT請求書に必要な記載を定めたBIRの通達。</span></dd>
+      </dl>
+    </section>
+
+    <footer>
+      <p class="en">Screens as of 22 October 2026. If the page and this handbook disagree, tell Yukihiro: the handbook is updated whenever the VAT Ledger changes.</p>
+      <p class="ja">画面は2026年10月22日時点のものです。画面とこの手引きが食い違っていたら Yukihiro に伝えてください。VAT Ledger が変わるたびに手引きも更新します。</p>
+    </footer>
+  </main>
+</div>
+
+<div class="lightbox" id="lightbox" hidden>
+  <button type="button" id="lightbox-close">Close</button>
+  <img id="lightbox-img" alt="">
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var buttons = Array.prototype.slice.call(document.querySelectorAll(".langs button"));
+    function apply(lang) {
+      root.setAttribute("data-lang", lang);
+      root.setAttribute("lang", lang === "ja" ? "ja" : "en");
+      buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.set === lang)); });
+    }
+    var saved = null;
+    try { saved = localStorage.getItem("zen:vat-guide-lang"); } catch (e) { saved = null; }
+    apply(saved === "ja" ? "ja" : "en");
+    buttons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        apply(b.dataset.set);
+        try { localStorage.setItem("zen:vat-guide-lang", b.dataset.set); } catch (e) { /* not essential */ }
+      });
+    });
+
+    var box = document.getElementById("lightbox");
+    var big = document.getElementById("lightbox-img");
+    function shut() { box.hidden = true; big.removeAttribute("src"); document.body.style.overflow = ""; }
+    Array.prototype.forEach.call(document.querySelectorAll(".zoom"), function (z) {
+      z.addEventListener("click", function () {
+        var img = z.querySelector("img");
+        big.src = img.getAttribute("src"); big.alt = img.alt;
+        box.hidden = false; document.body.style.overflow = "hidden";
+        document.getElementById("lightbox-close").focus();
+      });
+    });
+    box.addEventListener("click", shut);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !box.hidden) shut(); });
+  })();
+</script>

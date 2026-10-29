@@ -7,6 +7,21 @@ import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 
 const API = "/api/admin/manila-payroll";
 
+// Clock-ins in a cutoff that have not reached the DTR yet. The allowance only
+// counts what is in the DTR, and Cutoff 2's 11th-15th belong to a payroll period
+// that is normally synced after the allowance is paid.
+interface UnsyncedCutoff {
+  days: number;
+  staff: number;
+  date_from: string | null;
+  date_to: string | null;
+  by_staff: Record<string, number>;
+  // Only the missing dates, split by payroll period. Paid periods are left out.
+  sync_ranges?: { date_from: string; date_to: string; period_id: number | null; period_label: string | null }[];
+  in_paid_period?: string[];
+}
+type Unsynced = { cutoff1: UnsyncedCutoff; cutoff2: UnsyncedCutoff } | null;
+
 interface AllowanceItem {
   id: number;
   staff_name: string;
@@ -77,16 +92,19 @@ export default function ManilaAllowancesPage() {
   const [success, setSuccess] = useState("");
   const [expandedStaff, setExpandedStaff] = useState<string | null>(null);
   const [patchingStaff, setPatchingStaff] = useState<string | null>(null);
+  const [unsynced, setUnsynced] = useState<Unsynced>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(async (m: string) => {
     setLoading(true); setError("");
     try {
-      const res = await apiGet<{ items: AllowanceItem[]; cutoff1: { start: string; end: string }; cutoff2: { start: string; end: string } }>(
+      const res = await apiGet<{ items: AllowanceItem[]; cutoff1: { start: string; end: string }; cutoff2: { start: string; end: string }; unsynced?: Unsynced }>(
         `${API}/allowances?month=${m}`
       );
       setItems(res.items || []);
       setCutoff1(res.cutoff1 || null);
       setCutoff2(res.cutoff2 || null);
+      setUnsynced(res.unsynced ?? null);
     } catch (e: any) {
       if (!String(e).includes("404")) setError(e?.message || String(e));
       setItems([]);
@@ -97,8 +115,8 @@ export default function ManilaAllowancesPage() {
 
   useEffect(() => { void load(month); }, [month, load]);
 
-  async function compute() {
-    if (!confirm(`Compute Meal Allowance & Perfect Attendance for ${month}?\n\nThis will recalculate from attendance data. Manual flags (No Prior Notice) will be preserved.`)) return;
+  async function compute(skipConfirm = false) {
+    if (!skipConfirm && !confirm(`Compute Meal Allowance & Perfect Attendance for ${month}?\n\nThis will recalculate from attendance data. Manual flags (No Prior Notice) will be preserved.`)) return;
     setComputing(true); setError(""); setSuccess("");
     try {
       const res = await apiPost<{
@@ -124,6 +142,52 @@ export default function ManilaAllowancesPage() {
       await load(month);
     } catch (e: any) { setError(e?.message || String(e)); }
     finally { setComputing(false); }
+  }
+
+  // Pull the missing days from OS Attendance into the DTR, then recompute.
+  //
+  // Only the missing dates are sent, one payroll period at a time: the sync
+  // rebuilds every unapproved row on a date it is given, so one range from the
+  // first gap to the last would rewrite weeks of other people's DTR. Dates in a
+  // paid period are never sent.
+  async function syncMissingAndRecompute() {
+    const ranges = [unsynced?.cutoff1, unsynced?.cutoff2].flatMap(c => c?.sync_ranges ?? []);
+    if (ranges.length === 0) return;
+    const label = ranges
+      .map(r => (r.date_from === r.date_to ? fmtDate(r.date_from) : `${fmtDate(r.date_from)} → ${fmtDate(r.date_to)}`))
+      .join(", ");
+    if (!confirm(
+      `Sync attendance into the DTR for ${label}, then recompute ${month}?\n\n` +
+      "On those dates every DTR row that is not yet approved is rebuilt from the clock-ins and the published shift, " +
+      "and open payroll runs of anyone whose days change are recomputed.",
+    )) return;
+    setSyncing(true); setError(""); setSuccess("");
+    let synced = 0, absent = 0, skipped = 0, recomputed = 0, heldBack = 0;
+    try {
+      for (const r of ranges) {
+        const res = await apiPost<{
+          synced?: number; synced_absent?: number;
+          skipped_suspicious?: unknown[]; skipped_no_shift?: unknown[];
+          recompute?: { recomputed?: unknown[]; held_back?: unknown[] } | null;
+        }>(`${API}/sync-dtr-os`, {
+          date_from: r.date_from, date_to: r.date_to,
+          ...(r.period_id ? { period_id: r.period_id } : {}),
+        });
+        synced += res.synced ?? 0;
+        absent += res.synced_absent ?? 0;
+        skipped += (res.skipped_suspicious?.length ?? 0) + (res.skipped_no_shift?.length ?? 0);
+        recomputed += res.recompute?.recomputed?.length ?? 0;
+        heldBack += res.recompute?.held_back?.length ?? 0;
+      }
+      await compute(true);
+      setSuccess(prev =>
+        `Synced ${synced} day${synced === 1 ? "" : "s"} (+${absent} absences) for ${label}.` +
+        (skipped ? ` ${skipped} skipped by the sync — open DTR Upload to see why.` : "") +
+        (recomputed ? ` ${recomputed} payroll run${recomputed === 1 ? "" : "s"} recomputed.` : "") +
+        (heldBack ? ` ${heldBack} held back.` : "") +
+        (prev ? ` ${prev}` : ""));
+    } catch (e: any) { setError(e?.message || String(e)); }
+    finally { setSyncing(false); }
   }
 
   async function patchFlag(
@@ -193,7 +257,7 @@ export default function ManilaAllowancesPage() {
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white"
           />
           <button
-            onClick={compute}
+            onClick={() => void compute()}
             disabled={computing || loading}
             className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500 disabled:opacity-50"
           >
@@ -204,6 +268,42 @@ export default function ManilaAllowancesPage() {
 
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>}
       {success && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{success}</div>}
+
+      {unsynced && (unsynced.cutoff1.days > 0 || unsynced.cutoff2.days > 0) && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 space-y-2">
+          <p className="font-medium">Some worked days are not in the DTR yet, so they are not counted below.</p>
+          <ul className="text-xs text-amber-200/90 space-y-0.5">
+            {(["cutoff1", "cutoff2"] as const).map(k => {
+              const u = unsynced[k];
+              if (!u || u.days === 0) return null;
+              return (
+                <li key={k}>
+                  {k === "cutoff1" ? "Cutoff 1" : "Cutoff 2"}: {u.days} day{u.days > 1 ? "s" : ""} from {u.staff} staff,{" "}
+                  {u.date_from === u.date_to ? fmtDate(u.date_from as string) : `${fmtDate(u.date_from as string)} → ${fmtDate(u.date_to as string)}`}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-xs text-amber-200/70">
+            Cutoff 2 runs to the 15th, but the 11th–15th belong to the next payroll period, which is normally synced after the 25th.
+            Sync those days before paying the allowance. Only the missing dates are synced. A day that stays here after syncing was skipped by the DTR sync — open DTR Upload to see why.
+          </p>
+          {[unsynced.cutoff1, unsynced.cutoff2].some(u => (u?.in_paid_period?.length ?? 0) > 0) && (
+            <p className="text-xs text-amber-200/70">
+              Not synced from here, because the payroll period is already paid:{" "}
+              {[unsynced.cutoff1, unsynced.cutoff2].flatMap(u => u?.in_paid_period ?? []).map(fmtDate).join(", ")}.
+            </p>
+          )}
+          <button
+            onClick={() => void syncMissingAndRecompute()}
+            disabled={syncing || computing || loading ||
+              ![unsynced.cutoff1, unsynced.cutoff2].some(u => (u?.sync_ranges?.length ?? 0) > 0)}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-900 transition hover:bg-amber-400 disabled:opacity-50"
+          >
+            {syncing ? "Syncing…" : "Sync these days and recompute"}
+          </button>
+        </div>
+      )}
 
       {/* Cutoff info */}
       {(cutoff1 || cutoff2) && (
@@ -361,6 +461,9 @@ export default function ManilaAllowancesPage() {
                                 {isV2(it) && (it.cutoff1_short_days ?? 0) > 0 && (
                                   <span className="text-amber-400/80"> · {it.cutoff1_short_days} dropped, under 6h</span>
                                 )}
+                                {(unsynced?.cutoff1.by_staff?.[it.staff_name] ?? 0) > 0 && (
+                                  <span className="text-amber-300"> · {unsynced?.cutoff1.by_staff[it.staff_name]} more not in the DTR yet</span>
+                                )}
                               </p>
                               {isV2(it) && (
                                 <p className="text-[10px] text-zinc-500 pt-0.5">
@@ -394,6 +497,9 @@ export default function ManilaAllowancesPage() {
                                 {isV2(it) ? "Days paid" : "Working days"}: <span className="text-zinc-200">{it.cutoff2_working_days}</span>
                                 {isV2(it) && (it.cutoff2_short_days ?? 0) > 0 && (
                                   <span className="text-amber-400/80"> · {it.cutoff2_short_days} dropped, under 6h</span>
+                                )}
+                                {(unsynced?.cutoff2.by_staff?.[it.staff_name] ?? 0) > 0 && (
+                                  <span className="text-amber-300"> · {unsynced?.cutoff2.by_staff[it.staff_name]} more not in the DTR yet</span>
                                 )}
                               </p>
                               {isV2(it) && (
@@ -457,7 +563,7 @@ export default function ManilaAllowancesPage() {
       {monthIsV2 ? (
         <p className="text-xs text-zinc-600">
           Meal allowance: ₱50 for every day worked. A shift under 6 hours (punch span minus the scheduled break) does not
-          count as a day. Back Office staff hired after the policy change do not receive it. Nothing else removes it.
+          count as a day; 15 minutes short or less still counts. Back Office staff hired after the policy change do not receive it. Nothing else removes it.
           <br />
           Perfect attendance ₱500, lost by: any absence without pay, being late twice or more, more than 30 minutes
           late in total, an unapproved shift change, or no advance notice of tardiness — the last must be flagged

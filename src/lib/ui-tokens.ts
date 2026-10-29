@@ -13,6 +13,8 @@ export const DANGER_BUTTON = "rounded-xl border border-red-500/30 bg-red-500/15 
 
 // Inputs
 export const INPUT_CLASS = "w-full rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none transition-all duration-200 focus:border-violet-500/50 focus:bg-white/10 focus:ring-2 focus:ring-violet-500/20";
+/** A small inline input (a TIN, a Discord id, a name in a row) — INPUT_CLASS is for full-width form fields. */
+export const INPUT_COMPACT_CLASS = "rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-sm text-white placeholder:text-zinc-500 outline-none transition-all duration-200 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
 export const SELECT_CLASS = "w-full appearance-none cursor-pointer rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
 export const TEXTAREA_CLASS = "w-full rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all duration-200 focus:border-violet-500/50 focus:bg-white/10 focus:ring-2 focus:ring-violet-500/20 resize-none";
 
@@ -48,3 +50,15 @@ export const BADGE_ACCENT = "inline-flex items-center gap-1.5 rounded-full bg-pu
 
 // Misc
 export const DIVIDER = "my-6 border-t border-white/5";
+
+// A table that stacks on a phone: below `sm` each row becomes a block, each cell a
+// "label ... value" line, and the header is hidden; from `sm` up it is a normal
+// table. Put the table's min width as `sm:min-w-[...]` so a phone never scrolls the
+// amounts off the screen (VAT Ledger, 2026-10-22: five tables did at 375px).
+export const STACK_TABLE = "block w-full text-sm sm:table";
+export const STACK_HEAD = "hidden sm:table-header-group";
+export const STACK_BODY = "block sm:table-row-group";
+export const STACK_ROW = "block py-2 sm:table-row sm:py-0";
+export const STACK_CELL = "flex items-baseline justify-between gap-3 py-0.5 text-right sm:table-cell sm:py-2";
+export const STACK_TITLE = "block py-0.5 font-medium sm:table-cell sm:py-2 sm:font-normal";
+export const STACK_LABEL = "shrink-0 text-left text-[11px] font-normal text-zinc-500 sm:hidden";

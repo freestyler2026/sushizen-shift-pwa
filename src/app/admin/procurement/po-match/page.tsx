@@ -1,8 +1,9 @@
 "use client";
 
 import { isoToday, isoDate } from "@/lib/date";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Fragment, createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { prepareDataUrl } from "@/lib/image-compress";
+import ModalScrim from "@/components/ModalScrim";
 import {
   AlertTriangle,
   Camera,
@@ -99,6 +100,8 @@ type CheckRow = {
   entered_by: string;
   notes: string;
   photo_data: string;
+  /** The list sends only whether a photo exists; the image is fetched per record. */
+  has_photo_data?: boolean;
   extra_photos?: string[];
   created_at: string;
   branch?: string;
@@ -230,6 +233,57 @@ function getInitialCity(): string {
 }
 
 function getCurrency(city: string) { return city === "manila" ? "PHP" : "AED"; }
+
+/** Manila invoices print their prices with the 12% VAT already in them (the line
+ *  amounts add up to the total due), so adding a VAT rate on top counts it twice.
+ *  The VAT itself is read from the invoice photo by the VAT Ledger; nothing is
+ *  typed here. Dubai invoices are priced before VAT, so the rate stays there. */
+function addsVatOnTop(city: string) { return city !== "manila"; }
+
+/** The invoice photos of one PO match record, fetched when someone asks for them.
+ *  The list carries only `has_photo_data` (a hundred base64 images exhausted the
+ *  server's memory), so a record's main photo is read on its own. */
+function InvoicePhotos({ id, hasMain, extras }: { id: string; hasMain: boolean; extras: string[] }) {
+  const [main, setMain] = useState<string | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "missing" | "error">("idle");
+  const [big, setBig] = useState<string | null>(null);
+  const load = () => {
+    setState("loading");
+    apiFetch(`/procurement/po-invoice-checks/${encodeURIComponent(id)}/photo`)
+      .then((d: any) => { if (d?.photo) { setMain(d.photo); setState("idle"); } else setState("missing"); })
+      .catch(() => setState("error"));
+  };
+  if (!hasMain && extras.length === 0) return <span className={T_CAPTION}>No invoice photo attached.</span>;
+  const shown = [...(main ? [main] : []), ...extras];
+  return (
+    <div>
+      {hasMain && !main && (
+        <button type="button" className={SECONDARY_BUTTON} disabled={state === "loading"} onClick={load}>
+          <Camera size={14} className="mr-1.5 inline" />
+          {state === "loading" ? "Opening…" : "View invoice photo"}
+        </button>)}
+      {state === "missing" && <p className={`mt-1 ${T_CAPTION}`}>The photo could not be found on file.</p>}
+      {state === "error" && <p className="mt-1 text-xs text-red-300">Could not open the photo. Try again.</p>}
+      {shown.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-3">
+          {shown.map((src, i) => (
+            <button key={i} type="button" onClick={() => setBig(src)} className="relative inline-block" title="Open full size">
+              <img src={src} alt={`Invoice photo ${i + 1}`} className="max-h-48 rounded-xl border border-white/10 object-contain" />
+              <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-zinc-300">{i + 1}</span>
+            </button>))}
+        </div>)}
+      {big && (
+        <ModalScrim className="bg-black/85">
+          <div className="mx-auto my-4 max-w-5xl">
+            <div className="mb-2 flex justify-end">
+              <button type="button" className={SECONDARY_BUTTON} onClick={() => setBig(null)}>Close</button>
+            </div>
+            <img src={big} alt="Invoice photo, full size" className="w-full rounded-xl object-contain" />
+          </div>
+        </ModalScrim>)}
+    </div>
+  );
+}
 
 const DISCREPANCY_TYPES = [
   { value: "PRICE", label: "Price Error — unit price differs from PO" },
@@ -835,7 +889,7 @@ function QuickEntryTab({
   const tolPct = settings?.tolerance_pct ?? 0.005;
   const poAmount = selectedPo ? selectedPo.po_amount : parseFloat(manualPoAmount || "0");
   const invAmount = parseFloat(invoiceAmount || "0");
-  const vatRateVal = parseFloat(vatRate || "0");
+  const vatRateVal = addsVatOnTop(city) ? parseFloat(vatRate || "0") : 0;
   const vatAmountVal = Math.round(invAmount * vatRateVal) / 100;
   const grandTotalVal = invAmount + vatAmountVal;
   const variance = invAmount - poAmount;
@@ -1420,6 +1474,7 @@ function QuickEntryTab({
           </div>
 
           {/* VAT fields */}
+          {addsVatOnTop(city) ? (<>
           <div>
             <label className={T_LABEL}>VAT Rate (%)</label>
             <div className="relative mt-1.5">
@@ -1448,6 +1503,15 @@ function QuickEntryTab({
               )}
             </div>
           </div>
+          </>) : (
+          <div className="sm:col-span-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+            <p className={T_LABEL}>VAT</p>
+            <p className="mt-1 text-sm text-zinc-300">
+              Nothing to enter. Manila invoice prices already include VAT, so the Invoice Amount above is the invoice total.
+              The VAT Ledger reads the VAT amount from the attached invoice photo.
+            </p>
+          </div>
+          )}
         </div>
 
         {/* Live match preview — only show after invoice number is entered */}
@@ -1700,7 +1764,7 @@ function DiscrepancyQueueTab() {
               <span className={T_CAPTION}>{row.invoice_no}</span>
               <MatchBadge status={row.match_status} variance={row.variance_amount} />
               <PaymentStatusBadge row={row} />
-              {row.photo_data && <span title="Has photo"><Camera size={12} className="text-violet-400" /></span>}
+              {(row.has_photo_data || row.photo_data) && <span title="Has photo"><Camera size={12} className="text-violet-400" /></span>}
             </div>
             <div className="flex items-center gap-3 text-right">
               <span className={`${T_CAPTION} hidden sm:block`}>{row.created_at?.slice(0, 10)}</span>
@@ -1745,27 +1809,10 @@ function DiscrepancyQueueTab() {
               )}
 
               {/* Photo display */}
-              {(row.photo_data || (row.extra_photos?.length ?? 0) > 0) && (
-                <div className="mt-4">
-                  <p className={`${T_LABEL} mb-1.5`}>
-                    Invoice Photo{((row.extra_photos?.length ?? 0) > 0) ? `s (${1 + (row.extra_photos?.length ?? 0)})` : ""}
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    {row.photo_data && (
-                      <div className="relative inline-block">
-                        <img src={row.photo_data} alt="Invoice 1" className="max-h-48 rounded-xl border border-white/10 object-contain" />
-                        <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-zinc-300">1</span>
-                      </div>
-                    )}
-                    {(row.extra_photos ?? []).map((src, i) => (
-                      <div key={i} className="relative inline-block">
-                        <img src={src} alt={`Invoice ${i + 2}`} className="max-h-48 rounded-xl border border-white/10 object-contain" />
-                        <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-zinc-300">{i + 2}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="mt-4">
+                <p className={`${T_LABEL} mb-1.5`}>Invoice Photo</p>
+                <InvoicePhotos id={String(row.id)} hasMain={!!(row.has_photo_data || row.photo_data)} extras={row.extra_photos ?? []} />
+              </div>
 
               {/* Supplier contact tracking */}
               {!row.resolved_by && (
@@ -1952,12 +1999,13 @@ function DiscrepancyQueueTab() {
 
 // ─── Tab 3: All Records ───────────────────────────────────────────────────────
 
-function AllRecordsTab() {
+function AllRecordsTab({ focusCheck = "" }: { focusCheck?: string }) {
   const city = useCity();
   const currency = getCurrency(city);
   const [rows, setRows] = useState<CheckRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [photoOpen, setPhotoOpen] = useState<string | null>(null);
   const [vendorFilter, setVendorFilter] = useState("");
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30);
@@ -1979,6 +2027,18 @@ function AllRecordsTab() {
   }, [vendorFilter, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Opened from a Manager Inbox price alert: show that check and its lines
+  // first. The alert names the item; this is where the PO, the invoice and the
+  // photo are.
+  const [focusLines, setFocusLines] = useState<CheckLine[] | null>(null);
+  useEffect(() => {
+    if (!focusCheck) return;
+    apiFetch(`/procurement/po-match/${encodeURIComponent(focusCheck)}/lines`)
+      .then((d: any) => setFocusLines(d?.lines || []))
+      .catch(() => setFocusLines([]));
+  }, [focusCheck]);
+  const focusRow = focusCheck ? rows.find(r => String(r.id) === focusCheck) : undefined;
 
   const handleDelete = async (id: string, vendorName: string) => {
     if (!confirm(`Delete this record?\n\n${vendorName}\n\nThis cannot be undone.`)) return;
@@ -2017,6 +2077,32 @@ function AllRecordsTab() {
         </button>
       </div>
 
+      {focusCheck && (
+        <div className={`${GLASS_CARD} border border-violet-500/40 p-4`}>
+          <p className={T_LABEL}>From the Manager Inbox</p>
+          {focusRow ? (
+            <p className="mt-1 text-sm text-zinc-200">
+              <span className="font-semibold">{focusRow.vendor_name}</span>
+              {" · "}{focusRow.po_no || "no PO no."}
+              {focusRow.branch ? <> · {focusRow.branch}</> : null}
+              {" · invoice "}{focusRow.invoice_no || "—"}
+              {" · "}{focusRow.created_at?.slice(0, 10)}
+            </p>
+          ) : !loading ? (
+            <p className="mt-1 text-sm text-amber-300">
+              This invoice check is not in the dates shown. Widen From / To and search again.
+            </p>
+          ) : null}
+          {focusLines === null ? (
+            <p className="mt-2 text-xs text-zinc-500">Loading lines…</p>
+          ) : focusLines.length > 0 ? (
+            <div className="mt-3 overflow-x-auto"><CheckLinesTable lines={focusLines} currency={currency} /></div>
+          ) : (
+            <p className="mt-2 text-xs text-zinc-500">No lines recorded on this check.</p>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-3">
         <div className={KPI_CARD}><p className={KPI_LABEL}>Total Checks</p><p className="mt-1 text-2xl font-bold text-white">{rows.length}</p></div>
         <div className={KPI_CARD}><p className={KPI_LABEL}>Match Rate</p><p className={`mt-1 text-2xl font-bold ${matchRate >= 90 ? "text-emerald-400" : matchRate >= 70 ? "text-amber-400" : "text-red-400"}`}>{matchRate}%</p></div>
@@ -2043,17 +2129,17 @@ function AllRecordsTab() {
               <tr><td colSpan={9} className="py-8 text-center text-sm text-zinc-500">{loading ? "Loading…" : "No records found."}</td></tr>
             )}
             {rows.map(row => (
-              <tr key={row.id} className={TABLE_ROW}>
+              <Fragment key={row.id}>
+              <tr className={`${TABLE_ROW} ${focusCheck && String(row.id) === focusCheck ? "bg-violet-500/10" : ""}`}>
                 <td className={`${TABLE_CELL} pl-4 text-zinc-400`}>{row.created_at?.slice(0, 10)}</td>
                 <td className={`${TABLE_CELL} pr-3 font-medium text-zinc-200`}>
                   {row.vendor_name}
-                  {row.photo_data && (
-                    <span title={`${1 + (row.extra_photos?.length ?? 0)} photo(s)`}>
-                      <Camera size={11} className="ml-1 inline text-violet-400" />
-                      {(row.extra_photos?.length ?? 0) > 0 && (
-                        <span className="ml-0.5 text-[10px] text-violet-400">{1 + (row.extra_photos?.length ?? 0)}</span>
-                      )}
-                    </span>
+                  {(row.has_photo_data || row.photo_data || (row.extra_photos?.length ?? 0) > 0) && (
+                    <button type="button" onClick={() => setPhotoOpen(photoOpen === row.id ? null : row.id)}
+                      className="ml-2 inline-flex items-center gap-1 text-[12px] font-normal text-violet-300 hover:text-violet-200"
+                      aria-expanded={photoOpen === row.id}>
+                      <Camera size={12} />{photoOpen === row.id ? "Hide photo" : "Photo"}
+                    </button>
                   )}
                 </td>
                 <td className={`${TABLE_CELL} pr-3 text-zinc-400`}>{row.branch || "—"}</td>
@@ -2078,6 +2164,13 @@ function AllRecordsTab() {
                   </button>
                 </td>
               </tr>
+              {photoOpen === row.id && (
+                <tr>
+                  <td colSpan={9} className="px-4 pb-4">
+                    <InvoicePhotos id={String(row.id)} hasMain={!!(row.has_photo_data || row.photo_data)} extras={row.extra_photos ?? []} />
+                  </td>
+                </tr>)}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -2265,6 +2358,7 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
             </div>
           </div>
 
+          {addsVatOnTop(city) ? (
           <div className="sm:col-span-2">
             <label className={T_LABEL}>Default VAT Rate (%)</label>
             <p className={`${T_CAPTION} mt-0.5`}>Pre-fills the VAT rate field in Quick Entry for this city. Set to 0 to disable.</p>
@@ -2278,6 +2372,12 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">%</span>
             </div>
           </div>
+          ) : (
+          <div className="sm:col-span-2">
+            <label className={T_LABEL}>VAT</label>
+            <p className={`${T_CAPTION} mt-0.5`}>Not added in Manila: invoice prices already include VAT. The VAT Ledger reads the VAT from the invoice photo.</p>
+          </div>
+          )}
         </div>
 
         {/* Preview table */}
@@ -2334,6 +2434,18 @@ type Tab = "entry" | "queue" | "records" | "scorecard" | "settings";
 
 export default function PoMatchPage() {
   const [tab, setTab] = useState<Tab>("entry");
+  // ?tab=records&check=<id>&city=<city> -- the link a Manager Inbox price alert
+  // carries. Read after mount (the HTML is prerendered for everyone).
+  const [focusCheck, setFocusCheck] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get("tab");
+    if (t === "entry" || t === "queue" || t === "records" || t === "scorecard" || t === "settings") setTab(t);
+    const c = (q.get("city") || "").toLowerCase();
+    if (c === "manila" || c === "dubai") setCity(c);
+    setFocusCheck(q.get("check") || "");
+  }, []);
   const [discrepancyCount, setDiscrepancyCount] = useState(0);
   const [settings, setSettings] = useState<MatchSettings | null>(null);
   const [city, setCity] = useState<string>(getInitialCity);
@@ -2435,7 +2547,7 @@ export default function PoMatchPage() {
 
           {tab === "entry" && <QuickEntryTab key={`entry-${city}`} onSaved={refreshBadge} settings={settings} />}
           {tab === "queue" && <DiscrepancyQueueTab key={`queue-${city}`} />}
-          {tab === "records" && <AllRecordsTab key={`records-${city}`} />}
+          {tab === "records" && <AllRecordsTab key={`records-${city}`} focusCheck={focusCheck} />}
           {tab === "scorecard" && <SupplierScorecardTab key={`scorecard-${city}`} />}
           {tab === "settings" && <SettingsTab key={`settings-${city}`} onSettingsChange={setSettings} />}
         </div>

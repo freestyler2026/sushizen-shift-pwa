@@ -104,6 +104,7 @@ import { ManilaOverallRatingsTab } from "@/components/analytics/ManilaOverallRat
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
 import DubaiMonthlySummaryTable from "@/components/analytics/dubai/DubaiMonthlySummaryTable";
+import DubaiSalesCheckPanel from "@/components/analytics/dubai/DubaiSalesCheckPanel";
 import { ManilaSalesDataTab } from "@/components/analytics/ManilaSalesDataTab";
 import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashierEvaluationTab";
 import { ManilaCancellationsTab } from "@/components/analytics/ManilaCancellationsTab";
@@ -513,21 +514,6 @@ type PosMenuRankingRow = {
 
 type PosMenuRankingResp = { ok: boolean; items: PosMenuRankingRow[] };
 
-type ProductMixRankingRow = {
-  product_a_name: string;
-  product_b_name: string;
-  major_orders: number;
-  mix_orders: number;
-  ratio: number;
-};
-
-type ProductMixRankingResp = {
-  ok: boolean;
-  coverage_from?: string | null;
-  coverage_to?: string | null;
-  source_file_name?: string;
-  items: ProductMixRankingRow[];
-};
 
 type PosAnalyticsLatestCoverageResp = {
   ok: boolean;
@@ -1414,7 +1400,6 @@ const SALES_SECTION_OPTIONS = [
   { value: "menu", label: "Menu", id: "sales-menu" },
   { value: "stores", label: "Stores", id: "sales-stores" },
   { value: "daily", label: "Daily", id: "sales-daily" },
-  { value: "productMix", label: "Product Mix", id: "sales-product-mix" },
   { value: "cancelOrders", label: "Cancel Orders", id: "sales-cancel-orders" },
   { value: "dataCheck", label: "Data Check", id: "sales-data-check" },
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
@@ -2333,7 +2318,6 @@ export default function AdminAnalyticsPage() {
     | "operationTime"
     | "brands"
     | "cancelOrders"
-    | "productMix"
     | "menu"
     | "stores"
     | "daily"
@@ -2398,8 +2382,6 @@ export default function AdminAnalyticsPage() {
   const [posSalesRows, setPosSalesRows] = useState<PosSalesDailyRow[]>([]);
   const [posSalesRangeTotals, setPosSalesRangeTotals] = useState<PosSalesDailyTotals | null>(null);
   const [posMenuRankingRows, setPosMenuRankingRows] = useState<PosMenuRankingRow[]>([]);
-  const [productMixRankingRows, setProductMixRankingRows] = useState<ProductMixRankingRow[]>([]);
-  const [productMixCoverage, setProductMixCoverage] = useState<{ from?: string | null; to?: string | null; source?: string }>({});
   const [posBranchOrderRows, setPosBranchOrderRows] = useState<PosBranchOrderRow[]>([]);
   const [posBrandOrderRows, setPosBrandOrderRows] = useState<PosBrandOrderRow[]>([]);
   const [posBranchDailyRows, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
@@ -2718,6 +2700,7 @@ export default function AdminAnalyticsPage() {
   const [dubaiSyncStatus, setDubaiSyncStatus] = useState<{
     today: { sync_date: string; attempt_count: number; last_status: string | null; last_success_at: string | null; last_error: string | null };
     history: { sync_date: string; status: string; processed_count: number; error_message: string | null }[];
+    file_gaps?: PosFileGaps;
   } | null>(null);
   const [manilaSyncStatus, setManilaSyncStatus] = useState<{
     today: { sync_date: string; attempt_count: number; last_status: string | null; last_success_at: string | null; last_error: string | null };
@@ -2767,7 +2750,6 @@ export default function AdminAnalyticsPage() {
       { key: "operation_time", label: "Op Time", getCell: (row) => row.operation_time },
       { key: "cancel_order_type", label: "Cancel Type", getCell: (row) => row.cancel_order_type },
       { key: "cancel_breakdown", label: "Cancel Breakdown", getCell: (row) => row.cancel_breakdown },
-      { key: "product_mix", label: "Product Mix", getCell: (row) => row.product_mix },
     ],
     [],
   );
@@ -3238,12 +3220,12 @@ export default function AdminAnalyticsPage() {
     if (analyticsTab !== "dubaiSales") return;
     if (!salesStepUpReady) return;
     const controller = new AbortController();
-    apiGet<{ ok: boolean; today: never; history: never[] }>(
+    apiGet<{ ok: boolean; today: never; history: never[]; file_gaps?: PosFileGaps }>(
       "/api/admin/pos/dubai-sync-status?city=dubai&days=7",
     )
       .then((d) => {
         if (!controller.signal.aborted && d?.ok) {
-          setDubaiSyncStatus({ today: d.today, history: d.history });
+          setDubaiSyncStatus({ today: d.today, history: d.history, file_gaps: d.file_gaps });
         }
       })
       .catch(() => {/* non-critical */});
@@ -3439,22 +3421,6 @@ export default function AdminAnalyticsPage() {
               () => setPosMenuRankingRows([])
             ),
             loadSalesDataset(
-              "Product mix",
-              () => apiGet<ProductMixRankingResp>(`/api/admin/pos/product-mix?${posRankingQs.toString()}`),
-              (productMix) => {
-                setProductMixRankingRows(productMix.items || []);
-                setProductMixCoverage({
-                  from: productMix.coverage_from ?? null,
-                  to: productMix.coverage_to ?? null,
-                  source: productMix.source_file_name || "",
-                });
-              },
-              () => {
-                setProductMixRankingRows([]);
-                setProductMixCoverage({});
-              }
-            ),
-            loadSalesDataset(
               "Branch ranking",
               () => apiGet<PosBranchOrderResp>(`/api/admin/pos/branches/orders?${posRankingQs.toString()}`),
               (posBranches) => setPosBranchOrderRows(posBranches.items || []),
@@ -3554,8 +3520,6 @@ export default function AdminAnalyticsPage() {
           setPosSalesRows([]);
           setPosSalesRangeTotals(null);
           setPosMenuRankingRows([]);
-          setProductMixRankingRows([]);
-          setProductMixCoverage({});
           setPosBranchOrderRows([]);
           setPosBrandOrderRows([]);
           setPosBranchDailyRows([]);
@@ -6086,6 +6050,12 @@ export default function AdminAnalyticsPage() {
             );
           })()}
 
+          {analyticsTab === "dubaiSales" && dubaiSyncStatus?.file_gaps ? (
+            <PosFileGapsPanel gaps={dubaiSyncStatus.file_gaps} />
+          ) : null}
+
+          {analyticsTab === "dubaiSales" && salesStepUpReady ? <DubaiSalesCheckPanel /> : null}
+
           <div className={TAB_CONTAINER}>
             {analyticsTabs.filter((tab) => tab.visible).map((tab) => (
               <button
@@ -8026,117 +7996,8 @@ export default function AdminAnalyticsPage() {
               </>
             ) : null}
 
-            {salesSectionView === "all" || salesSectionView === "productMix" ? (() => {
-              // Group rows by Product A
-              const pmRows = productMixRankingRows;
-              const groupMap = new Map<string, { majorOrders: number; companions: typeof pmRows }>();
-              pmRows.forEach((row) => {
-                const key = String(row.product_a_name || "").trim();
-                if (!groupMap.has(key)) groupMap.set(key, { majorOrders: Number(row.major_orders || 0), companions: [] });
-                groupMap.get(key)!.companions.push(row);
-              });
-              const groups = Array.from(groupMap.entries());
-              const maxRatio = Math.max(...pmRows.map((r) => Number(r.ratio || 0)));
-
-              function ratioBarColor(ratio: number): string {
-                const pct = ratio * 100;
-                if (pct >= 12) return "bg-violet-500";
-                if (pct >= 8)  return "bg-blue-500";
-                if (pct >= 4)  return "bg-emerald-500";
-                return "bg-neutral-500";
-              }
-              function ratioBadgeColor(ratio: number): string {
-                const pct = ratio * 100;
-                if (pct >= 12) return "bg-violet-500/20 text-violet-300";
-                if (pct >= 8)  return "bg-blue-500/20 text-blue-300";
-                if (pct >= 4)  return "bg-emerald-500/20 text-emerald-300";
-                return "bg-neutral-700/30 text-neutral-400";
-              }
-
-              return (
-              <div id="sales-product-mix" className={GLASS_CARD + " p-5"}>
-                {/* Header */}
-                <div className="mb-5 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Table2 className="h-4 w-4 text-violet-400" />
-                      <h2 className={SECTION_TITLE}>Product Mix Ranking</h2>
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-neutral-500">
-                      {productMixCoverage.from && productMixCoverage.to
-                        ? `Coverage: ${productMixCoverage.from} → ${productMixCoverage.to}`
-                        : "No Product Mix import found yet."}
-                      {summaryBranchCode && ` · ${(BRANCH_OPTIONS[salesCity] || []).find((opt) => opt.value === summaryBranchCode)?.label || summaryBranchCode}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] text-neutral-600">
-                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-violet-500" />≥12%</span>
-                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-blue-500" />≥8%</span>
-                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-emerald-500" />≥4%</span>
-                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-neutral-500" />&lt;4%</span>
-                  </div>
-                </div>
-
-                {summaryBrandName && summaryBrandName !== "SushiZEN" ? (
-                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-6 text-center text-sm text-zinc-500">
-                    Product Mix is currently available for SushiZEN only.
-                  </div>
-                ) : !pmRows.length ? (
-                  <div className="rounded-xl border border-white/8 py-12 text-center text-sm text-neutral-500">No Product Mix ranking data</div>
-                ) : (
-                  <div className="space-y-4">
-                    {groups.map(([productA, { majorOrders, companions }], gIdx) => (
-                      <div key={productA} className="rounded-2xl border border-white/8 bg-white/2 overflow-hidden">
-                        {/* Product A header */}
-                        <div className="flex items-center gap-3 border-b border-white/5 bg-white/3 px-4 py-3">
-                          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[11px] font-bold text-violet-300">
-                            {gIdx + 1}
-                          </span>
-                          <span className="flex-1 text-sm font-semibold text-white">{productA}</span>
-                          <span className="text-[11px] text-neutral-400 tabular-nums">{formatCount(majorOrders)} orders</span>
-                        </div>
-
-                        {/* Companion products */}
-                        <div className="divide-y divide-white/4">
-                          {companions.map((row, cIdx) => {
-                            const ratio = Number(row.ratio || 0);
-                            const barW = maxRatio > 0 ? (ratio / maxRatio) * 100 : 0;
-                            const ratioPct = ratio * 100;
-                            return (
-                              <div key={`${row.product_b_name}-${cIdx}`} className="flex items-center gap-3 px-4 py-2.5">
-                                {/* Rank within group */}
-                                <span className="w-4 flex-shrink-0 text-[10px] text-neutral-600">#{cIdx + 1}</span>
-
-                                {/* Product B name */}
-                                <span className="w-40 flex-shrink-0 truncate text-xs text-neutral-300" title={String(row.product_b_name || "")}>
-                                  {row.product_b_name || "—"}
-                                </span>
-
-                                {/* Bar */}
-                                <div className="flex flex-1 items-center gap-2">
-                                  <div className="flex-1 h-2 overflow-hidden rounded-full bg-white/5">
-                                    <div className={`h-full rounded-full ${ratioBarColor(ratio)}`} style={{ width: `${barW.toFixed(1)}%` }} />
-                                  </div>
-                                  <span className={`w-16 rounded px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums ${ratioBadgeColor(ratio)}`}>
-                                    {formatDecimal(ratioPct, 2)}%
-                                  </span>
-                                </div>
-
-                                {/* Mix orders */}
-                                <span className="w-20 text-right text-[11px] tabular-nums text-neutral-500">
-                                  {formatCount(Number(row.mix_orders || 0))} / {formatCount(majorOrders)}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              );
-            })() : null}
+            {/* Product Mix removed 2026-10-28: its import stopped on 2026-05-06 (not an
+                UrbanPiper export) and the owner chose to retire it. */}
 
             {salesSectionView === "all" || salesSectionView === "menu" ? (
             <div id="sales-menu" className={GLASS_CARD + " overflow-hidden"}>
@@ -8708,7 +8569,7 @@ export default function AdminAnalyticsPage() {
 
             {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
               <div id="sales-order-counts">
-                <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} externalDateFrom={dateFrom} externalDateTo={dateTo} externalBranchCode={summaryBranchCode} />
+                <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} externalDateFrom={summaryDateFrom} externalDateTo={summaryDateTo} externalBranchCode={summaryBranchCode} />
               </div>
             ) : null}
             {salesSectionView === "all" || salesSectionView === "manilaOverallRatings" ? (
@@ -8778,8 +8639,8 @@ export default function AdminAnalyticsPage() {
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
                   <ManilaOrderCountsTab
-                    dateFrom={dateFrom}
-                    dateTo={dateTo}
+                    dateFrom={summaryDateFrom}
+                    dateTo={summaryDateTo}
                     approverName={approverName}
                     pin={pin}
                     stepUpReady={salesStepUpReady}
@@ -10631,3 +10492,57 @@ export default function AdminAnalyticsPage() {
   );
 }
 
+
+
+type PosFileGaps = {
+  ok: boolean;
+  message?: string;
+  from?: string;
+  to?: string;
+  brands?: string[];
+  missing_in_drive?: { brand: string; date: string }[];
+  not_imported?: { brand: string; date: string }[];
+};
+
+/** Brand-days of UrbanPiper order exports that are not in Drive, or are in Drive
+ *  and not loaded yet. A day missing here is missing from every sales figure. */
+function PosFileGapsPanel({ gaps }: { gaps: PosFileGaps }) {
+  if (!gaps.ok) {
+    return <div className="mb-3 rounded-xl border border-amber-700/40 bg-amber-950/20 px-4 py-2.5 text-xs text-amber-200">{gaps.message || "Could not check the Drive files."}</div>;
+  }
+  const missing = gaps.missing_in_drive || [];
+  const pending = gaps.not_imported || [];
+  if (missing.length === 0 && pending.length === 0) {
+    return (
+      <div className="mb-3 rounded-xl border border-emerald-700/30 bg-emerald-950/10 px-4 py-2.5 text-xs text-emerald-200">
+        Order exports complete for {gaps.from} to {gaps.to}: every brand has a file for every day, and all are loaded.
+      </div>
+    );
+  }
+  const byBrand = (rows: { brand: string; date: string }[]) => {
+    const m = new Map<string, string[]>();
+    rows.forEach((r) => m.set(r.brand, [...(m.get(r.brand) || []), r.date.slice(5)]));
+    return [...m.entries()];
+  };
+  return (
+    <div className="mb-3 space-y-2 rounded-xl border border-amber-700/40 bg-amber-950/20 px-4 py-3 text-xs">
+      <div className="font-semibold text-amber-200">Order exports with gaps ({gaps.from} to {gaps.to})</div>
+      {missing.length > 0 ? (
+        <div>
+          <div className="text-amber-100">Not in Drive — export these days from UrbanPiper (Order transactions) into the Drive folder:</div>
+          {byBrand(missing).map(([b, ds]) => (
+            <div key={`m-${b}`} className="text-amber-200/80"><span className="font-semibold">{b}</span>: {ds.join(", ")}</div>
+          ))}
+        </div>
+      ) : null}
+      {pending.length > 0 ? (
+        <div>
+          <div className="text-amber-100">In Drive, not loaded yet — the daily sync loads these automatically:</div>
+          {byBrand(pending).map(([b, ds]) => (
+            <div key={`p-${b}`} className="text-amber-200/80"><span className="font-semibold">{b}</span>: {ds.join(", ")}</div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -227,7 +227,11 @@ export default function ManilaOfflineOrderEntryTab() {
             <span>📦</span> Number of Orders — Manila (Offline)
           </h2>
           <p className="mt-0.5 text-xs text-gray-500">
-            Cubao (QC), Paranaque, and Taft offline counts. Feeds Manila Sales Analytics → Number of Orders.
+            Cubao (QC), Paranaque, and Taft offline counts.
+          </p>
+          <p className="mt-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-200">
+            No longer used. Analytics reads Manila Daily Sales (Sales Data Input), which already holds each
+            day&apos;s total. Do not enter figures here.
           </p>
         </div>
 

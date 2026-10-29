@@ -21,11 +21,19 @@ on:
         description: 'To (YYYY-MM-DD). Default: today.'
         required: false
         default: ''
+      ramen_only:
+        description: 'true = the Ramen ZEN & AVS login only (backfill; leaves Sushi ZEN alone).'
+        required: false
+        default: 'false'
 
 jobs:
   extract-orders:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+
+    # The secrets context is not dependable inside a step-level `if`.
+    env:
+      KEETA_RZ_SESSION: ${{ secrets.KEETA_RZ_SESSION }}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +60,7 @@ jobs:
       # re-reading costs nothing and a night with a dead session fills itself in
       # on the next run instead of leaving a hole nobody looks for.
       - name: Extract Keeta order ledger
+        if: ${{ github.event.inputs.ramen_only != 'true' }}
         run: |
           FROM="${DATE_FROM:-$(date -u -d '3 days ago' +%Y-%m-%d)}"
           TO="${DATE_TO:-$(date -u +%Y-%m-%d)}"
@@ -59,4 +68,22 @@ jobs:
         env:
           WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
           KEETA_SESSION_STATE: ${{ secrets.KEETA_SESSION }}
+          # Also writes the day's order counts to Order Entry (finished days only).
+          CRON_SECRET:         ${{ secrets.MGMT_CRON_SECRET }}
+        timeout-minutes: 12
+
+      # Ramen ZEN has its own Keeta login (All Veggie Sushi Al Barsha is on it
+      # too). Counts to Order Entry, and orders to the Prep Time ledger under
+      # RZ_<branch> / AVS_AB so they stay apart from Sushi ZEN's.
+      - name: Keeta orders and counts — Ramen ZEN & All Veggie Sushi
+        if: ${{ always() && env.KEETA_RZ_SESSION != '' }}
+        run: |
+          FROM="${DATE_FROM:-$(date -u -d '3 days ago' +%Y-%m-%d)}"
+          TO="${DATE_TO:-$(date -u +%Y-%m-%d)}"
+          node scripts/keeta/get-orders.js "$FROM" "$TO" > /dev/null
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          KEETA_SESSION_STATE: ${{ env.KEETA_RZ_SESSION }}
+          KEETA_BRAND:         ramen_zen
+          CRON_SECRET:         ${{ secrets.MGMT_CRON_SECRET }}
         timeout-minutes: 12

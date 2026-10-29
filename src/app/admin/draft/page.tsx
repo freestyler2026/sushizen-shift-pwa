@@ -39,6 +39,7 @@ import {
   type ShiftViolation,
 } from "@/lib/shiftMasterData";
 import { fmtNum } from "@/lib/formatters";
+import DayOffRequestsList from "./DayOffRequestsList";
 import {
   countDayOffConflicts,
   dayOffIndex,
@@ -46,6 +47,11 @@ import {
   type DayOffConflict,
   type DayOffDay,
 } from "@/lib/day-off-conflicts";
+import {
+  crossBranchOverlapsFrom,
+  describeCrossBranchOverlap,
+  type CrossBranchOverlap,
+} from "@/lib/cross-branch-overlaps";
 import {
   BADGE_ERROR,
   BADGE_INFO,
@@ -227,13 +233,14 @@ type ApplyPrepareResult = {
     rows_count: number;
     staff_count: number;
   };
+  /** Shifts corrected after this draft was made, which Confirm Apply keeps. */
   conflict?: {
-    published_by: string;
-    published_at_pht: string;
-    draft_created_at_pht: string;
-    delta_minutes: number;
+    kept_cells: string[];
   } | null;
   day_off_conflicts?: DayOffConflict[];
+  cross_branch_overlaps?: CrossBranchOverlap[];
+  /** Set when the week runs into another month: only these days are applied. */
+  apply_window?: { date_from: string; date_to: string; message: string } | null;
 };
 
 type ApplyConfirmResult = {
@@ -284,6 +291,8 @@ type BatchApplyPrepareResult = {
     preview: ApplyPrepareResult["preview"];
     conflict?: ApplyPrepareResult["conflict"];
     day_off_conflicts?: DayOffConflict[];
+    cross_branch_overlaps?: CrossBranchOverlap[];
+    apply_window?: ApplyPrepareResult["apply_window"];
   }>;
   total_rows_count: number;
   total_staff_count: number;
@@ -339,6 +348,8 @@ type PendingSheetProposal = {
   proposed_start_hour?: number | null;
   proposed_end_hour?: number | null;
   swap_with_staff?: string;
+  /** Transfer Branch: the day moves to this branch on approval. */
+  proposed_branch_code?: string | null;
   note?: string;
   source_tab?: string;
   source_row_number?: number;
@@ -453,6 +464,20 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** A proxy or router error page arrives as HTML. Showing the HTML says nothing;
+ *  say what happened and what to do instead. */
+function readableError(msg: string): string {
+  const m = String(msg || "").trim();
+  if (/^<!doctype html|^<html/i.test(m)) {
+    return "The server did not answer in time. It may still have finished: reload the page and check "
+      + "whether this branch now has a draft before trying again.";
+  }
+  if (/FUNCTION_INVOCATION_TIMEOUT|An error occurred with your deployment/i.test(m)) {
+    return "The request timed out. It may still have finished: reload the page and check before trying again.";
+  }
+  return m;
+}
+
 async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
   const text = await res.text();
@@ -476,6 +501,30 @@ class ApiError extends Error {
     this.name = "ApiError";
     this.detail = detail;
   }
+}
+
+async function apiPut<T = any>(path: string, body?: any): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text || `PUT ${path} failed`;
+    try {
+      const d = JSON.parse(text)?.detail;
+      if (d) msg = typeof d === "object" ? String((d as Record<string, unknown>).message || msg) : String(d);
+    } catch { /* non-JSON */ }
+    throw new ApiError(res.status, msg);
+  }
+  return text ? (JSON.parse(text) as T) : ({} as T);
+}
+
+/** "19/10/2026, 18:04" in the reader's clock — the timestamp carries its zone. */
+function fmtDateTimeShort(iso: string): string {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 }
 
 async function apiPost<T = any>(path: string, body?: any): Promise<T> {
@@ -1440,6 +1489,11 @@ export default function AdminDraftPage() {
   } | null>(null);
 
   const [versions, setVersions] = useState<BatchDraftVersion[]>([]);
+  /** Which branches Confirm Generate builds. All by default; after a failure
+   *  only the failed ones stay ticked, so a retry does not regenerate (and
+   *  throw away the approved changes of) the branches that worked. */
+  const [genBranches, setGenBranches] = useState<string[]>([]);
+  const monthVersionsReq = useRef(0);
   const [activeBranchCode, setActiveBranchCode] = useState<string>("");
   // Upcoming suspensions — fetched for the shift planner banner
   const [upcomingSuspensions, setUpcomingSuspensions] = useState<{
@@ -1473,10 +1527,24 @@ export default function AdminDraftPage() {
   // change a cell to Day Off and the chip goes on the spot, with no round trip.
   const [dayOffDays, setDayOffDays] = useState<DayOffDay[]>([]);
   const [applyPrepared, setApplyPrepared] = useState<BatchApplyPrepareResult | null>(null);
-  // Set only by a 409 from apply/confirm: the draft rosters somebody on an approved day off.
+  // Set only by a 409 from apply/confirm: the draft rosters somebody on an
+  // approved day off, or at hours they already work at another branch.
   const [applyDayOffBlock, setApplyDayOffBlock] = useState<{
-    branch_name: string; week_start: string; conflicts: DayOffConflict[]; applied_before: number;
+    kind: "day_off" | "cross_branch";
+    confirm_token: string;
+    branch_name: string; week_start: string;
+    conflicts: DayOffConflict[]; overlaps: CrossBranchOverlap[]; applied_before: number;
   } | null>(null);
+  // Weeks already applied in this run, by confirm token. A token is spent once
+  // it is applied, so "apply anyway" after a refusal must not send the earlier
+  // weeks again -- the server answers 400 and the retry fails on a week that
+  // had gone through.
+  const appliedRef = useRef<Map<string, BatchApplyConfirmResult["items"][number]>>(new Map());
+  // Waivers given in this run, per week (confirm token). "Apply anyway" is an
+  // answer about the clashes that were shown -- one branch, one week. Kept
+  // run-wide, one click waived every later week's clashes too, unseen. A
+  // second refusal of the other kind for the same week keeps the first waiver.
+  const waiversRef = useRef<Map<string, { dayOff: boolean; crossBranch: boolean }>>(new Map());
   const [applyResult, setApplyResult] = useState<BatchApplyConfirmResult | null>(null);
   const [published, setPublished] = useState<PublishedWeekResult | null>(null);
   const [pendingRows, setPendingRows] = useState<PendingSheetProposal[]>([]);
@@ -1517,13 +1585,23 @@ export default function AdminDraftPage() {
   const [xlsxApplyBusy, setXlsxApplyBusy] = useState(false);
   const xlsxFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Staff Roster Check — pre-generate preview
-  type RosterEntry = { name: string; days: number; is_excluded: boolean };
-  const [rosterPreview, setRosterPreview] = useState<Record<string, RosterEntry[]>>({});
+  // Staff Roster Check — the month's roster, editable and saved (app/draft_roster.py)
+  type RosterRow = { staff_name: string; days: number; home_branch: string; included: boolean; note: string };
+  type RosterData = {
+    saved: boolean; saved_by?: string; saved_at?: string | null;
+    branches: Record<string, RosterRow[]>;
+    available: { staff_name: string; home_branch: string }[];
+  };
+  const [roster, setRoster] = useState<RosterData | null>(null);
   const [rosterLoading, setRosterLoading] = useState(false);
-  // unchecked[branchCode] = Set of staff names to exclude for this run
-  const [rosterUnchecked, setRosterUnchecked] = useState<Record<string, Set<string>>>({});
+  const [rosterError, setRosterError] = useState("");
+  const [rosterDirty, setRosterDirty] = useState(false);
+  const [rosterSaving, setRosterSaving] = useState(false);
+  const [rosterMessage, setRosterMessage] = useState("");
   const [rosterOpen, setRosterOpen] = useState(true);
+  // Only the latest roster request may land: preparing another month or city
+  // while one is loading must not show (and then save) the old one.
+  const rosterReq = useRef(0);
 
   // Auto-export state: triggered right after Confirm Generate
   const [autoExportBusy, setAutoExportBusy] = useState(false);
@@ -1531,7 +1609,80 @@ export default function AdminDraftPage() {
   const [autoExportErrors, setAutoExportErrors] = useState<Record<string, string>>({}); // branch_code → error msg
   const [autoExportRan, setAutoExportRan] = useState(false); // true once auto-export was triggered
 
+  // ── Open the spreadsheet only after bringing it level with Manual Shift ────
+  // The tabs were written at three moments and nowhere else, so opening the
+  // sheet showed whatever the last of them had left -- Sharon Namale still at
+  // Arjan three weeks after she was moved. Now the server knows which branch
+  // tabs the schedule has changed under (app/sheet_sync.py); those are written
+  // first, one branch per request, and then the sheet opens on the month's tab.
+  type SheetLink = { month: string; branch_code: string; url: string };
+  const [sheetSyncBusy, setSheetSyncBusy] = useState(false);
+  const [sheetSyncProgress, setSheetSyncProgress] = useState("");
+  const [sheetSyncLinks, setSheetSyncLinks] = useState<SheetLink[]>([]);
+  const [sheetSyncErrors, setSheetSyncErrors] = useState<string[]>([]);
+
   const canOperate = myRole === "HQ" || myRole === "ADMIN";
+
+  async function openSyncedSheet() {
+    const base = city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL;
+    // Opened inside the click, so the browser treats it as the user's own tab;
+    // a window opened after the awaits below would be blocked as a pop-up.
+    const win = typeof window !== "undefined" ? window.open("about:blank", "_blank") : null;
+    // The old link had rel="noopener"; a window opened by script keeps a
+    // handle back to this page unless it is dropped.
+    if (win) win.opener = null;
+    setSheetSyncBusy(true);
+    setSheetSyncErrors([]);
+    setSheetSyncLinks([]);
+    const codes = BRANCHES[city].map((b) => b.code);
+    // This month is where Manual Shift is being changed; the target month is
+    // the one being drafted. Both are brought level.
+    // The store's month, not the browser's: HQ opens this from Japan, where the
+    // 1st arrives hours before it does in Manila or Dubai.
+    const thisMonth = new Intl.DateTimeFormat("en-CA", {
+      timeZone: city === "dubai" ? "Asia/Dubai" : "Asia/Manila", year: "numeric", month: "2-digit",
+    }).format(new Date()).slice(0, 7);
+    const months = Array.from(new Set([thisMonth, targetMonth]));
+    const links: SheetLink[] = [];
+    const errors: string[] = [];
+    try {
+      type Status = { branch_code: string; stale: boolean; has_data: boolean; url?: string | null; last_error?: string | null };
+      const work: { month: string; code: string }[] = [];
+      for (const m of months) {
+        const st = await apiGet<{ branches: Status[] }>(
+          `/api/admin/sheets/sync_status${qs({ city, month: m, branches: codes.join(",") })}`,
+        );
+        for (const b of st.branches || []) {
+          if (!b.has_data) continue;
+          if (b.stale || !b.url) work.push({ month: m, code: b.branch_code });
+          else links.push({ month: m, branch_code: b.branch_code, url: b.url });
+        }
+      }
+      for (let i = 0; i < work.length; i++) {
+        const w = work[i];
+        setSheetSyncProgress(`Updating ${labelOf(city, w.code)} ${w.month} (${i + 1}/${work.length})…`);
+        try {
+          const r = await apiPost<{ main_url?: string }>("/api/admin/sheets/sync", {
+            city, branch_code: w.code, month: w.month,
+          });
+          if (r.main_url) links.push({ month: w.month, branch_code: w.code, url: r.main_url });
+        } catch (e) {
+          errors.push(`${labelOf(city, w.code)} ${w.month}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    } catch (e) {
+      errors.push(`Could not check which tabs are out of date: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      links.sort((a, b) => (a.month === b.month ? a.branch_code.localeCompare(b.branch_code) : a.month < b.month ? 1 : -1));
+      if (!win) errors.push("The browser blocked the new tab. Open the sheet from the links below.");
+      setSheetSyncLinks(links);
+      setSheetSyncErrors(errors);
+      setSheetSyncProgress("");
+      setSheetSyncBusy(false);
+      const target = links.find((l) => l.month === targetMonth) ?? links.find((l) => l.month === thisMonth);
+      if (win) win.location.href = target?.url || base;
+    }
+  }
 
   // The export walks every branch with a 300ms gap between them, so it is still
   // running long after the click that started it. Two copies of that loop had
@@ -1690,6 +1841,45 @@ export default function AdminDraftPage() {
     }
   }, [versions, activeBranchCode]);
 
+  /** The draft each branch uses this month -- the same one the sheet and Sync
+   *  use. Without it the page only knew drafts made in this visit: after a
+   *  reload Schedule View, Apply and Branch Edit were gone. */
+  async function fetchMonthVersions(c: string, month: string): Promise<BatchDraftVersion[]> {
+    const res = await apiGet<{ items?: { branch_code: string; version_id: string; version_week_start: string; rows: number; days: number }[] }>(
+      `/api/draft/month_versions${qs({ city: c, month })}`);
+    return (res.items || []).map((v) => ({
+      branch_code: v.branch_code,
+      branch_name: labelOf(c as City, v.branch_code as BranchCode) || v.branch_code,
+      version_id: v.version_id,
+      version_week_start: v.version_week_start,
+      rows_inserted: v.rows,
+      days_generated: v.days,
+    }));
+  }
+
+  useEffect(() => {
+    const ticket = ++monthVersionsReq.current;
+    (async () => {
+      try {
+        const list = await fetchMonthVersions(city, targetMonth);
+        if (ticket !== monthVersionsReq.current) return;
+        setVersions((cur) => (cur.length ? cur : list));
+      } catch {
+        /* Generate still works; the drafts just are not listed until then. */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, targetMonth]);
+
+  // A branch that already has a draft starts unticked: regenerating it throws
+  // away what was approved into it, so that has to be a deliberate tick.
+  useEffect(() => {
+    setGenBranches(prepared
+      ? prepared.branch_codes.filter((b) => !versions.some((v) => v.branch_code === b))
+      : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prepared]);
+
   // Reset export state when branch changes
   useEffect(() => {
     setSheetExportResult(null);
@@ -1801,23 +1991,88 @@ export default function AdminDraftPage() {
   }, [canOperate, approverName, pin, applyMonth, syncBranchCode]);
 
 
-  async function fetchRosterPreview(branchCodes: string[], targetMon: string, cityVal: string) {
+  async function fetchRoster(branchCodes: string[], targetMon: string, cityVal: string) {
+    const ticket = ++rosterReq.current;
     setRosterLoading(true);
-    setRosterUnchecked({});
-    const results: Record<string, RosterEntry[]> = {};
-    await Promise.allSettled(
-      branchCodes.map(async (bc) => {
-        try {
-          const qs = new URLSearchParams({ city: cityVal, branch_code: bc, target_month: targetMon });
-          const data = await apiGet<{ staff: RosterEntry[] }>(`/api/draft/staff_preview?${qs}`);
-          results[bc] = data.staff || [];
-        } catch {
-          results[bc] = [];
-        }
-      })
-    );
-    setRosterPreview(results);
-    setRosterLoading(false);
+    setRosterError("");
+    setRosterMessage("");
+    setRosterDirty(false);
+    try {
+      const data = await apiGet<RosterData>(`/api/draft/roster${qs({
+        city: cityVal, target_month: targetMon, branch_codes: branchCodes.join(","),
+      })}`);
+      if (ticket !== rosterReq.current) return;
+      const branches: Record<string, RosterRow[]> = {};
+      for (const bc of branchCodes) branches[bc] = Array.isArray(data?.branches?.[bc]) ? data.branches[bc] : [];
+      // Every field defaulted: a partial answer must not take the page down.
+      setRoster({ saved: !!data?.saved, saved_by: data?.saved_by, saved_at: data?.saved_at ?? null,
+        branches, available: Array.isArray(data?.available) ? data.available : [] });
+      // A suggestion has not been saved yet: saving it is a change to make.
+      setRosterDirty(!data?.saved);
+    } catch (e: any) {
+      if (ticket !== rosterReq.current) return;
+      setRoster(null);
+      setRosterError(readableError(String(e?.message || e || "Could not load the roster.")));
+    } finally {
+      if (ticket === rosterReq.current) setRosterLoading(false);
+    }
+  }
+
+  function rosterEdit(fn: (r: RosterData) => RosterData) {
+    setRoster((prev) => (prev ? fn(prev) : prev));
+    setRosterDirty(true);
+    setRosterMessage("");
+  }
+  const rosterToggle = (bc: string, i: number) => rosterEdit((r) => ({
+    ...r, branches: { ...r.branches, [bc]: r.branches[bc].map((s, j) => (j === i ? { ...s, included: !s.included } : s)) },
+  }));
+  const rosterMove = (bc: string, i: number, d: -1 | 1) => rosterEdit((r) => {
+    const list = [...r.branches[bc]];
+    const j = i + d;
+    if (j < 0 || j >= list.length) return r;
+    [list[i], list[j]] = [list[j], list[i]];
+    return { ...r, branches: { ...r.branches, [bc]: list } };
+  });
+  const rosterChangeBranch = (bc: string, i: number, to: string) => rosterEdit((r) => {
+    if (to === bc) return r;
+    const moving = r.branches[bc][i];
+    return { ...r, branches: { ...r.branches, [bc]: r.branches[bc].filter((_, j) => j !== i),
+      [to]: [...(r.branches[to] || []), moving] } };
+  });
+  const rosterRemove = (bc: string, i: number) => rosterEdit((r) => {
+    const gone = r.branches[bc][i];
+    return { ...r, branches: { ...r.branches, [bc]: r.branches[bc].filter((_, j) => j !== i) },
+      available: [...r.available, { staff_name: gone.staff_name, home_branch: gone.home_branch }]
+        .sort((a, b) => a.staff_name.localeCompare(b.staff_name)) };
+  });
+  const rosterAdd = (bc: string, name: string) => rosterEdit((r) => {
+    const a = r.available.find((x) => x.staff_name === name);
+    if (!a) return r;
+    return { ...r, available: r.available.filter((x) => x.staff_name !== name),
+      branches: { ...r.branches, [bc]: [...(r.branches[bc] || []),
+        { staff_name: name, days: 0, home_branch: a.home_branch, included: true, note: "added" }] } };
+  });
+
+  async function saveRoster(): Promise<boolean> {
+    if (!roster || !prepared) return false;
+    setRosterSaving(true);
+    setRosterMessage("");
+    try {
+      const entries = prepared.branch_codes.flatMap((bc) =>
+        (roster.branches[bc] || []).map((s, i) => ({ staff_name: s.staff_name, branch_code: bc, sort_order: i, included: s.included })));
+      const res = await apiPut<{ ok: boolean; saved: number }>(`/api/draft/roster`, {
+        city: prepared.city, target_month: prepared.target_month, entries,
+      });
+      setRoster((r) => (r ? { ...r, saved: true, saved_by: approverName || r.saved_by, saved_at: new Date().toISOString() } : r));
+      setRosterDirty(false);
+      setRosterMessage(`Saved ${res.saved} staff.`);
+      return true;
+    } catch (e: any) {
+      setRosterMessage(readableError(String(e?.message || e || "Save failed")));
+      return false;
+    } finally {
+      setRosterSaving(false);
+    }
   }
 
   function prepareDraft() {
@@ -1833,7 +2088,7 @@ export default function AdminDraftPage() {
     setApplyResult(null);
     setPublished(null);
     setRosterOpen(true);
-    fetchRosterPreview(draftBranches, targetMonth, city);
+    fetchRoster(draftBranches, targetMonth, city);
   }
 
   async function confirmGenerate() {
@@ -1841,15 +2096,23 @@ export default function AdminDraftPage() {
     setLoading(true);
     setError("");
     setGenerateResult(null);
-    setVersions([]);
-    setActiveBranchCode("");
-    setRows([]);
+    // The month's drafts stay listed: clearing them here left Schedule View,
+    // Apply and Branch Edit empty whenever generation stopped early.
     setApplyPrepared(null);
     setApplyResult(null);
     setPublished(null);
     setEditingRow(null);
     setApplyMonth(prepared.target_month);
 
+    // Generation follows the saved roster, so save what is on screen first.
+    if (roster && rosterDirty) {
+      const ok = await saveRoster();
+      if (!ok) {
+        setError("The roster could not be saved, so nothing was generated. Fix the roster and try again.");
+        setLoading(false);
+        return;
+      }
+    }
     try {
       const nextVersions: BatchDraftVersion[] = [];
       const failedBranches: Array<{ branch_code: string; detail: string }> = [];
@@ -1859,9 +2122,15 @@ export default function AdminDraftPage() {
       let totalUnresolvedHours = 0;
 
       const blockedBranches: string[] = [];
-      for (const code of prepared.branch_codes) {
+      const toGenerate = prepared.branch_codes.filter((b) => genBranches.includes(b));
+      if (!toGenerate.length) {
+        throw new Error("Tick at least one branch to generate.");
+      }
+      monthVersionsReq.current += 1;   // a load still in flight must not overwrite this run
+      for (const code of toGenerate) {
         try {
-          const extraExcluded = Array.from(rosterUnchecked[code] || new Set<string>());
+          // Unticked people are saved as left out; nothing extra to send.
+          const extraExcluded: string[] = [];
           const res = (await apiPost(`/api/draft/generate_month`, {
             city: prepared.city,
             branch_code: code,
@@ -1895,17 +2164,31 @@ export default function AdminDraftPage() {
           } else {
             failedBranches.push({
               branch_code: code,
-              detail: String(branchError?.message || branchError || "Failed"),
+              detail: readableError(String(branchError?.message || branchError || "Failed")),
             });
           }
         }
       }
 
+      // Every branch's draft for the month: the ones just made, and the ones
+      // this run did not touch (they keep their approved changes).
+      let merged: BatchDraftVersion[] = nextVersions;
+      try {
+        const loaded = await fetchMonthVersions(prepared.city, prepared.target_month);
+        merged = [...nextVersions, ...loaded.filter((l) => !nextVersions.some((n) => n.branch_code === l.branch_code))];
+      } catch {
+        /* keep what was generated */
+      }
+      setVersions(merged);
+      if (failedBranches.length) setGenBranches(failedBranches.map((b) => b.branch_code));
+
       // If any branches were blocked by SENT_TO_MANUAL guard, show confirm modal
       if (blockedBranches.length > 0) {
         setReplaceGuard({
           city: prepared.city,
-          branch_codes: prepared.branch_codes,
+          // Only the branches that were refused -- Replace All used to rebuild
+          // every branch, including the ones that had just been generated.
+          branch_codes: blockedBranches,
           target_month: prepared.target_month,
           blockedBranches,
         });
@@ -1914,10 +2197,12 @@ export default function AdminDraftPage() {
       }
 
       if (!nextVersions.length) {
-        throw new Error(`Failed to generate monthly drafts for ${city === "dubai" ? "Dubai" : "Manila"} branches.`);
+        throw new Error(failedBranches.length
+          ? failedBranches.map((b) => `${b.branch_code}: ${b.detail}`).join("\n")
+            + "\n\nNothing was generated. The failed branches are still ticked — press Confirm Generate to retry."
+          : `Failed to generate monthly drafts for ${city === "dubai" ? "Dubai" : "Manila"} branches.`);
       }
 
-      setVersions(nextVersions);
       setActiveBranchCode(nextVersions[0]?.branch_code || "");
       setGenerateResult({
         ok: failedBranches.length === 0,
@@ -1937,6 +2222,8 @@ export default function AdminDraftPage() {
           failedBranches
             .map((item) => `${item.branch_code}: ${item.detail}`)
             .join("\n")
+          + `\n\nOnly ${failedBranches.map((b) => b.branch_code).join(", ")} ${failedBranches.length === 1 ? "is" : "are"} still ticked. `
+          + "Press Confirm Generate again to retry just those; the other branches keep their drafts."
         );
       }
 
@@ -1953,6 +2240,11 @@ export default function AdminDraftPage() {
   // Called when user confirms "Replace All" in the 409 guard modal
   async function handleForceReplace() {
     if (!replaceGuard) return;
+    // Same rule as Confirm Generate: generation follows the saved roster.
+    if (roster && rosterDirty && !(await saveRoster())) {
+      setError("The roster could not be saved, so nothing was regenerated. Fix the roster and try again.");
+      return;
+    }
     setReplaceGuard(null);
     setLoading(true);
     setError("");
@@ -1961,7 +2253,7 @@ export default function AdminDraftPage() {
     let totalRowsInserted = 0;
     for (const code of replaceGuard.branch_codes) {
       try {
-        const extraExcluded = Array.from(rosterUnchecked[code] || new Set<string>());
+        const extraExcluded: string[] = [];   // the saved roster decides
         const res = (await apiPost(`/api/draft/generate_month`, {
           city: replaceGuard.city,
           branch_code: code,
@@ -1970,6 +2262,8 @@ export default function AdminDraftPage() {
           force_replace: true,
           extra_excluded_names: extraExcluded,
         })) as DraftGenerateMonthResult;
+        // A skipped branch made no draft: it must not replace the one it has.
+        if ((res as { skipped?: boolean }).skipped || !res.version_id) continue;
         nextVersions.push({
           branch_code: res.branch_code,
           branch_name: labelOf("dubai", res.branch_code),
@@ -1983,12 +2277,12 @@ export default function AdminDraftPage() {
       } catch (branchError: any) {
         failedBranches.push({
           branch_code: code,
-          detail: String(branchError?.message || branchError || "Failed"),
+          detail: readableError(String(branchError?.message || branchError || "Failed")),
         });
       }
     }
     if (nextVersions.length) {
-      setVersions(nextVersions);
+      setVersions((cur) => [...nextVersions, ...cur.filter((c) => !nextVersions.some((n) => n.branch_code === c.branch_code))]);
       setActiveBranchCode(nextVersions[0]?.branch_code || "");
       setGenerateResult({
         ok: failedBranches.length === 0,
@@ -2202,6 +2496,8 @@ export default function AdminDraftPage() {
           preview: res.preview,
           conflict: res.conflict,
           day_off_conflicts: res.day_off_conflicts || [],
+          cross_branch_overlaps: res.cross_branch_overlaps || [],
+          apply_window: res.apply_window ?? null,
         });
         totalRowsCount += Number(res.preview?.rows_count || 0);
         totalStaffCount += Number(res.preview?.staff_count || 0);
@@ -2220,6 +2516,11 @@ export default function AdminDraftPage() {
     setError("");
     setApplyPrepared(null);
     setApplyResult(null);
+    // New tokens: nothing from an earlier run -- a refusal panel, a waiver, a
+    // week marked applied -- belongs to them.
+    setApplyDayOffBlock(null);
+    appliedRef.current = new Map();
+    waiversRef.current = new Map();
 
     try {
       const prepared = await buildApplyPrepared();
@@ -2231,11 +2532,19 @@ export default function AdminDraftPage() {
     }
   }
 
-  async function confirmApply(allowApprovedDayOff = false) {
+  async function confirmApply(waive?: "day_off" | "cross_branch") {
     setLoading(true);
     setError("");
     setApplyDayOffBlock(null);
     setApplyResult(null);
+    const block = applyDayOffBlock;
+    if (!waive) waiversRef.current = new Map();
+    else if (block?.confirm_token) {
+      const w = waiversRef.current.get(block.confirm_token) ?? { dayOff: false, crossBranch: false };
+      if (waive === "day_off") w.dayOff = true;
+      if (waive === "cross_branch") w.crossBranch = true;
+      waiversRef.current.set(block.confirm_token, w);
+    }
 
     try {
       const prepared = applyPrepared?.items?.length ? applyPrepared : await buildApplyPrepared();
@@ -2243,6 +2552,12 @@ export default function AdminDraftPage() {
       const confirmedItems: BatchApplyConfirmResult["items"] = [];
       let totalRowsCopied = 0;
       for (const item of prepared.items) {
+        const already = appliedRef.current.get(item.confirm_token);
+        if (already) {
+          confirmedItems.push(already);
+          totalRowsCopied += Number(already.rows_copied || 0);
+          continue;
+        }
         let res: ApplyConfirmResult;
         try {
           res = await apiPost<ApplyConfirmResult>(`/api/draft/apply/confirm`, {
@@ -2251,32 +2566,40 @@ export default function AdminDraftPage() {
             pin,
             auto_export: false,
             export_month: applyMonth,
-            allow_approved_day_off: allowApprovedDayOff,
+            allow_approved_day_off: !!waiversRef.current.get(item.confirm_token)?.dayOff,
+            allow_cross_branch_overlap: !!waiversRef.current.get(item.confirm_token)?.crossBranch,
           });
         } catch (err) {
+          const is409 = err instanceof ApiError && err.status === 409;
           const conflicts =
-            err instanceof ApiError && err.status === 409 && Array.isArray(err.detail?.day_off_conflicts)
+            is409 && Array.isArray(err.detail?.day_off_conflicts)
               ? (err.detail!.day_off_conflicts as DayOffConflict[])
               : [];
-          if (conflicts.length === 0) throw err;
+          const overlaps = is409 ? crossBranchOverlapsFrom(err.detail) : [];
+          if (conflicts.length === 0 && overlaps.length === 0) throw err;
           // Stop at the branch that was refused. The branches already applied
           // stay applied -- saying otherwise would be the more confusing lie.
           setApplyDayOffBlock({
+            confirm_token: item.confirm_token,
+            kind: conflicts.length > 0 ? "day_off" : "cross_branch",
             branch_name: item.branch_name,
             week_start: item.week_start,
             conflicts,
+            overlaps,
             applied_before: confirmedItems.length,
           });
           return;
         }
-        confirmedItems.push({
+        const done = {
           branch_code: item.branch_code,
           branch_name: item.branch_name,
           week_start: item.week_start,
           published_version_id: res.published_version_id,
           rows_copied: res.rows_copied,
           warning: res.warning,
-        });
+        };
+        appliedRef.current.set(item.confirm_token, done);
+        confirmedItems.push(done);
         totalRowsCopied += Number(res.rows_copied || 0);
       }
 
@@ -2330,6 +2653,13 @@ export default function AdminDraftPage() {
         items,
         total_rows_copied: totalRowsCopied,
       });
+      // Every token is spent. Kept, a later Confirm Apply -- after fixing a row
+      // in the draft -- skipped every week as "already applied" and reported
+      // success having sent nothing. Cleared, the next Confirm prepares afresh
+      // and applies the draft as it is then.
+      appliedRef.current = new Map();
+      waiversRef.current = new Map();
+      setApplyPrepared(null);
 
       const pr = await apiGet<PublishedWeekResult>(
         `/api/published/week${qs({ city, week_start: applyWeekStarts[0] })}`
@@ -2404,7 +2734,8 @@ export default function AdminDraftPage() {
     setPendingBusy(true);
     setPendingMessage("");
     try {
-      const res = await apiPost<{ ok: boolean; updated: number; decision: string; draft_rows_applied: number }>(
+      const res = await apiPost<{ ok: boolean; updated: number; decision: string; draft_rows_applied: number;
+        already_applied?: number; not_applied?: { staff_name: string; work_date: string; reason: string }[] }>(
         `/api/draft/sheet/decide`,
         {
           proposal_ids: selectedProposalIds,
@@ -2414,9 +2745,16 @@ export default function AdminDraftPage() {
           note: decisionNote,
         }
       );
+      const notApplied = res.not_applied || [];
       setPendingMessage(
         `${res.decision}: updated ${res.updated} rows` +
-          (decision === "APPROVE" ? `, draft applied ${res.draft_rows_applied}` : "")
+          (decision === "APPROVE" ? `, draft applied ${res.draft_rows_applied}` : "") +
+          (res.already_applied ? ` · ${res.already_applied} already in the draft (nothing added)` : "") +
+          (notApplied.length
+            ? ` · ⚠️ ${notApplied.length} not applied — change these in the draft editor: `
+              + notApplied.slice(0, 8).map((n) => `${n.staff_name} ${n.work_date} (${n.reason})`).join("; ")
+              + (notApplied.length > 8 ? " …" : "")
+            : "")
       );
       setSelectedProposalIds([]);
       await loadPendingProposals();
@@ -2767,12 +3105,13 @@ export default function AdminDraftPage() {
       const branchPrefix = syncBranchCode.toUpperCase() + "_";
       // First: tab that matches both this branch AND this month (e.g. "BB_2026-9_DRAFT_MAIN")
       // Fallback: any MAIN tab for this month (single-branch spreadsheets or different naming)
+      // This branch's tab for this month only. Falling back to "any MAIN tab"
+      // imported another branch's edits under this branch.
       const tabMain =
-        mains.find((t) => t.toUpperCase().startsWith(branchPrefix) && monthVariants.some((m) => t.includes(m))) ||
-        mains.find((t) => monthVariants.some((m) => t.includes(m))) ||
-        mains[0];
+        mains.find((t) => t.toUpperCase().startsWith(branchPrefix) && monthVariants.some((m) => t.includes(m)));
       if (!tabMain) {
-        setPendingMessage("No MAIN tab found in spreadsheet. Make sure tabs ending in _MAIN exist.");
+        setPendingMessage(`No ${syncBranchCode.toUpperCase()} tab for ${applyMonth} in the spreadsheet. `
+          + "Open the draft spreadsheet once so the tab is created, then sync again.");
         return;
       }
       setSyncSkipped([]);
@@ -2786,7 +3125,10 @@ export default function AdminDraftPage() {
         spreadsheet_id: "",
         tab_main: tabMain,
         a1_range: "A1:CL2000",
-        draft_version_id: version?.version_id || "",
+        // The draft of the branch being synced. The one open in the editor may
+        // be another branch's, and approving would write this branch's staff
+        // into it. Empty = the server picks this branch's draft for the month.
+        draft_version_id: versions.find((v) => v.branch_code === syncBranchCode)?.version_id || "",
         approver_name: approverName,
         pin,
       });
@@ -3167,6 +3509,8 @@ export default function AdminDraftPage() {
                 </div>
               )}
 
+              <DayOffRequestsList days={dayOffDays} rows={rows} month={targetMonth} />
+
               <ShiftScheduleView
                 rows={rows}
                 month={targetMonth}
@@ -3205,7 +3549,7 @@ export default function AdminDraftPage() {
             <label className={`${T_LABEL} block mb-1.5`}>City</label>
             <SelectDark
               value={city}
-              onChange={(v) => setCity(v === "manila" ? "manila" : "dubai")}
+              onChange={(v) => { if (!loading) setCity(v === "manila" ? "manila" : "dubai"); }}
               className={SELECT_CLASS}
               options={[
                 { value: "dubai", label: "Dubai" },
@@ -3228,7 +3572,8 @@ export default function AdminDraftPage() {
               className={INPUT_CLASS}
               value={targetMonth}
               min={monthKey(new Date())}
-              onChange={(e) => { if (e.target.value) setTargetMonth(e.target.value); }}
+              disabled={loading}
+              onChange={(e) => { if (e.target.value && !loading) setTargetMonth(e.target.value); }}
             />
           </div>
           <div>
@@ -3288,15 +3633,39 @@ export default function AdminDraftPage() {
                   </span>
                 </div>
               )}
-              <a
-                href={city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm no-underline shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60`}
+              <button
+                type="button"
+                onClick={() => void openSyncedSheet()}
+                disabled={sheetSyncBusy}
+                className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60 disabled:opacity-60`}
               >
-                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-                {city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
-              </a>
+                {sheetSyncBusy
+                  ? <RefreshCw className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                  : <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />}
+                {sheetSyncBusy
+                  ? (sheetSyncProgress || "Checking which tabs are out of date…")
+                  : city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
+              </button>
+              <p className="text-xs text-zinc-400">
+                Brings each branch tab level with Manual Shift first — only tabs the schedule has changed under are rewritten.
+                Published weeks show the published schedule; unpublished weeks show the draft.
+              </p>
+              {sheetSyncLinks.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {sheetSyncLinks.map((l) => (
+                    <a key={`${l.month}-${l.branch_code}`} href={l.url} target="_blank" rel="noopener noreferrer"
+                      className="rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1 text-xs text-violet-200 no-underline hover:bg-violet-500/20">
+                      {labelOf(city, l.branch_code)} · {l.month}
+                    </a>
+                  ))}
+                </div>
+              )}
+              {sheetSyncErrors.length > 0 && (
+                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                  <div className="font-semibold">Not updated — these tabs may be out of date:</div>
+                  {sheetSyncErrors.map((e) => <div key={e}>{e}</div>)}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -3348,8 +3717,32 @@ export default function AdminDraftPage() {
             Prepared: All {city === "dubai" ? "Dubai" : "Manila"} stores • {prepared.target_month}
           </p>
         ) : null}
+        {prepared ? (
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className={T_LABEL}>Branches to generate</span>
+            {prepared.branch_codes.map((bc) => {
+              const has = versions.some((v) => v.branch_code === bc);
+              return (
+                <label key={bc} className="flex cursor-pointer select-none items-center gap-1.5 text-sm text-zinc-300">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded accent-violet-500"
+                    checked={genBranches.includes(bc)}
+                    onChange={(e) => setGenBranches((cur) => e.target.checked ? [...cur, bc] : cur.filter((x) => x !== bc))}
+                  />
+                  {labelOf(city as City, bc as BranchCode) || bc}
+                  {has && <span className="text-[11px] text-amber-300/80">(has a draft)</span>}
+                </label>
+              );
+            })}
+            <p className={`${T_CAPTION} basis-full`}>
+              A ticked branch that already has a draft gets a new one, and the changes approved into the old
+              draft are not carried over. Untick the branches you want to keep.
+            </p>
+          </div>
+        ) : null}
 
-        {/* ── Staff Roster Check ── */}
+        {/* ── Staff Roster Check — editable, saved per month (app/draft_roster.py) ── */}
         {prepared && (
           <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/5">
             <button
@@ -3357,96 +3750,97 @@ export default function AdminDraftPage() {
               className="flex w-full items-center justify-between px-5 py-3"
               onClick={() => setRosterOpen((p) => !p)}
             >
-              <span className="flex items-center gap-2 font-semibold text-sky-300 text-sm">
+              <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-sky-300">
                 <ClipboardList className="h-4 w-4" />
                 Staff Roster Check
-                <span className="ml-1 text-xs font-normal text-sky-400/70">
-                  — uncheck staff to exclude from this generation
+                <span className="text-xs font-normal text-sky-400/70">
+                  {roster?.saved
+                    ? `— saved${roster.saved_by ? ` by ${roster.saved_by}` : ""}${roster.saved_at ? ` · ${fmtDateTimeShort(roster.saved_at)}` : ""}`
+                    : "— suggested from last month; edit and save"}
+                  {rosterDirty ? " · unsaved changes" : ""}
                 </span>
               </span>
-              <span className="text-neutral-400 text-xs">{rosterOpen ? "▲" : "▼"}</span>
+              <span className="text-xs text-neutral-400">{rosterOpen ? "▲" : "▼"}</span>
             </button>
 
             {rosterOpen && (
-              <div className="px-5 pb-5 space-y-4">
+              <div className="space-y-4 px-5 pb-5">
+                <p className="text-xs text-neutral-400">
+                  Who is in this month&apos;s draft, at which branch, in which order. The order is the row order in the
+                  spreadsheet. Untick to leave someone out this month; Confirm Generate saves the roster first.
+                  {city === "dubai" ? " In Dubai staff can still be placed at any branch they worked at last month; here the roster only leaves people out and sets the order." : ""}
+                </p>
                 {rosterLoading ? (
-                  <p className="text-xs text-neutral-500 flex items-center gap-1.5">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading previous month roster…
+                  <p className="flex items-center gap-1.5 text-xs text-neutral-500">
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading roster…
                   </p>
+                ) : !roster ? (
+                  <p className="text-xs text-red-300">{rosterError || "Could not load the roster."}</p>
                 ) : (
                   prepared.branch_codes.map((bc) => {
-                    const staff = rosterPreview[bc] || [];
-                    const unchecked = rosterUnchecked[bc] || new Set<string>();
-                    const activeStaff = staff.filter((s) => !s.is_excluded);
-                    const excludedByDb = staff.filter((s) => s.is_excluded);
-                    const uncheckedCount = activeStaff.filter((s) => unchecked.has(s.name)).length;
-
-                    function toggleStaff(name: string) {
-                      setRosterUnchecked((prev) => {
-                        const next = { ...prev };
-                        const set = new Set(next[bc] || []);
-                        if (set.has(name)) set.delete(name);
-                        else set.add(name);
-                        next[bc] = set;
-                        return next;
-                      });
-                    }
-
+                    const list = roster.branches[bc] || [];
+                    const out = list.filter((s) => !s.included).length;
                     return (
                       <div key={bc}>
-                        {prepared.branch_codes.length > 1 && (
-                          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">
-                            {labelOf(city as City, bc as BranchCode)}
-                          </p>
-                        )}
-                        {staff.length === 0 ? (
-                          <p className="text-xs text-neutral-500">No previous month data found for this branch.</p>
-                        ) : (
-                          <div className="space-y-0.5">
-                            {activeStaff.map((s) => {
-                              const isUnchecked = unchecked.has(s.name);
-                              return (
-                                <label
-                                  key={s.name}
-                                  className={`flex items-center gap-2.5 cursor-pointer rounded px-2 py-1 text-sm transition-colors ${
-                                    isUnchecked
-                                      ? "text-red-400/70 line-through"
-                                      : "text-zinc-200 hover:bg-white/5"
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={!isUnchecked}
-                                    onChange={() => toggleStaff(s.name)}
-                                    className="accent-sky-500 h-3.5 w-3.5 rounded shrink-0"
-                                  />
-                                  <span className="flex-1">{s.name}</span>
-                                  <span className="text-xs text-neutral-500 shrink-0">{s.days}d</span>
-                                </label>
-                              );
-                            })}
-                            {excludedByDb.length > 0 && (
-                              <div className="mt-2 pt-2 border-t border-white/10">
-                                <p className="text-xs text-neutral-500 mb-1">Already excluded (Exclusion Manager):</p>
-                                {excludedByDb.map((s) => (
-                                  <div key={s.name} className="flex items-center gap-2.5 px-2 py-0.5 text-xs text-neutral-600">
-                                    <span className="h-3.5 w-3.5 shrink-0 flex items-center justify-center text-neutral-600">✕</span>
-                                    <span className="line-through">{s.name}</span>
-                                    <span className="shrink-0">{s.days}d</span>
-                                  </div>
-                                ))}
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                          {labelOf(city as City, bc as BranchCode)} <span className="text-neutral-600">({list.length - out})</span>
+                        </p>
+                        {list.length === 0 && <p className="mb-2 text-xs text-neutral-500">Nobody yet — add staff below.</p>}
+                        <div className="space-y-0.5">
+                          {list.map((s, i) => (
+                            <div key={s.staff_name}
+                              className={`flex flex-wrap items-center gap-2 rounded px-2 py-1 text-sm ${s.included ? "text-zinc-200 hover:bg-white/5" : "text-red-400/70"}`}>
+                              <input type="checkbox" checked={s.included} onChange={() => rosterToggle(bc, i)}
+                                aria-label={`Include ${s.staff_name}`} className="h-3.5 w-3.5 shrink-0 rounded accent-sky-500" />
+                              <span className={`min-w-0 flex-1 ${s.included ? "" : "line-through"}`}>
+                                {s.staff_name}
+                                {s.home_branch && s.home_branch !== bc && (
+                                  <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">staff record: {s.home_branch}</span>
+                                )}
+                                {s.note && <span className="ml-1.5 text-[10px] text-neutral-500">{s.note}</span>}
+                              </span>
+                              <span className="shrink-0 text-xs text-neutral-500">{s.days ? `${s.days}d` : ""}</span>
+                              <button type="button" disabled={i === 0} onClick={() => rosterMove(bc, i, -1)}
+                                aria-label={`Move ${s.staff_name} up`} className="px-1 text-xs text-neutral-400 hover:text-white disabled:opacity-30">↑</button>
+                              <button type="button" disabled={i === list.length - 1} onClick={() => rosterMove(bc, i, 1)}
+                                aria-label={`Move ${s.staff_name} down`} className="px-1 text-xs text-neutral-400 hover:text-white disabled:opacity-30">↓</button>
+                              <div className="w-24 shrink-0">
+                                <SelectDark
+                                  value={bc}
+                                  onChange={(v) => v && rosterChangeBranch(bc, i, v)}
+                                  options={prepared.branch_codes}
+                                  aria-label={`Branch for ${s.staff_name}`}
+                                />
                               </div>
-                            )}
-                          </div>
-                        )}
-                        {uncheckedCount > 0 && (
-                          <p className="mt-2 text-xs text-amber-400">
-                            {uncheckedCount} staff will be excluded from this generation run.
-                          </p>
-                        )}
+                              <button type="button" onClick={() => rosterRemove(bc, i)}
+                                aria-label={`Remove ${s.staff_name}`} className="px-1 text-xs text-neutral-500 hover:text-red-300">✕</button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 max-w-xs">
+                          <SelectDark
+                            value=""
+                            onChange={(name) => name && rosterAdd(bc, name)}
+                            options={roster.available.map((a) => ({
+                              value: a.staff_name,
+                              label: a.home_branch ? `${a.staff_name} (${a.home_branch})` : a.staff_name,
+                            }))}
+                            placeholder="+ Add staff"
+                            aria-label={`Add staff to ${bc}`}
+                          />
+                        </div>
                       </div>
                     );
                   })
+                )}
+                {roster && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={() => void saveRoster()} disabled={rosterSaving || !rosterDirty}
+                      className={`${SECONDARY_BUTTON} disabled:opacity-50`}>
+                      {rosterSaving ? "Saving…" : "Save roster"}
+                    </button>
+                    {rosterMessage && <span className="text-xs text-neutral-300">{rosterMessage}</span>}
+                  </div>
                 )}
               </div>
             )}
@@ -4016,6 +4410,11 @@ export default function AdminDraftPage() {
                       <td className={`${TABLE_CELL} px-4`}>{r.work_date}</td>
                       <td className={`${TABLE_CELL} px-4`}>
                         <span className={BADGE_INFO}>{labelOf(city, r.branch_code as BranchCode) || r.branch_code}</span>
+                        {r.proposed_branch_code && r.proposed_branch_code !== r.branch_code ? (
+                          <span className={`${BADGE_WARNING} ml-1`}>
+                            → {labelOf(city, r.proposed_branch_code as BranchCode) || r.proposed_branch_code}
+                          </span>
+                        ) : null}
                       </td>
                       <td className={`${TABLE_CELL} px-4 text-zinc-500 line-through text-xs`}>
                         {r.staff_name} {rangeText(Number(r.start_hour || 0), Number(r.end_hour || 0))}
@@ -4081,7 +4480,7 @@ export default function AdminDraftPage() {
             </button>
             <button
               type="button"
-              onClick={() => confirmApply(false)}
+              onClick={() => confirmApply()}
               disabled={loading}
               className={`${SECONDARY_BUTTON} disabled:opacity-60`}
             >
@@ -4089,23 +4488,36 @@ export default function AdminDraftPage() {
             </button>
           </div>
 
-          {/* Refused: this draft rosters somebody on a day already approved off. */}
+          {/* Refused: this draft rosters somebody on a day already approved off,
+              or at hours they already work at another branch. */}
           {applyDayOffBlock && (
             <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
               <div className="mb-2 text-sm font-semibold text-rose-300">
-                Not applied — {applyDayOffBlock.branch_name} {applyDayOffBlock.week_start} already
-                given off ({countDayOffConflicts(applyDayOffBlock.conflicts)})
+                {applyDayOffBlock.kind === "day_off" ? (
+                  <>Not applied — {applyDayOffBlock.branch_name} {applyDayOffBlock.week_start} already
+                  given off ({countDayOffConflicts(applyDayOffBlock.conflicts)})</>
+                ) : (
+                  <>Not applied — {applyDayOffBlock.branch_name} {applyDayOffBlock.week_start} rosters{" "}
+                  {applyDayOffBlock.overlaps.length} shift{applyDayOffBlock.overlaps.length === 1 ? "" : "s"} at
+                  hours already published at another branch</>
+                )}
               </div>
               <div className="max-h-40 overflow-y-auto">
-                {applyDayOffBlock.conflicts.map((c, i) => (
-                  <p key={`ado${i}`} className="text-xs text-rose-200/90">{describeDayOffConflict(c)}</p>
-                ))}
+                {applyDayOffBlock.kind === "day_off"
+                  ? applyDayOffBlock.conflicts.map((c, i) => (
+                      <p key={`ado${i}`} className="text-xs text-rose-200/90">{describeDayOffConflict(c)}</p>
+                    ))
+                  : applyDayOffBlock.overlaps.map((o, i) => (
+                      <p key={`axb${i}`} className="text-xs text-rose-200/90">{describeCrossBranchOverlap(o)}</p>
+                    ))}
               </div>
               <p className="mt-2 text-xs text-rose-300/70">
                 {applyDayOffBlock.applied_before > 0
                   ? `${applyDayOffBlock.applied_before} earlier week${applyDayOffBlock.applied_before === 1 ? " was" : "s were"} applied before this one stopped. `
                   : "Nothing has been applied. "}
-                Set those days to Day Off in the draft and Confirm Apply again.
+                {applyDayOffBlock.kind === "day_off"
+                  ? "Set those days to Day Off in the draft and Confirm Apply again."
+                  : "Take them out of this draft, or remove the shift at the other branch in Manual Shift, and Confirm Apply again."}
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
@@ -4117,11 +4529,15 @@ export default function AdminDraftPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => confirmApply(true)}
+                  onClick={() => confirmApply(applyDayOffBlock.kind)}
                   disabled={loading}
                   className="rounded-lg border border-rose-400/50 bg-rose-500/20 px-3 py-1.5 text-xs text-rose-100 transition hover:bg-rose-500/30 disabled:opacity-50"
                 >
-                  {loading ? "Applying…" : "Apply anyway — the day off no longer stands"}
+                  {loading
+                    ? "Applying…"
+                    : applyDayOffBlock.kind === "day_off"
+                      ? "Apply anyway — the day off no longer stands"
+                      : "Apply anyway — they are expected at both"}
                 </button>
               </div>
             </div>
@@ -4133,6 +4549,43 @@ export default function AdminDraftPage() {
                 <div>jobs_ready: <span className="text-neutral-200">{fmtNum(applyPrepared.items.length)}</span></div>
                 <div>preview: {fmtNum(applyPrepared.total_rows_count)} rows / {fmtNum(applyPrepared.total_staff_count)} staff</div>
               </div>
+              {(() => {
+                // Weeks that run into the neighbouring month: say which days are
+                // applied, once per week rather than once per branch.
+                const seen = new Map<string, string>();
+                for (const i of applyPrepared.items) {
+                  if (i.apply_window && !seen.has(i.week_start)) seen.set(i.week_start, i.apply_window.message);
+                }
+                if (!seen.size) return null;
+                return (
+                  <div className="mt-3 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200">
+                    {[...seen.entries()].map(([w, m]) => <div key={w}>Week of {w}: {m}</div>)}
+                  </div>
+                );
+              })()}
+              {applyPrepared.items.some(i => (i.cross_branch_overlaps?.length ?? 0) > 0) && (
+                <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
+                  <div className="mb-2 text-sm font-semibold text-rose-300">
+                    Already published at another branch —{" "}
+                    {applyPrepared.items.reduce((n, i) => n + (i.cross_branch_overlaps?.length ?? 0), 0)} shift(s)
+                  </div>
+                  <p className="mb-2 text-xs text-rose-200/70">
+                    Confirm Apply will stop at these weeks and ask, one week at a time.
+                  </p>
+                  <div className="max-h-40 space-y-1 overflow-y-auto">
+                    {applyPrepared.items.filter(i => (i.cross_branch_overlaps?.length ?? 0) > 0).map(i => (
+                      <div key={`pxb-${i.branch_code}-${i.week_start}`} className="rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-2">
+                        <div className="text-xs font-semibold text-rose-200">
+                          {i.branch_name} <span className="ml-2 font-normal text-rose-400/60">{i.week_start}</span>
+                        </div>
+                        {(i.cross_branch_overlaps || []).map((o, k) => (
+                          <p key={`pxbo${k}`} className="mt-1 text-[11px] text-rose-200/70">{describeCrossBranchOverlap(o)}</p>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {applyPrepared.items.some(i => (i.day_off_conflicts?.length ?? 0) > 0) && (
                 <div className="mt-4 rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
                   <div className="mb-2 text-sm font-semibold text-rose-300">
@@ -4159,23 +4612,22 @@ export default function AdminDraftPage() {
               {applyPrepared.items.some(i => i.conflict) && (
                 <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-300">
-                    ⚠️ Overwrite Warning — Manual corrections detected
+                    Manual corrections made after this draft
                   </div>
                   <p className="mb-3 text-xs text-amber-200/70">
-                    The following branches have published shifts that were updated <strong>after</strong> this draft was generated.
-                    Proceeding will overwrite those manual OS corrections.
+                    These weeks have published shifts that were corrected <strong>after</strong> this draft was generated.
+                    Confirm Apply keeps those corrections and publishes the rest of the draft. Each week&apos;s result
+                    lists the shifts it kept. To use the draft&apos;s version of a kept shift, edit that cell in the
+                    draft and apply again.
                   </p>
                   <div className="space-y-2">
                     {applyPrepared.items.filter(i => i.conflict).map(i => (
                       <div key={`${i.branch_code}-${i.week_start}`} className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs">
                         <span className="font-semibold text-amber-200">{i.branch_name}</span>
                         <span className="ml-2 text-amber-400/60">{i.week_start}</span>
-                        <div className="mt-1 text-amber-200/50">
-                          Published by <span className="text-amber-200/80">{i.conflict!.published_by}</span> at{" "}
-                          <span className="text-amber-200/80">{i.conflict!.published_at_pht?.slice(0, 16)} PHT</span>
-                          {" "}(draft was generated at {i.conflict!.draft_created_at_pht?.slice(0, 16)} PHT,{" "}
-                          {i.conflict!.delta_minutes} min earlier)
-                        </div>
+                        {(i.conflict?.kept_cells || []).map((line, k) => (
+                          <div key={`kc${k}`} className="mt-1 text-amber-200/70">{line}</div>
+                        ))}
                       </div>
                     ))}
                   </div>

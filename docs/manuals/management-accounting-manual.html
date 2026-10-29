@@ -273,10 +273,15 @@ td.muted{color:var(--muted);font-size:12px}
         <div class="lc-path">manila_payroll_items</div>
       </div>
       <div class="lc-step"><div class="lc-dot orange"></div>
-        <div class="lc-header"><span class="lc-status">ドバイ</span><span class="lc-who dubai">給与シート</span></div>
-        <div class="lc-detail">Excel の Salary Computation から店舗別に取り込み、日数で割って日割り計上。
-          未登録の月は直近の登録月から引き継ぎます。</div>
-        <div class="lc-path">dubai_monthly_labor</div>
+        <div class="lc-header"><span class="lc-status">ドバイ</span><span class="lc-who dubai">給与実績</span></div>
+        <div class="lc-detail">その窓（前月26日〜当月25日）を覆う<strong>給与サイクルの計算結果</strong>。
+          1人あたり手取り＋ローン回収分−経費立替分を、<strong>実際に働いた公開シフトの時間で
+          拠点に按分</strong>します。公開シフトが無い人（バックオフィス・ドライバー）は所属拠点へ。
+          <strong>退職金積立（5.75%）は含みません。</strong><br>
+          サイクルの明細が無い月だけ、Excel の Salary Computation（<code>dubai_monthly_labor</code>）
+          へ落ちます。この表は 2026-07 の7行しか無く更新経路も無いので、落ちた月は
+          「人件費は2026-07から引き継ぎ」と表示されます。</div>
+        <div class="lc-path">payroll_run_records + payroll_adjustments ／ 戻すなら MGMT_DUBAI_LABOR_SOURCE=salary_sheet</div>
       </div>
       <div class="lc-step"><div class="lc-dot violet"></div>
         <div class="lc-header"><span class="lc-status">バックオフィス</span><span class="lc-who system">折半</span></div>
@@ -338,12 +343,19 @@ td.muted{color:var(--muted);font-size:12px}
       <tbody>
         <tr><td>売上</td><td>ドバイ=入金額 / マニラ=日次入力の合計</td><td>前月比。ただし集計途中の月は日数を確認</td></tr>
         <tr><td>食材費・率</td><td>発注実績 ×1.03</td><td class="muted">ドバイ 30〜38% / マニラ 38〜48% が近年の水準</td></tr>
-        <tr><td>人件費</td><td>給与実績（マニラ）/ 給与シート（ドバイ）<br><span class="muted">バックオフィスと7CZの給与は契約月額を足します。窓が途中の月は日数で按分します。</span></td><td class="muted">20〜38%</td></tr>
+        <tr><td>人件費</td><td>給与実績（両都市）<br><span class="muted">マニラはバックオフィスと7CZの契約月額を足します。窓が途中の月は日数で按分します。ドバイは拠点按分が実際に働いた時間ベースなので、所属拠点とは一致しません。</span></td><td class="muted">20〜38%</td></tr>
         <tr><td>経費</td><td>家賃・光熱費など</td><td>「引き継ぎ」表示があれば前月の値</td></tr>
         <tr><td><strong>営業利益</strong></td><td>売上 − 上記3つ</td><td>赤字は赤色。下に利益率</td></tr>
         <tr><td>プライム率</td><td>（食材費＋人件費）÷ 売上</td><td class="muted">参考指標。65%超で警告</td></tr>
       </tbody>
     </table></div>
+  </div>
+
+  <div class="tip info"><span class="tip-icon">ℹ</span>
+    <div><strong>ドバイの人件費に「給与サイクル ○○ の計算値です」と出る月は、確定値ではありません。</strong>
+    そのサイクルの給与明細がまだ発行されていない状態で、締めるまで金額は動きます。
+    発行が全件済んだ月にはこの表示は出ません。<br>
+    <span class="muted">2026-07 までは手計算P&amp;Lの上書きが優先されるので、給与サイクルの数字は使いません。</span></div>
   </div>
 
   <div class="tip danger"><span class="tip-icon">⚠</span>

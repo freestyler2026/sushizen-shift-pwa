@@ -102,7 +102,12 @@ type AttendanceRow = {
   scheduled_shift_start: string | null;
 };
 
-type AdjItemType = "MANUAL_ADDITION" | "MANUAL_DEDUCTION" | "INCOME_TAX" | "LOAN_DEDUCTION";
+type AdjItemType = "MANUAL_ADDITION" | "MANUAL_DEDUCTION" | "INCOME_TAX" | "LOAN_DEDUCTION" | "STATUTORY_REFUND";
+
+// Paid to the employee like an addition, but not pay: a contribution taken in
+// error and given back. An Addition counts as remuneration, so September's
+// "SSS August 2026 Adjustment" put four people one SSS bracket high.
+const ADDS_MONEY = (t: string) => t === "MANUAL_ADDITION" || t === "STATUTORY_REFUND";
 
 type Adjustment = {
   id: number;
@@ -212,6 +217,29 @@ const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: 
          + "only what it covers was taken. The balance is named on the payslip "
          + "— decide whether to collect it next cut-off or have the member pay "
          + "the agency directly.",
+  },
+  LOAN_UNCOLLECTED: {
+    label: "loan short",
+    cls: "text-amber-300 bg-amber-900/25 border-amber-500/40",
+    title: "The pay in this cut-off would not cover the loan amortization, so only "
+         + "what it covers was taken. Pag-IBIG: the employee pays the rest to the "
+         + "Fund directly. SSS: the unpaid part carries a 1% a month penalty.",
+  },
+  LOAN_MANUAL_DUPLICATE: {
+    label: "loan twice?",
+    cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
+    title: "This loan is registered under Gov Loans and deducted automatically, and "
+         + "a hand-entered deduction on this payslip, or on the 1st cut-off of the same "
+         + "month, also reads like a loan. Open the payslip: the warning names the "
+         + "deduction and what to do. Unless it is a different loan, the month is "
+         + "deducted twice.",
+  },
+  LOAN_BALANCE_NEEDED: {
+    label: "loan balance?",
+    cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
+    title: "Last cut-off: the remaining loan balance has to come off final pay, but "
+         + "none is entered, so only the month was taken. Enter the balance from the "
+         + "SSS / Pag-IBIG statement on Gov Loans and recompute this payslip.",
   },
   BIR_ANNUAL_INCOMPLETE: {
     label: "year incomplete",
@@ -973,15 +1001,16 @@ function AdjustmentModal({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      {adj.item_type === "MANUAL_ADDITION"
+                      {ADDS_MONEY(adj.item_type)
                         ? <PlusCircle size={13} className="text-emerald-400 flex-none"/>
                         : <MinusCircle size={13} className="text-red-400 flex-none"/>}
-                      <span className={`text-sm font-medium ${adj.item_type === "MANUAL_ADDITION" ? "text-emerald-300" : "text-red-300"}`}>
-                        {adj.item_type === "MANUAL_ADDITION" ? "+" : "−"}{fmtPHP(adj.amount)}
+                      <span className={`text-sm font-medium ${ADDS_MONEY(adj.item_type) ? "text-emerald-300" : "text-red-300"}`}>
+                        {ADDS_MONEY(adj.item_type) ? "+" : "−"}{fmtPHP(adj.amount)}
                       </span>
                       {adj.item_type !== "MANUAL_ADDITION" && adj.item_type !== "MANUAL_DEDUCTION" && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400">
-                          {adj.item_type === "INCOME_TAX" ? "Tax" : "Loan"}
+                          {adj.item_type === "INCOME_TAX" ? "Tax"
+                            : adj.item_type === "STATUTORY_REFUND" ? "Refund · not pay" : "Loan"}
                         </span>
                       )}
                     </div>
@@ -1038,15 +1067,23 @@ function AdjustmentModal({
                 <MinusCircle size={12}/> Income Tax
               </button>
               <button
-                onClick={() => setNewType("LOAN_DEDUCTION")}
+                onClick={() => setNewType("STATUTORY_REFUND")}
+                title="Giving back an SSS, PhilHealth or Pag-IBIG contribution over-deducted in an EARLIER month. Paid like an addition, but not counted as pay. This month's own over-deduction is refunded automatically on the 2nd cut-off; do not enter it here."
                 className={`flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
-                  newType === "LOAN_DEDUCTION"
-                    ? "border-orange-500/40 bg-orange-900/30 text-orange-300"
+                  newType === "STATUTORY_REFUND"
+                    ? "border-sky-500/40 bg-sky-900/30 text-sky-300"
                     : "border-white/10 bg-slate-800 text-slate-500 hover:text-slate-300"
                 }`}
               >
-                <MinusCircle size={12}/> Loan Repayment
+                <PlusCircle size={12}/> Contribution refund
               </button>
+              <Link
+                href="/admin/payroll/manila/loans"
+                className="flex items-center justify-center gap-1 rounded-lg border border-white/10 bg-slate-800 py-2 text-xs font-medium text-slate-400 hover:text-slate-200"
+                title="SSS and Pag-IBIG loans are registered once and deducted on every cut-off automatically"
+              >
+                SSS / Pag-IBIG loan →
+              </Link>
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
@@ -1150,7 +1187,8 @@ function PayslipDetail({
     setDeletingId(item.id);
     try {
       // Fetch all adjustments for this staff/period to find the matching one
-      const adjType = item.item_type === "earning" ? "MANUAL_ADDITION" : "MANUAL_DEDUCTION";
+      const adjType = item.item_code === "REFUND_STATUTORY_OVERDEDUCTION" ? "STATUTORY_REFUND"
+        : item.item_type === "earning" ? "MANUAL_ADDITION" : "MANUAL_DEDUCTION";
       const res = await apiFetch(`${API}/adjustments?period_id=${periodId}&staff_name=${encodeURIComponent(run.staff_name)}`);
       if (!res.ok) throw new Error("Failed to load adjustments");
       const adjs: { id: number; item_type: string; amount: number }[] = await res.json();

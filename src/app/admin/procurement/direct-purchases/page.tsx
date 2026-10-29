@@ -3,9 +3,12 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import ModalScrim from "@/components/ModalScrim";
 import {
-  LANES, STAGE_LABEL, laneOf, stageAlert, stageOf, stageTone,
-  type DirectPurchaseRow, type DirectPurchaseItem,
+  LANES, STAGE_LABEL, boardTotals, laneCount, laneIsWork, laneOf, laneOldest,
+  laneSplit, openRemovals,
+  removalReason, rowKey, stageAlert, stageOf, stageTone,
+  type DirectPurchaseRow, type DirectPurchaseItem, type ItemRemoval, type StageSummary,
 } from "@/lib/direct-purchase-stage";
+import { money } from "@/lib/currency";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
   defaultProcurementName,
@@ -63,19 +66,26 @@ function stageBadge(row: DirectPurchaseRow) {
 
 type EditState = {
   vendor_name: string;
-  items: { item_name: string; category: string; qty: string; unit: string; unit_price: string }[];
+  // The id travels with the line so the server can tell a removed line from a
+  // renamed one. Empty on a line added here.
+  items: { id: string; item_name: string; category: string; qty: string; unit: string; unit_price: string }[];
+  reason_code: string;
+  reason_note: string;
 };
 
 function buildEditState(row: DirectPurchaseRow): EditState {
   return {
-    vendor_name: row.items[0]?.vendor_name || "",
+    vendor_name: row.po_vendor_name || row.items[0]?.vendor_name || "",
     items: row.items.map((i) => ({
+      id:         i.id || "",
       item_name:  i.item_name,
       category:   i.category || "General",
       qty:        String(i.qty),
       unit:       i.unit,
       unit_price: String(i.unit_price),
     })),
+    reason_code: "",
+    reason_note: "",
   };
 }
 
@@ -118,10 +128,24 @@ export default function DirectPurchasesAdminPage() {
   // In Review is the landing lane: it is the only one where somebody is
   // waiting on a decision from this screen.
   const [lane, setLane] = useState("IN_REVIEW");
+  // Not a stage, so not a lane: a line can come off an order at any stage. It
+  // sits beside the lanes because it is reached the same way, and a count that
+  // cannot be opened is a dead end.
+  const [removalsOnly, setRemovalsOnly] = useState(false);
   const [verifiedFilter, setVerifiedFilter] = useState("");   // "" | "false" | "true"
 
   // ── Data ──
   const [rows, setRows]       = useState<DirectPurchaseRow[]>([]);
+  // Every row at every stage, from the server. The lane chips read this, never
+  // `rows` -- `rows` holds one lane now.
+  const [stageSummary, setStageSummary] = useState<StageSummary | null>(null);
+  // Lines taken off an order, keyed by request. Kept beside the rows rather
+  // than inside them: a removal belongs to the order, and a line can come off
+  // before any purchase order exists.
+  const [removals, setRemovals] = useState<Record<string, ItemRemoval[]>>({});
+  const [removalsOpen, setRemovalsOpen] = useState(0);
+  const [removalReasons, setRemovalReasons] = useState<Record<string, string>>({});
+  const [ackBusy, setAckBusy] = useState("");
   // What the two creator alerts have done, and who they cannot reach.
   const [alerts, setAlerts] = useState<AlertPayload | null>(null);
   // Registering the missing IDs happens here, not on another page. The page
@@ -138,6 +162,9 @@ export default function DirectPurchasesAdminPage() {
   // ── Expand/edit ──
   const [expandedId, setExpandedId] = useState("");
   const [showBacklog, setShowBacklog] = useState(false);
+  // The threshold comes from the server, so the chip and the list cannot
+  // disagree about which side of it a row is on.
+  const [backlogDays, setBacklogDays] = useState(30);
   const [editingId,  setEditingId]  = useState("");
   const [editState,  setEditState]  = useState<EditState | null>(null);
   const [editBusy,   setEditBusy]   = useState(false);
@@ -219,25 +246,57 @@ export default function DirectPurchasesAdminPage() {
   }, [idEdit, requestedBy, pin, cityFilter, statusFilter, verifiedFilter]);
 
   // ─── Load list ───────────────────────────────────────────────────────────
-  const load = useCallback(async (city: string, status: string, dv: string) => {
+  const load = useCallback(async (city: string, status: string, dv: string,
+                                  forLane?: string, forRemovals?: boolean,
+                                  forBacklog?: boolean) => {
     setError(""); setLoading(true);
     try {
-      // Everything, not one status, and not 200. The lane counts have to be
-      // true to be worth showing, and ordering is created_at DESC, so at 200
-      // the rows that most needed attention -- the oldest, up to 116 days --
-      // were past the end and could not be reached from this screen at all.
+      // The lane being looked at, not every row. Manila is 827 rows and fitted
+      // in one window; Dubai is 3,074 at one row per supplier, so asking for
+      // everything would cut off two thirds and the oldest order -- the one
+      // most worth opening -- is the one that falls off the end.
+      //
+      // The counts come back separately, over every row. A count taken from
+      // the page is a count of the page.
+      const laneKey = forLane ?? lane;
+      const onlyRemovals = forRemovals ?? removalsOnly;
+      // Removals cut across the lanes, so asking for them means asking for
+      // every stage.
+      const laneDef = LANES.find(l => l.key === laneKey);
+      const stages = onlyRemovals ? "" : (laneDef?.stages || []).join(",");
+      // Today's work first. Dubai's Incoming lane is 1,029 orders against a
+      // window of 1,000, and 949 of them are months old -- fetching the whole
+      // lane means the 80 somebody can act on today may not even be in it.
+      const age = onlyRemovals || !laneDef || !laneIsWork(laneDef)
+        ? ""
+        : (forBacklog ?? showBacklog) ? "older" : "recent";
       const qs = new URLSearchParams({
         city,
         ...(status ? { status } : {}),
         ...(dv ? { data_verified: dv } : {}),
+        ...(stages ? { stages } : {}),
+        ...(onlyRemovals ? { open_removals: "true" } : {}),
+        ...(age ? { age } : {}),
         limit: "1000",
       }).toString();
-      const data = await procurementJson<{ rows: DirectPurchaseRow[] }>(
+      const data = await procurementJson<{
+        rows: DirectPurchaseRow[];
+        stages?: StageSummary;
+        removals?: Record<string, ItemRemoval[]>;
+        removals_open?: number;
+        removal_reasons?: Record<string, string>;
+        backlog_days?: number;
+      }>(
         `/api/admin/procurement/direct-purchases?${qs}`,
         { method: "GET" },
         requestedBy, pin,
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      setStageSummary(data?.stages || null);
+      setRemovals(data?.removals || {});
+      setRemovalsOpen(Number(data?.removals_open || 0));
+      setRemovalReasons(data?.removal_reasons || {});
+      if (data?.backlog_days) setBacklogDays(Number(data.backlog_days));
       // Non-fatal on purpose: if this call is refused the banner is simply
       // absent, rather than the whole screen failing over a caption.
       try {
@@ -283,9 +342,11 @@ export default function DirectPurchasesAdminPage() {
 
   // ─── Edit handlers ────────────────────────────────────────────────────────
   const startEdit = (row: DirectPurchaseRow) => {
-    setEditingId(row.id);
+    // Keyed on the row, not the request: an order sent to two suppliers has two
+    // rows, and `row.id` would open both of them for editing at once.
+    setEditingId(rowKey(row));
     setEditState(buildEditState(row));
-    setExpandedId(row.id);
+    setExpandedId(rowKey(row));
     setEditError("");
   };
 
@@ -301,7 +362,7 @@ export default function DirectPurchasesAdminPage() {
 
   const addEditItem = () =>
     setEditState((prev) => prev
-      ? { ...prev, items: [...prev.items, { item_name: "", category: "General", qty: "", unit: "kg", unit_price: "" }] }
+      ? { ...prev, items: [...prev.items, { id: "", item_name: "", category: "General", qty: "", unit: "kg", unit_price: "" }] }
       : prev,
     );
 
@@ -332,6 +393,7 @@ export default function DirectPurchasesAdminPage() {
     setEditBusy(true); setEditError("");
     try {
       const itemsPayload = validItems.map((it) => ({
+        id:         it.id || "",
         item_name:  it.item_name.trim(),
         category:   it.category.trim() || "General",
         qty:        parseFloat(it.qty) || 0,
@@ -343,7 +405,13 @@ export default function DirectPurchasesAdminPage() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ approver_name: requestedBy, pin, vendor_name: editState.vendor_name, items: itemsPayload }),
+          body: JSON.stringify({
+            approver_name: requestedBy, pin,
+            vendor_name: editState.vendor_name,
+            items: itemsPayload,
+            removal_reason_code: editState.reason_code,
+            removal_reason_note: editState.reason_note,
+          }),
         },
         requestedBy, pin,
       );
@@ -353,6 +421,36 @@ export default function DirectPurchasesAdminPage() {
       setEditError(e instanceof Error ? e.message : String(e));
     } finally {
       setEditBusy(false);
+    }
+  };
+
+  /** Yusuke's "I approve it and it stops being shown". The row stays. */
+  const acknowledgeRemoval = async (rm: ItemRemoval) => {
+    setAckBusy(rm.id);
+    try {
+      await procurementJson(
+        `/api/admin/procurement/item-removals/${encodeURIComponent(rm.id)}/ack`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approver_name: requestedBy, pin }),
+        },
+        requestedBy, pin,
+      );
+      // Mark it here rather than refetching: the row would otherwise jump as
+      // the list reloads, and the acknowledgement is one field.
+      setRemovals((prev) => ({
+        ...prev,
+        [rm.request_id]: (prev[rm.request_id] || []).map((x) =>
+          x.id === rm.id
+            ? { ...x, ack_status: "acknowledged", ack_by: requestedBy, ack_at: "just now" }
+            : x),
+      }));
+      setRemovalsOpen((n) => Math.max(0, n - 1));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAckBusy("");
     }
   };
 
@@ -470,7 +568,10 @@ export default function DirectPurchasesAdminPage() {
     ? editState.items.reduce((s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.unit_price) || 0), 0)
     : 0;
 
-  const pendingCount = rows.filter((r) => !r.data_verified_at).length;
+  // Over the whole board, from the server. Counting the rows on screen made
+  // this say 1,000 for a Dubai board of 3,074 -- the page's size, dressed as a
+  // fact about the work.
+  const board = boardTotals(stageSummary);
 
   // Oldest first inside a lane. The whole complaint was that the screen does
   // not say what to do next; created_at DESC answers "what is newest", which is
@@ -483,11 +584,16 @@ export default function DirectPurchasesAdminPage() {
   // lane rather than on the request's age -- an old request that was approved
   // yesterday is today's problem, and belongs at the top.
   //
+  // The line itself moved to the server on 2026-10-04 (`backlogDays`, from the
+  // response). It was drawn over the rows that happened to be fetched, which is
+  // sound at Manila's 827 and false at Dubai's Incoming lane: 1,029 orders
+  // against a window of 1,000, with 949 of them months old, so the 80 somebody
+  // can act on today might not be in the window at all.
+  //
   // Nothing is hidden: the backlog keeps its own count and opens in one click.
-  const BACKLOG_DAYS = 30;
 
   const laneRows = rows
-    .filter(r => laneOf(r) === lane)
+    .filter(r => removalsOnly || laneOf(r) === lane)
     .sort((a, b) => {
       if (lane === "RECEIVED" || lane === "CLOSED") {
         return String(b.created_at || "").localeCompare(String(a.created_at || ""));
@@ -497,12 +603,13 @@ export default function DirectPurchasesAdminPage() {
       return bv - av;
     });
 
-  const isBacklog = (r: DirectPurchaseRow) =>
-    lane !== "RECEIVED" && lane !== "CLOSED" && Number(r.days_in_stage || 0) > BACKLOG_DAYS;
-  const visibleRows = laneRows.filter(r => !isBacklog(r));
-  const backlogRows = laneRows.filter(isBacklog);
-  const backlogOldest = backlogRows.length
-    ? Math.max(...backlogRows.map(r => Number(r.days_in_stage || 0))) : 0;
+  // The server decides which side of the line a row is on and fetches that
+  // side, so these are no longer a slice of what happened to arrive.
+  const visibleRows = laneRows;
+  const activeLane = LANES.find(l => l.key === lane);
+  const split = laneSplit(stageSummary, activeLane || LANES[0]);
+  const backlogCount = activeLane && laneIsWork(activeLane) && !removalsOnly ? split.older : 0;
+  const backlogOldest = activeLane ? laneOldest(stageSummary, activeLane) : 0;
 
 
   return (
@@ -515,11 +622,15 @@ export default function DirectPurchasesAdminPage() {
           <p className="mt-1 text-sm text-zinc-400">Review and correct vendor/item data submitted by procurement staff.</p>
         </div>
         <div className="flex items-center gap-2">
-          {pendingCount > 0 && (
-            <span className={`${BADGE_WARNING}`}>{pendingCount} pending review</span>
+          {board.unverified > 0 && (
+            <span className={`${BADGE_WARNING}`}>
+              {board.unverified === board.total
+                ? `Nothing reviewed yet — all ${board.total.toLocaleString()}`
+                : `${board.unverified.toLocaleString()} pending review`}
+            </span>
           )}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
-            <ShoppingBag className="h-3 w-3" />{rows.length} total
+            <ShoppingBag className="h-3 w-3" />{board.total.toLocaleString()} total
           </span>
         </div>
       </div>
@@ -595,33 +706,50 @@ export default function DirectPurchasesAdminPage() {
           so the flagging is inspectable rather than mysterious. */}
       <div className="mb-3 flex flex-wrap gap-2">
         {LANES.map((l) => {
-          const inLane = rows.filter(r => laneOf(r) === l.key);
-          const flagged = inLane.filter(r => stageAlert(r)).length;
-          const working = l.key !== "RECEIVED" && l.key !== "CLOSED";
-          const oldest = working && inLane.length
-            ? Math.max(...inLane.map(r => Number(
-                l.key === "PO_ISSUED" ? (r.days_past_delivery_date ?? 0) : (r.days_in_stage || 0))))
-            : 0;
           const active = lane === l.key;
+          // From the server, over every row. Only the lane on screen has rows
+          // here, so counting those would report 0 for every other chip.
+          const total = laneCount(stageSummary, l);
+          const working = laneIsWork(l);
+          const split = laneSplit(stageSummary, l);
+          // The working lanes lead with today's work and name the pile behind
+          // it. The closed lanes are not work, so they keep their total.
+          const count = working ? split.recent : total;
+          const oldest = working ? laneOldest(stageSummary, l) : 0;
+          // Only for the lane whose rows are loaded, AND only when they are
+          // all of it. Counted from the page, this badge is right until a
+          // flaggable lane passes the 1,000-row window and then quietly
+          // reports the window instead -- the thing the counts above were
+          // moved to the server to stop.
+          const whole = active && rows.length >= count;
+          const flagged = whole ? rows.filter(r => stageAlert(r)).length : 0;
+          const inLane = active ? rows.filter(r => laneOf(r) === l.key) : [];
           return (
-            <button key={l.key} type="button" onClick={() => setLane(l.key)}
+            <button key={l.key} type="button"
+              onClick={() => { setLane(l.key); setRemovalsOnly(false); setShowBacklog(false); setExpandedId("");
+                               void load(cityFilter, statusFilter, verifiedFilter, l.key, false, false); }}
               className={`rounded-xl border px-3 py-2 text-left transition ${
                 active ? "border-violet-400/50 bg-violet-500/15 text-white"
                        : "border-white/10 bg-white/4 text-zinc-300 hover:bg-white/8"}`}>
               <span className="text-xs font-semibold">{l.label}</span>
-              <span className="ml-2 font-mono text-sm">{inLane.length}</span>
+              <span className="ml-2 font-mono text-sm">{count}</span>
               {/* "N flagged" only when it is a strict subset. Every row in
                   In Review and nearly every row in Needs PO is past its
                   threshold right now, and a badge that reads "48 flagged" next
                   to a count of 48 says nothing -- the same way a queue where
                   83% is noise stops being read. The oldest age is informative
                   either way, so that is what the chip carries. */}
-              {flagged > 0 && flagged < inLane.length && (
+              {whole && flagged > 0 && flagged < inLane.length && (
                 <span className="ml-2 rounded-lg bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
                   {flagged} flagged
                 </span>
               )}
-              {working && inLane.length > 0 && oldest > 0 && (
+              {working && split.older > 0 && (
+                <span className="ml-2 rounded-lg bg-white/8 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">
+                  +{split.older} older
+                </span>
+              )}
+              {working && count > 0 && oldest > 0 && (
                 <span className="ml-2 rounded-lg bg-white/8 px-1.5 py-0.5 text-[10px] font-medium text-zinc-300">
                   oldest {oldest}d
                 </span>
@@ -629,19 +757,49 @@ export default function DirectPurchasesAdminPage() {
             </button>
           );
         })}
+        {removalsOpen > 0 && (
+          <button type="button"
+            onClick={() => { setRemovalsOnly(true); setShowBacklog(false); setExpandedId("");
+                             void load(cityFilter, statusFilter, verifiedFilter, lane, true); }}
+            className={`rounded-xl border px-3 py-2 text-left transition ${
+              removalsOnly ? "border-rose-400/50 bg-rose-500/15 text-white"
+                           : "border-rose-500/25 bg-rose-500/8 text-rose-200 hover:bg-rose-500/15"}`}>
+            <span className="text-xs font-semibold">Lines taken off</span>
+            <span className="ml-2 font-mono text-sm">{removalsOpen}</span>
+          </button>
+        )}
       </div>
       <p className={`${T_CAPTION} mb-3`}>
-        {LANES.find(l => l.key === lane)?.hint}
+        {removalsOnly
+          ? "Lines taken off an order after it was raised. Acknowledge one to take it off this list — the record stays on the order."
+          : LANES.find(l => l.key === lane)?.hint}
+        {(() => {
+          // The window holds 1,000 and Dubai's Incoming lane is larger than
+          // that. Saying so beats a list that silently stops: the row most
+          // worth opening is the oldest, and it is the one past the end.
+          if (removalsOnly) return null;
+          const total = laneCount(stageSummary, LANES.find(l => l.key === lane)!);
+          if (!rows.length || total <= rows.length) return null;
+          return (
+            <span className="text-zinc-400">
+              {" "}Showing the newest {rows.length} of {total}.
+            </span>
+          );
+        })()}
         {(() => {
           const inLane = rows.filter(r => laneOf(r) === lane);
           const flagged = inLane.filter(r => stageAlert(r)).length;
-          if (!inLane.length || flagged < inLane.length) return null;
+          // Only when the lane fits in one window: "all 1,000 are past that"
+          // would be a statement about the window, not about the lane.
+          if (removalsOnly) return null;
+          const whole = inLane.length === laneCount(stageSummary, LANES.find(l => l.key === lane)!);
+          if (!whole || !inLane.length || flagged < inLane.length) return null;
           // Saying "all of them" is the difference between a queue somebody
           // works today and a backlog somebody schedules. Without it the
           // screen looks like a daily list that is permanently on fire.
           return (
             <span className="text-amber-300">
-              {" "}All {inLane.length} are past that — this is a backlog to clear, not today&apos;s work.
+              {" "}{inLane.length === 1 ? "That one is" : `All ${inLane.length} are`} past that — this is a backlog to clear, not today&apos;s work.
             </span>
           );
         })()}
@@ -716,40 +874,26 @@ export default function DirectPurchasesAdminPage() {
 
       {/* List */}
       <div className="space-y-3">
-        {visibleRows.length === 0 && backlogRows.length > 0 && (
+        {visibleRows.length === 0 && backlogCount > 0 && !showBacklog && (
           <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-5 text-center text-sm text-zinc-400">
-            Nothing new in this lane — everything here has been waiting more than {BACKLOG_DAYS} days.
+            Nothing new in this lane — everything here has been waiting more than {backlogDays} days.
           </div>
         )}
-        {[...visibleRows, ...(showBacklog ? backlogRows : [])].map((row, idx) => {
-          const isExpanded = expandedId === row.id;
-          const isEditing  = editingId  === row.id;
+        {visibleRows.map((row) => {
+          const key = rowKey(row);
+          const isExpanded = expandedId === key;
+          const isEditing  = editingId  === key;
           const createdDt  = row.created_at
             ? new Date(row.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
             : "—";
 
-          // Where the backlog starts, so an expanded lane still reads as two
-          // piles rather than one long one.
-          const startsBacklog = showBacklog && idx === visibleRows.length && backlogRows.length > 0;
-
           return (
-            <Fragment key={row.id}>
-            {startsBacklog && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/4 px-4 py-2.5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                  Waiting more than {BACKLOG_DAYS} days — {backlogRows.length} order{backlogRows.length === 1 ? "" : "s"}, oldest {backlogOldest} days
-                </span>
-                <button type="button" onClick={() => setShowBacklog(false)}
-                  className="text-xs font-medium text-violet-300 hover:text-violet-200">
-                  Hide these
-                </button>
-              </div>
-            )}
+            <Fragment key={key}>
             <div className={`rounded-2xl border transition-all ${row.data_verified_at ? "border-white/8 bg-white/4" : "border-amber-500/20 bg-amber-500/5"}`}>
 
               {/* Row header */}
               <button type="button" className="w-full px-4 py-4 text-left"
-                onClick={() => setExpandedId(isExpanded ? "" : row.id)}>
+                onClick={() => setExpandedId(isExpanded ? "" : key)}>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
@@ -774,8 +918,23 @@ export default function DirectPurchasesAdminPage() {
                           </span>
                         );
                       })()}
-                      {Number(row.po_count || 0) > 1 && (
-                        <span className={BADGE_WARNING}>{row.po_count} POs</span>
+                      {Number(row.po_vendor_count || 0) > 1 && (
+                        <span className={BADGE_WARNING}
+                          title="This order went to more than one supplier. Each supplier is its own row.">
+                          1 of {row.po_vendor_count} suppliers
+                        </span>
+                      )}
+                      {row.po_superseded && (
+                        <span className={BADGE_INFO}
+                          title="A later purchase order was raised to this supplier for this order. This one received nothing.">
+                          Replaced by a later PO
+                        </span>
+                      )}
+                      {Number(row.po_reissue_count || 0) > 1 && (
+                        <span className={BADGE_INFO}
+                          title="This order carries more than one purchase order to the same supplier. Each is its own row, with its own receipt.">
+                          {row.po_reissue_count} POs to this supplier
+                        </span>
                       )}
                       {row.has_shortage && <span className={BADGE_WARNING}>Short delivery</span>}
                       {row.data_verified_at
@@ -791,8 +950,16 @@ export default function DirectPurchasesAdminPage() {
                       <span>By <span className="text-zinc-300">{row.requested_by}</span></span>
                       {row.store_code && <span>Branch <span className="text-zinc-300">{row.store_code}</span></span>}
                       <span>Date <span className="text-zinc-300">{row.request_date || createdDt}</span></span>
-                      <span>Vendor <span className="text-zinc-200 font-medium">{row.items[0]?.vendor_name || "—"}</span></span>
-                      <span>Total <span className="font-semibold text-amber-300">PHP {Number(row.total_amount || 0).toFixed(2)}</span></span>
+                      <span>Vendor <span className="text-zinc-200 font-medium">{row.po_vendor_name || row.items[0]?.vendor_name || "—"}</span></span>
+                      {/* This supplier's share, and the order's total when they
+                          differ. They differ only on a multi-supplier order,
+                          where one number for both would be the thing this
+                          grain exists to stop. */}
+                      <span>Total <span className="font-semibold text-amber-300">{money(row.city, row.row_amount ?? row.total_amount)}</span>
+                        {Number(row.po_vendor_count || 0) > 1 && (
+                          <span className="text-zinc-500"> of {money(row.city, row.total_amount)}</span>
+                        )}
+                      </span>
                       {row.delivery_date && (
                         <span>
                           Expected <span className="text-zinc-200 font-medium">{row.delivery_date}</span>
@@ -805,6 +972,22 @@ export default function DirectPurchasesAdminPage() {
                         <span className="text-sky-300">
                           Dispatch confirmed {String(row.delivered_confirmed_at).slice(0, 10)}
                           {row.delivered_confirmed_by ? ` · ${row.delivered_confirmed_by}` : ""}
+                        </span>
+                      )}
+                      {/* Yusuke asked who recorded the receipt and when. Every
+                          column was already filled; the screen never asked. */}
+                      {row.received_at && (
+                        <span className="text-emerald-300">
+                          Received {String(row.received_at).slice(0, 16).replace("T", " ")}
+                          {row.received_by ? ` · ${row.received_by}` : ""}
+                        </span>
+                      )}
+                      {/* Said plainly, because the row looks identical to a
+                          received one otherwise: a stamp, a date, a name — the
+                          supplier's. */}
+                      {stageOf(row) === "SUPPLIER_ACKED" && (
+                        <span className="text-amber-300">
+                          Supplier confirmed the order{row.receipt_confirmed_at ? ` ${String(row.receipt_confirmed_at).slice(0, 10)}` : ""} — nobody has recorded it arriving
                         </span>
                       )}
                     </div>
@@ -840,7 +1023,12 @@ export default function DirectPurchasesAdminPage() {
                         <Pencil className="h-3.5 w-3.5" /> Expected date
                       </button>
                     )}
-                    {row.po_id && stageOf(row) === "PO_ISSUED" && !isEditing && (
+                    {/* Also on an acknowledged row. The supplier clicking the
+                        link in the PO email is not the back office checking the
+                        delivery was arranged, and 430 Dubai orders sit in that
+                        state -- without this they could never be given a
+                        dispatch mark at all. */}
+                    {row.po_id && ["PO_ISSUED", "SUPPLIER_ACKED"].includes(stageOf(row)) && !isEditing && (
                       <button type="button"
                         onClick={(e) => { e.stopPropagation(); void handleDelivered(row, false); }}
                         disabled={poBusy === row.id}
@@ -910,9 +1098,66 @@ export default function DirectPurchasesAdminPage() {
                             <td className="px-3 py-2 text-zinc-400">{item.vendor_name}</td>
                           </tr>
                         ))}
+                        {/* Under the lines that are coming, struck through: the
+                            ones that are not. They were deleted outright before
+                            this, so the order read as if they had never been
+                            asked for while the purchase order in the supplier's
+                            hands still listed them. */}
+                        {(removals[row.id] || []).map((rm) => (
+                          <tr key={rm.id} className="border-t border-white/8 bg-rose-500/5">
+                            <td className="px-3 py-2 text-zinc-400 line-through">{rm.item_name}</td>
+                            <td className="px-3 py-2 text-zinc-500">{rm.category || "—"}</td>
+                            <td className="px-3 py-2 text-right text-zinc-400 line-through">{rm.qty}</td>
+                            <td className="px-3 py-2 text-zinc-500">{rm.unit}</td>
+                            <td className="px-3 py-2 text-right text-zinc-500 line-through">{Number(rm.unit_price).toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right text-zinc-500 line-through">{Number(rm.line_total).toFixed(2)}</td>
+                            <td className="px-3 py-2 text-zinc-500">{rm.vendor_name}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
+
+                  {(removals[row.id] || []).map((rm) => (
+                    <div key={rm.id}
+                      className={`rounded-xl border p-3 text-xs ${
+                        (rm.ack_status || "pending") === "acknowledged"
+                          ? "border-white/8 bg-white/4 text-zinc-400"
+                          : "border-rose-500/30 bg-rose-500/5 text-rose-200"}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                          <span className="font-semibold">Taken off this order:</span>{" "}
+                          {rm.item_name} {rm.qty} {rm.unit} · {money(row.city, rm.line_total)}
+                          {rm.po_no ? ` · ${rm.po_no}` : ""}
+                        </span>
+                        {(rm.ack_status || "pending") !== "acknowledged" ? (
+                          <button type="button" onClick={() => void acknowledgeRemoval(rm)}
+                            disabled={ackBusy === rm.id}
+                            className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
+                            {ackBusy === rm.id
+                              ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              : <CheckCircle2 className="h-3.5 w-3.5" />}
+                            Acknowledge
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-zinc-500">
+                            Acknowledged{rm.ack_by ? ` by ${rm.ack_by}` : ""}{rm.ack_at ? ` · ${rm.ack_at}` : ""}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] text-zinc-400">
+                        {removalReason(rm, removalReasons)}
+                        {" · "}
+                        {rm.removed_by
+                          ? `removed by ${rm.removed_by}`
+                          : "nobody recorded who removed it"}
+                        {rm.removed_at ? ` · ${rm.removed_at}` : ""}
+                        {rm.reconstructed
+                          ? " · worked out from the purchase order, not witnessed"
+                          : ""}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -1027,8 +1272,47 @@ export default function DirectPurchasesAdminPage() {
                     {/* Running total */}
                     <div className="flex justify-end text-sm">
                       <span className="text-zinc-400 mr-3">New total:</span>
-                      <span className="font-semibold text-amber-300">PHP {editTotal.toFixed(2)}</span>
+                      <span className="font-semibold text-amber-300">{money(row.city, editTotal)}</span>
                     </div>
+
+                    {/* Asked at the moment the line comes off, and only once a
+                        purchase order exists — before that the supplier has not
+                        been told anything and this screen is for correcting the
+                        request. The server requires the same thing; this is so
+                        the person is not told afterwards that the save failed. */}
+                    {(() => {
+                      const dropped = row.items.filter(
+                        (i) => !editState!.items.some((e) => e.id && e.id === i.id));
+                      if (!dropped.length || !row.po_id) return null;
+                      return (
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                          <p className="text-xs text-amber-200">
+                            Taking {dropped.length} line{dropped.length === 1 ? "" : "s"} off {row.po_no} — {dropped.map((d) => String(d.item_name)).join(", ")}.
+                            {" "}The person who raised the order is told, and this is kept on the row.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(removalReasons).map(([code, label]) => (
+                              <button key={code} type="button"
+                                onClick={() => setEditState(prev => prev ? { ...prev, reason_code: code } : prev)}
+                                className={`rounded-lg border px-2.5 py-1 text-xs transition ${
+                                  editState!.reason_code === code
+                                    ? "border-amber-400/60 bg-amber-400/15 text-amber-100"
+                                    : "border-white/10 bg-white/4 text-zinc-300 hover:bg-white/8"}`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          <input
+                            className={INPUT_CLASS}
+                            placeholder={editState!.reason_code === "other"
+                              ? "Say what happened (required)"
+                              : "Anything to add (optional)"}
+                            value={editState!.reason_note}
+                            onChange={(e) => setEditState(prev => prev ? { ...prev, reason_note: e.target.value } : prev)}
+                          />
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Save / Cancel */}
@@ -1048,11 +1332,19 @@ export default function DirectPurchasesAdminPage() {
             </Fragment>
           );
         })}
-        {!showBacklog && backlogRows.length > 0 && (
-          <button type="button" onClick={() => setShowBacklog(true)}
+        {backlogCount > 0 && (
+          <button type="button"
+            onClick={() => { const next = !showBacklog; setShowBacklog(next); setExpandedId("");
+                             void load(cityFilter, statusFilter, verifiedFilter, lane, false, next); }}
             className="w-full rounded-xl border border-dashed border-white/12 bg-white/2 px-4 py-3 text-sm text-zinc-400 hover:border-violet-500/30 hover:text-zinc-200">
-            Show {backlogRows.length} order{backlogRows.length === 1 ? "" : "s"} waiting more than {BACKLOG_DAYS} days
-            <span className="text-zinc-500"> · oldest {backlogOldest} days</span>
+            {showBacklog
+              ? (split.recent > 0
+                  ? `Back to the ${split.recent} from the last ${backlogDays} days`
+                  : `Back to the last ${backlogDays} days — nothing new there`)
+              : `Show ${backlogCount} order${backlogCount === 1 ? "" : "s"} waiting more than ${backlogDays} days`}
+            {!showBacklog && backlogOldest > 0 && (
+              <span className="text-zinc-500"> · oldest {backlogOldest} days</span>
+            )}
           </button>
         )}
       </div>

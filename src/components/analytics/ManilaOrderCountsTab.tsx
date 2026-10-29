@@ -170,8 +170,14 @@ type OrderRow = {
   store_name: string;
   transaction_channel: string;
   total_transactions: number;
-  total_sales?: number;
-  net_sales?: number;
+  /** Null when the amount was never recorded for any day in the period, which
+   *  is not the same as zero — July 2026 was restored with its day totals and
+   *  without the channel split. */
+  total_sales?: number | null;
+  net_sales?: number | null;
+  /** Days in the period where this channel took orders and no amount was keyed. */
+  amount_days_missing?: number;
+  amount_days?: number;
 };
 
 type MonthHistoryRow = {
@@ -181,8 +187,29 @@ type MonthHistoryRow = {
   net_sales: number;
   days: number;
   avg_net_per_order: number;
+  /** Gross ÷ orders. Not shown any more: on GrabFood "gross" is the menu
+   *  price before the promotion (about twice what the customer paid), so it
+   *  is neither what the customer paid nor what the business keeps. */
+  avg_gross_per_order?: number | null;
+  gross_sales?: number | null;
+  /** Average per order of what customers paid for the food: Dine-in bill incl.
+   *  VAT, GrabFood net sales (after promotions, before Grab's commission),
+   *  Foodpanda order value. Null where a month lacks the data. */
+  avg_customer_paid_per_order?: number | null;
+  customer_paid?: number | null;
+  /** Average per order of what reached the business: Dine-in takings plus the
+   *  Grab and Foodpanda payouts for the days of the month. */
+  avg_received_per_order?: number | null;
+  received?: number | null;
+  /** Days a platform took orders and has paid nothing for yet. */
+  unpaid_days?: { grab: number; foodpanda: number } | null;
   mom_orders: number | null;
   mom_net_sales: number | null;
+  /** The month total is whole; its per-channel split is not, for this many
+   *  days. Marked so this table and the channel view above cannot disagree in
+   *  silence. */
+  days_without_split?: number;
+  split_complete?: boolean;
 };
 
 type ApiResp = {
@@ -236,14 +263,15 @@ export function ManilaOrderCountsTab({
   // Local date inputs
   const [localFrom, setLocalFrom] = useState(dateFrom);
   const [localTo, setLocalTo]     = useState(dateTo);
-  const [activePreset, setActivePreset] = useState<string | null>("30D");
+  const [activePreset, setActivePreset] = useState<string | null>(null);
 
-  // Sync when parent changes (city switch)
+  // Follow the page's Summary Range (the reload follows from load's deps).
+  // It is a month, not the last 30 days, so no preset is lit.
   useEffect(() => {
     setLocalFrom(dateFrom);
     setLocalTo(dateTo);
     setSelectedMonth("");
-    setActivePreset("30D");
+    setActivePreset(null);
   }, [dateFrom, dateTo]);
 
   const effectiveDateFrom = selectedMonth ? monthToRange(selectedMonth).from : localFrom;
@@ -646,7 +674,22 @@ export function ManilaOrderCountsTab({
                             {chPct.toFixed(1)}%
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-300">
-                            {row.net_sales != null ? formatPhp(Number(row.net_sales)) : "—"}
+                            {row.net_sales != null ? (
+                              <>
+                                {formatPhp(Number(row.net_sales))}
+                                {row.amount_days_missing ? (
+                                  <span className="ml-1 text-[10px] text-amber-400/80"
+                                        title={`${row.amount_days_missing} of ${row.amount_days} days in this period have orders on this channel with no amount recorded, so this total is short by those days.`}>
+                                    −{row.amount_days_missing}d
+                                  </span>
+                                ) : null}
+                              </>
+                            ) : (
+                              <span className="text-neutral-500"
+                                    title="Not recorded. These orders happened; the amount for them was never keyed, so this is unknown rather than zero. The month total in the history below still holds the sales.">
+                                not recorded
+                              </span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -671,7 +714,12 @@ export function ManilaOrderCountsTab({
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.15em] text-neutral-400">Monthly History — Last 12 Complete Months</p>
-              <p className="text-[10px] text-neutral-600 mt-0.5">Orders + net sales from manila_daily_sales · complete months only</p>
+              <p className="text-[10px] text-neutral-600 mt-0.5">
+                Orders + net sales from manila_daily_sales · complete months only ·
+                {" "}The two per-order columns are the average spend per order (sales ÷ orders), not order counts:
+                {" "}Customer paid = Dine-in bill incl. VAT + GrabFood sales after promotions + Foodpanda order value;
+                {" "}Received = Dine-in takings + what Grab and Foodpanda actually paid out (about 31% less than GrabFood sales after promotions).
+              </p>
             </div>
             {historyLoading ? <Spinner size="sm" /> : null}
           </div>
@@ -685,7 +733,10 @@ export function ManilaOrderCountsTab({
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">MoM</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Orders</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">MoM (orders)</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Avg/Order</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500"
+                        title="Average spend per order: what customers paid for the food ÷ orders. Dine-in incl. VAT, GrabFood after promotions, Foodpanda order value. From August 2026.">Avg / order<br /><span className="normal-case tracking-normal font-normal">customer paid</span></th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500"
+                        title="What reached the business per order: Dine-in takings plus Grab and Foodpanda payouts, ÷ orders. From August 2026.">Avg / order<br /><span className="normal-case tracking-normal font-normal">received</span></th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Days</th>
                     <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500 w-24">Bar</th>
                   </tr>
@@ -710,7 +761,15 @@ export function ManilaOrderCountsTab({
                       };
                       return (
                         <tr key={row.month_key} className="border-t border-neutral-800/60 hover:bg-neutral-800/20 transition-colors">
-                          <td className="px-4 py-2.5 font-medium text-neutral-200">{row.label}</td>
+                          <td className="px-4 py-2.5 font-medium text-neutral-200">
+                            {row.label}
+                            {row.split_complete === false ? (
+                              <span className="ml-1.5 text-[10px] text-amber-400/80"
+                                    title={`The month total is complete. Its per-channel split is not: on ${row.days_without_split} of its ${row.days} days a channel took orders and no amount was recorded for them, so the channel table above reads less than this row. The sales are in this figure.`}>
+                                split incomplete
+                              </span>
+                            ) : null}
+                          </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-100 font-semibold">
                             {formatPhp(row.net_sales)}
                           </td>
@@ -723,8 +782,30 @@ export function ManilaOrderCountsTab({
                           <td className="px-4 py-2.5 text-right">
                             {momCell(momOrd)}
                           </td>
-                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-400">
-                            {formatPhp(row.avg_net_per_order)}
+                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-300">
+                            {row.avg_customer_paid_per_order != null ? formatPhp(row.avg_customer_paid_per_order) : (
+                              <span className="text-neutral-600"
+                                    title="Dine-in's bill incl. VAT is recorded from August 2026. Before that what customers paid cannot be worked out without guessing.">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-300">
+                            {row.avg_received_per_order != null ? (
+                              <>
+                                {formatPhp(row.avg_received_per_order)}
+                                {row.unpaid_days && (row.unpaid_days.grab + row.unpaid_days.foodpanda) > 0 ? (
+                                  <span className="ml-1 text-[10px] text-amber-400/80"
+                                        title={`Not paid out yet for ${[
+                                          row.unpaid_days.grab ? `${row.unpaid_days.grab} GrabFood day(s)` : "",
+                                          row.unpaid_days.foodpanda ? `${row.unpaid_days.foodpanda} Foodpanda day(s)` : "",
+                                        ].filter(Boolean).join(" and ")} with orders, so this reads a little low.`}>
+                                    short
+                                  </span>
+                                ) : null}
+                              </>
+                            ) : (
+                              <span className="text-neutral-600"
+                                    title="Needs Dine-in's takings (recorded from August 2026) and the platform payouts.">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-2.5 text-right tabular-nums text-neutral-500">{row.days}</td>
                           <td className="px-4 py-2.5">

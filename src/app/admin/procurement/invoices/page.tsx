@@ -437,6 +437,24 @@ export default function ProcurementInvoicesPage() {
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState<"dubai" | "manila">(defaultCity);
+  // ?city=manila&invoice=123 -- the VAT Ledger links to one invoice. HQ's login
+  // city is Dubai, so without the city in the link it landed on the wrong Inbox.
+  const [openInvoiceId, setOpenInvoiceId] = useState<number | null>(null);
+  // The link's city must outlive init() below, which sets the login city after an
+  // await and so ran last (2026-10-22 ultra review).
+  const urlCity = useRef<"dubai" | "manila" | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const c = (q.get("city") || "").toLowerCase();
+    if (c === "manila" || c === "dubai") { urlCity.current = c; setCity(c); }
+    const id = Number(q.get("invoice") || "");
+    if (Number.isInteger(id) && id > 0) setOpenInvoiceId(id);
+  }, []);
+  const inboxHeaders = useMemo(
+    () => ({ Authorization: `Bearer ${defaultAuth?.accessToken || ""}` }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [defaultAuth?.accessToken],
+  );
   const [invoiceNo, setInvoiceNo] = useState("");
   const [vendorName, setVendorName] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -1426,7 +1444,7 @@ export default function ProcurementInvoicesPage() {
       );
       setAllowed(can);
       setAuthChecked(true);
-      if (can) {
+      if (can && !urlCity.current) {
         setCity(nextCity);
       }
     }
@@ -1527,8 +1545,9 @@ export default function ProcurementInvoicesPage() {
           holding Manila's rows out of the screen that exists to show them. */}
       <DriveInvoiceInbox
         city={city}
-        authHeaders={{ Authorization: `Bearer ${defaultAuth?.accessToken || ""}` }}
+        authHeaders={inboxHeaders}
         driveFolderUrl={driveFolderUrl || undefined}
+        openInvoiceId={openInvoiceId}
       />
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">

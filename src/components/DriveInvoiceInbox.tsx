@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { GLASS_CARD } from "@/lib/ui-tokens";
 import DriveInvoiceModal from "./DriveInvoiceModal";
+import { HELD_LABEL } from "@/lib/invoice-held";
 
 export interface DriveInvoice {
   id: number;
@@ -40,6 +41,28 @@ export interface DriveInvoice {
   matched_po_no: string | null;
   matched_po_vendor: string | null;
   matched_po_amount: number | null;
+  /** Fields two readings disagreed on, and -- on an approved invoice -- where the
+   *  re-reading disagrees with what was approved ("reviewed value"). */
+  review_fields?: ReviewField[];
+  /** Why the reader did not approve it on its own (backend
+   *  invoice_auto_approve.assess). Pending invoices only. */
+  held_because?: string[];
+  /** As the reader read them -- shown so the reviewer can check them against the
+   *  photo (input VAT needs our TIN and registered name, RMC 77-2024). */
+  buyer_name?: string | null;
+  buyer_tin?: string | null;
+  tin_or_trn?: string | null;
+  seller_vat_status?: string | null;
+}
+
+
+
+export interface ReviewField {
+  field: string;
+  "reviewed value"?: string | number | null;
+  "re-reading"?: string | number | null;
+  first?: unknown;
+  second?: unknown;
 }
 
 export interface LineItem {
@@ -59,12 +82,17 @@ interface Props {
   city?: string;
   authHeaders: Record<string, string>;
   driveFolderUrl?: string;
+  /** Open this invoice on arrival (a link from the VAT Ledger). */
+  openInvoiceId?: number | null;
 }
 
 function OcrStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string }> = {
     pending:    { label: "OCR pending",    cls: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
     processing: { label: "Processing…",   cls: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+    // Past invoices read together at half price (backend app/services/invoice_reread.py);
+    // read within a few hours, then "OCR done".
+    batch_queued: { label: "Queued for reading", cls: "bg-yellow-500/10 text-yellow-200 border-yellow-500/20" },
     done:       { label: "OCR done",       cls: "bg-green-500/20 text-green-300 border-green-500/30" },
     skipped:    { label: "Manual entry",   cls: "bg-white/10 text-white/50 border-white/10" },
     error:      { label: "OCR error",      cls: "bg-red-500/20 text-red-300 border-red-500/30" },
@@ -92,12 +120,15 @@ const STATUSES = [
   { key: "pending_review", label: "Pending" },
   { key: "archived", label: "Archived" },
   { key: "approved", label: "Approved" },
+  // Approved, but the re-reading disagrees with what was approved. Of six
+  // checked against the photograph, the approved value was wrong on five.
+  { key: "reading_differs", label: "Reading differs" },
   { key: "not_supplier_invoice", label: "Not an invoice" },
   { key: "rejected", label: "Rejected" },
 ] as const;
 type StatusKey = (typeof STATUSES)[number]["key"];
 
-export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFolderUrl }: Props) {
+export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFolderUrl, openInvoiceId }: Props) {
   const [invoices, setInvoices] = useState<DriveInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DriveInvoice | null>(null);
@@ -109,23 +140,48 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
   /** How many are waiting, which is not how many were fetched. The endpoint
       used to return the page size as the total, so 634 read as 50. */
   const [pendingTotal, setPendingTotal] = useState(0);
+  const [heldCounts, setHeldCounts] = useState<Record<string, number>>({});
+  const [switching, setSwitching] = useState(false);
+  // Only the latest request may write: a slow answer for the tab left a moment
+  // ago must not replace the one just opened.
+  const seq = useRef(0);
 
   const fetchInvoices = useCallback(async () => {
+    const my = ++seq.current;
     try {
       const res = await fetch(
         `/api/admin/drive-invoices?city=${city}&review_status=${status}&limit=50`,
         { headers: authHeaders }
       );
+      if (my !== seq.current) return;
       if (!res.ok) return;
       const data = await res.json();
+      if (my !== seq.current) return;
       setInvoices(data.rows ?? []);
       setPendingTotal(Number(data.total ?? (data.rows ?? []).length));
+      setHeldCounts(data.held_counts ?? {});
     } catch {
       // silent
     } finally {
-      setLoading(false);
+      if (my === seq.current) { setLoading(false); setSwitching(false); }
     }
   }, [city, authHeaders, status]);
+
+  // A link from the VAT Ledger names one invoice: open it, whatever tab it is on.
+  useEffect(() => {
+    if (!openInvoiceId) return;
+    let dead = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/drive-invoices/${openInvoiceId}`, { headers: authHeaders });
+        if (!res.ok || dead) return;
+        const data = await res.json();
+        const inv = (data && (data.row || data.invoice || data)) as DriveInvoice;
+        if (inv && inv.id) setSelected(inv);
+      } catch { /* the list still works */ }
+    })();
+    return () => { dead = true; };
+  }, [openInvoiceId, authHeaders]);
 
   useEffect(() => {
     fetchInvoices();
@@ -134,6 +190,10 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
   }, [fetchInvoices]);
 
   const handleUpdated = (updated: DriveInvoice) => {
+    // Leaving the tab it was listed under: the header count drops with it.
+    if (updated.review_status !== status && invoices.some((x) => x.id === updated.id)) {
+      setPendingTotal((n) => Math.max(0, n - 1));
+    }
     setInvoices((prev) =>
       prev.filter((inv) =>
         updated.review_status === status ? true : inv.id !== updated.id
@@ -145,9 +205,6 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
   };
 
   if (loading) return null;
-  // Empty is a real answer once a status can be chosen — hiding the whole panel
-  // would read as "the filter is broken" rather than "there are none".
-  if (invoices.length === 0 && status === "pending_review") return null;
 
   const displayed = showAll ? invoices : invoices.slice(0, 6);
   const hasMore = invoices.length > 6 && !showAll;
@@ -156,7 +213,7 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
     <>
       <div className={`${GLASS_CARD} rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 mb-4`}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <span className="text-lg">📥</span>
             <div>
@@ -165,12 +222,13 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
                 {pendingTotal.toLocaleString()} invoice{pendingTotal !== 1 ? "s" : ""}{" "}
                 {STATUSES.find((x) => x.key === status)?.label.toLowerCase()}
                 {pendingTotal > invoices.length
-                  ? ` · showing the oldest ${invoices.length}`
+                  ? ` · showing the newest ${invoices.length}`
                   : ""}
+                {switching ? " · loading…" : ""}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {driveFolderUrl && (
               <a
                 href={driveFolderUrl}
@@ -182,11 +240,11 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
                 Invoice Drive
               </a>
             )}
-            <div className="flex items-center gap-0.5 rounded-lg border border-white/10 p-0.5">
+            <div className="flex flex-wrap items-center gap-0.5 rounded-lg border border-white/10 p-0.5">
               {STATUSES.map((x) => (
                 <button
                   key={x.key}
-                  onClick={() => { setStatus(x.key); setShowAll(false); }}
+                  onClick={() => { if (x.key !== status) setSwitching(true); setStatus(x.key); setShowAll(false); }}
                   className={
                     "text-[11px] px-2 py-1 rounded-md transition-colors " +
                     (status === x.key
@@ -206,6 +264,17 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
             </button>
           </div>
         </div>
+
+        {status === "pending_review" && Object.keys(heldCounts).length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-white/50">Why these were not approved automatically:</span>
+            {Object.entries(heldCounts).sort((a, b) => b[1] - a[1]).map(([k, n]) => (
+              <span key={k} className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-amber-200">
+                {HELD_LABEL[k] || k} · {n}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Card grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -241,6 +310,15 @@ export default function DriveInvoiceInbox({ city = "dubai", authHeaders, driveFo
                       </span>
                     )}
                   </p>
+                )}
+                {(inv.held_because || []).length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {(inv.held_because || []).map((k) => (
+                      <span key={k} className="rounded bg-amber-500/15 px-1 py-0.5 text-[10px] text-amber-200">
+                        {HELD_LABEL[k] || k}
+                      </span>
+                    ))}
+                  </div>
                 )}
                 <div className="flex items-center gap-1 mt-1 flex-wrap">
                   <OcrStatusBadge status={inv.ocr_status} />

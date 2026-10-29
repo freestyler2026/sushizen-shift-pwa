@@ -713,7 +713,9 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
           <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1 ${sevDot}`} />
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-white text-sm">{fmtLabel(task.type)}</span>
+              {/* The template's title, which is written for a person ("Invoice
+                  Price Differs From PO"), over the internal type name. */}
+              <span className="font-semibold text-white text-sm">{template?.title_en || fmtLabel(task.type)}</span>
               {/* Which store this is about. Without it an alert arriving on a
                   day you are not at any branch is unreadable — you cannot tell
                   whether it is yours, and neither can whoever picks it up next. */}
@@ -774,6 +776,16 @@ function TaskCard({ task, template, managerName, onRespond }: TaskCardProps) {
             <div className="mt-2 text-xs font-semibold text-amber-300 tabular-nums">
               {shortfall}
             </div>
+          )}
+          {/* Where to look. A price alert that names an item and two prices is
+              not something anybody can act on without the invoice behind it. */}
+          {typeof task.context?.link === "string" && task.context.link.startsWith("/") && (
+            <a
+              href={task.context.link}
+              className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-300 underline-offset-2 hover:underline"
+            >
+              Open the invoice check →
+            </a>
           )}
         </div>
       )}

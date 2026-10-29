@@ -94,6 +94,29 @@ export default function CreateStaffPage() {
     if (first) setHomeBranch(first as BranchCode);
   }, [city]);
 
+  // Arriving from the Hired screen with a name to register. Read after mount
+  // from window rather than useSearchParams: the page is prerendered and shared
+  // by every viewer, so branching the first render on the URL is a hydration
+  // mismatch (and useSearchParams would need a Suspense boundary).
+  //
+  // Only the name. The branch is not carried because the applicant record does
+  // not reliably hold one -- one of the five rows this link exists for has
+  // "will start on July 04" in its branch field.
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      const n = q.get("name");
+      // Never overwrite what somebody has already typed.
+      if (n) setDisplayName((cur) => cur || n.trim().slice(0, 120));
+      // The city decides the branch list and whether the Manila-only fields
+      // appear, and it defaults to the viewer's own -- every HQ account is
+      // registered in Dubai, so a Manila hire opened from the Hired screen
+      // would land on a Dubai branch unless the link says otherwise.
+      const c = q.get("city");
+      if (c === "manila" || c === "dubai") setCity(c);
+    } catch { /* no URL to read is not a failure */ }
+  }, []);
+
   useEffect(() => {
     const run = async () => {
       // Phase 3: if the user already has a server-side session, use the stored role

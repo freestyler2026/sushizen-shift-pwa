@@ -90,6 +90,15 @@ type SyncPreviewRow = {
   _bayzat_status: string;
 };
 
+type DeletedClockIn = {
+  staff_name: string;
+  work_date: string;
+  clock_in: string;
+  clock_out?: string | null;
+  deleted_by?: string;
+  deleted_at?: string;
+};
+
 type SuspiciousSession = {
   staff_name: string;
   work_date: string;
@@ -113,6 +122,9 @@ type SyncApiResult = {
   shift_data_missing?: string[];
   suspicious_sessions?: SuspiciousSession[];
   skipped_approved?: { staff_name: string; work_date: string; reason: string }[];
+  /** Worked days whose clock-in was deleted in OS Attendance: set back to not worked. */
+  cleared_deleted_clockins?: DeletedClockIn[];
+  would_clear_deleted_clockins?: DeletedClockIn[];
   note_skipped_approved?: string;
   skipped_no_shift?: { staff_name: string; work_date: string; reason: string }[];
   skipped_suspicious?: { staff_name: string; work_date: string; check_in: string; check_out: string; duration_hours: number }[];
@@ -807,6 +819,35 @@ export default function DtrUploadPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Days the DTR had as worked from a clock-in that was later deleted in OS
+                        Attendance. An absence never overwrites a worked day, so they used to
+                        stay worked for good (Junowel Trespecios 2026-10-13). */}
+                    {(() => {
+                      const list = syncResult.cleared_deleted_clockins ?? syncResult.would_clear_deleted_clockins ?? [];
+                      if (!list.length) return null;
+                      const done = !!syncResult.cleared_deleted_clockins;
+                      return (
+                        <div className="rounded-xl border border-amber-500/40 bg-amber-900/15 p-3 space-y-1">
+                          <p className="text-xs font-bold text-amber-300">
+                            {done ? "Set back to not worked" : "Will be set back to not worked"} — clock-in deleted ({list.length})
+                          </p>
+                          <p className="text-xs text-amber-200/80">
+                            These days were marked worked from a clock-in that has since been deleted in OS
+                            Attendance. A recorded absence now applies. If the person did work, add the
+                            clock-in again in OS Attendance and sync again.
+                          </p>
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {list.map((r, i) => (
+                              <span key={i} className="rounded bg-amber-900/40 px-2 py-0.5 text-xs text-amber-200">
+                                {r.staff_name} — {r.work_date}
+                                {r.deleted_by ? ` (deleted by ${r.deleted_by})` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Unexpected server error (the sync no longer blocks globally) */}
                     {syncResult.error && (

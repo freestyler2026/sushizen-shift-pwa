@@ -160,6 +160,57 @@ function Chips({
  * had nothing on it, or one a sweep closed without answering anything, is not
  * news (lesson 39).
  */
+/**
+ * The photo behind a graded item.
+ *
+ * The bytes are no longer kept in the database (2026-09-29) — they are
+ * re-fetched from Discord when the row is opened, which takes a moment and can
+ * fail. Three states, not two: loading, the picture, and a reason. The screen
+ * used to say "no longer stored" for every photo on the strength of a column
+ * that had been emptied on purpose, which told managers the picture was gone
+ * when it was one request away.
+ *
+ * ⚠️ **No `loading="lazy"` here.** Hiding the image until it loads and
+ * deferring it until it is on screen cannot both be true: a `display: none`
+ * element is never near the viewport, so the browser never starts the request,
+ * and neither `onLoad` nor `onError` ever fires. The card then sits on
+ * "Loading the photo…" for good. Measured on production 2026-10-10, with the
+ * three states in place: `complete: false, naturalWidth: 0, currentSrc: ""` —
+ * the request had not begun. The same URL fetched by hand returned 200,
+ * image/jpeg, 582 KB in 1.3 s, so nothing was wrong behind it. An eager image
+ * loads whether or not CSS shows it, which is what this needs.
+ */
+function ReviewPhoto({ itemId, grade, available }: { itemId: number; grade: string; available: boolean }) {
+  const [state, setState] = useState<"loading" | "ok" | "failed">(available ? "loading" : "failed");
+  if (!available || state === "failed") {
+    return (
+      <p className={`${T_CAPTION} mb-3`}>
+        <Camera className="mr-1 inline h-3.5 w-3.5" />
+        {available
+          ? "The photo could not be loaded. It is still in the kitchen channel on Discord at this time."
+          : "No photo was attached to this score."}
+      </p>
+    );
+  }
+  return (
+    <>
+      {state === "loading" && (
+        <p className={`${T_CAPTION} mb-3`}>
+          <Camera className="mr-1 inline h-3.5 w-3.5" />
+          Loading the photo…
+        </p>
+      )}
+      <img
+        src={`/api/store/ops-review/item/${itemId}/photo`}
+        alt={`Product graded ${grade}`}
+        onLoad={() => setState("ok")}
+        onError={() => setState("failed")}
+        className={`${state === "ok" ? "mb-3" : "hidden"} max-h-80 w-full rounded-xl object-contain`}
+      />
+    </>
+  );
+}
+
 function DoneForYou({ rows, onOpen }: { rows: ReviewRow[]; onOpen: (id: number) => void }) {
   if (!rows.length) return null;
   return (
@@ -603,20 +654,7 @@ export default function MorningReviewPage() {
 
                   {isOpen && (
                     <div className="border-t border-white/8 px-4 py-3">
-                      {it.payload.has_photo ? (
-                        // One request per photo, only when the row is open.
-                        <img
-                          src={`/api/store/ops-review/item/${it.id}/photo`}
-                          alt={`Product graded ${grade}`}
-                          loading="lazy"
-                          className="mb-3 max-h-80 w-full rounded-xl object-contain"
-                        />
-                      ) : (
-                        <p className={`${T_CAPTION} mb-3`}>
-                          <Camera className="mr-1 inline h-3.5 w-3.5" />
-                          The photo is no longer stored.
-                        </p>
-                      )}
+                      <ReviewPhoto itemId={it.id} grade={grade} available={Boolean(it.payload.has_photo)} />
                       <p className={`${T_BODY} mb-3`}>{String(it.payload.feedback ?? "")}</p>
 
                       {a ? (

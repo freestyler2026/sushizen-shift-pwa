@@ -22,7 +22,9 @@ on:
 jobs:
   extract-payouts:
     runs-on: ubuntu-latest
-    timeout-minutes: 5  # Pure HTTP — fast (no Playwright)
+    # Pure HTTP (no Playwright). Was 5; the finance steps below fetch one detail
+    # per new transaction (~80 per store per day), so the job needs more room.
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -135,6 +137,37 @@ jobs:
           GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_QC }}
         timeout-minutes: 6
 
+      # ── Insights → Operations ──────────────────────────────────────────
+      # The "Peak hour data" and "Store Offline Hours" CSVs staff downloaded
+      # into Drive (Analytics → Manila Sales, Grab Offline, store evaluation).
+      # Last 7 days each run, so a night with a dead session is filled later.
+      - name: Insights Paranaque (peak hours, offline hours)
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque') }}
+        run: node scripts/grab/get-insights.js paranaque
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          MGMT_CRON_SECRET:    ${{ secrets.MGMT_CRON_SECRET }}
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_PARANAQUE }}
+        timeout-minutes: 3
+
+      - name: Insights Taft (peak hours, offline hours)
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'taft') }}
+        run: node scripts/grab/get-insights.js taft
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          MGMT_CRON_SECRET:    ${{ secrets.MGMT_CRON_SECRET }}
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_TAFT }}
+        timeout-minutes: 3
+
+      - name: Insights Cubao (QC) (peak hours, offline hours)
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'qc') }}
+        run: node scripts/grab/get-insights.js qc
+        env:
+          WEBHOOK_URL:         https://sushizen-shift-app-038d846023bc.herokuapp.com
+          MGMT_CRON_SECRET:    ${{ secrets.MGMT_CRON_SECRET }}
+          GRAB_SESSION_STATE:  ${{ secrets.GRAB_SESSION_QC }}
+        timeout-minutes: 3
+
       - name: Refresh Daily P&L cache
         if: always()
         run: |
@@ -144,3 +177,54 @@ jobs:
             -H "Content-Type: application/json" \
             -H "X-Cron-Secret: ${{ secrets.MGMT_CRON_SECRET }}" \
             -d "{\"city\":\"manila\",\"date_from\":\"${DATE_FROM}\",\"date_to\":\"${DATE_TO}\"}" || true
+
+      # Grab and foodpanda figures into Manila Daily Sales, so staff no longer
+      # copy them from the portals. Last 10 finished days (foodpanda invoices
+      # arrive two days late). Fails the run if the backend refuses.
+      - name: Fill Manila Daily Sales from the portals
+        if: always()
+        run: |
+          curl -sS --fail-with-body -X POST "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/aggregator/manila-daily-sales/fill" \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Secret: ${{ secrets.MGMT_CRON_SECRET }}" \
+            -d '{}'
+
+      # ── Finance transactions (VAT plan Phase 0-4) ─────────────────────────
+      # One row per transaction with its breakdown: who funded the discount,
+      # commission and its VAT, withholding, and the rows that are not orders
+      # (compensations, deductions, ads). The window is the job's DATE_FROM /
+      # DATE_TO (30 days, exported above): re-listing a month is cheap and picks
+      # up Grab's late changes, and only new or changed transactions get a detail
+      # call (measured: first run 2,233 for Paranaque, then ~80 a day).
+      # Token-protected (lesson 199). Placed after the P&L refresh so a long
+      # catch-up never holds that back; each step posts as it goes, so a step
+      # cut off by its timeout keeps what it stored and the next run continues.
+      - name: Finance transactions — Paranaque
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'paranaque') }}
+        run: node scripts/grab/get-finance-txns.js
+        env:
+          WEBHOOK_URL:               https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:           PAR
+          GRAB_SESSION_STATE:        ${{ secrets.GRAB_SESSION_PARANAQUE }}
+          GRAB_FINANCE_INGEST_TOKEN: ${{ secrets.GRAB_FINANCE_INGEST_TOKEN }}
+        timeout-minutes: 8
+
+      - name: Finance transactions — Taft
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'taft') }}
+        run: node scripts/grab/get-finance-txns.js
+        env:
+          WEBHOOK_URL:               https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:           TAFT
+          GRAB_SESSION_STATE:        ${{ secrets.GRAB_SESSION_TAFT }}
+          GRAB_FINANCE_INGEST_TOKEN: ${{ secrets.GRAB_FINANCE_INGEST_TOKEN }}
+        timeout-minutes: 8
+
+      - name: Finance transactions — Cubao (QC)
+        if: ${{ always() && (github.event.inputs.store == '' || github.event.inputs.store == 'all' || github.event.inputs.store == 'qc') }}
+        run: node scripts/grab/get-finance-txns.js
+        env:
+          WEBHOOK_URL:               https://sushizen-shift-app-038d846023bc.herokuapp.com
+          GRAB_STORE_CODE:           CUB
+          GRAB_SESSION_STATE:        ${{ secrets.GRAB_SESSION_QC }}
+          GRAB_FINANCE_INGEST_TOKEN: ${{ secrets.GRAB_FINANCE_INGEST_TOKEN }}
+        timeout-minutes: 8

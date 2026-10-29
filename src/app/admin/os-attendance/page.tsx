@@ -1,5 +1,6 @@
 "use client";
 
+import { readError } from "@/lib/image-compress";
 import { isoToday, isoDate } from "@/lib/date";
 import {
   AlertTriangle, BarChart2, CheckCircle, ChevronDown, ChevronRight,
@@ -95,7 +96,22 @@ type AttendanceSession = {
   break_min?: number;
 };
 
-type SessionMeta = { staff_names: string[]; branch_codes: string[] };
+type SessionMeta = {
+  staff_names: string[];
+  branch_codes: string[];
+  /** Names that are no longer active (SEPARATED / ON_LEAVE / ...), so the
+   *  dropdown can say so. People who left are listed: their history must
+   *  stay reachable. */
+  staff_status?: Record<string, string>;
+};
+
+/** "Ashik Kahn · left" for a dropdown label. */
+function staffLabel(name: string, status?: string): string {
+  if (!status) return name;
+  const s = status.toUpperCase();
+  const tag = s === "SEPARATED" ? "left" : s === "ON_LEAVE" ? "on leave" : s === "UNKNOWN" ? "not in Staff" : "inactive";
+  return `${name} · ${tag}`;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -299,15 +315,16 @@ function StaffReportTab({ city }: { city: string }) {
   const [staffList, setStaffList] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Fetch staff names from recent sessions for autocomplete
+  // Everyone who can be looked up: active staff plus anybody who has clocked
+  // in here, including people who left. The list used to come from the last
+  // 200 sessions, so somebody who stopped clocking in dropped out of it.
   useEffect(() => {
     async function load() {
       try {
-        const r = await apiFetch(`${API}/sessions?city=${city}&limit=200`);
+        const r = await apiFetch(`${API}/session-meta?city=${city}`);
         if (!r.ok) return;
-        const d = await r.json() as { sessions?: { staff_name: string }[] };
-        const names = [...new Set((d.sessions ?? []).map((s) => s.staff_name))].sort();
-        setStaffList(names);
+        const d = await r.json() as { staff_names?: string[] };
+        setStaffList([...(d.staff_names ?? [])].sort((a, b) => a.localeCompare(b)));
       } catch { /* best-effort */ }
     }
     void load();
@@ -319,7 +336,8 @@ function StaffReportTab({ city }: { city: string }) {
     try {
       const params = new URLSearchParams({ city, staff_name: name, from_date: fromDate, to_date: toDate });
       const r = await apiFetch(`${API}/staff-report?${params}`);
-      if (!r.ok) { setErr(await r.text()); return; }
+      // The reason, not the raw body: a 403 showed {"detail":"Forbidden"}.
+      if (!r.ok) { setErr(await readError(r, `Could not load the report (HTTP ${r.status}).`)); return; }
       setReport(await r.json() as StaffReport);
     } catch (e) { setErr(String(e)); }
     finally { setLoading(false); }
@@ -1051,8 +1069,8 @@ function DailyReportTab({ city }: { city: string }) {
     apiFetch(`${API}/session-meta?city=${city}`)
       .then(async r => {
         if (!r.ok) return;
-        const d = await r.json() as { staff_names?: string[]; branch_codes?: string[] };
-        setMeta({ staff_names: d.staff_names ?? [], branch_codes: d.branch_codes ?? [] });
+        const d = await r.json() as { staff_names?: string[]; branch_codes?: string[]; staff_status?: Record<string, string> };
+        setMeta({ staff_names: d.staff_names ?? [], branch_codes: d.branch_codes ?? [], staff_status: d.staff_status ?? {} });
       })
       .catch(() => {})
       .finally(() => setMetaBusy(false));
@@ -1328,7 +1346,7 @@ function DailyReportTab({ city }: { city: string }) {
           onChange={setStaffFilter}
           options={[
             { value: "", label: "All Staff" },
-            ...meta.staff_names.map(n => ({ value: n, label: n })),
+            ...meta.staff_names.map(n => ({ value: n, label: staffLabel(n, meta.staff_status?.[n]) })),
           ]}
         />
 

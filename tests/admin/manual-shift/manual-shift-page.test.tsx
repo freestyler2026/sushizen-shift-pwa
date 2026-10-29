@@ -1298,3 +1298,480 @@ describe("ManualShiftPage — draft persistence (localStorage)", () => {
     }, { timeout: 3000 });
   });
 });
+
+// Hiding a row never unpublished anything. Sharon Namale was hidden from ARJ
+// with 18 ARJ shifts still published: they stayed on her own schedule and the
+// spreadsheet while this grid -- the one place they could be deleted -- showed
+// nothing. A hidden row with published cells this week must be on the grid.
+describe("ManualShiftPage — hidden rows that still hold shifts", () => {
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
+
+  // Monday 2026-10-12, 10:00 in Manila / 06:00 in Dubai: Tuesday is ahead,
+  // Monday is today. Only Date is faked, so waitFor's timers still run.
+  const MONDAY = new Date("2026-10-12T02:00:00Z");
+
+  it("shows a hidden person who still has published shifts ahead, marked and explained", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    try {
+      const fetchMock = makeFetch([
+        { match: "/api/admin/manual-shift/hidden-staff", body: {
+            hidden: [{ staff_name: "Dana Moved", hidden_by: "HQ" }] } },
+        { match: "/api/published/week", body: {
+            rows: [{ work_date: "2026-10-13", staff_name: "Dana Moved", branch_code: "BB",
+                     role: "STAFF", start_hour: 15, end_hour: 24 }] } },
+      ]);
+      await renderPage(fetchMock);
+      await loadStaff();
+      await waitFor(() => {
+        expect(screen.getByText(/still scheduled here from 2026-10-13/i)).toBeInTheDocument();
+      }, { timeout: 3000 });
+      const row = screen.getAllByText("Dana Moved").find((el) => el.closest("tr"));
+      expect(row).toBeTruthy();
+      expect(within(row!.closest("tr")!).getByText("removed")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a hidden person whose only shift this week is already worked stays visible, with nothing to clear", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    try {
+      const fetchMock = makeFetch([
+        { match: "/api/admin/manual-shift/hidden-staff", body: {
+            hidden: [{ staff_name: "Dana Moved", hidden_by: "HQ" }] } },
+        { match: "/api/published/week", body: {
+            rows: [{ work_date: "2026-10-12", staff_name: "Dana Moved", branch_code: "BB",
+                     role: "STAFF", start_hour: 9, end_hour: 18 }] } },
+      ]);
+      await renderPage(fetchMock);
+      await loadStaff();
+      await waitFor(() => {
+        const row = screen.queryAllByText("Dana Moved").find((el) => el.closest("tr"));
+        expect(row).toBeTruthy();
+      }, { timeout: 3000 });
+      // Today is a day worked: attendance and pay read it. Nothing to tell anyone to delete.
+      expect(screen.queryByText(/still scheduled here from/i)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Remove from sheet clears only the days from tomorrow; today and earlier stay", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    try {
+      const fetchMock = makeFetch([
+        { match: "/api/published/week", body: {
+            rows: [
+              { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "STAFF", start_hour: 9, end_hour: 18 },
+              { work_date: "2026-10-14", staff_name: "Alice Cohen", branch_code: "BB", role: "STAFF", start_hour: 9, end_hour: 18 },
+            ] } },
+        { match: "/api/admin/shifts/remove_staff_from_branch", method: "POST", body: {
+            ok: true, from_date: "2026-10-13", rows_deleted: 1, weeks: ["2026-10-12"],
+            published_rows: [{ work_date: "2026-10-14", role: "STAFF", branch_code: "BB" }] } },
+        { match: "/api/admin/manual-shift/hidden-staff", method: "POST", body: {
+            hidden: [{ staff_name: "Alice Cohen", hidden_by: "HQ" }] } },
+      ]);
+      await renderPage(fetchMock);
+      await loadStaff();
+      const cell = await screen.findAllByText("Alice Cohen", {}, { timeout: 3000 });
+      const tr = cell.find((el) => el.closest("tr"))!.closest("tr")!;
+      await waitFor(() => { expect(within(tr).getAllByText(/9:00/).length).toBeGreaterThan(0); }, { timeout: 3000 });
+      fireEvent.click(within(tr).getByTitle("Delete all shifts for this staff member"));
+
+      // The server removes from tomorrow; the page mirrors it without queuing
+      // cell edits (which would come back as unpublished edits for nothing).
+      await waitFor(() => {
+        const real = fetchMock.mock.calls.filter(([u, o]) => String(u).includes("remove_staff_from_branch")
+          && JSON.parse(String((o as RequestInit).body)).dry_run === false);
+        expect(real.length).toBe(1);
+      }, { timeout: 4000 });
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.some(([u, o]) => String(u).includes("/api/admin/manual-shift/hidden-staff")
+          && (o as RequestInit)?.method === "POST")).toBe(true);
+      }, { timeout: 4000 });
+      expect(fetchMock.mock.calls.filter(([u]) => String(u).includes("/api/admin/shifts/week_cells"))).toHaveLength(0);
+      const asked = String((globalThis.confirm as any).mock.calls.at(-1)[0]);
+      expect(asked).toMatch(/From 2026-10-13, 1 published shift/);
+      expect(asked).toMatch(/Today and earlier stay as they are \(1 day\(s\) on the week shown/);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a refused removal hides nothing and clears nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    try {
+      const calls: { dry: boolean }[] = [];
+      const base = makeFetch([
+        { match: "/api/published/week", body: {
+            rows: [{ work_date: "2026-10-14", staff_name: "Alice Cohen", branch_code: "BB", role: "STAFF", start_hour: 9, end_hour: 18 }] } },
+      ]);
+      const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+        if (String(url).includes("remove_staff_from_branch")) {
+          const dry = JSON.parse(String(opts?.body)).dry_run;
+          calls.push({ dry });
+          if (dry) return new Response(JSON.stringify({ ok: true, from_date: "2026-10-13", weeks: ["2026-10-12"],
+            published_rows: [{ work_date: "2026-10-14", role: "STAFF" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ detail: { code: "payroll_still_live", message: "still on payroll" } }),
+            { status: 409, headers: { "Content-Type": "application/json" } });
+        }
+        return base(url, opts);
+      });
+      await renderPage(fetchMock as any);
+      await loadStaff();
+      const cell = await screen.findAllByText("Alice Cohen", {}, { timeout: 3000 });
+      const tr = cell.find((el) => el.closest("tr"))!.closest("tr")!;
+      await waitFor(() => { expect(within(tr).getAllByText(/9:00/).length).toBeGreaterThan(0); }, { timeout: 3000 });
+      fireEvent.click(within(tr).getByTitle("Delete all shifts for this staff member"));
+      await waitFor(() => { expect(calls.filter((c) => !c.dry)).toHaveLength(1); }, { timeout: 4000 });
+      await screen.findByText(/was not fully removed/i, {}, { timeout: 3000 });
+      expect(fetchMock.mock.calls.some(([u, o]) => String(u).includes("/api/admin/manual-shift/hidden-staff")
+        && (o as RequestInit)?.method === "POST")).toBe(false);
+      expect(within(tr).getAllByText(/9:00/).length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps a hidden person with nothing published this week off the grid", async () => {
+    const fetchMock = makeFetch([
+      { match: "/api/admin/manual-shift/hidden-staff", body: {
+          hidden: [{ staff_name: "Carol Lee", hidden_by: "HQ" }] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    // The hidden list arrives after the roster, so wait for it to take effect.
+    await waitFor(() => {
+      expect(screen.queryAllByText("Carol Lee").filter((el) => el.closest("tbody"))).toHaveLength(0);
+    }, { timeout: 3000 });
+    expect(screen.getByText("Alice Cohen")).toBeInTheDocument();
+    expect(screen.queryByText(/still scheduled here from/i)).toBeNull();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────
+// A day the staff member has already clocked in asks before it changes
+// (Back Office request, 2026-10-25; app/shift_worked_days.py on the server).
+describe("ManualShiftPage — days already clocked in", () => {
+  const MONDAY = new Date("2026-10-12T02:00:00Z");
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); localStorage.clear(); });
+
+  function workedFetch() {
+    return makeFetch([
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "09:02", check_out: null, working: true },
+      ] } },
+    ]);
+  }
+  const cellPosts = (fetchMock: ReturnType<typeof makeFetch>) =>
+    fetchMock.mock.calls.filter(([u, o]) => String(u).includes("/api/admin/shifts/week_cells")
+      && ((o as RequestInit)?.method || "GET").toUpperCase() === "POST");
+
+  it("marks the cell and asks before saving; Cancel sends nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = workedFetch();
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 09:02", {}, { timeout: 3000 });
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await screen.findByText("Alice Cohen has already clocked in on this day", {}, { timeout: 2000 });
+    expect(screen.getByText("Working now — clocked in 09:02")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByText("Alice Cohen has already clocked in on this day")).toBeNull());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cellPosts(fetchMock)).toHaveLength(0);
+  });
+
+  it("without attendance access the day is marked and asked about, with no times", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = makeFetch([
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: null, check_out: null, working: true },
+      ] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working", {}, { timeout: 3000 });
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await screen.findByText("Alice Cohen has already clocked in on this day", {}, { timeout: 2000 });
+    expect(screen.getByText("Working now")).toBeInTheDocument();
+    expect(screen.queryByText(/null/)).toBeNull();
+  });
+
+  it("removing a segment of a worked day asks on top of the editor, and the editor already shows it gone", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: { rows: [
+        { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 13 },
+        { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 17, end_hour: 22 }] } },
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "08:55", check_out: null, working: true }] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 08:55", {}, { timeout: 3000 });
+    fireEvent.click(screen.getByText("9:00–13:00"));
+    await screen.findByRole("button", { name: "Save" }, { timeout: 2000 });
+    const removes = screen.getAllByRole("button", { name: "✕" }).filter((b) => b.className.includes("text-rose-400"));
+    expect(removes).toHaveLength(2);
+    fireEvent.click(removes[1]);   // 17:00–22:00
+    const dialog = await screen.findByRole("dialog", {}, { timeout: 2000 });
+    expect(dialog.className).toContain("z-[10000]");   // above the editor (z-[9999])
+    // The editor's list already shows the removal, so a Save now cannot bring it back.
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "✕" })
+      .filter((b) => b.className.includes("text-rose-400"))).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Change anyway" }));
+    await waitFor(() => expect(cellPosts(fetchMock).length).toBeGreaterThan(0), { timeout: 3000 });
+    const body = JSON.parse(String((cellPosts(fetchMock)[0][1] as RequestInit).body));
+    expect(body.edits[0].cells.map((c: { start_hour: number }) => c.start_hour)).toEqual([9]);
+  });
+
+  it("discarding a refused cell sends the rest of its batch again at once", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const queued = (staff_name: string, work_date: string) => ({ city: "dubai", branch_code: "BB", week_start: "2026-10-12",
+      staff_name, work_date, cells: [{ start_hour: 10, end_hour: 18, role: "STAFF" }], confirm_worked: false });
+    localStorage.setItem("manual-shift-outbox", JSON.stringify([queued("Alice Cohen", "2026-10-12"), queued("Bob Smith (AL)", "2026-10-14")]));
+    const bodies: { edits: { staff_name: string }[] }[] = [];
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        const body = JSON.parse(String(opts?.body));
+        bodies.push(body);
+        if (body.edits.some((e: { staff_name: string }) => e.staff_name === "Alice Cohen")) {
+          return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+            { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "09:00", check_out: null, working: true }] } }),
+          { status: 409, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ ok: true, written: 1, rev: 9, pending: 1 }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    fireEvent.click(await screen.findByRole("button", { name: "Discard these changes" }, { timeout: 3000 }));
+    // Bob's edit was never refused: it goes now, not on the next 5 s retry.
+    await waitFor(() => expect(bodies.some((b) => b.edits.length === 1 && b.edits[0].staff_name === "Bob Smith (AL)")).toBe(true),
+      { timeout: 1500 });
+  });
+
+  it("a refusal that spells the name without the role suffix is still asked about", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    localStorage.setItem("manual-shift-outbox", JSON.stringify([{ city: "dubai", branch_code: "BB", week_start: "2026-10-12",
+      staff_name: "Bob Smith (AL)", work_date: "2026-10-14", cells: [{ start_hour: 10, end_hour: 18, role: "STAFF" }],
+      confirm_worked: false }]));
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+          { staff_name: "Bob Smith", work_date: "2026-10-14", check_in: "09:00", check_out: null, working: true }] } }),
+        { status: 409, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    // Used to match on the exact name, find nothing, and retry silently forever.
+    await screen.findByRole("button", { name: "Discard these changes" }, { timeout: 3000 });
+  });
+
+  it("a discarded refused edit no longer counts as an unpublished change", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        const body = JSON.parse(String(opts?.body));
+        return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+          { staff_name: body.edits[0].staff_name, work_date: body.edits[0].work_date,
+            check_in: "09:40", check_out: null, working: true }] } }), { status: 409, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    await loadStaff();
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await screen.findByText(/1 cell edited — not yet published/i, {}, { timeout: 3000 });
+    fireEvent.click(await screen.findByRole("button", { name: "Discard these changes" }, { timeout: 3000 }));
+    await waitFor(() => expect(screen.queryByText(/cells? edited — not yet published/i)).toBeNull(), { timeout: 3000 });
+  });
+
+  it("Change anyway saves the edit with the confirmation", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = workedFetch();
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 09:02", {}, { timeout: 3000 });
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    fireEvent.click(await screen.findByRole("button", { name: "Change anyway" }, { timeout: 2000 }));
+    await waitFor(() => expect(cellPosts(fetchMock).length).toBeGreaterThan(0), { timeout: 3000 });
+    const body = JSON.parse(String((cellPosts(fetchMock)[0][1] as RequestInit).body));
+    expect(body.edits[0]).toMatchObject({ staff_name: "Alice Cohen", work_date: "2026-10-12", confirm_worked: true });
+  });
+
+  it("a note alone goes without a question, and does not wave through a later change of hours", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: { rows: [
+        { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }] } },
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "09:02", check_out: null, working: true }] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 09:02", {}, { timeout: 3000 });
+    fireEvent.click(screen.getByText("9:00–17:00"));
+    fireEvent.change(await screen.findByPlaceholderText("Add a note for this shift…"), { target: { value: "late bus" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(cellPosts(fetchMock).length).toBeGreaterThan(0), { timeout: 3000 });
+    expect(screen.queryByText(/has already clocked in on this day/)).toBeNull();
+    const first = JSON.parse(String((cellPosts(fetchMock)[0][1] as RequestInit).body));
+    expect(first.edits[0]).toMatchObject({ confirm_worked: true });
+    // Now the hours: Day Off on the same worked day is asked about.
+    fireEvent.click(screen.getByText("9:00–17:00"));
+    fireEvent.click(await screen.findByRole("button", { name: "Day Off / Absent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Alice Cohen has already clocked in on this day", {}, { timeout: 2000 });
+  });
+
+  it("an edit the server refuses as worked is asked about again, then resent with the confirmation", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    // Nothing marked on the page: the person clocked in after it last loaded.
+    let posts = 0;
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        posts += 1;
+        const body = JSON.parse(String(opts?.body));
+        if (!body.edits[0].confirm_worked) {
+          return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+            { staff_name: body.edits[0].staff_name, work_date: body.edits[0].work_date,
+              check_in: "09:40", check_out: null, working: true }] } }), { status: 409, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ ok: true, written: 1, rev: 5, pending: 1 }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    await loadStaff();
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await screen.findByText("These changes were waiting to be saved. Late, early and pay for these days are measured against this schedule.", {}, { timeout: 3000 });
+    expect(screen.getByText("Working now — clocked in 09:40")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Change anyway" }));
+    await waitFor(() => expect(posts).toBe(2), { timeout: 3000 });
+    await waitFor(() => expect(screen.queryByText(/These changes were waiting/)).toBeNull());
+  });
+
+  it("Publish names a pending cell whose day has been worked since, and publishes once confirmed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const publishBodies: Record<string, unknown>[] = [];
+    const base = makeFetch([{ match: "/api/admin/shifts/week_cells", method: "POST",
+                              body: { ok: true, written: 1, rev: 5, pending: 1 } }]);
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/publish_week_cells")) {
+        const body = JSON.parse(String(opts?.body));
+        publishBodies.push(body);
+        if (!(body.confirm_worked_cells || []).length) {
+          return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+            { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "08:55", check_out: "17:05", working: false }] } }),
+          { status: 409, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ ok: true, cells_applied: 1, rows_written: 1 }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    await loadStaff();
+    await editOneCell();
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    await screen.findByText(/saved without this question, and publishing applies them now/, {}, { timeout: 3000 });
+    expect(screen.getByText("Worked — in 08:55, out 17:05")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Publish anyway" }));
+    await waitFor(() => expect(publishBodies).toHaveLength(2), { timeout: 3000 });
+    // The yes covers the day the question named, not the whole publish.
+    expect(publishBodies[1].confirm_worked_cells).toEqual([{ staff_name: "Alice Cohen", work_date: "2026-10-12" }]);
+    // The old flag rides along for an older server; the current one goes by the cells.
+    expect(publishBodies[0].confirm_worked).toBe(false);
+    expect(publishBodies[1].confirm_worked).toBe(true);
+  });
+
+  it("a note on a cell whose unpublished hours change came before the clock-in asks about those hours", async () => {
+    // Published 9–17; someone saved 13–21 before Alice clocked in. Adding a note now
+    // must not send that hours change as confirmed (ultrareview, 2026-10-25).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    const fetchMock = makeFetch([
+      { match: "/api/published/week", body: { rows: [
+        { work_date: "2026-10-12", staff_name: "Alice Cohen", branch_code: "BB", role: "CK", start_hour: 9, end_hour: 17 }] } },
+      { match: "/api/admin/shifts/week_state", body: { ok: true, max_rev: 3, edits: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", rev: 3, edited_by: "Someone",
+          cells: [{ start_hour: 13, end_hour: 21, role: "CK" }] }] } },
+      { match: "/api/admin/shifts/week_attendance", body: { ok: true, days: [
+        { staff_name: "Alice Cohen", work_date: "2026-10-12", check_in: "09:02", check_out: null, working: true }] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+    await screen.findByText("working · in 09:02", {}, { timeout: 3000 });
+    fireEvent.click(await screen.findByText("13:00–21:00", {}, { timeout: 3000 }));
+    fireEvent.change(await screen.findByPlaceholderText("Add a note for this shift…"), { target: { value: "late bus" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByText("Alice Cohen has already clocked in on this day", {}, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cellPosts(fetchMock)).toHaveLength(0);
+  });
+
+  it("a refusal seen by two flushes at once is asked about once", async () => {
+    // The edit's own flush is still waiting when Publish flushes again. Both used to
+    // get the same refusal and ask the same question twice.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(MONDAY);
+    let posts = 0;
+    const base = makeFetch();
+    const fetchMock = vi.fn(async (url: string, opts?: RequestInit) => {
+      if (String(url).includes("/api/admin/shifts/week_cells") && (opts?.method || "").toUpperCase() === "POST") {
+        posts += 1;
+        const body = JSON.parse(String(opts?.body));
+        await new Promise((r) => setTimeout(r, 300));
+        if (!body.edits[0].confirm_worked) {
+          return new Response(JSON.stringify({ detail: { code: "worked_day", message: "clocked in", cells: [
+            { staff_name: body.edits[0].staff_name, work_date: body.edits[0].work_date,
+              check_in: "09:40", check_out: null, working: true }] } }), { status: 409, headers: { "Content-Type": "application/json" } });
+        }
+        return new Response(JSON.stringify({ ok: true, written: 1, rev: 5, pending: 1 }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return base(url, opts);
+    });
+    await renderPage(fetchMock as unknown as ReturnType<typeof makeFetch>);
+    await loadStaff();
+    fireEvent.click(screen.getAllByRole("button", { name: "+" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }, { timeout: 2000 }));
+    await waitFor(() => expect(posts).toBe(1));
+    fireEvent.click(screen.getByRole("button", { name: /🚀 Publish/ }));
+    await screen.findByRole("button", { name: "Change anyway" }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: "Change anyway" }));
+    await waitFor(() => expect(posts).toBe(2), { timeout: 3000 });
+    await new Promise((r) => setTimeout(r, 500));
+    expect(screen.queryByRole("button", { name: "Change anyway" })).toBeNull();
+    expect(posts).toBe(2);
+  });
+});

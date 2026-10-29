@@ -1011,6 +1011,16 @@ export default function AdminOvertimePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Action failed");
+      // Dubai overtime whose own cycle had closed is paid in the open cycle as
+      // an addition. Say where it went and for how much, and if that payroll
+      // was already generated, that it needs regenerating.
+      const late = data?.late_ot as { cycle?: string; amount?: number; warning?: string } | undefined;
+      if (modalAction === "mark_paid" && late?.cycle) {
+        window.alert(
+          `Its own payroll cycle had already closed, so it was added to the ${late.cycle} payroll `
+          + `as AED ${Number(late.amount ?? 0).toFixed(2)}.`
+          + (late.warning ? `\n\n${late.warning}` : ""));
+      }
       setReviewing(null);
       await load();
     } catch (e) {

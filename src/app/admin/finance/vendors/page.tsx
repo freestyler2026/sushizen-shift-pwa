@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -25,7 +25,17 @@ import {
   KPI_VALUE,
   TABLE_ROW,
   TABLE_HEADER,
+  TAB_ACTIVE,
+  TAB_CONTAINER,
+  TAB_INACTIVE,
 } from "@/lib/ui-tokens";
+
+// Vendors and our own tax numbers are kept per city: Dubai's TRNs and Manila's TINs.
+// Every call used to send city=dubai, so Manila's own TIN could not be seen or added
+// here (VAT plan 4-8, 2026-10-22).
+type City = "dubai" | "manila";
+const CITY_LABEL: Record<City, string> = { dubai: "Dubai", manila: "Manila" };
+const OWN_NUMBER_HINT: Record<City, string> = { dubai: "TRN, 15 digits", manila: "TIN, 9 to 14 digits" };
 
 interface OwnTin {
   city: string;
@@ -76,6 +86,7 @@ export default function VendorMasterPage() {
   const [newOwnTin, setNewOwnTin] = useState("");
   const [newOwnLabel, setNewOwnLabel] = useState("");
   const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [city, setCity] = useState<City | null>(null);
 
   useEffect(() => {
     const auth = getAuth();
@@ -84,28 +95,36 @@ export default function VendorMasterPage() {
       return;
     }
     if (!canAccessAdminNav(auth) && auth.role !== "HQ") router.replace("/");
+    setCity(String(auth.city || "").toLowerCase() === "manila" ? "manila" : "dubai");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Only the answer for the city on screen is used: a slow answer for the tab just left
+  // must not replace the vendors and own numbers of the one just chosen.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    if (!city) return;
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/finance/vendors", {
+      const res = await fetch(`/api/admin/finance/vendors?city=${city}`, {
         headers: getAuthHeaders(getAuth()),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = await res.json();
-      setVendors(d.vendors || []);
-      const own = await fetch("/api/admin/finance/own-tax-numbers?city=dubai", {
+      const own = await fetch(`/api/admin/finance/own-tax-numbers?city=${city}`, {
         headers: getAuthHeaders(getAuth()),
       });
-      if (own.ok) setOwnTins((await own.json()).rows || []);
+      const rows = own.ok ? (await own.json()).rows || [] : [];
+      if (seq !== loadSeq.current) return;
+      setVendors(d.vendors || []);
+      setOwnTins(rows);
     } catch (e) {
-      setBanner({ kind: "err", text: `Could not load vendors: ${e}` });
+      if (seq === loadSeq.current) setBanner({ kind: "err", text: `Could not load vendors: ${e}` });
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
-  }, []);
+  }, [city]);
 
   useEffect(() => {
     load();
@@ -114,7 +133,7 @@ export default function VendorMasterPage() {
   async function reseed() {
     setSeeding(true);
     try {
-      const res = await fetch("/api/admin/finance/vendors/seed?city=dubai", {
+      const res = await fetch(`/api/admin/finance/vendors/seed?city=${city}`, {
         method: "POST",
         headers: getAuthHeaders(getAuth()),
       });
@@ -122,7 +141,7 @@ export default function VendorMasterPage() {
       const d = await res.json();
       setBanner({
         kind: "ok",
-        text: `Refreshed from invoices — ${d.created} new, ${d.updated} updated. Tax numbers already entered were left alone.`,
+        text: `${CITY_LABEL[city as City]}: refreshed from invoices — ${d.created} new, ${d.updated} updated. Tax numbers already entered were left alone.`,
       });
       await load();
     } catch (e) {
@@ -165,7 +184,7 @@ export default function VendorMasterPage() {
       const res = await fetch("/api/admin/finance/own-tax-numbers", {
         method: "POST",
         headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
-        body: JSON.stringify({ city: "dubai", tin: newOwnTin, label: newOwnLabel }),
+        body: JSON.stringify({ city, tin: newOwnTin, label: newOwnLabel }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => null);
@@ -181,11 +200,15 @@ export default function VendorMasterPage() {
   }
 
   async function removeOwnTin(tin: string) {
+    if (!confirm(`Remove ${tin} from ${CITY_LABEL[city as City]}'s own numbers?\n\n`
+      + "Invoices made out to it will no longer be recognised as addressed to us: the reader may offer it as a "
+      + "supplier's number, and the VAT Ledger stops treating it as our TIN. Add it back the same way to undo.")) return;
     try {
-      await fetch(`/api/admin/finance/own-tax-numbers/${encodeURIComponent(tin)}?city=dubai`, {
+      const res = await fetch(`/api/admin/finance/own-tax-numbers/${encodeURIComponent(tin)}?city=${city}`, {
         method: "DELETE",
         headers: getAuthHeaders(getAuth()),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await load();
     } catch {
       setBanner({ kind: "err", text: "Could not remove that number." });
@@ -235,10 +258,18 @@ export default function VendorMasterPage() {
             every document from that supplier.
           </p>
         </div>
-        <button onClick={reseed} disabled={seeding} className={SMALL_BUTTON}>
+        <button onClick={reseed} disabled={seeding || !city} className={SMALL_BUTTON}>
           <RefreshCw className={`h-3.5 w-3.5 inline mr-1 ${seeding ? "animate-spin" : ""}`} />
           Refresh from invoices
         </button>
+      </div>
+
+      <div className={TAB_CONTAINER} role="tablist" aria-label="City">
+        {(["dubai", "manila"] as City[]).map((c) => (
+          <button key={c} role="tab" aria-selected={city === c} className={city === c ? TAB_ACTIVE : TAB_INACTIVE}
+            onClick={() => { if (c !== city) { setBanner(null); setEdits({}); setMergeFrom(null); setNewOwnTin(""); setNewOwnLabel(""); setCity(c); } }}>
+            {CITY_LABEL[c]}
+          </button>))}
       </div>
 
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4 flex gap-3">
@@ -465,7 +496,7 @@ export default function VendorMasterPage() {
         )}
 
         <div className={GLASS_CARD + " mt-6 p-4"}>
-          <div className={T_LABEL}>Our own tax numbers</div>
+          <div className={T_LABEL}>Our own tax numbers — {city ? CITY_LABEL[city] : ""}</div>
           <p className={T_CAPTION + " mt-1 max-w-3xl leading-relaxed"}>
             Every supplier invoice prints two: the supplier&rsquo;s at the top, and ours in
             the box addressed to us (M/S, Bill To). The reader sometimes picks up ours by
@@ -497,7 +528,7 @@ export default function VendorMasterPage() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <input
               className="w-44 rounded-lg border border-white/10 bg-white/6 px-2.5 py-1.5 text-sm tabular-nums text-white outline-none focus:border-violet-500/50"
-              placeholder="15 digits"
+              placeholder={city ? OWN_NUMBER_HINT[city] : ""}
               inputMode="numeric"
               value={newOwnTin}
               onChange={(e) => setNewOwnTin(e.target.value.replace(/[^0-9]/g, ""))}

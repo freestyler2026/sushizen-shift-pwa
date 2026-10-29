@@ -1288,7 +1288,7 @@ ul.body-list strong { color: var(--text); }
     </div>
 
     <!-- DUBAI PRICE VARIANCE -->
-    <h2><span class="ja">⓪ ドバイ：請求書とPOの価格差アラート（2026-09-04 開始）</span><span class="en">⓪ Dubai: invoice-vs-PO price alerts (from 2026-09-04)</span></h2>
+    <h2><span class="ja">⓪ 請求書とPOの価格差アラート（ドバイ 2026-09-04 開始・マニラも対象）</span><span class="en">⓪ Invoice-vs-PO price alerts (Dubai from 2026-09-04, Manila too)</span></h2>
     <div class="card" style="margin-bottom:10px;">
       <p class="ja">
         <strong>担当: Yuri Yamada さん。</strong>ドバイの請求書が、発注書（PO）と <strong>15%以上ちがう単価</strong>で
@@ -1308,8 +1308,23 @@ ul.body-list strong { color: var(--text); }
       </p>
       <div class="mono" style="margin:6px 0;">
         Invoice Price Differs From PO<br>
-        UPO was ordered at 60.00 and invoiced at 75.00 (+25%).<br>
-        Please confirm the change with the supplier before the invoice is paid.
+        Richcath's Vegetables Stall · PO-CASE-2026-003567-01 · CK<br>
+        White Cabbage was ordered at 60.00 per kg and invoiced at 100.00 per kg (+67%) on invoice 969.<br>
+        Please confirm the change with the supplier before the invoice is paid.<br>
+        <u>Open the invoice check →</u>
+      </div>
+      <p class="ja" style="margin-top:8px;">
+        1行目は <strong>仕入先 · PO番号 · 店舗</strong> です。<strong>「Open the invoice check →」</strong>を押すと
+        PO Match の該当する請求書チェックが開き、上部にその請求書の全明細（PO単価と請求単価）が表示されます。
+      </p>
+      <div class="tip ja" style="margin-top:8px;">
+        <strong>2026-10-16 修正:</strong> それまでこの通知は、タイトルとボタンだけが表示され、品目・価格・仕入先・PO番号のどれも
+        画面に出ていませんでした（48件）。既存の通知にも文面とリンクを付け直しています。
+      </div>
+      <div class="tip ja" style="margin-top:8px;">
+        PO と請求書で <strong>単位が違う</strong>とき（POが BOX、請求書が kg など）は、
+        「単位の違いかどうか確認してください」と1行添えます。<strong>−97% のような極端な差は、価格ではなく単位や入力の誤り</strong>のことが多いので、
+        まず明細を開いて単位を見てください。
       </div>
       <p class="ja" style="margin-top:8px;">
         <strong>対応</strong> — 仕入先に確認したうえで、下から1つ選びます。

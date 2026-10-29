@@ -52,6 +52,13 @@ interface CityData {
   labor_carried_from?: string | null;
   /** Inputs taken from another month because this one has none of its own. */
   carried_inputs?: { field: string; label: string; from: string }[];
+  /** Dubai only: which payroll cycle the labour figure is, and whether its
+   *  payslips are published. An open cycle can still move. */
+  labor_detail?: {
+    cycle_label?: string; cycle_status?: string; heads?: number;
+    published?: number; reason?: string; detail?: string;
+    heads_without_published_shifts?: number;
+  };
   partial_month?: boolean;
   days_covered?: number;
   days_in_month?: number;
@@ -762,6 +769,28 @@ function GroupManagementTab({ yearMonth }: { yearMonth: string }) {
             </div>
           );
         })}
+
+      {/* An open payroll cycle is not a settled figure. Dubai's labour is the
+          cycle that covers this window; until its payslips are published the
+          number can still move, and a page that shows it without saying so
+          presents a working total as a closed one. */}
+      {summary && (["dubai", "manila"] as const)
+        .map((k) => ({ k, name: k === "dubai" ? "ドバイ" : "マニラ", d: summary[k].labor_detail }))
+        .filter((r) => r.d?.cycle_label && (r.d?.published ?? 0) < (r.d?.heads ?? 0))
+        .map(({ k, name, d }) => (
+          <div key={`lab-${k}`} className="rounded-xl border border-sky-500/35 bg-sky-500/10 px-4 py-3">
+            <p className="text-sm font-semibold text-sky-300">
+              {name} — 人件費は給与サイクル {d!.cycle_label} の計算値です
+            </p>
+            <p className="text-xs text-sky-200/85 mt-1 leading-relaxed">
+              明細 {d!.heads}件のうち発行済みは {d!.published}件（サイクルは{d!.cycle_status === "open" ? "未締め" : d!.cycle_status}）。
+              締めるまで金額は動きます。確定値として扱わないでください。
+              {(d!.heads_without_published_shifts ?? 0) > 0 && (
+                <> シフトが公開されていない {d!.heads_without_published_shifts}名は所属拠点に計上しています。</>
+              )}
+            </p>
+          </div>
+        ))}
 
       {/* Which of these figures are not this month's own.
           dubai_monthly_labor holds one month (2026-07) and the lookup falls back

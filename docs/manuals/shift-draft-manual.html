@@ -1,0 +1,751 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monthly Shift Draft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+JP:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --paper:      #F6F7F9;
+    --surface:    #FFFFFF;
+    --ink:        #1A2130;
+    --ink-soft:   #3F4859;
+    --muted:      #667085;
+    --line:       #DDE1E8;
+    --line-soft:  #ECEEF2;
+    --hq:         #3446A6;
+    --hq-soft:    #E6E9F7;
+    --store:      #1D7464;
+    --store-soft: #E1F0EC;
+    --bar:        #D2621C;
+    --bar-soft:   #FBEBDF;
+    --stop:       #B2362C;
+    --stop-soft:  #F8E5E3;
+    --edit:       #FFF6D6;
+    --edit-line:  #E7CF7A;
+    --measure:    42rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #12161E;
+      --surface:    #1A202B;
+      --ink:        #E7EAF0;
+      --ink-soft:   #C0C6D2;
+      --muted:      #8F98A8;
+      --line:       #2E3644;
+      --line-soft:  #242B37;
+      --hq:         #98A6F0;
+      --hq-soft:    #232B4A;
+      --store:      #7CCBB8;
+      --store-soft: #1A3330;
+      --bar:        #F0965C;
+      --bar-soft:   #3A2618;
+      --stop:       #F08A80;
+      --stop-soft:  #3A1F1D;
+      --edit:       #332D17;
+      --edit-line:  #6E5F2A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #12161E;
+    --surface:    #1A202B;
+    --ink:        #E7EAF0;
+    --ink-soft:   #C0C6D2;
+    --muted:      #8F98A8;
+    --line:       #2E3644;
+    --line-soft:  #242B37;
+    --hq:         #98A6F0;
+    --hq-soft:    #232B4A;
+    --store:      #7CCBB8;
+    --store-soft: #1A3330;
+    --bar:        #F0965C;
+    --bar-soft:   #3A2618;
+    --stop:       #F08A80;
+    --stop-soft:  #3A1F1D;
+    --edit:       #332D17;
+    --edit-line:  #6E5F2A;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans JP", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+  }
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 0.86em;
+    background: var(--line-soft);
+    border-radius: 4px;
+    padding: 0.05em 0.35em;
+    white-space: nowrap;
+  }
+  .msg {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    display: block;
+    background: var(--line-soft);
+    border-radius: 6px;
+    padding: 0.45rem 0.6rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  a { color: var(--hq); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--hq); outline-offset: 2px; }
+
+  .top {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--line);
+  }
+  .top-inner {
+    max-width: 60rem; margin: 0 auto; padding: 0.6rem 16px;
+    display: flex; align-items: center; gap: 1rem;
+  }
+  .top-name { font-weight: 700; font-size: 0.95rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; flex-shrink: 0; }
+  .lang button {
+    font: inherit; font-size: 0.8rem; padding: 0.25rem 0.8rem; border: 0; cursor: pointer;
+    background: transparent; color: var(--muted);
+  }
+  .lang button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .toc { max-width: 60rem; margin: 0 auto; padding: 0 16px 0.55rem; display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none; }
+  .toc a {
+    flex-shrink: 0; font-size: 0.78rem; text-decoration: none; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 999px; padding: 0.15rem 0.65rem; background: var(--surface);
+  }
+
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 0 16px 4rem; }
+  header.hero { padding: 2.4rem 0 1.4rem; max-width: var(--measure); }
+  .eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.4rem; }
+  h1, h2, h3 { word-break: auto-phrase; }
+  h1 { font-size: clamp(1.7rem, 4.5vw, 2.3rem); line-height: 1.3; margin: 0 0 0.8rem; text-wrap: balance; }
+  .lede { color: var(--ink-soft); margin: 0; }
+
+  section { padding: 2rem 0 0.5rem; border-top: 1px solid var(--line); margin-top: 1.5rem; }
+  h2 { font-size: 1.35rem; line-height: 1.4; margin: 0 0 0.9rem; text-wrap: balance; display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  h2 .no { font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; color: var(--muted); }
+  h3 { font-size: 1.05rem; margin: 1.6rem 0 0.5rem; }
+  p, li { max-width: var(--measure); }
+  p { margin: 0 0 0.9rem; }
+  ul, ol { padding-left: 1.3rem; margin: 0 0 1rem; }
+  li { margin-bottom: 0.35rem; }
+
+  .who { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.74rem; font-weight: 600; border-radius: 999px; padding: 0.08rem 0.6rem; letter-spacing: 0.02em; white-space: nowrap; }
+  .who.hq { background: var(--hq-soft); color: var(--hq); }
+  .who.store { background: var(--store-soft); color: var(--store); }
+
+  /* The overall flow: a real sequence, so it is numbered */
+  .flow { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: 0.5rem; max-width: none; }
+  .flow li { max-width: none; margin: 0; display: grid; grid-template-columns: 2.2rem 1fr auto; gap: 0.75rem; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.65rem 0.85rem; }
+  .flow .n { font-family: "IBM Plex Mono", monospace; font-size: 0.95rem; color: var(--muted); text-align: center; }
+  .flow b { display: block; }
+  .flow span.d { display: block; color: var(--muted); font-size: 0.86rem; line-height: 1.5; }
+  .flow li.loop { border-style: dashed; }
+  .after-flow { font-size: 0.9rem; color: var(--ink-soft); }
+
+  .rules { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); margin: 0 0 1rem; }
+  .rule { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.9rem 1rem; }
+  .rule b { display: block; margin-bottom: 0.3rem; line-height: 1.5; }
+  .rule p { font-size: 0.9rem; color: var(--ink-soft); margin: 0; }
+
+  .note, .warn, .stop {
+    border-radius: 10px; padding: 0.8rem 1rem; margin: 0 0 1rem; max-width: var(--measure);
+    font-size: 0.93rem;
+  }
+  .note { background: var(--hq-soft); }
+  .warn { background: var(--bar-soft); }
+  .stop { background: var(--stop-soft); }
+  .note > :last-child, .warn > :last-child, .stop > :last-child { margin-bottom: 0; }
+  .note b:first-child, .warn b:first-child, .stop b:first-child { display: block; margin-bottom: 0.2rem; }
+
+  ol.steps { counter-reset: s; list-style: none; padding: 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding-left: 2.2rem; margin-bottom: 0.8rem; }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: 0.1rem;
+    width: 1.55rem; height: 1.55rem; border-radius: 50%; border: 1.5px solid var(--ink-soft);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; display: grid; place-items: center; color: var(--ink-soft);
+  }
+
+  .tbl { overflow-x: auto; margin: 0 0 1.2rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; vertical-align: top; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--line-soft); line-height: 1.55; }
+  tr:last-child td { border-bottom: 0; }
+  th { font-size: 0.76rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--paper); }
+  td.what { font-weight: 600; min-width: 9rem; }
+  td.ng { color: var(--stop); font-weight: 600; min-width: 9rem; }
+
+  /* Sheet mock: the tab a store manager sees, edit columns highlighted */
+  .sheet { overflow-x: auto; margin: 0 0 0.5rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .sheet table { font-size: 0.78rem; min-width: 52rem; }
+  .sheet th, .sheet td { padding: 0.35rem 0.5rem; border-right: 1px solid var(--line-soft); white-space: nowrap; }
+  .sheet .sec th { text-transform: none; letter-spacing: 0; font-size: 0.72rem; }
+  .sheet .ed { background: var(--edit); }
+  .sheet th.ed { color: var(--ink); box-shadow: inset 0 2px 0 var(--edit-line); }
+  .sheet td.typed { font-family: "IBM Plex Mono", monospace; font-weight: 500; color: var(--ink); }
+  .sheet td.ro { color: var(--muted); }
+  .bars { display: inline-flex; gap: 1px; vertical-align: middle; }
+  .bars i { width: 7px; height: 11px; background: var(--line-soft); display: inline-block; }
+  .bars i.on { background: var(--ink-soft); }
+  .bars.fin i.on { background: var(--bar); }
+  .caption { font-size: 0.82rem; color: var(--muted); margin: 0 0 1.2rem; }
+
+  .faq details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.2rem 1rem; margin-bottom: 0.6rem; }
+  .faq summary { cursor: pointer; font-weight: 600; padding: 0.6rem 0; list-style-position: outside; }
+  .faq details[open] summary { border-bottom: 1px solid var(--line-soft); margin-bottom: 0.7rem; }
+  .faq details > :not(summary) { max-width: var(--measure); }
+
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: 0.82rem; color: var(--muted); }
+
+  @media (max-width: 560px) {
+    .flow li { grid-template-columns: 1.6rem 1fr; }
+    .flow li .who { grid-column: 2; justify-self: start; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  html { scroll-behavior: smooth; scroll-padding-top: 6rem; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="top-inner">
+    <div class="top-name"><span lang="ja">月次シフト案の作り方</span><span lang="en" hidden>Monthly Shift Draft</span></div>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" id="btn-ja" aria-pressed="true">日本語</button>
+      <button type="button" id="btn-en" aria-pressed="false">English</button>
+    </div>
+  </div>
+  <nav class="toc" aria-label="Contents">
+    <a href="#flow"><span lang="ja">流れ</span><span lang="en" hidden>Flow</span></a>
+    <a href="#rules"><span lang="ja">先に知ること</span><span lang="en" hidden>Know first</span></a>
+    <a href="#s1"><span lang="ja">1 スタッフ</span><span lang="en" hidden>1 Staff</span></a>
+    <a href="#s2"><span lang="ja">2 作成</span><span lang="en" hidden>2 Generate</span></a>
+    <a href="#s3"><span lang="ja">3 シート入力</span><span lang="en" hidden>3 Sheet</span></a>
+    <a href="#s4"><span lang="ja">4 取り込み</span><span lang="en" hidden>4 Sync</span></a>
+    <a href="#s5"><span lang="ja">5 承認</span><span lang="en" hidden>5 Approve</span></a>
+    <a href="#s6"><span lang="ja">6 公開</span><span lang="en" hidden>6 Publish</span></a>
+    <a href="#faq"><span lang="ja">困ったとき</span><span lang="en" hidden>Problems</span></a>
+  </nav>
+</div>
+
+<div class="wrap">
+
+<header class="hero">
+  <p class="eyebrow"><span lang="ja">Attendance &amp; Shifts → Draft</span><span lang="en" hidden>Attendance &amp; Shifts → Draft</span></p>
+  <h1><span lang="ja">来月のシフトを作って、店長が直して、公開するまで</span><span lang="en" hidden>Making next month's shifts: generate, let the stores correct them, publish</span></h1>
+  <p class="lede" lang="ja">OS が来月のシフト案を全店舗分まとめて作ります。店長は Google シートの自分の店舗のタブで時間を直し、本社がその変更を取り込んで承認し、公開します。このページはその手順を、押すボタンの名前どおりに書いたものです。</p>
+  <p class="lede" lang="en" hidden>The OS drafts next month's shifts for every store at once. Each store manager corrects the times in their store's tab of the Google Sheet; head office pulls those changes in, approves them and publishes. This page walks through it using the exact names of the buttons you press.</p>
+</header>
+
+<section id="who" style="border-top:0;margin-top:0;padding-top:0">
+  <h2><span lang="ja">誰が何をするか</span><span lang="en" hidden>Who does what</span></h2>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th><span lang="ja">担当</span><span lang="en" hidden>Who</span></th>
+        <th><span lang="ja">やること</span><span lang="en" hidden>Does</span></th>
+        <th><span lang="ja">場所</span><span lang="en" hidden>Where</span></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="who hq">HQ</span></td>
+          <td lang="ja">スタッフの確認、案の作成、取り込み（Sync）、承認、公開</td>
+          <td lang="en" hidden>Checks the staff list, generates, syncs, approves, publishes</td>
+          <td lang="ja">OS の Draft ページ</td>
+          <td lang="en" hidden>Draft page in the OS</td>
+        </tr>
+        <tr>
+          <td><span class="who store"><span lang="ja">店長</span><span lang="en" hidden>Store manager</span></span></td>
+          <td lang="ja">自分の店舗のタブで、時間・交代・応援を入力する</td>
+          <td lang="en" hidden>Types time changes, swaps and transfers in their own tab</td>
+          <td lang="ja">Google シート</td>
+          <td lang="en" hidden>Google Sheet</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p lang="ja">案の作成・承認・公開は <b>HQ と ADMIN のロールだけ</b>ができます。どの操作も、Draft ページ上部の <code>Approver</code>（自分の名前）と <code>PIN</code> を入れてから行います。正しく入ると <code>Verified role: HQ</code> と表示されます。</p>
+  <p lang="en" hidden>Generating, approving and publishing are open to the <b>HQ and ADMIN roles only</b>. Every action needs <code>Approver</code> (your name) and <code>PIN</code> filled in at the top of the Draft page first; when they are right the page shows <code>Verified role: HQ</code>.</p>
+</section>
+
+<section id="flow">
+  <h2><span lang="ja">全体の流れ</span><span lang="en" hidden>The whole flow</span></h2>
+  <ol class="flow">
+    <li><span class="n">1</span><span><b lang="ja">スタッフを決める</b><b lang="en" hidden>Decide the staff</b><span class="d" lang="ja">誰が、どの店舗に、どの順で入るか</span><span class="d" lang="en" hidden>Who is in, at which store, in which order</span></span><span class="who hq">HQ</span></li>
+    <li><span class="n">2</span><span><b lang="ja">案を作る</b><b lang="en" hidden>Generate the draft</b><span class="d" lang="ja">全店舗分が一度にでき、シートのタブが作られる</span><span class="d" lang="en" hidden>Every store at once; the sheet tabs are created</span></span><span class="who hq">HQ</span></li>
+    <li class="loop"><span class="n">3</span><span><b lang="ja">シートで時間を直す</b><b lang="en" hidden>Correct times in the sheet</b><span class="d" lang="ja">入力するのは「Edit Inputs」の7列だけ</span><span class="d" lang="en" hidden>Only the seven "Edit Inputs" columns</span></span><span class="who store"><span lang="ja">店長</span><span lang="en" hidden>Store</span></span></li>
+    <li class="loop"><span class="n">4</span><span><b lang="ja">取り込む（Sync）</b><b lang="en" hidden>Pull the changes in (Sync)</b><span class="d" lang="ja">店舗ごとに1回押す。何度押しても重複しない</span><span class="d" lang="en" hidden>Once per store. Pressing it again never duplicates</span></span><span class="who hq">HQ</span></li>
+    <li class="loop"><span class="n">5</span><span><b lang="ja">承認する</b><b lang="en" hidden>Approve</b><span class="d" lang="ja">承認した変更がシフト案に入る</span><span class="d" lang="en" hidden>Approved changes go into the draft</span></span><span class="who hq">HQ</span></li>
+    <li><span class="n">6</span><span><b lang="ja">公開する（Apply）</b><b lang="en" hidden>Publish (Apply)</b><span class="d" lang="ja">スタッフの画面に出る</span><span class="d" lang="en" hidden>Staff can see their shifts</span></span><span class="who hq">HQ</span></li>
+  </ol>
+  <p class="after-flow" lang="ja">点線の 3〜5 は、締めまで何度繰り返しても構いません。公開した後の修正は、シートではなく <b>Manual Shift</b> で行います。</p>
+  <p class="after-flow" lang="en" hidden>Steps 3–5 (dashed) can repeat as many times as needed. After publishing, changes are made in <b>Manual Shift</b>, not the sheet.</p>
+</section>
+
+<section id="rules">
+  <h2><span lang="ja">先に知っておくこと</span><span lang="en" hidden>Know these first</span></h2>
+  <div class="rules">
+    <div class="rule">
+      <b lang="ja">店舗を移すのは Transfer Branch で</b><b lang="en" hidden>Move people with Transfer Branch</b>
+      <p lang="ja">行を消したり足したりしても読まれず、描き直すと元に戻ります。店舗を移すときは Transfer Branch で <code>CUB (whole month)</code> のように選びます（1行選べば、その人の月全部が移ります）。</p>
+      <p lang="en" hidden>Deleting or adding rows is not read, and the next redraw puts it back. To move someone, pick e.g. <code>CUB (whole month)</code> in Transfer Branch (one row is enough; their whole month moves).</p>
+    </div>
+    <div class="rule">
+      <b lang="ja">作り直すと、承認した変更は消える</b><b lang="en" hidden>Regenerating drops the approved changes</b>
+      <p lang="ja">作り直した店舗では、それまでに承認した変更は新しい案に入りません。<code>Branches to generate</code> で、作り直す店舗だけにチェックを入れてください。</p>
+      <p lang="en" hidden>A regenerated store's new draft does not carry the changes approved into the old one. Tick only the stores to rebuild in <code>Branches to generate</code>.</p>
+    </div>
+    <div class="rule">
+      <b lang="ja">公開した週はシートでは直らない</b><b lang="en" hidden>Published weeks are not changed from the sheet</b>
+      <p lang="ja">公開済みの週にシートで入力しても取り込まれません。Manual Shift で直してください。</p>
+      <p lang="en" hidden>Anything typed in the sheet for a published week is not imported. Change those weeks in Manual Shift.</p>
+    </div>
+  </div>
+</section>
+
+<section id="s1">
+  <h2><span class="no">1</span><span lang="ja">スタッフを決める</span><span lang="en" hidden>Decide the staff</span> <span class="who hq">HQ</span></h2>
+  <ol class="steps">
+    <li lang="ja">メニューの <b>Attendance &amp; Shifts → Draft</b> を開き、<b>Draft Management</b> タブを選びます。</li>
+    <li lang="en" hidden>Open <b>Attendance &amp; Shifts → Draft</b> in the menu and choose the <b>Draft Management</b> tab.</li>
+    <li lang="ja"><b>Generate Draft</b> の欄で <code>City</code>（Manila）、<code>Target Month</code>（作る月）、<code>Approver</code>、<code>PIN</code> を入れます。</li>
+    <li lang="en" hidden>Under <b>Generate Draft</b> set <code>City</code> (Manila), <code>Target Month</code> (the month to build), <code>Approver</code> and <code>PIN</code>.</li>
+    <li lang="ja"><b>Prepare Generate</b> を押します。まだ案は作られません。下に <b>Staff Roster Check</b> が出るので、押して開きます。</li>
+    <li lang="en" hidden>Press <b>Prepare Generate</b>. Nothing is generated yet. <b>Staff Roster Check</b> appears below; click it to open.</li>
+    <li lang="ja">店舗ごとに、来月入る人の一覧が出ます。最初は「先月いちばん多く働いた店舗」に置かれています。下の表のとおりに直します。</li>
+    <li lang="en" hidden>Each store lists who will be in next month. At first everyone is placed where they worked the most days last month. Correct it as in the table below.</li>
+    <li lang="ja"><b>Save roster</b> を押します。見出しに <code>— saved by （名前） · （日時）</code> と出れば保存できています。</li>
+    <li lang="en" hidden>Press <b>Save roster</b>. The heading then shows <code>— saved by (name) · (time)</code>.</li>
+  </ol>
+
+  <div class="tbl">
+    <table>
+      <thead><tr><th><span lang="ja">したいこと</span><span lang="en" hidden>To</span></th><th><span lang="ja">操作</span><span lang="en" hidden>Do this</span></th></tr></thead>
+      <tbody>
+        <tr><td class="what" lang="ja">今月だけ入れない</td><td class="what" lang="en" hidden>Leave out this month</td>
+            <td lang="ja">名前の左のチェックを外す（取り消し線になる）</td><td lang="en" hidden>Untick the box left of the name (it gets struck through)</td></tr>
+        <tr><td class="what" lang="ja">別の店舗に移す</td><td class="what" lang="en" hidden>Move to another store</td>
+            <td lang="ja">名前の右の店舗の選択欄で、移す先を選ぶ</td><td lang="en" hidden>Pick the new store in the store box right of the name</td></tr>
+        <tr><td class="what" lang="ja">シートの並び順を変える</td><td class="what" lang="en" hidden>Change the row order in the sheet</td>
+            <td lang="ja"><code>↑</code> <code>↓</code></td><td lang="en" hidden><code>↑</code> <code>↓</code></td></tr>
+        <tr><td class="what" lang="ja">一覧から消す</td><td class="what" lang="en" hidden>Remove from the list</td>
+            <td lang="ja"><code>✕</code></td><td lang="en" hidden><code>✕</code></td></tr>
+        <tr><td class="what" lang="ja">いない人を足す</td><td class="what" lang="en" hidden>Add someone missing</td>
+            <td lang="ja">店舗の下の <code>+ Add staff</code> から選ぶ（在籍中で、まだどの店舗にも入っていない人が出ます）</td><td lang="en" hidden>Choose from <code>+ Add staff</code> under the store (lists active staff not yet in any store)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 lang="ja">名前の横に出る印</h3>
+  <h3 lang="en" hidden>Labels next to a name</h3>
+  <div class="tbl">
+    <table>
+      <tbody>
+        <tr><td class="what"><code>staff record: CUB</code></td>
+            <td lang="ja">スタッフ登録の店舗と、この一覧の店舗が違います。確かめる印で、間違いとは限りません（CK と Cubao は同じ建物なので、互いの週に入力されることがあります）。</td>
+            <td lang="en" hidden>The staff record names a different store from this list. It is a prompt to check, not necessarily a mistake (CK and Cubao share a building, so staff are often entered in each other's weeks).</td></tr>
+        <tr><td class="what"><code>new hire 2026-10-19</code></td>
+            <td lang="ja">先月以降の入社で、スタッフ登録の店舗に置かれています。</td>
+            <td lang="en" hidden>Hired since the start of last month; placed at the store in their staff record.</td></tr>
+        <tr><td class="what"><code>in Draft Exclusions — tick to include this month</code></td>
+            <td lang="ja">下の <b>Draft Exclusions</b> に登録されているので、チェックが外れています。<b>チェックを入れれば、その月の案に入ります</b>（マニラ）。今後も毎月入れるなら、Draft Exclusions からも外してください。</td>
+            <td lang="en" hidden>Listed in <b>Draft Exclusions</b> below, so unticked. <b>Tick to put them in this month's draft</b> (Manila). If they are back for good, remove them from Draft Exclusions too.</td></tr>
+        <tr><td class="what"><code>in Draft Exclusions — ticked, so in this month's draft</code></td>
+            <td lang="ja">Draft Exclusions に登録されていますが、チェックが入っているので、その月の案に入ります。</td>
+            <td lang="en" hidden>Listed in Draft Exclusions, but ticked, so they are in this month's draft.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 lang="ja">Draft Exclusions（長く外しておく人）</h3>
+  <h3 lang="en" hidden>Draft Exclusions (people left out for longer)</h3>
+  <p lang="ja">産休・無給休暇・異動など、何か月も外す人はここに登録します。<code>Active until</code> を空けると無期限です。期間がある人は日付を入れてください。Staff ページで Inactive にした人は、ここに登録しなくても自動で外れます。</p>
+  <p lang="en" hidden>Register people left out for months here: maternity leave, unpaid leave, transfers. Leaving <code>Active until</code> blank means permanent, so enter a date when there is one. Staff set to Inactive on the Staff page are left out automatically.</p>
+  <p class="note" lang="ja"><b>ドバイの場合</b>店舗を掛け持ちする人が多いので、一覧の店舗は使われません。一覧で効くのは「外す人」と「並び順」だけです。</p>
+  <p class="note" lang="en" hidden><b>Dubai</b>Many staff work at several stores, so the store in this list is not used. Only "left out" and the order take effect.</p>
+</section>
+
+<section id="s2">
+  <h2><span class="no">2</span><span lang="ja">案を作る</span><span lang="en" hidden>Generate the draft</span> <span class="who hq">HQ</span></h2>
+  <ol class="steps">
+    <li lang="ja"><code>Branches to generate</code> で作る店舗を選びます（最初は全店舗）。すでに案がある店舗には <code>(has a draft)</code> と出ます。<b>作り直したくない店舗はチェックを外してください。</b></li>
+    <li lang="ja"><code>I confirm generating a new monthly draft.</code> にチェックを入れ、<b>Confirm Generate</b> を押します。押した時点のスタッフ一覧が先に保存され、それを使って作られます。</li>
+    <li lang="en" hidden>Under <code>Branches to generate</code> pick the stores to build (all at first). A store that already has a draft shows <code>(has a draft)</code>. <b>Untick any store you do not want rebuilt.</b></li>
+    <li lang="en" hidden>Tick <code>I confirm generating a new monthly draft.</code> and press <b>Confirm Generate</b>. The staff list as it stands is saved first and used for the draft.</li>
+    <li lang="ja">選んだ店舗の案ができ、シートへの書き出しが始まります。終わると店舗ごとに <code>Open CK — 2026-11</code> のようなリンクが出ます。これを店長に送ります。</li>
+    <li lang="ja"><b>失敗した店舗があったら：</b>その店舗だけにチェックが残り、「still ticked」と出ます。もう一度 Confirm Generate を押すと、その店舗だけが作られます。うまくいった店舗はそのままです。</li>
+    <li lang="en" hidden>The chosen stores are generated and written to the sheet. When it finishes, a link per store appears, such as <code>Open CK — 2026-11</code>. Send these to the store managers.</li>
+    <li lang="en" hidden><b>If a store failed:</b> only that store stays ticked and the page says "still ticked". Press Confirm Generate again and only that store is built; the others keep their drafts.</li>
+  </ol>
+  <p class="note" lang="ja"><b>画面を開き直しても大丈夫です</b>Draft ページを開くと、その月の各店舗の案（シートや Sync と同じもの）が読み込まれ、Schedule View・Apply・Branch Edit が使えます。</p>
+  <p class="note" lang="en" hidden><b>Reloading is safe</b>Opening the Draft page loads each store's draft for the month (the same one the sheet and Sync use), so Schedule View, Apply and Branch Edit are there.</p>
+  <div class="warn" lang="ja"><b>作り直す前に</b>チェックを入れた店舗は作り直され、それまでに承認した変更は新しい案に入りません。店長の入力が始まった後は作り直さず、直したい日は <a href="#faq">困ったとき</a> の方法で直してください。<br>すでに Manual Shift に送った月だと <code>Draft already sent to Manual Shift</code> と出ます。<b>Replace All &amp; Regenerate</b> を押すと、Manual Shift で直した内容が上書きされます。迷ったら Cancel を押してください。</div>
+  <div class="warn" lang="en" hidden><b>Before regenerating</b>Every ticked store is rebuilt, and the changes approved into its old draft are not carried over. Once stores have started typing, do not regenerate; fix single days as described in <a href="#faq">Problems</a>.<br>For a month already sent to Manual Shift the page shows <code>Draft already sent to Manual Shift</code>. <b>Replace All &amp; Regenerate</b> overwrites the corrections made in Manual Shift. If in doubt, press Cancel.</div>
+</section>
+
+<section id="s3">
+  <h2><span class="no">3</span><span lang="ja">シートで時間を直す</span><span lang="en" hidden>Correct times in the sheet</span> <span class="who store"><span lang="ja">店長</span><span lang="en" hidden>Store manager</span></span></h2>
+  <p lang="ja">送られたリンク、または Draft ページの <b>Open Manila draft spreadsheet</b> から開きます。自分の店舗のタブは <code>CK_2026-11_DRAFT_MAIN</code> のような名前です（店舗_月_DRAFT_MAIN）。</p>
+  <p lang="en" hidden>Open it from the link you were sent, or from <b>Open Manila draft spreadsheet</b> on the Draft page. Your tab is named like <code>CK_2026-11_DRAFT_MAIN</code> (store_month_DRAFT_MAIN).</p>
+
+  <h3 lang="ja">シートの見方</h3>
+  <h3 lang="en" hidden>Reading the tab</h3>
+  <ul>
+    <li lang="ja"><b>1行が1人の1日分</b>です。1日に2回働く人は2行あります。</li>
+    <li lang="en" hidden><b>One row is one person on one day.</b> Someone working two blocks in a day has two rows.</li>
+    <li lang="ja">休みの日も行があり、<code>Role</code> が <code>DAY_OFF</code>、<code>Current Shift</code> が <code>00–00</code> です。</li>
+    <li lang="en" hidden>Days off have a row too: <code>Role</code> is <code>DAY_OFF</code> and <code>Current Shift</code> is <code>00–00</code>.</li>
+    <li lang="ja">上部の <code>Synced from OS</code> が、このタブを最後に描いた時刻です。<code>Published days</code> に出ている日は公開済みなので、ここでは直しません（Manual Shift で直します）。月の最初の週が前の月の案から公開されていても、この月の日は公開されていない限りここで入力できます。</li>
+    <li lang="en" hidden><code>Synced from OS</code> at the top is when this tab was last drawn. Days listed in <code>Published days</code> are published; change those in Manual Shift, not here. When the month's first week was published from last month's draft, this month's days in it can still be typed here unless they are listed.</li>
+  </ul>
+
+  <div class="sheet" role="img" aria-label="Example rows of the sheet with the Edit Inputs columns highlighted">
+    <table>
+      <thead>
+        <tr class="sec">
+          <th colspan="4"></th>
+          <th class="ed" colspan="7">Edit Inputs</th>
+          <th colspan="2">Final Preview</th>
+        </tr>
+        <tr>
+          <th>Date</th><th>Staff</th><th>Role</th><th>Current Shift</th>
+          <th class="ed">Revised Start</th><th class="ed">Revised End</th><th class="ed">Swap With Staff</th><th class="ed">Swap Start</th><th class="ed">Swap End</th><th class="ed">Note</th><th class="ed">Transfer Branch</th>
+          <th>08 … 05(+1)</th><th>Final Shift</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="ro">2026-11-03</td><td>Ana Reyes</td><td class="ro">Line Cook</td><td class="ro">09–18</td>
+          <td class="ed typed">10</td><td class="ed typed">19</td><td class="ed"></td><td class="ed"></td><td class="ed"></td><td class="ed"></td><td class="ed"></td>
+          <td><span class="bars fin"><i></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></td><td>10–19</td>
+        </tr>
+        <tr>
+          <td class="ro"></td><td>Ben Cruz</td><td class="ro">DAY_OFF</td><td class="ro">00–00</td>
+          <td class="ed typed">13</td><td class="ed typed">22</td><td class="ed"></td><td class="ed"></td><td class="ed"></td><td class="ed typed">cover</td><td class="ed"></td>
+          <td><span class="bars fin"><i></i><i></i><i></i><i></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></td><td>13–22</td>
+        </tr>
+        <tr>
+          <td class="ro"></td><td>Carla Diaz</td><td class="ro">Server</td><td class="ro">09–18</td>
+          <td class="ed typed">09</td><td class="ed typed">09</td><td class="ed"></td><td class="ed"></td><td class="ed"></td><td class="ed"></td><td class="ed"></td>
+          <td><span class="bars fin"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></td><td class="ro">day off</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="caption" lang="ja">例。黄色の7列（Edit Inputs）だけに入力します。左側の灰色の列は触りません。名前は架空です。</p>
+  <p class="caption" lang="en" hidden>Example. Type only in the seven yellow Edit Inputs columns; leave the grey columns on the left alone. The names are made up.</p>
+
+  <h3 lang="ja">やりたいこと別の入力</h3>
+  <h3 lang="en" hidden>What to type for each change</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th><span lang="ja">やりたいこと</span><span lang="en" hidden>To</span></th>
+        <th><span lang="ja">入力する列</span><span lang="en" hidden>Columns</span></th>
+        <th><span lang="ja">例</span><span lang="en" hidden>Example</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="what" lang="ja">時間を変える</td><td class="what" lang="en" hidden>Change the time</td>
+            <td>Revised Start ＋ Revised End</td><td><code>10</code> / <code>19</code></td></tr>
+        <tr><td class="what" lang="ja">30分単位</td><td class="what" lang="en" hidden>Half hours</td>
+            <td lang="ja">同上。選択肢に <code>09:30</code> などがあります</td><td lang="en" hidden>Same; the lists include <code>09:30</code> and so on</td><td><code>09:30</code> / <code>18:30</code></td></tr>
+        <tr><td class="what" lang="ja">日付をまたぐ</td><td class="what" lang="en" hidden>Past midnight</td>
+            <td lang="ja">同上。<code>00(+1)</code>〜<code>05(+1)</code> は翌日の時刻</td><td lang="en" hidden>Same; <code>00(+1)</code>–<code>05(+1)</code> are next-day hours</td><td><code>15</code> / <code>00(+1)</code></td></tr>
+        <tr><td class="what" lang="ja">休みにする</td><td class="what" lang="en" hidden>Make it a day off</td>
+            <td lang="ja">Revised Start と Revised End に<b>同じ時刻</b></td><td lang="en" hidden>The <b>same time</b> in Revised Start and Revised End</td><td><code>09</code> / <code>09</code></td></tr>
+        <tr><td class="what" lang="ja">休みの日に入れる</td><td class="what" lang="en" hidden>Work on a day off</td>
+            <td lang="ja"><code>DAY_OFF</code> の行に Revised Start ＋ Revised End</td><td lang="en" hidden>Revised Start + Revised End on the <code>DAY_OFF</code> row</td><td><code>13</code> / <code>22</code></td></tr>
+        <tr><td class="what" lang="ja">別の人に代わってもらう</td><td class="what" lang="en" hidden>Give the shift to someone else</td>
+            <td lang="ja">Swap With Staff に代わる人。時間も変えるときだけ Swap Start ＋ Swap End</td><td lang="en" hidden>The other person in Swap With Staff; Swap Start + Swap End only if the time changes too</td><td><code>Ben Cruz</code></td></tr>
+        <tr><td class="what" lang="ja">その日だけ他店へ応援</td><td class="what" lang="en" hidden>Help another store for that day</td>
+            <td lang="ja">Transfer Branch に応援先。その日のそのシフトだけが移ります</td><td lang="en" hidden>The other store in Transfer Branch; only that day's shift moves</td><td><code>CUB</code></td></tr>
+        <tr><td class="what" lang="ja">その月ずっと別の店舗にする</td><td class="what" lang="en" hidden>Move them to another store for the month</td>
+            <td lang="ja">その人の<b>どれか1行</b>の Transfer Branch で「（店舗） (whole month)」。その人の勤務日が全部、時間ごと移ります。同じ人の別の行に入れた時間の変更も一緒に移ります</td><td lang="en" hidden>"(store) (whole month)" in Transfer Branch on <b>any one</b> of their rows. Every working day of theirs moves with its time, including time changes typed on their other rows</td><td><code>CUB (whole month)</code></td></tr>
+        <tr><td class="what" lang="ja">理由を残す</td><td class="what" lang="en" hidden>Leave a reason</td>
+            <td lang="ja">Note。承認の画面に出ます</td><td lang="en" hidden>Note; it shows on the approval screen</td><td><code>doctor</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p lang="ja">入力すると、右側の <b>Final Preview</b> にオレンジのバーで直した後の時間が出て、<code>Change Flag</code> に <code>CHANGED</code> と出ます。値は選択欄から選んでください。手で打つと読めないことがあります。</p>
+  <p lang="en" hidden>Once typed, <b>Final Preview</b> on the right shows the new time as orange bars and <code>Change Flag</code> says <code>CHANGED</code>. Pick values from the dropdowns; hand-typed values may not be readable.</p>
+
+  <h3 lang="ja">やっても反映されないこと</h3>
+  <h3 lang="en" hidden>Things that do not take effect</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th><span lang="ja">操作</span><span lang="en" hidden>Action</span></th>
+        <th><span lang="ja">どうなるか</span><span lang="en" hidden>What happens</span></th>
+        <th><span lang="ja">代わりに</span><span lang="en" hidden>Instead</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="ng" lang="ja">行を消す・行を足す</td><td class="ng" lang="en" hidden>Delete or insert rows</td>
+            <td lang="ja">読まれません。描き直すと元に戻ります</td><td lang="en" hidden>Not read; the next redraw puts it back</td>
+            <td lang="ja">店舗を移すのは Transfer Branch の <code>(whole month)</code>。案にいない人を足す・外すのは HQ に伝える</td><td lang="en" hidden>Move people with <code>(whole month)</code> in Transfer Branch; tell HQ who to add or remove</td></tr>
+        <tr><td class="ng" lang="ja">Date・Staff・Current Shift を書き換える</td><td class="ng" lang="en" hidden>Overwrite Date, Staff or Current Shift</td>
+            <td lang="ja">飛ばされるか、別の人の変更として取り込まれます</td><td lang="en" hidden>Skipped, or imported as a change for the wrong person</td>
+            <td lang="ja">人を代えるのは Swap With Staff</td><td lang="en" hidden>Use Swap With Staff to change the person</td></tr>
+        <tr><td class="ng" lang="ja">休暇の行（<code>Vacation Leave</code> など）を直す</td><td class="ng" lang="en" hidden>Change a leave row (<code>Vacation Leave</code> etc.)</td>
+            <td lang="ja">取り込み時に飛ばされます（<code>current shift parse failed</code>）</td><td lang="en" hidden>Skipped at Sync (<code>current shift parse failed</code>)</td>
+            <td lang="ja">HQ が Draft ページの Branch Edit で直す</td><td lang="en" hidden>HQ changes it in Branch Edit on the Draft page</td></tr>
+        <tr><td class="ng" lang="ja">公開済みの週に入力する</td><td class="ng" lang="en" hidden>Type in a published week</td>
+            <td lang="ja">取り込まれません</td><td lang="en" hidden>Not imported</td>
+            <td lang="ja">Manual Shift で直す</td><td lang="en" hidden>Change it in Manual Shift</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="warn" lang="ja"><b>シートが書き直されている間は入力しない</b>タブが書き直されるのは、HQ が <b>Open Manila draft spreadsheet</b> を押したとき・案を作ったとき・公開したときです（1タブ数秒）。それまでに入力した値は引き継がれますが、書き直しの最中に打った値は消えることがあります。HQ は押す前に店長に一声かけてください。</p>
+  <p class="warn" lang="en" hidden><b>Do not type while the tab is being rewritten</b>A tab is rewritten when HQ presses <b>Open Manila draft spreadsheet</b>, generates, or publishes (a few seconds per tab). Values typed before that are carried over, but anything typed during the rewrite can be lost. HQ: tell the stores before you press it.</p>
+</section>
+
+<section id="s4">
+  <h2><span class="no">4</span><span lang="ja">取り込む（Sync）</span><span lang="en" hidden>Pull the changes in (Sync)</span> <span class="who hq">HQ</span></h2>
+  <ol class="steps">
+    <li lang="ja">Draft ページの <b>Pending Sheet Proposals</b> で、<code>Month</code> と <code>Branch</code> を選びます。<b>店舗は1つずつ</b>です（<code>All branches</code> のままだと <code>Select branch first.</code> と出ます）。</li>
+    <li lang="en" hidden>In <b>Pending Sheet Proposals</b> on the Draft page choose <code>Month</code> and <code>Branch</code>. <b>One store at a time</b> (with <code>All branches</code> it says <code>Select branch first.</code>).</li>
+    <li lang="ja"><b>Sync Proposals From Sheet</b> を押します。<code>✅ Imported 12 proposals from "CK_2026-11_DRAFT_MAIN"</code> のように出て、下の表に承認待ちが並びます。</li>
+    <li lang="en" hidden>Press <b>Sync Proposals From Sheet</b>. It reports e.g. <code>✅ Imported 12 proposals from "CK_2026-11_DRAFT_MAIN"</code> and the pending rows appear in the table below.</li>
+  </ol>
+  <p lang="ja"><b>何度押しても重複しません。</b>押すたびに、その店舗の承認待ちはシートの今の内容で入れ替わります。一度承認・却下したものは、二度と出てきません。</p>
+  <p lang="en" hidden><b>Pressing it again never duplicates.</b> Each press replaces that store's pending list with what the tab says now. Anything already approved or rejected never comes back.</p>
+
+  <h3 lang="ja">取り込み時のメッセージ</h3>
+  <h3 lang="en" hidden>Messages after Sync</h3>
+  <p lang="ja"><code>⚠️ N rows skipped — click to view details</code> を押すと理由が出ます。</p>
+  <p lang="en" hidden>Click <code>⚠️ N rows skipped — click to view details</code> to see the reasons.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th><span lang="ja">メッセージ</span><span lang="en" hidden>Message</span></th>
+        <th><span lang="ja">意味</span><span lang="en" hidden>Meaning</span></th>
+        <th><span lang="ja">すること</span><span lang="en" hidden>Do</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td><span class="msg">Skipped N row(s) the draft already has (no change).</span></td>
+            <td lang="ja">案がすでにその時間</td><td lang="en" hidden>The draft already has that time</td>
+            <td lang="ja">何もしない</td><td lang="en" hidden>Nothing</td></tr>
+        <tr><td><span class="msg">Skipped N row(s) already approved or rejected earlier.</span></td>
+            <td lang="ja">前に承認・却下済み</td><td lang="en" hidden>Decided earlier</td>
+            <td lang="ja">何もしない</td><td lang="en" hidden>Nothing</td></tr>
+        <tr><td><span class="msg">Replaced N older pending proposal(s) for the same shifts.</span></td>
+            <td lang="ja">前回の承認待ちを、今のシートの内容に入れ替えた</td><td lang="en" hidden>Older pending rows were replaced by what the tab says now</td>
+            <td lang="ja">何もしない</td><td lang="en" hidden>Nothing</td></tr>
+        <tr><td><span class="msg">Not imported: N revision(s) on … — those weeks are already published. Change them in Manual Shift.</span></td>
+            <td lang="ja">公開済みの週</td><td lang="en" hidden>Published weeks</td>
+            <td lang="ja">Manual Shift で直す</td><td lang="en" hidden>Change them in Manual Shift</td></tr>
+        <tr><td><span class="msg">Row N: current shift parse failed for 'NAME' (value: '…')</span></td>
+            <td lang="ja">休暇の行か、Current Shift が書き換えられた行</td><td lang="en" hidden>A leave row, or Current Shift was overwritten</td>
+            <td lang="ja">Branch Edit で直す</td><td lang="en" hidden>Fix it in Branch Edit</td></tr>
+        <tr><td><span class="msg">Skipped N rows due to unknown staff names</span></td>
+            <td lang="ja">在籍スタッフにない名前</td><td lang="en" hidden>A name that is not an active staff member</td>
+            <td lang="ja">選択欄から選び直す</td><td lang="en" hidden>Re-pick the name from the dropdown</td></tr>
+        <tr><td><span class="msg">Row N: NAME DATE shows 'Vacation Leave' — not moved to CUB; move it in Branch Edit.</span></td>
+            <td lang="ja">月ごと移す人の休暇の日。休暇の行は移せません</td><td lang="en" hidden>A leave day of someone moved for the month; leave rows cannot be moved</td>
+            <td lang="ja">Branch Edit で移す</td><td lang="en" hidden>Move it in Branch Edit</td></tr>
+        <tr><td><span class="msg">NAME: two different branches chosen for the whole month — not moved; keep one and sync again.</span></td>
+            <td lang="ja">同じ人に (whole month) が2つの店舗で選ばれている</td><td lang="en" hidden>Two different stores picked as (whole month) for one person</td>
+            <td lang="ja">1つ残して消し、もう一度 Sync</td><td lang="en" hidden>Keep one, clear the other, sync again</td></tr>
+        <tr><td><span class="msg">Transfer Branch ignored for XYZ — pick another branch from the list.</span></td>
+            <td lang="ja">店舗の名前が正しくない（自分の店舗を選んだ場合も）</td><td lang="en" hidden>Not another store of the city (or your own store)</td>
+            <td lang="ja">選択欄から選び直す</td><td lang="en" hidden>Re-pick from the dropdown</td></tr>
+        <tr><td><span class="msg">No CK tab for 2026-11 in the spreadsheet. Open the draft spreadsheet once so the tab is created, then sync again.</span></td>
+            <td lang="ja">タブがまだない</td><td lang="en" hidden>The tab does not exist yet</td>
+            <td lang="ja"><b>Open Manila draft spreadsheet</b> を押してから再度 Sync</td><td lang="en" hidden>Press <b>Open Manila draft spreadsheet</b>, then Sync again</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s5">
+  <h2><span class="no">5</span><span lang="ja">承認する</span><span lang="en" hidden>Approve</span> <span class="who hq">HQ</span></h2>
+  <p lang="ja">承認待ちの表は、<code>Before</code>（取り消し線）が今の案、<code>After</code>（緑）がシートの入力です。<code>By</code> に入力した人と、タブ名・行番号（<code>#123</code>）が出ます。店舗を移す提案は、<code>Branch</code> に <code>CK</code> <code>→ Cubao</code> のように移動先が出ます。</p>
+  <p lang="en" hidden>In the pending table <code>Before</code> (struck through) is the current draft and <code>After</code> (green) is what the sheet asks for. <code>By</code> shows who typed it, with the tab and row number (<code>#123</code>). A move to another store shows the target in <code>Branch</code>, e.g. <code>CK</code> <code>→ Cubao</code>.</p>
+  <ol class="steps">
+    <li lang="ja">承認する行にチェックを入れます（見出しのチェックで全部）。</li>
+    <li lang="en" hidden>Tick the rows (the header box ticks them all).</li>
+    <li lang="ja"><b>Approve Selected</b>（反映する）か <b>Reject Selected</b>（反映しない）を押します。理由を残すなら <code>Note for this decision (optional)</code> に書きます。</li>
+    <li lang="en" hidden>Press <b>Approve Selected</b> (apply) or <b>Reject Selected</b> (do not apply). Add a reason in <code>Note for this decision (optional)</code> if useful.</li>
+    <li lang="ja">結果のメッセージを読みます（下の表）。</li>
+    <li lang="en" hidden>Read the result message (table below).</li>
+    <li lang="ja">承認してもシートは自動では書き直されません。店長に一声かけてから <b>Open Manila draft spreadsheet</b> を押すと、変わったタブだけが書き直されます。入力欄に残った値は消さなくて構いません（次の Sync で「変更なし」として飛ばされます）。</li>
+    <li lang="en" hidden>Approving does not redraw the sheet. Tell the stores, then press <b>Open Manila draft spreadsheet</b>; only tabs that changed are rewritten. Values left in the input columns can stay (the next Sync skips them as "no change").</li>
+  </ol>
+
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th><span lang="ja">メッセージ</span><span lang="en" hidden>Message</span></th>
+        <th><span lang="ja">意味と、すること</span><span lang="en" hidden>Meaning and what to do</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td><span class="msg">APPROVE: updated N rows, draft applied N</span></td>
+            <td lang="ja">反映できました。</td><td lang="en" hidden>Applied.</td></tr>
+        <tr><td><span class="msg">N already in the draft (nothing added)</span></td>
+            <td lang="ja">案にもう入っていたので何も足していません。問題ありません。</td><td lang="en" hidden>Already in the draft; nothing was added. Fine.</td></tr>
+        <tr><td><span class="msg">⚠️ N not applied — change these in the draft editor: NAME DATE (the draft now has 12-21, not 9-18 as the sheet shows; the sheet is out of date — open it again, or change the draft directly)</span></td>
+            <td lang="ja">シートが古く、案はもう別の時間になっています。<b>反映していません</b>（承認待ちのまま残ります）。<b>Open Manila draft spreadsheet</b> で描き直して、店長にその行を入れ直してもらい、もう一度 Sync・承認します。1日だけなら Branch Edit で直接直しても構いません。</td>
+            <td lang="en" hidden>The tab is out of date; the draft already shows a different time. <b>Not applied</b> (stays pending). Redraw with <b>Open Manila draft spreadsheet</b>, have the store type that row again, then Sync and approve. For a single day you can change it in Branch Edit instead.</td></tr>
+        <tr><td><span class="msg">… (the draft now has ABSENT (no shift), not 9-18 as the sheet shows; …)</span></td>
+            <td lang="ja">案のその日は欠勤・休み・休暇の行で、シフトではありません。シートの「Current Shift」が手で書き換えられたときなどに出ます。<b>反映していません</b>。<b>Open Manila draft spreadsheet</b> で描き直すと、その日は Absent／Day Off と表示されます。そこに勤務時間を入れて Sync・承認すれば、欠勤の行はシフトに置き換わります。</td>
+            <td lang="en" hidden>On that day the draft holds an absence, day off or leave row, not a shift. This shows up when, for example, the Current Shift cell was typed over by hand. <b>Not applied</b>. Redraw with <b>Open Manila draft spreadsheet</b>: the day shows as Absent / Day Off. Type the hours there, then Sync and approve, and the absence row is replaced by the shift.</td></tr>
+        <tr><td><span class="msg">… (already works at CUB that day (14-23); keep one of the two in Branch Edit)</span></td>
+            <td lang="ja">移す先の店舗でも、その日に勤務が入っています。移すと同じ日に2回勤務になるので、<b>移していません</b>。Branch Edit でどちらか一方を消してから、もう一度承認します。</td>
+            <td lang="en" hidden>They already work at the other store that day; moving would give them two shifts, so it was <b>not moved</b>. Delete one of the two in Branch Edit, then approve again.</td></tr>
+        <tr><td><span class="msg">… (no CUB draft for this month)</span></td>
+            <td lang="ja">応援先の店舗に、その月の案がありません。</td><td lang="en" hidden>The store in Transfer Branch has no draft for the month.</td></tr>
+        <tr><td><span class="msg">… (no draft attached to this proposal; sync again)</span></td>
+            <td lang="ja">その店舗をもう一度 Sync してから承認します。</td><td lang="en" hidden>Sync that store again, then approve.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s6">
+  <h2><span class="no">6</span><span lang="ja">公開する（Apply）</span><span lang="en" hidden>Publish (Apply)</span> <span class="who hq">HQ</span></h2>
+  <p lang="ja">公開の前に、Schedule View の上にある <b>Day-off requests in（月）</b> を開いて、休みの申請と案を見比べます。承認済み・回答待ちの申請が都市の全店舗分並び（却下されたものは出ません）、右端の <b>This draft</b> に、開いている店舗の案でその日がどうなっているかが出ます。承認済みなのに <b>Rostered</b>（赤）になっている行は、その日を Day Off に直します。</p>
+  <p lang="en" hidden>Before publishing, open <b>Day-off requests in (month)</b> above Schedule View and check the requests against the draft. It lists approved and waiting requests for every store in the city (refused ones are not shown). The last column, <b>This draft</b>, shows what the open store's draft has on that day. An approved request marked <b>Rostered</b> (red) needs that day set to Day Off.</p>
+  <ol class="steps">
+    <li lang="ja"><b>Apply Draft To Published</b> で <code>Month to Publish</code> を選びます。<code>Weeks included</code> に対象の週が出ます。その月の全週・全店舗が対象です。</li>
+    <li lang="en" hidden>In <b>Apply Draft To Published</b> choose <code>Month to Publish</code>. <code>Weeks included</code> lists the weeks. Every week and every store of that month is included.</li>
+    <li lang="ja"><b>Prepare Apply</b> を押し、表示された警告を読みます（下の表）。</li>
+    <li lang="en" hidden>Press <b>Prepare Apply</b> and read any warnings (table below).</li>
+    <li lang="ja"><b>Confirm Apply</b> を押します。終わると <code>Apply result</code> に週ごとの結果が出ます。</li>
+    <li lang="en" hidden>Press <b>Confirm Apply</b>. <code>Apply result</code> then lists each week.</li>
+  </ol>
+  <div class="tbl">
+    <table>
+      <thead><tr>
+        <th><span lang="ja">表示</span><span lang="en" hidden>Shown</span></th>
+        <th><span lang="ja">意味と、すること</span><span lang="en" hidden>Meaning and what to do</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td><span class="msg">Only 2026-11-01 to 2026-11-01 is applied from this draft. The other days of this week keep their published schedule.</span></td>
+            <td lang="ja">月をまたぐ週です（例: 11月の最初の週は 10/26〜11/1）。<b>その月の日だけ</b>が公開され、前の月の公開済みの日はそのまま残ります。何もしなくて構いません。</td>
+            <td lang="en" hidden>A week that runs into another month (e.g. November's first week is 26 Oct – 1 Nov). <b>Only the draft's own month</b> is published; the other month's published days stay as they are. Nothing to do.</td></tr>
+        <tr><td lang="ja">同じ人が同じ日に、別の店舗でも時間が重なっている</td><td lang="en" hidden>The same person overlaps at another store on the same day</td>
+            <td lang="ja">その週で止まり、1週ずつ確認を求めます。どちらかの店舗から外してから Confirm Apply をやり直します。本当に両方で働くなら <b>Apply anyway — they are expected at both</b>。</td>
+            <td lang="en" hidden>Stops at that week and asks one week at a time. Take them out at one store and Confirm Apply again. If they really work at both, press <b>Apply anyway — they are expected at both</b>.</td></tr>
+        <tr><td lang="ja">休みとして公開済みの日に、案では勤務が入っている</td><td lang="en" hidden>A day published as a day off has a shift in the draft</td>
+            <td lang="ja"><code>Set those days to Day Off in the draft and Confirm Apply again.</code> 休みが正しければ案を休みに直す。勤務が正しければ <b>Apply anyway — the day off no longer stands</b>。</td>
+            <td lang="en" hidden><code>Set those days to Day Off in the draft and Confirm Apply again.</code> If the day off is right, set it in the draft. If the shift is right, press <b>Apply anyway — the day off no longer stands</b>.</td></tr>
+        <tr><td lang="ja">案を作った後に Manual Shift で直された日がある</td><td lang="en" hidden>Some days were corrected in Manual Shift after the draft was made</td>
+            <td lang="ja"><code>Confirm Apply keeps those corrections and publishes the rest of the draft.</code> そのまま Confirm Apply を押して構いません。<b>案を作った後に直されたシフトは直した内容のまま残り</b>、それ以外は案のとおり公開されます。残したシフトは、各週の結果に <code>Kept … shift(s)</code> と名前つきで出ます。案の方を使いたいときは、案のそのセルを直してから Apply し直します（新しく直した方が残ります）。</td>
+            <td lang="en" hidden><code>Confirm Apply keeps those corrections and publishes the rest of the draft.</code> Go ahead and press Confirm Apply. <b>Shifts corrected after the draft was made stay as corrected</b>; everything else is published from the draft. Each week's result lists the kept shifts as <code>Kept … shift(s)</code>. To use the draft's version instead, edit that cell in the draft and apply again (the newer edit wins).</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p lang="ja">公開すると、スタッフの自分のシフトの画面に出ます。シートのその週は公開した内容を表示し、以後の修正は <b>Manual Shift</b> で行います。</p>
+  <p lang="en" hidden>Once published, staff see the shifts on their own schedule screen. The sheet shows the published schedule for those weeks; from then on, change shifts in <b>Manual Shift</b>.</p>
+</section>
+
+<section id="faq" class="faq">
+  <h2><span lang="ja">困ったとき</span><span lang="en" hidden>Problems</span></h2>
+
+  <details>
+    <summary><span lang="ja">案を作った後で、店舗が違う人に気づいた</span><span lang="en" hidden>After generating, someone is at the wrong store</span></summary>
+    <p lang="ja">シートで直せます。行を消したり足したりするのではなく、Transfer Branch を使います。</p>
+    <p lang="en" hidden>Fix it in the sheet with Transfer Branch, not by deleting or adding rows.</p>
+    <ol>
+      <li lang="ja"><b>Google シート</b>の、今いる店舗のタブ（例 <code>CK_2026-11_DRAFT_MAIN</code>）で、その人の<b>どれか1行</b>の Transfer Branch の選択欄から「（移す先） (whole month)」を選ぶ。</li>
+      <li lang="en" hidden>In the <b>Google Sheet</b>, in the tab of the store they are in now (e.g. <code>CK_2026-11_DRAFT_MAIN</code>), choose "(new store) (whole month)" from the Transfer Branch dropdown on <b>any one</b> of their rows.</li>
+      <li lang="ja"><b>OS の Draft ページ</b>の Pending Sheet Proposals で、Month と Branch（今いる店舗）を選び、<b>Sync Proposals From Sheet</b> を押す。その人の勤務日が1日ずつ <code>→ （移す先）</code> 付きで並ぶ。</li>
+      <li lang="en" hidden>On the <b>Draft page in the OS</b>, under Pending Sheet Proposals, choose Month and Branch (the store they are in now) and press <b>Sync Proposals From Sheet</b>. Their working days appear one per row, each marked <code>→ (new store)</code>.</li>
+      <li lang="ja">同じ <b>Draft ページ</b>で、その行にチェックを入れて <b>Approve Selected</b> を押す。続けて、店長に一声かけてから <b>Open Manila draft spreadsheet</b> を押す。シートのその人が元のタブから消え、移す先のタブに出る。</li>
+      <li lang="en" hidden>On the same <b>Draft page</b>, tick those rows and press <b>Approve Selected</b>. Then tell the stores and press <b>Open Manila draft spreadsheet</b>. In the sheet the person leaves the old tab and appears in the new one.</li>
+      <li lang="ja">以後の時間の変更は、移す先のタブで入力する。</li>
+      <li lang="en" hidden>Type later time changes in the new store's tab.</li>
+    </ol>
+    <p lang="ja">1日だけの応援なら、その日の行で店舗名だけ（<code>CUB</code>）を選びます。移す先にもその日の勤務がある日は移らず、承認の結果に名前が出ます。休暇の行は移らないので、Branch Edit で移します。</p>
+    <p lang="en" hidden>For a single day, pick just the store (<code>CUB</code>) on that day's row. Days they already work at the other store are not moved and are named in the approval result. Leave rows do not move; move those in Branch Edit.</p>
+    <p lang="ja">店舗を間違えたまま時間を入れないでください。その店舗のシフトとして公開されます。</p>
+    <p lang="en" hidden>Do not type times while the store is wrong: they are published as that store's shifts.</p>
+  </details>
+
+  <details>
+    <summary><span lang="ja">いるはずの人が案にいない</span><span lang="en" hidden>Someone who should be there is missing</span></summary>
+    <ul>
+      <li lang="ja"><b>Draft Exclusions</b> に登録されていないか見ます。<code>Active until</code> が空だと無期限で外れたままです。</li>
+      <li lang="en" hidden>Check <b>Draft Exclusions</b>. With <code>Active until</code> blank they stay out indefinitely.</li>
+      <li lang="ja"><b>案を作った後で足したい人（新入社員など）は、スタッフ一覧に入れて Save roster を押します。</b>その店舗のタブに、全日 DAY_OFF の行で出ます（シートを描き直したとき）。時間を入れて Sync・承認すれば入ります。作り直しは要りません（マニラ）。</li>
+      <li lang="en" hidden><b>To add someone after generating (a new hire, say), put them in the staff list and press Save roster.</b> They appear on their store's tab with a DAY_OFF row every day (after the tab is redrawn). Type their times, Sync and approve. No regenerating needed (Manila).</li>
+      <li lang="ja">休暇・産休の期間に当たっている人は、勤務が0日で正しいことがあります。</li>
+      <li lang="en" hidden>Someone on leave (maternity leave and so on) can correctly have no shifts.</li>
+    </ul>
+  </details>
+
+  <details>
+    <summary><span lang="ja">入力したのに案に入っていない</span><span lang="en" hidden>Something typed is not in the draft</span></summary>
+    <ol>
+      <li lang="ja">その店舗を Sync したか。Sync は店舗ごとです。</li>
+      <li lang="en" hidden>Was that store synced? Sync is per store.</li>
+      <li lang="ja">Sync の <code>rows skipped</code> を開き、理由を <a href="#s4">取り込み時のメッセージ</a> で確かめる。</li>
+      <li lang="en" hidden>Open <code>rows skipped</code> after Sync and look the reason up in <a href="#s4">Messages after Sync</a>.</li>
+      <li lang="ja">承認したか。承認待ちのままなら案には入っていません。</li>
+      <li lang="en" hidden>Was it approved? Pending rows are not in the draft.</li>
+      <li lang="ja">承認の結果に <code>not applied</code> が出ていないか（<a href="#s5">承認</a>）。</li>
+      <li lang="en" hidden>Did the approval say <code>not applied</code>? (<a href="#s5">Approve</a>)</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><span lang="ja">Sync を何回も押してしまった</span><span lang="en" hidden>Sync was pressed several times</span></summary>
+    <p lang="ja">問題ありません。承認待ちは毎回シートの今の内容で入れ替わり、同じ変更が2つ並ぶことはありません。</p>
+    <p lang="en" hidden>No problem. Each press replaces the pending list with what the tab says now; the same change never appears twice.</p>
+  </details>
+
+  <details>
+    <summary><span lang="ja">シートの表示が古い</span><span lang="en" hidden>The sheet looks out of date</span></summary>
+    <p lang="ja">上部の <code>Synced from OS</code> の時刻を見ます。HQ が店長に一声かけてから <b>Open Manila draft spreadsheet</b> を押すと、変わったタブだけ書き直されます。来月分のタブは自動では書き直されません（入力中の値を消さないため）。</p>
+    <p lang="en" hidden>Look at <code>Synced from OS</code> at the top. HQ tells the stores, then presses <b>Open Manila draft spreadsheet</b>; only tabs that changed are rewritten. Next month's tabs are not rewritten automatically, so typed values are not wiped.</p>
+  </details>
+</section>
+
+<footer>
+  <span lang="ja">Sushi ZEN Workforce OS ／ Attendance &amp; Shifts → Draft ／ 2026年10月19日時点の画面についての説明です。</span>
+  <span lang="en" hidden>Sushi ZEN Workforce OS · Attendance &amp; Shifts → Draft · Describes the page as deployed on 19 October 2026.</span>
+</footer>
+
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var scope = [document.querySelector(".top"), document.querySelector(".wrap")];
+    var bEn = document.getElementById("btn-en");
+    var bJa = document.getElementById("btn-ja");
+
+    function apply(lang) {
+      // Scoped to the page content, never <html>: a lang attribute on the root
+      // would put it inside this selector and hide the whole document.
+      for (var s = 0; s < scope.length; s++) {
+        var nodes = scope[s].querySelectorAll("[lang='en'], [lang='ja']");
+        for (var i = 0; i < nodes.length; i++) {
+          nodes[i].hidden = nodes[i].getAttribute("lang") !== lang;
+        }
+      }
+      root.setAttribute("data-lang", lang);
+      bEn.setAttribute("aria-pressed", String(lang === "en"));
+      bJa.setAttribute("aria-pressed", String(lang === "ja"));
+      try { localStorage.setItem("szn-shift-draft-lang", lang); } catch (e) { /* private window */ }
+    }
+
+    var saved = "ja";
+    try { saved = localStorage.getItem("szn-shift-draft-lang") || "ja"; } catch (e) { /* private window */ }
+    apply(saved === "en" ? "en" : "ja");
+
+    bEn.addEventListener("click", function () { apply("en"); });
+    bJa.addEventListener("click", function () { apply("ja"); });
+  })();
+</script>
+</body>
+</html>

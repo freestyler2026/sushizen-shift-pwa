@@ -364,6 +364,14 @@ export default function AttendancePage() {
   const [proofError, setProofError] = useState("");
   const [otPromptMinutes, setOtPromptMinutes] = useState(0);
   const pendingOtPromptRef = useRef<number | null>(null);
+  /** 連続で失敗した回数。成功で0に戻す。
+   *
+   *  Android は「この端末に該当する鍵が無い」を `NotAllowedError` で返す。
+   *  `NotImplementedError` を見ている分岐には入らないので、該当鍵が無い人にも
+   *  「もう一度押してください」と案内していた。**押しても通らない。**
+   *  Alex Delgado はこれを30日で124回繰り返し、その間PARが毎日StoreHubから
+   *  手入力していた。2回続けて失敗したら、押し直しではなく登録に誘導する。 */
+  const consecutiveFailRef = useRef(0);
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
   const wfhTodayRef = useRef(false);
@@ -652,6 +660,7 @@ export default function AttendancePage() {
           break_in: "Break started ✓",
           break_out: "Break ended ✓",
         };
+        consecutiveFailRef.current = 0;
         setSuccess(labels[action] ?? "Done ✓");
         if (action === "checkout") {
           setVisitPickerOpen(false);
@@ -703,6 +712,7 @@ export default function AttendancePage() {
         const isPasskeyMissing =
           eName === "NotImplementedError" || eName === "NotSupportedError" ||
           msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not supported");
+        consecutiveFailRef.current += 1;
         // Tell the server the attempt ended with nothing written. Fire and
         // forget: the person is standing there and must not wait on a report
         // about their own failure, and a failure to record must never become
@@ -740,10 +750,22 @@ export default function AttendancePage() {
           // the red banner on purpose -- standing in the office not clocked in
           // is a problem the person has to act on, and the quiet version of
           // this message is what cost him the morning.
+          // 2回目からは押し直しを勧めない。同じ理由で失敗しているなら、
+          // 原因は押し方ではなく「この端末に鍵が無い」である可能性が高い。
+          const again = consecutiveFailRef.current >= 2;
           setError(
-            action === "checkin"
-              ? "Not clocked in. The passkey check did not complete, so nothing was recorded. Tap Clock In again."
-              : "Nothing was recorded — the passkey check did not complete. Tap the button again."
+            again
+              ? (action === "checkin"
+                  ? "Not clocked in, and the passkey check has now failed "
+                    + consecutiveFailRef.current
+                    + " times in a row. This phone may not hold your passkey. "
+                    + "Tap \"Register this device\" below, then tap Clock In again."
+                  : "Nothing was recorded, and the passkey check has now failed "
+                    + consecutiveFailRef.current
+                    + " times in a row. Tap \"Register this device\" below, then try again.")
+              : (action === "checkin"
+                  ? "Not clocked in. The passkey check did not complete, so nothing was recorded. Tap Clock In again."
+                  : "Nothing was recorded — the passkey check did not complete. Tap the button again.")
           );
         } else {
           setError(

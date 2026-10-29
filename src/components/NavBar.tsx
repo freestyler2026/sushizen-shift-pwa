@@ -80,6 +80,7 @@ import {
   HelpCircle,
   CalendarX2,
   ChevronRight,
+  Scale,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -164,7 +165,7 @@ type NavItem = {
  */
 const ADMIN_CATS = [
   ["money",  "Money & Reports"],
-  ["proc",   "Procurement"],
+  ["proc",   "Procurement & Tax"],
   ["inv",    "Inventory & Prep"],
   ["ops",    "Store Operations"],
   ["shift",  "Attendance & Shifts"],
@@ -344,6 +345,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/management/back-office", label: "BO Dashboard", icon: ShieldAlert, adminOnly: true, match: "prefix" , cat: "ops" },
   { href: "/admin/finance/vendors", label: "Vendors", icon: Building2, adminOnly: true, match: "prefix" , cat: "proc" },
   { href: "/admin/finance/documents", label: "Filing Ledger", icon: Receipt, adminOnly: true, match: "prefix" , cat: "proc" },
+  { href: "/admin/finance/vat", label: "VAT Ledger", icon: Scale, adminOnly: true, match: "prefix" , cat: "proc" },
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" , cat: "sys" },
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" , cat: "pay" },
   { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" , cat: "money" },

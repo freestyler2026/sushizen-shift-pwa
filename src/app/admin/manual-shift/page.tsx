@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAuth, getAuthHeaders, hasChannelAccess, tryRefreshAccessToken } from "@/lib/auth";
-import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
+import { BRANCHES, labelOf, normalizeBranchCode, type BranchCode, type City } from "@/lib/branches";
 import {
   PRIMARY_BUTTON,
   SECONDARY_BUTTON,
@@ -20,6 +20,11 @@ import {
   describeDayOffConflict,
   type DayOffConflict,
 } from "@/lib/day-off-conflicts";
+import {
+  type CrossBranchOverlap,
+  crossBranchOverlapsFrom,
+  describeCrossBranchOverlap,
+} from "@/lib/cross-branch-overlaps";
 
 // ─── White-mode card (overrides global GLASS_CARD for this page only) ────────
 // The shared drive the exports are filed in. Same id as SHIFT_SCHEDULE_DRIVE_ID
@@ -161,6 +166,16 @@ function stripRoleSuffix(name: string): string {
   return name.replace(/(\s*\([^)]*\))+\s*$/, "").trim();
 }
 
+/** A cell that is work, by the roster's own rule (app/db_approved_day_off._is_work):
+ *  not a day-off or leave marker, and hours that are not empty. Kept to the
+ *  server's list so this screen and the Staff page count the same shifts. */
+const NOT_WORKING_ROLES = /^(DAY_?OFF|OFF|REST(_?DAY)?|VL|SL|EL|ML|UL|LEAVE|ABSENT|AWOL|SUSPENDED)$/i;
+function isWorkCell(role: string | undefined | null, start?: number, end?: number): boolean {
+  if (NOT_WORKING_ROLES.test(String(role || "").trim().replace(/ /g, "_"))) return false;
+  if (start === undefined || end === undefined) return true;
+  return Number(end) > Number(start);
+}
+
 function fmtHour(h: number): string {
   const mins = (h % 1) === 0.5 ? "30" : "00";
   const base = Math.floor(h);
@@ -266,6 +281,7 @@ function BranchSection({
   const [bRows, setBRows] = useState<PublishedRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingStaff, setDeletingStaff] = useState<string | null>(null);
+  const deleteBusyRef = useRef(false);
 
   useEffect(() => {
     setLoading(true);
@@ -279,22 +295,64 @@ function BranchSection({
 
   /** Delete all shifts for a staff member in this branch/week. */
   async function deleteStaffRow(staffName: string) {
+    // The clock-in check below takes a moment before the confirm appears; a
+    // second click in that gap must not start a second delete.
+    if (deleteBusyRef.current) return;
     const shiftsForStaff = bRows.filter((r) => r.staff_name === staffName);
     if (shiftsForStaff.length === 0) return;
-    if (!window.confirm(`Delete all ${shiftsForStaff.length} shift(s) for "${stripRoleSuffix(staffName)}"?`)) return;
+    deleteBusyRef.current = true;
     setDeletingStaff(staffName);
+    try {
+      await deleteStaffRowInner(staffName, shiftsForStaff);
+    } finally {
+      deleteBusyRef.current = false;
+      setDeletingStaff(null);
+    }
+  }
+
+  async function deleteStaffRowInner(staffName: string, shiftsForStaff: typeof bRows) {
+    // Days already clocked in are named before anything goes (the server refuses them otherwise).
+    let workedDays: WorkedInfo[] = [];
+    try {
+      const d = await fetchWeekAttendance(city, weekStart);
+      const mine = new Set(shiftsForStaff.map((r) => workedKey(staffName, r.work_date)));
+      workedDays = (d.days || []).filter((w) => mine.has(workedKey(w.staff_name, w.work_date)));
+    } catch {
+      // Without the list the server would refuse partway through, after deleting the
+      // earlier days -- unless every day is after today, where nothing can be worked.
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: city === "dubai" ? "Asia/Dubai" : "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(new Date());
+      if (!shiftsForStaff.every((r) => r.work_date > today)) {
+        alert("Could not check who has clocked in this week, so nothing was deleted. Try again.");
+        return;
+      }
+    }
+    const workedText = workedDays.length > 0
+      ? `\n\nAlready clocked in on ${workedDays.length} of these days: ` +
+        workedDays.map((w) => `${formatDate(w.work_date)} (${workedLabel(w)})`).join(", ") +
+        ". Late, early and pay for those days are measured against this schedule."
+      : "";
+    if (!window.confirm(`Delete all ${shiftsForStaff.length} shift(s) for "${stripRoleSuffix(staffName)}"?${workedText}`)) return;
+    const workedDates = new Set(workedDays.map((w) => w.work_date));
+    const done = new Set<string>();
     try {
       for (const r of shiftsForStaff) {
         await apiFetch("/api/admin/shifts/delete_published_row", {
           method: "POST",
-          body: JSON.stringify({ city, branch_code: bc, work_date: r.work_date, staff_name: staffName }),
+          body: JSON.stringify({ city, branch_code: bc, work_date: r.work_date, staff_name: staffName,
+                                 confirm_worked: workedDates.has(r.work_date) }),
         });
+        done.add(r.work_date);
       }
       setBRows((prev) => prev.filter((r) => r.staff_name !== staffName));
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDeletingStaff(null);
+      setBRows((prev) => prev.filter((r) => !(r.staff_name === staffName && done.has(r.work_date))));
+      const worked = workedCellsFrom(e as ApiError)[0];
+      alert(worked
+        ? `${stripRoleSuffix(staffName)} clocked in on ${formatDate(worked.work_date)} after this list was opened, `
+          + `so the delete stopped there (${done.size} day${done.size === 1 ? "" : "s"} deleted). Press delete again to see the days.`
+        : `${e instanceof Error ? e.message : String(e)}${done.size > 0 ? ` (${done.size} shift(s) were already deleted.)` : ""}`);
     }
   }
 
@@ -442,7 +500,94 @@ type PendingEdit = {
   staff_name: string;
   work_date: string;
   cells: ShiftCell[];
+  /** The person was told this staff member already clocked in that day and chose to change it. */
+  confirm_worked?: boolean;
 };
+
+/** A day the staff member has already clocked in (GET /api/admin/shifts/week_attendance).
+ *  Back Office asked to be warned before changing such a day (2026-10-25): while
+ *  preparing tomorrow for several branches a click can land on today. 886 changes
+ *  to worked days in 60 days were mostly deliberate (payroll, reconciliation), so
+ *  the page asks once per cell and the server refuses a change it was not asked about. */
+/** check_in / check_out are null for someone without attendance access: the server
+ *  says the day was worked, not when. */
+type WorkedInfo = { staff_name: string; work_date: string; check_in: string | null; check_out: string | null; working: boolean;
+  /** An older day whose session was never closed — a forgotten clock-out, not someone at work. */
+  no_clock_out?: boolean };
+type WorkedAskItem = { staffName: string; dateStr: string; info: WorkedInfo; before: string; after: string };
+type WorkedAnswer = "change" | "skip" | "cancel";
+/** single/bulk: an edit on this page. replay: queued edits the server refused.
+ *  publish / import: pending cells, or the sheet, about to replace worked days. */
+type WorkedAskMode = "single" | "bulk" | "replay" | "publish" | "import";
+
+/** The week's clock-ins. One copy of the request, shared by the grid and the Published view's delete. */
+function fetchWeekAttendance(city: string, weekStart: string) {
+  return apiFetch<{ days?: WorkedInfo[] }>(
+    `/api/admin/shifts/week_attendance?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`);
+}
+
+/** A "change anyway" answer belongs to one cell of one branch's week. Keyed by
+ *  name and date alone, a yes given at one branch skipped the question for the
+ *  same person and day at another (clock-ins are per city, not per branch). */
+function confirmKey(city: string, branchCode: string, weekStart: string, staffName: string, dateStr: string): string {
+  return `${city}|${branchCode}|${weekStart}|${workedKey(staffName, dateStr)}`;
+}
+
+function workedKey(name: string, dateStr: string): string {
+  return `${stripRoleSuffix(name).replace(/\s+/g, " ").trim().toLowerCase()}|${dateStr}`;
+}
+
+/** The days a 409 "worked_day" refusal names (app/shift_worked_days.py). */
+function workedCellsFrom(err: ApiError | undefined): WorkedInfo[] {
+  if (err?.status !== 409 || err?.detail?.code !== "worked_day") return [];
+  return Array.isArray(err.detail.cells) ? (err.detail.cells as WorkedInfo[]) : [];
+}
+
+/** The longer line in the question. */
+function workedDetail(w: WorkedInfo): string {
+  if (w.working) return w.check_in ? `Working now — clocked in ${w.check_in}` : "Working now";
+  if (w.no_clock_out) return w.check_in ? `Clocked in ${w.check_in} — no clock-out recorded` : "Clocked in — no clock-out recorded";
+  return w.check_in ? `Worked — in ${w.check_in}${w.check_out ? `, out ${w.check_out}` : ""}` : "Worked";
+}
+
+function workedLabel(w: WorkedInfo): string {
+  if (w.working) return w.check_in ? `working · in ${w.check_in}` : "working";
+  if (w.no_clock_out) return w.check_in ? `in ${w.check_in} · no clock-out` : "no clock-out";
+  return w.check_in ? `worked ${w.check_in}${w.check_out ? `–${w.check_out}` : ""}` : "worked";
+}
+
+function describeCellValue(v: ShiftCell | ShiftCell[] | null | undefined): string {
+  const cs = cellsOf(v);
+  if (cs.length === 0) return "no shift";
+  return cs.map((c) => (isSpecialRole(c.role) || (c.start_hour === 0 && c.end_hour === 0))
+    ? specialLabel(c.role || "DAY_OFF")
+    : `${fmtHour(c.start_hour)}–${fmtHour(c.end_hour)}`).join(" + ");
+}
+
+/** What a worked day is measured against: the hours, and the branch when it is
+ *  not this sheet's own. A note or a role label alone is not a change to ask about. */
+/** Day-off and leave markers without underscores: the same set as the server's
+ *  _NOT_WORKING (app/shift_worked_days.py). A cell with one of these is compared by
+ *  its type, whatever its hours; plain "off" words are one day off. */
+const WORKED_SIG_OFF = new Set(["DAYOFF", "OFF", "REST", "RESTDAY", "DO", "RD", "VL", "UL", "SL", "ML", "EL", "AL", "PL",
+  "CL", "HL", "LEAVE", "ABSENCE", "ABSENT", "VACATIONLEAVE", "MEDICALLEAVE", "MATERNITYLEAVE", "BEREAVEMENTLEAVE",
+  "INJURY", "HOSPITAL", "AWOL", "SUSPENDED"]);
+const WORKED_SIG_PLAIN_OFF = new Set(["OFF", "REST", "RESTDAY", "DO", "RD"]);
+
+function workedSig(v: ShiftCell | ShiftCell[] | null | undefined, home: string, city: City): string {
+  // Hours as numbers (fmtHour shows 9.3 as 9:00); a day off or leave by its type
+  // (Day Off and VL pay differently); the branch as a code -- the published week
+  // comes back with names ("Business Bay") where a painted cell has "BB".
+  const code = (b: string) => String(normalizeBranchCode(city, b)).toUpperCase();
+  const homeCode = code(home);
+  return cellsOf(v).map((c) => {
+    const r = String(c.role || "").toUpperCase().replace(/[_\s]/g, "");
+    if (WORKED_SIG_OFF.has(r)) return `OFF:${WORKED_SIG_PLAIN_OFF.has(r) ? "DAYOFF" : r}`;
+    if (Number(c.start_hour) === 0 && Number(c.end_hour) === 0) return "OFF:DAYOFF";
+    const b = c.branch_code ? code(c.branch_code) : "";
+    return `${Number(c.start_hour)}-${Number(c.end_hour)}${b && b !== homeCode ? `@${b}` : ""}`;
+  }).sort().join("+");
+}
 
 /** One key for every queued edit, not one per week. Each entry carries the week
  *  it belongs to, so changing week or branch mid-flush cannot post an edit
@@ -558,6 +703,21 @@ export default function ManualShiftPage() {
     } catch { /* private mode: the banner just will not persist */ }
   }, [city, publishedMonthLabel]);
 
+  // The server's answer, which covers every way the schedule changes and every
+  // browser -- the local flag above only knows what this browser published.
+  type ExcelStatus = { stale: boolean | null; exported_at?: string | null; exported_by?: string;
+                       file_name?: string; changed_branches?: string[] };
+  const [excelStatus, setExcelStatus] = useState<ExcelStatus | null>(null);
+  const loadExcelStatus = useCallback(async () => {
+    try {
+      const d = await apiFetch<ExcelStatus>(
+        `/api/admin/shifts/excel_export_status?city=${encodeURIComponent(city)}&month=${encodeURIComponent(publishedMonthLabel)}`,
+      );
+      setExcelStatus(d);
+    } catch { setExcelStatus(null); }
+  }, [city, publishedMonthLabel]);
+  useEffect(() => { void loadExcelStatus(); }, [loadExcelStatus]);
+
   const markNeedsExport = useCallback(() => {
     setNeedsExport(true);
     try { window.localStorage.setItem(exportFlagKey(city, publishedMonthLabel), "1"); } catch {}
@@ -583,6 +743,7 @@ export default function ManualShiftPage() {
         notShown: Array.isArray(data?.not_shown) ? data.not_shown : [],
       });
       setShowExportDone(true);
+      void loadExcelStatus();
       if (exportMonth === publishedMonthLabel) {
         setNeedsExport(false);
         setShowExportPrompt(false);
@@ -593,7 +754,7 @@ export default function ManualShiftPage() {
     } finally {
       setExporting(false);
     }
-  }, [city, exportMonth, publishedMonthLabel]);
+  }, [city, exportMonth, publishedMonthLabel, loadExcelStatus]);
 
   const [gridData, setGridData] = useState<GridData>({});
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
@@ -615,6 +776,14 @@ export default function ManualShiftPage() {
   const [error, setError] = useState("");
   // Set only by a 409 from publish: the week rosters somebody on an approved day off.
   const [publishBlockedBy, setPublishBlockedBy] = useState<DayOffConflict[]>([]);
+  // Same idea, other check: the person is already published at another branch
+  // for those hours. Kept apart so each panel says what it is about.
+  const [overlapBlockedBy, setOverlapBlockedBy] = useState<CrossBranchOverlap[]>([]);
+  // Whether the day-off check was already waived for the publish that then hit
+  // the overlap check, so 'publish anyway' does not lose the first answer.
+  const dayOffWaivedRef = useRef(false);
+  const workedWaivedRef = useRef<{ staff_name: string; work_date: string }[]>([]);
+  const publishingRef = useRef(false);
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
 
@@ -624,6 +793,53 @@ export default function ManualShiftPage() {
   // so the header can say whether everything is saved.
   const outboxRef = useRef<Map<string, PendingEdit>>(new Map());
   const [outboxSize, setOutboxSize] = useState(0);
+  /** Edits waiting for the week's clock-ins or for an answer: not in the outbox yet,
+   *  but lost just the same if a deploy reloads the page. */
+  const [commitsWaiting, setCommitsWaiting] = useState(0);
+  // Days already clocked in, for the marks on the grid and the question before a change.
+  const [worked, setWorked] = useState<Map<string, WorkedInfo>>(new Map());
+  const workedRef = useRef(worked);
+  workedRef.current = worked;
+  const gridDataRef = useRef(gridData);
+  gridDataRef.current = gridData;
+  /** Cells the person has already said yes to on this page; asked once each. */
+  const confirmedWorkedRef = useRef<Set<string>>(new Set());
+  const [workedAsk, setWorkedAsk] = useState<null | { items: WorkedAskItem[]; mode: WorkedAskMode }>(null);
+  const workedAskResolve = useRef<((a: WorkedAnswer) => void) | null>(null);
+  // One question at a time. A second one (the retry loop's 409 while the person
+  // is answering about their own edit) used to replace the first, whose caller
+  // then waited forever.
+  const askChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const askWorked = useCallback((items: WorkedAskItem[], mode: WorkedAskMode) => {
+    const p = askChainRef.current.then(() => new Promise<WorkedAnswer>((resolve) => {
+      workedAskResolve.current = resolve;
+      setWorkedAsk({ items, mode });
+    }));
+    askChainRef.current = p.catch(() => undefined);
+    return p;
+  }, []);
+  /** The week whose clock-ins are in `worked`, so a change is never checked against another week's. */
+  const workedForRef = useRef("");
+  /** The week whose clock-ins were last asked for, answered or not. An edit waits
+   *  for that request once per week, not on every edit while it keeps failing. */
+  const workedTriedRef = useRef("");
+  /** Edits apply in the order they were made. Each one may wait for the clock-ins
+   *  and a question, and two edits to the same cell must not land out of order. */
+  const commitChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  /** Per cell, the value last asked for and which commit asked: two removals are
+   *  both null, so the commit's own number decides whose entry to clear. */
+  const intendedRef = useRef<Record<string, { v: ShiftCell | ShiftCell[] | null; t: number }>>({});
+  const commitSeqRef = useRef(0);
+  const sheetKeyRef = useRef("");
+  sheetKeyRef.current = `${city}|${branchCode}|${weekStart}`;
+  const loadWorkedRef = useRef<() => Promise<void>>(async () => {});
+  const answerWorked = (a: WorkedAnswer) => {
+    const r = workedAskResolve.current;
+    workedAskResolve.current = null;
+    setWorkedAsk(null);
+    r?.(a);
+  };
+  const refreshWeekRef = useRef<() => Promise<void>>(async () => {});
   const [syncError, setSyncError] = useState("");
   const [notice, setNotice] = useState("");
   /** Cells edited but not yet published — anyone's, not just this browser's. */
@@ -638,10 +854,14 @@ export default function ManualShiftPage() {
    *  edit from a saved copy of what is already published. */
   const publishedGridRef = useRef<Record<string, string>>({});
   const publishedDraftSigRef = useRef<Record<string, string>>({});
+  /** The published hours and branch of each cell, by workedKey. A worked day is
+   *  measured against what is published, so "same hours" is judged against this
+   *  and not against the screen, which also shows unpublished edits. */
+  const publishedWorkedSigRef = useRef<{ sheet: string; sigs: Record<string, string> }>({ sheet: "", sigs: {} });
 
   // A new deploy hard-reloads the page. Edits are saved as they are made now, so
   // the only thing a reload can lose is what has not reached the server yet.
-  useUnsavedGuard("manual-shift", outboxSize > 0);
+  useUnsavedGuard("manual-shift", outboxSize > 0 || commitsWaiting > 0);
   const [removedStaff, setRemovedStaff] = useState<string[]>([]);
   // Picking somebody to add to the grid. `here` marks this branch's own staff,
   // which is where the list starts; the rest of the city follows, because
@@ -658,6 +878,14 @@ export default function ManualShiftPage() {
   hiddenStaffRef.current = hiddenStaff.map((h) => h.staff_name);
   const [showHidden, setShowHidden] = useState(false);
   const removedStaffRef = useRef<string[]>([]);
+  // The week and sheet on screen now -- read after an await, where the
+  // closure's own city/branch/week are still the ones from the click.
+  const viewKeyRef = useRef("");
+  viewKeyRef.current = `${city}|${branchCode}|${weekStart}`;
+  // One removal at a time: a second click during the first one's awaits
+  // started a second dry run against a half-removed row.
+  const removingRef = useRef(false);
+  const [removingStaff, setRemovingStaff] = useState<string | null>(null);
   removedStaffRef.current = removedStaff;
   const [approvedDayOffs, setApprovedDayOffs] = useState<Set<string>>(new Set());
   // Day-off requests the staff filed, against what this roster still says.
@@ -716,8 +944,11 @@ export default function ManualShiftPage() {
 
   /** Send everything queued. Grouped by week so a queue built across a week
    *  change still lands in the right place. What fails stays queued. */
-  const flushOutbox = useCallback(async () => {
-    if (outboxRef.current.size === 0) return;
+  const flushOnce = useCallback(async (): Promise<boolean> => {
+    if (outboxRef.current.size === 0) return false;
+    // A question about worked days is on screen; send nothing until it is answered.
+    if (workedAskResolve.current) return false;
+    const refusedWorked: { edit: PendingEdit; info: WorkedInfo }[] = [];
     const groups = new Map<string, PendingEdit[]>();
     for (const e of outboxRef.current.values()) {
       const g = `${e.city}|${e.branch_code}|${e.week_start}`;
@@ -733,7 +964,8 @@ export default function ManualShiftPage() {
           method: "POST",
           body: JSON.stringify({
             city: c, branch_code: bc, week_start: ws,
-            edits: edits.map((e) => ({ staff_name: e.staff_name, work_date: e.work_date, cells: e.cells })),
+            edits: edits.map((e) => ({ staff_name: e.staff_name, work_date: e.work_date, cells: e.cells,
+                                       confirm_worked: !!e.confirm_worked })),
           }),
         });
         for (const e of edits) {
@@ -743,6 +975,26 @@ export default function ManualShiftPage() {
           if (outboxRef.current.get(k) === e) outboxRef.current.delete(k);
         }
       } catch (err: unknown) {
+        const apiErr = err as ApiError;
+        if (workedCellsFrom(apiErr).length > 0) {
+          // Edits queued before this rule (or from another tab) for days already
+          // clocked in. Asked about below instead of retried forever.
+          // Matched on workedKey: the server may spell the name without the
+          // grid's role suffix ("Amar BK" for "Amar BK (CK)").
+          const cells = workedCellsFrom(apiErr);
+          let matched = 0;
+          for (const c of cells) {
+            const ck = workedKey(c.staff_name, c.work_date);
+            const e = edits.find((x) => workedKey(x.staff_name, x.work_date) === ck);
+            if (e) { refusedWorked.push({ edit: e, info: c }); matched++; }
+          }
+          if (matched > 0) continue;
+          // A refusal that names no queued edit cannot be asked about; say so
+          // rather than retry it silently every five seconds.
+          failed = true;
+          lastError = `already clocked in on ${cells.map((c) => `${stripRoleSuffix(c.staff_name)} ${c.work_date}`).join(", ")}`;
+          continue;
+        }
         // Every failure used to read as a dropped connection, and the banner
         // promised the edits would go "as soon as the connection comes back".
         // For anything the server actually refuses that is never true: the same
@@ -761,14 +1013,203 @@ export default function ManualShiftPage() {
         : "Not saved yet — retrying. Keep this page open.",
     );
     syncOutboxSize();
-  }, [syncOutboxSize]);
+    if (refusedWorked.length > 0) {
+      const answer = await askWorked(refusedWorked.map(({ edit, info }) => ({
+        staffName: edit.staff_name, dateStr: edit.work_date, info,
+        before: "as published", after: describeCellValue(edit.cells),
+      })), "replay");
+      const discarded: PendingEdit[] = [];
+      for (const { edit } of refusedWorked) {
+        const k = queueKey(edit);
+        const cur = outboxRef.current.get(k);
+        // Only the edit the question showed. A newer edit to the same cell, made
+        // while this was being asked, stays unconfirmed and is asked about itself.
+        if (cur !== edit) continue;
+        if (answer === "change") {
+          confirmedWorkedRef.current.add(confirmKey(edit.city, edit.branch_code, edit.week_start,
+                                                    edit.staff_name, edit.work_date));
+          outboxRef.current.set(k, { ...cur, confirm_worked: true });
+        } else {
+          outboxRef.current.delete(k);
+          discarded.push(edit);
+        }
+      }
+      syncOutboxSize();
+      if (answer === "change") return true;   // send them again, confirmed
+      // Never reached the server, so it is not an unpublished change. The whole
+      // overlay goes back on in the refresh below, re-marking any cell someone
+      // else still has an edit on.
+      const dsk = sheetKeyRef.current;
+      const gone = discarded
+        .filter((e) => `${e.city}|${e.branch_code}|${e.week_start}` === dsk)
+        .map((e) => cellKey(e.staff_name, e.work_date));
+      if (gone.length > 0) {
+        setUnpublishedCells((prev) => { const n = new Set(prev); for (const k of gone) n.delete(k); return n; });
+        setCellEditors((prev) => { const n = { ...prev }; for (const k of gone) delete n[k]; return n; });
+      }
+      await refreshWeekRef.current();         // put the published cells back on screen
+      // The refresh paints the published week; the other edits refused in the same
+      // batch are still queued and were never saved, so put them back on screen.
+      const sk = sheetKeyRef.current;
+      const mine = Array.from(outboxRef.current.values()).filter((e) => `${e.city}|${e.branch_code}|${e.week_start}` === sk);
+      if (mine.length > 0) {
+        setGridData((prev) => {
+          const next: GridData = { ...prev };
+          for (const e of mine) {
+            const v = e.cells.length === 0 ? null : e.cells.length === 1 ? e.cells[0] : e.cells;
+            next[e.staff_name] = { ...(next[e.staff_name] ?? {}), [e.work_date]: v };
+          }
+          return next;
+        });
+        setUnpublishedCells((prev) => {
+          const n = new Set(prev);
+          for (const e of mine) n.add(cellKey(e.staff_name, e.work_date));
+          return n;
+        });
+      }
+      // The server refused the whole batch for the discarded cells; the rest of it
+      // was never refused and goes again now, before Publish or Load from DB look.
+      return outboxRef.current.size > 0;
+    }
+    return false;
+  }, [syncOutboxSize, askWorked]);
+
+  // One flush at a time. Two in flight (an edit's flush and the 5s retry) both got
+  // the same refusal and asked the same question twice; a "Discard" on the repeat
+  // then dropped the edit just confirmed. A call made while one runs waits for it,
+  // and the running one goes round again so nothing queued meanwhile is missed.
+  // Publish and Discard await this, so they see the queue settled.
+  const flushInFlightRef = useRef<Promise<void> | null>(null);
+  const flushAgainRef = useRef(false);
+  const flushOutbox = useCallback((): Promise<void> => {
+    if (flushInFlightRef.current) {
+      flushAgainRef.current = true;
+      return flushInFlightRef.current;
+    }
+    const run = (async () => {
+      try {
+        let again = true;
+        while (again) {
+          flushAgainRef.current = false;
+          const resend = await flushOnce();
+          again = (resend || flushAgainRef.current) && outboxRef.current.size > 0;
+        }
+      } finally {
+        flushInFlightRef.current = null;
+      }
+    })();
+    flushInFlightRef.current = run;
+    return run;
+  }, [flushOnce]);
 
   /** The single place a cell changes. Everything that edits the grid goes
    *  through here, so nothing can change a cell without it being saved. */
   const commitCells = useCallback((
-    changes: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }[],
-  ) => {
-    if (changes.length === 0) return;
+    input: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }[],
+    opts?: { bulk?: boolean; onWorkedAnswer?: (a: WorkedAnswer) => void },
+  ): Promise<number> => {
+    // What the person has asked each cell to become, before the chain applies it.
+    // The editor builds its next value from this: the removal of a segment still
+    // waiting on its question must not come back with the next Save.
+    const sheet = `${city}|${branchCode}|${weekStart}`;
+    const token = ++commitSeqRef.current;
+    for (const ch of input) intendedRef.current[`${sheet}|${cellKey(ch.staffName, ch.dateStr)}`] = { v: ch.value, t: token };
+    setCommitsWaiting((n) => n + 1);
+    const run = commitChainRef.current.then(() => commitNow(input, opts)).finally(() => {
+      for (const ch of input) {
+        const k = `${sheet}|${cellKey(ch.staffName, ch.dateStr)}`;
+        if (intendedRef.current[k]?.t === token) delete intendedRef.current[k];
+      }
+      setCommitsWaiting((n) => n - 1);
+    });
+    commitChainRef.current = run.catch(() => 0);
+    return run;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, branchCode, weekStart, auth?.staffName, syncOutboxSize, flushOutbox, askWorked]);
+
+  const commitNow = async (
+    input: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }[],
+    opts?: { bulk?: boolean; onWorkedAnswer?: (a: WorkedAnswer) => void },
+  ): Promise<number> => {
+    let changes = input;
+    if (changes.length === 0) return 0;
+    const sheet = `${city}|${branchCode}|${weekStart}`;
+    // The week's clock-ins, if this week's have not arrived yet (an old draft is
+    // carried in on load, racing the attendance request). Asked once per week:
+    // if the request fails, later edits go straight on and the server still asks.
+    const wk = `${city}|${weekStart}`;
+    if (workedForRef.current !== wk && workedTriedRef.current !== wk) {
+      workedTriedRef.current = wk;
+      // At most 8 s: every later edit, Publish and Discard queue behind this one.
+      try {
+        await Promise.race([loadWorkedRef.current(), new Promise((r) => window.setTimeout(r, 8000))]);
+      } catch { /* the server still asks */ }
+    }
+    // The person may have moved to another branch or week while that was waiting.
+    // The edit belongs to the old sheet: it is queued for that sheet, not painted on
+    // this one, and the server asks about it if its day was worked.
+    const queueOnly = (list: typeof changes, confirmed: (ch: { staffName: string; dateStr: string }) => boolean) => {
+      for (const ch of list) {
+        const e: PendingEdit = { city, branch_code: branchCode, week_start: weekStart, staff_name: ch.staffName,
+          work_date: ch.dateStr, cells: cellsOf(ch.value), confirm_worked: confirmed(ch) };
+        outboxRef.current.set(queueKey(e), e);
+      }
+      syncOutboxSize();
+      void flushOutbox();
+      return list.length;
+    };
+    if (sheetKeyRef.current !== sheet) return queueOnly(changes, () => false);
+    const ck = (ch: { staffName: string; dateStr: string }) => confirmKey(city, branchCode, weekStart, ch.staffName, ch.dateStr);
+    const isWorked = (ch: { staffName: string; dateStr: string }) => workedRef.current.has(workedKey(ch.staffName, ch.dateStr));
+    const moves = (ch: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }) =>
+      workedSig(gridDataRef.current[ch.staffName]?.[ch.dateStr], branchCode, city) !== workedSig(ch.value, branchCode, city);
+    // Against what is published, which is what the day is measured against. The
+    // screen may show an hours change saved before the clock-in; a note added to
+    // that cell now would otherwise carry the hours change through unasked.
+    const leavesPublished = (ch: { staffName: string; dateStr: string; value: ShiftCell | ShiftCell[] | null }) =>
+      // Not loaded for this sheet yet (just switched): unknown, so it counts as a change.
+      publishedWorkedSigRef.current.sheet !== sheet
+      || (publishedWorkedSigRef.current.sigs[workedKey(ch.staffName, ch.dateStr)] ?? workedSig(null, branchCode, city))
+        !== workedSig(ch.value, branchCode, city);
+    // A day already clocked in: ask before changing it -- once per cell for an
+    // edit by hand; every time for a bulk load, whose answer covers all of them.
+    const bulkYes = new Set<string>();
+    const needs = changes.filter((ch) => isWorked(ch) && (moves(ch) || leavesPublished(ch))
+      && (opts?.bulk || !confirmedWorkedRef.current.has(ck(ch))));
+    if (needs.length > 0) {
+      const answer = await askWorked(needs.map((ch) => ({
+        staffName: ch.staffName, dateStr: ch.dateStr,
+        info: workedRef.current.get(workedKey(ch.staffName, ch.dateStr))!,
+        before: describeCellValue(gridDataRef.current[ch.staffName]?.[ch.dateStr]),
+        after: describeCellValue(ch.value),
+      })), opts?.bulk ? "bulk" : "single");
+      opts?.onWorkedAnswer?.(answer);
+      if (answer === "cancel") return 0;
+      const asked = new Set(needs.map(ck));
+      // Moved to another sheet while the question was open: this grid and these
+      // clock-ins belong to the other sheet, so only the answer itself is used.
+      if (sheetKeyRef.current !== sheet) {
+        // A cell confirmed earlier on the old sheet keeps its yes either way.
+        const yes = (ch: { staffName: string; dateStr: string }) => confirmedWorkedRef.current.has(ck(ch));
+        if (answer === "skip") return queueOnly(changes.filter((ch) => !asked.has(ck(ch))), yes);
+        for (const k of asked) confirmedWorkedRef.current.add(k);
+        return queueOnly(changes, yes);
+      }
+      // "Keep worked days as they are" keeps all of them, notes and labels too --
+      // and a pending value saved before the clock-in, which differs from what is published.
+      if (answer === "skip") changes = changes.filter((ch) => !(isWorked(ch)
+        && (cellSignature(gridDataRef.current[ch.staffName]?.[ch.dateStr]) !== cellSignature(ch.value)
+            || leavesPublished(ch))));
+      // A bulk yes covers this load's values only; a hand edit's yes lasts for the cell
+      // until the week is published or discarded.
+      else if (opts?.bulk) for (const k of asked) bulkYes.add(k);
+      else for (const k of asked) confirmedWorkedRef.current.add(k);
+      if (changes.length === 0) return 0;
+    }
+    // Same hours as published on a worked day (a note, a role label): nothing the
+    // day is measured against changes, so it goes without a question. For this
+    // edit only -- a later change of hours to the same cell is still asked about.
+    const sameHours = new Set(changes.filter((ch) => isWorked(ch) && !leavesPublished(ch)).map(ck));
     setGridData((prev) => {
       const next: GridData = {};
       for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
@@ -794,12 +1235,14 @@ export default function ManualShiftPage() {
         city, branch_code: branchCode, week_start: weekStart,
         staff_name: ch.staffName, work_date: ch.dateStr,
         cells: cellsOf(ch.value),
+        confirm_worked: confirmedWorkedRef.current.has(ck(ch)) || sameHours.has(ck(ch)) || bulkYes.has(ck(ch)),
       };
       outboxRef.current.set(queueKey(e), e);
     }
     syncOutboxSize();
     void flushOutbox();
-  }, [city, branchCode, weekStart, auth?.staffName, syncOutboxSize, flushOutbox]);
+    return changes.length;
+  };
 
   const commitCell = useCallback(
     (staffName: string, dateStr: string, value: ShiftCell | ShiftCell[] | null) =>
@@ -849,10 +1292,19 @@ export default function ManualShiftPage() {
     // The overlay is the server's answer about this exact week. If it holds a
     // cell for a name, the name belongs on the grid. A row taken out on purpose
     // still stays out.
-    const removedNow = new Set([...removedStaffRef.current, ...hiddenStaffRef.current]);
+    //
+    // A hidden name's edits are still applied to the grid. Hiding a row does
+    // not unpublish anything, and the clears that "Remove from sheet" queues
+    // are exactly what tells the render below that the row is now empty. A
+    // hidden name only gets a line back for a cell that actually holds a shift.
+    const sessionRemoved = new Set(removedStaffRef.current);
+    const hiddenNow = new Set(hiddenStaffRef.current);
     const newNames = Array.from(new Set(
-      changes.map((ch) => ch.staffName)
-        .filter((n) => n && !removedNow.has(n) && !staffListRef.current.includes(n)),
+      changes
+        .filter((ch) => ch.staffName && !sessionRemoved.has(ch.staffName)
+          && !staffListRef.current.includes(ch.staffName)
+          && (!hiddenNow.has(ch.staffName) || ch.value != null))
+        .map((ch) => ch.staffName),
     ));
     if (newNames.length > 0) {
       const merged = Array.from(new Set([...staffListRef.current, ...newNames]))
@@ -865,7 +1317,7 @@ export default function ManualShiftPage() {
         const next: GridData = {};
         for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
         for (const ch of changes) {
-          if (removedNow.has(ch.staffName)) continue;
+          if (sessionRemoved.has(ch.staffName)) continue;
           if (!next[ch.staffName]) next[ch.staffName] = {};
           next[ch.staffName][ch.dateStr] = ch.value;
         }
@@ -965,6 +1417,7 @@ export default function ManualShiftPage() {
     setError("");
     // A different week's conflicts are not this week's.
     setPublishBlockedBy([]);
+    setOverlapBlockedBy([]);
     try {
       const data = await apiFetch<{ rows?: any[]; state_token?: string; content_hash?: string }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
@@ -991,6 +1444,17 @@ export default function ManualShiftPage() {
         publishedDraftSigRef.current = Object.fromEntries(
           Object.entries(byCell).map(([k, v]) => [k, cellDraftSignature(v)])
         );
+        const byWorked: Record<string, ShiftCell[]> = {};
+        for (const r of rows as any[]) {
+          (byWorked[workedKey(String(r.staff_name), String(r.work_date))] ??= []).push({
+            start_hour: Number(r.start_hour), end_hour: Number(r.end_hour), role: String(r.role || ""),
+            branch_code: r.branch_code ? String(r.branch_code) : undefined,
+          });
+        }
+        publishedWorkedSigRef.current = {
+          sheet: `${city}|${branchCode}|${weekStart}`,
+          sigs: Object.fromEntries(Object.entries(byWorked).map(([k, v]) => [k, workedSig(v, branchCode, city)])),
+        };
       }
 
       setGridData((prev) => {
@@ -1044,11 +1508,19 @@ export default function ManualShiftPage() {
           return !currentStaff.some(s => stripRoleSuffix(s) === stripped);
         });
       if (extraNames.length > 0) {
-        // Both sources need the filter: the roster, and the names pulled in
-        // from the published week. Francis came back through the second one.
-        const removedNow = new Set([...removedStaffRef.current, ...hiddenStaffRef.current]);
+        // A name pulled in from the published week stays on the grid even when
+        // it is hidden from this sheet. Hiding used to drop it here, and the
+        // shifts it still had went on being published, shown to the staff
+        // member, exported to the spreadsheet and fed into next month's draft
+        // -- from the one screen that could no longer show or delete them.
+        // Sharon Namale was hidden from ARJ on 2026-10-11 with 18 ARJ shifts
+        // left, at the same hours as her AB ones; four people who had left kept
+        // 84 published rows between them the same way. The render below drops a hidden
+        // row once its week is empty, so a deliberate removal still disappears.
+        // Only a row taken out in this session is held back here.
+        const sessionRemoved = new Set(removedStaffRef.current);
         const merged = Array.from(new Set([...currentStaff, ...extraNames]))
-          .filter((n) => !removedNow.has(n))
+          .filter((n) => !sessionRemoved.has(n))
           .sort((a, b) => a.localeCompare(b));
         setStaffList(merged);
       }
@@ -1134,9 +1606,22 @@ export default function ManualShiftPage() {
             if (cellDraftSignature(value) === (publishedDraftSigRef.current[k] ?? "")) continue;
             carried.push({ staffName: rName, dateStr: rDate, value });
           }
-          if (!cancelledRef.current && carried.length > 0) {
-            commitCells(carried);
-            setNotice(`${carried.length} cell${carried.length === 1 ? "" : "s"} from the old saved draft moved into this week — publish when ready.`);
+          // "Keep worked days as they are" on an old week leaves nothing to carry,
+          // so the overlay stays empty and the same question came back on every
+          // open. Remembered here for this week (per browser).
+          const keptKey = `manual-shift:draft-kept:${city}|${branchCode}|${weekStart}`;
+          let kept = false;
+          try { kept = window.localStorage.getItem(keptKey) === "1"; } catch { /* storage off: ask again */ }
+          if (!cancelledRef.current && carried.length > 0 && !kept) {
+            void commitCells(carried, {
+              bulk: true,
+              onWorkedAnswer: (a) => {
+                if (a !== "skip") return;
+                try { window.localStorage.setItem(keptKey, "1"); } catch { /* storage off: ask again */ }
+              },
+            }).then((n) => {
+              if (n > 0) setNotice(`${n} cell${n === 1 ? "" : "s"} from the old saved draft moved into this week — publish when ready.`);
+            });
           }
         } catch {
           // No old draft, or it could not be read. Nothing to carry across.
@@ -1212,9 +1697,45 @@ export default function ManualShiftPage() {
   /** Published week + overlay, in that order. Every refresh path uses this so
    *  none of them can reload one without the other. */
   const refreshWeek = useCallback(async () => {
+    // The published week moved (someone published, Load from DB, a row deleted):
+    // a yes was given against what it said before, and the server has taken its
+    // copy back too (app/shift_worked_days.py), so ask again.
+    confirmedWorkedRef.current.clear();
     await loadExistingShifts(true);
     try { await reapplyWholeOverlay(); } catch { /* keep the published week on screen */ }
   }, [loadExistingShifts, reapplyWholeOverlay]);
+  refreshWeekRef.current = refreshWeek;
+
+  // Who has clocked in this week. Reloaded every minute: people clock in all day.
+  const weekKeyRef = useRef("");
+  weekKeyRef.current = `${city}|${weekStart}`;
+  const workedInFlightRef = useRef<{ key: string; p: Promise<{ days?: WorkedInfo[] }> } | null>(null);
+  const loadWorked = useCallback(async () => {
+    const key = `${city}|${weekStart}`;
+    // The minute poll and an edit waiting for the marks share one request.
+    if (workedInFlightRef.current?.key !== key) {
+      const p = fetchWeekAttendance(city, weekStart);
+      workedInFlightRef.current = { key, p };
+      p.finally(() => { if (workedInFlightRef.current?.p === p) workedInFlightRef.current = null; }).catch(() => {});
+    }
+    const d = await workedInFlightRef.current!.p;
+    if (weekKeyRef.current !== key) return;
+    const m = new Map<string, WorkedInfo>();
+    for (const w of d.days || []) m.set(workedKey(w.staff_name, w.work_date), w);
+    workedRef.current = m;
+    workedForRef.current = key;
+    setWorked(m);
+  }, [city, weekStart]);
+  loadWorkedRef.current = loadWorked;
+  useEffect(() => {
+    if (view !== "edit") return;
+    const load = async () => {
+      try { await loadWorked(); } catch { /* the marks are a help; the server still asks before a worked day changes */ }
+    };
+    void load();
+    const t = window.setInterval(() => { if (!document.hidden) void load(); }, 60_000);
+    return () => window.clearInterval(t);
+  }, [loadWorked, view]);
 
   useEffect(() => {
     if (staffList.length === 0 || view !== "edit") return;
@@ -1314,7 +1835,7 @@ export default function ManualShiftPage() {
     const role = editRole === "OTHER" ? editCustomRole.trim() : editRole;
     if (!role) return;
     const newShift: ShiftCell = { start_hour: editStart, end_hour: editEnd, role, branch_code: editBranchCode || undefined, note };
-    const existing = cellsOf(gridData[staffName]?.[dateStr]);
+    const existing = cellsOf(latestCell(staffName, dateStr));
     const next = editShiftIndex === null
       ? [...existing, newShift]
       : existing.map((s, i) => (i === editShiftIndex ? newShift : s));
@@ -1322,8 +1843,22 @@ export default function ManualShiftPage() {
     closeEdit();
   }
 
+  /** A grid cell found by the server's spelling of the name ("Amar BK" vs "Amar BK (CK)"). */
+  function gridCellByWorkedKey(name: string, dateStr: string) {
+    const want = workedKey(name, dateStr);
+    const hit = Object.keys(gridDataRef.current).find((n) => workedKey(n, dateStr) === want);
+    return hit ? gridDataRef.current[hit]?.[dateStr] : undefined;
+  }
+
+  /** The cell as the person last asked for it: an edit still waiting on its
+   *  question is not on the grid yet, and the next edit must build on it. */
+  function latestCell(staffName: string, dateStr: string) {
+    const k = `${city}|${branchCode}|${weekStart}|${cellKey(staffName, dateStr)}`;
+    return k in intendedRef.current ? intendedRef.current[k].v : gridData[staffName]?.[dateStr];
+  }
+
   function removeShiftSegment(staffName: string, dateStr: string, index: number) {
-    const next = cellsOf(gridData[staffName]?.[dateStr]).filter((_, i) => i !== index);
+    const next = cellsOf(latestCell(staffName, dateStr)).filter((_, i) => i !== index);
     commitCell(staffName, dateStr, next.length === 0 ? null : next.length === 1 ? next[0] : next);
   }
 
@@ -1345,9 +1880,25 @@ export default function ManualShiftPage() {
     commitCell(staffName, dateStr, null);
   }
 
-  function deleteStaffFromGrid(staffName: string) {
+  async function deleteStaffFromGrid(staffName: string) {
+    if (removingRef.current) return;
+    removingRef.current = true;
+    setRemovingStaff(staffName);
+    try {
+      await removeStaffFromGridInner(staffName);
+    } finally {
+      removingRef.current = false;
+      setRemovingStaff(null);
+    }
+  }
+
+  async function removeStaffFromGridInner(staffName: string) {
+    // Where the page was when this began. The removal awaits the server for
+    // seconds; moving to another week or branch meanwhile used to apply the
+    // local half (hiding the row, dropping its cells) to whatever was then on
+    // screen.
+    const startedFor = `${city}|${branchCode}|${weekStart}`;
     const datesWithShifts = weekDates.filter((d) => gridData[staffName]?.[d]);
-    const totalShifts = datesWithShifts.length;
 
     // A sheet is often where a rotating person's whole schedule is written,
     // not where they work. Francis Ibana's September lives on the CK sheet —
@@ -1372,33 +1923,158 @@ export default function ManualShiftPage() {
       `Clearing the row deletes those shifts too. Continue?`
     )) return;
 
+    // What they still have published on this sheet after today. Hiding the row
+    // used to leave all of it in place: still on their own schedule, still on
+    // the spreadsheet, still feeding next month's draft -- and no longer on
+    // this grid, the one place it could be deleted.
+    type AheadRow = { work_date: string; role: string; branch_code?: string | null;
+                      start_hour?: number; end_hour?: number };
+    // Anything typed for this person and still queued in this browser goes to
+    // the server first, so the removal below sees it -- otherwise the queue
+    // would send it afterwards and bring the cell back as a pending edit.
+    // An edit can still be waiting in the commit chain (for the week's clock-ins)
+    // before it reaches the queue, so settle that first, as Publish does.
+    await commitChainRef.current;
+    await flushOutbox();
+    if (Array.from(outboxRef.current.values()).some(
+      (e) => e.staff_name === staffName && e.city === city && e.branch_code === branchCode)) {
+      setError(`${stripRoleSuffix(staffName)}'s latest edits have not reached the server yet, so nothing `
+        + `was removed. Wait for them to save, then try again.`);
+      return;
+    }
+    let ahead: AheadRow[] = [];
+    let fromDate = "";
+    let pendingCount = 0;
+    let serverWeeks: string[] = [];
+    try {
+      const d = await apiFetch<{ published_rows?: AheadRow[]; payroll_blocker?: string | null; from_date?: string;
+                                 pending_edits?: number; weeks?: string[] }>(
+        "/api/admin/shifts/remove_staff_from_branch",
+        { method: "POST", body: JSON.stringify({
+            city, branch_code: branchCode, staff_name: staffName, dry_run: true }) },
+      );
+      ahead = d.published_rows || [];
+      fromDate = d.from_date || "";
+      pendingCount = Number(d.pending_edits || 0);
+      serverWeeks = d.weeks || [];
+      // Somebody who has left but is still on payroll: clearing their scheduled
+      // days turns recorded absences into paid rest days. Nothing is removed --
+      // not this week either -- until their payroll has stopped.
+      if (d.payroll_blocker) {
+        setError(`${stripRoleSuffix(staffName)} was not removed. ${d.payroll_blocker}`);
+        return;
+      }
+    } catch (e: unknown) {
+      setError(
+        `Could not check ${stripRoleSuffix(staffName)}'s other weeks, so nothing was removed. `
+        + (e instanceof Error ? e.message : String(e)),
+      );
+      return;
+    }
+    const aheadWork = ahead.filter((r) => isWorkCell(r.role, r.start_hour, r.end_hour));
+    const lastDay = aheadWork.length > 0 ? aheadWork[aheadWork.length - 1].work_date : "";
+    const aheadElsewhere = Array.from(new Set(
+      aheadWork
+        .map((r) => (r.branch_code || "").toUpperCase())
+        .filter((b) => b && b !== branchCode.toUpperCase()),
+    ));
+    // Today and earlier are days already worked (or missed): attendance and
+    // payroll read them from the schedule, so they stay. Only the days the
+    // server removes -- from tomorrow, in the store's time -- are cleared here.
+    // Clearing the whole week used to delete the shifts already worked this
+    // week too, once somebody published.
+    const toClear = fromDate ? datesWithShifts.filter((d) => d >= fromDate) : [];
+    const keptPast = datesWithShifts.length - toClear.length;
+    const futureText = (aheadWork.length > 0
+      ? `From ${fromDate}, ${aheadWork.length} published shift(s) through ${lastDay} come off ` +
+        `the published schedule now, so they stop showing on their own schedule and on ` +
+        `the spreadsheet.` +
+        (aheadElsewhere.length > 0 ? ` Some are written for ${aheadElsewhere.join(", ")} — those go too.` : "")
+      : `They have no published shifts on this sheet from ${fromDate || "tomorrow"}.`)
+      + (pendingCount > 0 ? ` ${pendingCount} unpublished edit(s) for them from that day are dropped too.` : "");
+    const pastText = keptPast > 0
+      ? `\n\nToday and earlier stay as they are (${keptPast} day(s) on the week shown) — ` +
+        `attendance and pay read them.`
+      : "";
+
     if (!window.confirm(
       `Remove "${stripRoleSuffix(staffName)}" from the ${branchCode} sheet?\n\n` +
-      `${totalShifts} shift(s) this week will be cleared, and they leave the published ` +
-      `schedule when you publish.\n\n` +
+      futureText + pastText + `\n\n` +
       `They stay off this sheet from now on — not just this week. Their other ` +
       `branches are unaffected, and you can put them back from the list above the grid.`
     )) return;
-    if (datesWithShifts.length > 0) {
-      commitCells(datesWithShifts.map((d) => ({ staffName, dateStr: d, value: null })));
-    }
-    setStaffList((prev) => prev.filter((n) => n !== staffName));
-    setRemovedStaff((prev) => (prev.includes(staffName) ? prev : [...prev, staffName]));
-    // Store it, or the row is back as soon as the week changes.
-    void (async () => {
+    // The server removes everything from tomorrow -- published rows and
+    // pending edits, every week -- and marks each emptied cell as applied. The
+    // page only mirrors that. Clearing the cells through the edit queue as
+    // well rewrote them as *unpublished* edits: an "N unpublished" count and a
+    // Publish button for nothing, on a row that was no longer on screen.
+    if (serverWeeks.length > 0) {
       try {
-        const d = await apiFetch<{ hidden?: { staff_name: string; hidden_by: string }[] }>(
-          "/api/admin/manual-shift/hidden-staff",
+        const r = await apiFetch<{ rows_deleted?: number; weeks?: string[] }>(
+          "/api/admin/shifts/remove_staff_from_branch",
           { method: "POST", body: JSON.stringify({
-              city, branch_code: branchCode, staff_name: staffName, hidden: true }) });
-        if (d.hidden) { setHiddenStaff(d.hidden); hiddenStaffRef.current = d.hidden.map((h) => h.staff_name); }
-      } catch { /* the row is already gone from the page; the next load restores it */ }
-    })();
-    setGridData((prev) => {
-      const next = { ...prev };
-      delete next[staffName];
-      return next;
-    });
+              city, branch_code: branchCode, staff_name: staffName, dry_run: false }) },
+        );
+        void loadExcelStatus();
+        setNotice(
+          `${stripRoleSuffix(staffName)}: ${r.rows_deleted ?? 0} published row(s) from tomorrow `
+          + `removed from ${branchCode} (${(r.weeks || []).length} week(s)).`,
+        );
+      } catch (e: unknown) {
+        // Nothing more is done here -- not the hiding, not the local clear --
+        // so the screen does not claim a removal the server refused (a status
+        // change since the check, say). Weeks are removed one at a time, so
+        // some may already be gone; the reload shows which.
+        setError(
+          `${stripRoleSuffix(staffName)} was not fully removed: `
+          + (e instanceof Error ? e.message : String(e))
+          + ` — reload the week to see what is still published, and try again.`,
+        );
+        return;
+      }
+    }
+    const sameView = startedFor === viewKeyRef.current;
+    const sameSheet = startedFor.split("|").slice(0, 2).join("|")
+      === viewKeyRef.current.split("|").slice(0, 2).join("|");
+    if (sameView && toClear.length > 0) {
+      const gone = new Set(toClear.map((d) => cellKey(staffName, d)));
+      setGridData((prev) => {
+        const next: GridData = { ...prev, [staffName]: { ...(prev[staffName] ?? {}) } };
+        for (const d of toClear) next[staffName][d] = null;
+        return next;
+      });
+      setUnpublishedCells((prev) => new Set(Array.from(prev).filter((k) => !gone.has(k))));
+    }
+    // With days already worked this week the row stays listed -- marked as
+    // removed -- so those days remain visible here; it drops out by itself in
+    // the next week, which has nothing for it.
+    if (sameView && keptPast === 0) {
+      setStaffList((prev) => prev.filter((n) => n !== staffName));
+      setRemovedStaff((prev) => (prev.includes(staffName) ? prev : [...prev, staffName]));
+      setGridData((prev) => {
+        const next = { ...prev };
+        delete next[staffName];
+        return next;
+      });
+    }
+    // Store it, or the row is back as soon as the week changes.
+    try {
+      const d = await apiFetch<{ hidden?: { staff_name: string; hidden_by: string }[] }>(
+        "/api/admin/manual-shift/hidden-staff",
+        { method: "POST", body: JSON.stringify({
+            city: startedFor.split("|")[0], branch_code: startedFor.split("|")[1],
+            staff_name: staffName, hidden: true }) });
+      // The list is this sheet's; another sheet on screen keeps its own.
+      if (d.hidden && sameSheet) {
+        setHiddenStaff(d.hidden); hiddenStaffRef.current = d.hidden.map((h) => h.staff_name);
+      }
+    } catch (e: unknown) {
+      setError(
+        `${stripRoleSuffix(staffName)}'s shifts from tomorrow were removed, but they could not be kept `
+        + `off this sheet: ${e instanceof Error ? e.message : String(e)}. Their row will show again on the `
+        + `next load — remove it again then.`,
+      );
+    }
     if (editTarget?.staffName === staffName) closeEdit();
   }
 
@@ -1481,7 +2157,10 @@ export default function ManualShiftPage() {
     // Hidden on the server, not merely absent from this page. Adding the row
     // back without clearing that leaves it looking present and gone again on
     // the next load.
-    if (removedStaff.includes(n)) { void restoreStaffToGrid(n); return; }
+    // removedStaff is this session only; the hidden list is the server's, which
+    // is what a later session sees. Checking only the first let a person hidden
+    // last week be "added" and vanish again on the next load.
+    if (removedStaff.includes(n) || hiddenStaffRef.current.includes(n)) { void restoreStaffToGrid(n); return; }
     if (!staffList.includes(n)) setStaffList((prev) => [...prev, n].sort((a, b) => a.localeCompare(b)));
     setGridData((prev) => ({ ...prev, [n]: prev[n] ?? {} }));
   }
@@ -1510,12 +2189,16 @@ export default function ManualShiftPage() {
     setDbImporting(true);
     setError("");
     try {
+      // An edit still waiting for the clock-ins would otherwise land after the import.
+      await commitChainRef.current;
+      await flushOutbox();
       // Two separate refusals, each with its own question for the user: someone
       // else published this week recently, and the sheet rosters somebody on a day
       // already approved off. Either can arrive first, and answering one must not
       // silently answer the other.
       let force = false;
       let allowApprovedDayOff = false;
+      let confirmWorkedCells: { staff_name: string; work_date: string }[] = [];
       const loadFromDb = () =>
         apiFetch<{ ok: boolean; rows_copied: number }>(
           "/api/admin/shifts/publish_from_base",
@@ -1523,12 +2206,16 @@ export default function ManualShiftPage() {
             method: "POST",
             body: JSON.stringify({
               city, branch_code: branchCode, week_start: weekStart,
-              force, allow_approved_day_off: allowApprovedDayOff,
+              force, allow_approved_day_off: allowApprovedDayOff, confirm_worked_cells: confirmWorkedCells,
+              // An older server reads only this; the current one uses the cells when given.
+              confirm_worked: confirmWorkedCells.length > 0,
             }),
           }
         );
       let res: { ok: boolean; rows_copied: number } | null = null;
-      for (let attempt = 0; attempt < 3 && res === null; attempt += 1) {
+      // Day off, worked days, a recent publish -- and worked days again if someone
+      // clocks in meanwhile: room for each question once more.
+      for (let attempt = 0; attempt < 6 && res === null; attempt += 1) {
         try {
           res = await loadFromDb();
         } catch (refused: unknown) {
@@ -1546,6 +2233,18 @@ export default function ManualShiftPage() {
               + `Cancel — leave the week alone and fix the sheet first.`
             )) { setError(""); return; }
             allowApprovedDayOff = true;
+            continue;
+          }
+          const workedCells = workedCellsFrom(err);
+          if (workedCells.length > 0) {
+            const answer = await askWorked(workedCells.map((info) => ({
+              staffName: info.staff_name, dateStr: info.work_date, info,
+              before: describeCellValue(gridCellByWorkedKey(info.staff_name, info.work_date)),
+              after: "as on the sheet",
+            })), "import");
+            if (answer !== "change") { setError(""); return; }
+            confirmWorkedCells = [...confirmWorkedCells,
+              ...workedCells.map((c) => ({ staff_name: c.staff_name, work_date: c.work_date }))];
             continue;
           }
           const msg = refused instanceof Error ? refused.message : String(refused);
@@ -1571,7 +2270,9 @@ export default function ManualShiftPage() {
         setCellEditors({});
       }
       // publish_from_base writes the published week itself, so there is nothing
-      // to carry over -- reload and let the overlay lie back on top.
+      // to carry over -- reload and let the overlay lie back on top. A yes given
+      // against the old week no longer stands (the server took its copy back).
+      confirmedWorkedRef.current.clear();
       const staffOk = await loadStaff();
       if (!staffOk) return;
       await loadExistingShifts(true);
@@ -1633,9 +2334,13 @@ export default function ManualShiftPage() {
       });
       const staffOk = await loadStaff();
       if (!staffOk) return;
-      commitCells(changes);
       setError("");
-      alert(`Loaded ${res.rows.length} draft shifts into the grid for ${labelOf(city, branchCode)}.\n\nReview and publish when ready.`);
+      const n = await commitCells(changes, { bulk: true });
+      const kept = changes.length - n;
+      if (n === 0 && kept > 0) alert(`Every day in this draft is already clocked in, so nothing was changed.`);
+      if (n > 0) alert(`Loaded ${res.rows.length} draft shifts into the grid for ${labelOf(city, branchCode)}.`
+        + (kept > 0 ? ` ${kept} day${kept === 1 ? "" : "s"} already clocked in kept as they were.` : "")
+        + `\n\nReview and publish when ready.`);
     } catch (ex: unknown) {
       setError(ex instanceof Error ? ex.message : "Load from Draft failed");
     } finally {
@@ -1660,12 +2365,30 @@ export default function ManualShiftPage() {
     return rows;
   }, [gridData]);
 
-  async function handlePublish(allowApprovedDayOff = false) {
+  type PublishOpts = { allowApprovedDayOff?: boolean; allowCrossBranch?: boolean;
+                       confirmWorkedCells?: { staff_name: string; work_date: string }[] };
+  /** One publish at a time: a second click while the first waits for edits to
+   *  settle used to send two publishes. */
+  async function handlePublish(opts: PublishOpts = {}) {
+    if (publishingRef.current) return;
+    publishingRef.current = true;
+    setSaving(true);   // "Publishing..." from the click, while waiting edits settle
+    try { await publishNow(opts); } finally { publishingRef.current = false; setSaving(false); }
+  }
+
+  async function publishNow(opts: PublishOpts = {}) {
+    const allowApprovedDayOff = Boolean(opts.allowApprovedDayOff);
+    const allowCrossBranch = Boolean(opts.allowCrossBranch);
+    // The worked days the person said yes to, by name and date. A day that clocks
+    // in while the question is open is asked about on the next try.
+    const confirmWorkedCells = opts.confirmWorkedCells ?? [];
     setError("");
     setPublishBlockedBy([]);
+    setOverlapBlockedBy([]);
     // Everything typed must be on the server before the server is asked to publish
     // it -- the browser no longer sends the week, so an unsent edit would simply
-    // not be published.
+    // not be published. That includes an edit still waiting for the clock-ins.
+    await commitChainRef.current;
     await flushOutbox();
     if (outboxRef.current.size > 0) {
       // Name the cells. "Some edits" sent people looking at the network when
@@ -1702,6 +2425,9 @@ export default function ManualShiftPage() {
             auto_export: true,
             export_month: weekStart.slice(0, 7),
             allow_approved_day_off: allowApprovedDayOff,
+            allow_cross_branch_overlap: allowCrossBranch,
+            confirm_worked_cells: confirmWorkedCells,
+            confirm_worked: confirmWorkedCells.length > 0,   // for an older server; see Load from DB
           }),
         }
       );
@@ -1709,22 +2435,60 @@ export default function ManualShiftPage() {
         setError(`Sheet export error: ${result.export_result.error}`);
       }
       setPublishedCount(result.rows_written);
+      confirmedWorkedRef.current.clear();   // a yes was for this round of changes
       setUnpublishedCells(new Set());
       setCellEditors({});
       publishedTokenRef.current = result.published_token ?? publishedTokenRef.current;
+      // The token above stops the poll from reporting this publish as a change,
+      // so the published hours the worked-day question compares against would
+      // stay pre-publish. Everything on the grid was just published.
+      {
+        const sigs: Record<string, string> = {};
+        for (const [name, days] of Object.entries(gridDataRef.current)) {
+          for (const [d, v] of Object.entries(days ?? {})) {
+            if (v == null) continue;
+            sigs[workedKey(name, d)] = workedSig(v, branchCode, city);
+          }
+        }
+        publishedWorkedSigRef.current = { sheet: `${city}|${branchCode}|${weekStart}`, sigs };
+      }
       setView("published");
       // The schedule just changed, so the workbook on Drive is now out of date.
       markNeedsExport();
+      void loadExcelStatus();
       setShowExportPrompt(true);
     } catch (e: unknown) {
       const err = e as ApiError;
       const blocked = err?.status === 409 && Array.isArray(err?.detail?.day_off_conflicts)
         ? (err.detail!.day_off_conflicts as DayOffConflict[])
         : [];
+      const overlaps = err?.status === 409 ? crossBranchOverlapsFrom(err?.detail) : [];
+      const workedCells = workedCellsFrom(err);
+      if (workedCells.length > 0) {
+        // Cells saved before the day was worked, published after it was.
+        const answer = await askWorked(workedCells.map((info) => ({
+          staffName: info.staff_name, dateStr: info.work_date, info,
+          before: "as published",
+          after: describeCellValue(gridCellByWorkedKey(info.staff_name, info.work_date)),
+        })), "publish");
+        if (answer === "change") {
+          await publishNow({ ...opts, confirmWorkedCells: [...confirmWorkedCells,
+            ...workedCells.map((c) => ({ staff_name: c.staff_name, work_date: c.work_date }))] });
+        } else {
+          setError(`Not published. ${workedCells.slice(0, 3).map((c) => `${stripRoleSuffix(c.staff_name)} ${formatDate(c.work_date)}`).join(", ")}`
+            + `${workedCells.length > 3 ? ` and ${workedCells.length - 3} more` : ""} changed before they clocked in. `
+            + `Put those cells back, or publish again and choose Publish anyway.`);
+        }
+        return;
+      }
       if (blocked.length > 0) {
         // Not an error the person caused by publishing — a day off that was
         // approved while this week was being edited. Name it, and leave the way out.
         setPublishBlockedBy(blocked);
+      } else if (overlaps.length > 0) {
+        dayOffWaivedRef.current = allowApprovedDayOff;
+        workedWaivedRef.current = confirmWorkedCells;
+        setOverlapBlockedBy(overlaps);
       } else {
         setError(e instanceof Error ? e.message : String(e));
       }
@@ -1742,11 +2506,13 @@ export default function ManualShiftPage() {
     setError("");
     setSaving(true);
     try {
+      await commitChainRef.current;   // an edit still waiting would land after the discard
       await flushOutbox();
       await apiFetch("/api/admin/shifts/discard_week_cells", {
         method: "POST",
         body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart }),
       });
+      confirmedWorkedRef.current.clear();
       setUnpublishedCells(new Set());
       setCellEditors({});
       await refreshWeek();
@@ -1905,8 +2671,52 @@ export default function ManualShiftPage() {
   const W_INPUT = "w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
   const W_SELECT = "w-full appearance-none cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
 
+  // Hidden from this sheet, but still holding shifts this week. Hiding a row
+  // only ever meant "do not list them here when they have nothing" -- it never
+  // removed a published shift, and a shift that is published has to be visible
+  // on the one screen that can change it. Otherwise this grid and everything
+  // that reads the published schedule (the staff's own week, the spreadsheet,
+  // next month's draft) disagree, and nothing here says why.
+  const hiddenSet = useMemo(() => new Set(hiddenStaff.map((h) => h.staff_name)), [hiddenStaff]);
+  // Tomorrow in the store's time -- the first day "Remove from sheet" takes
+  // off. Today and earlier are days worked: they stay on the grid (attendance
+  // and pay read them) and are nothing to clear.
+  // Worked out on every render, not memoised on the city: a page left open
+  // past the store's midnight kept yesterday's "tomorrow".
+  const storeTomorrow = (() => {
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: city === "dubai" ? "Asia/Dubai" : "Asia/Manila",
+      year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date());
+    const [y, m, d] = today.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  })();
+  const hiddenButScheduled = useMemo(
+    () => staffList
+      .filter((n) => hiddenSet.has(n))
+      .map((n) => {
+        const held = weekDates.filter((d) => cellsOf(gridData[n]?.[d]).length > 0);
+        // The banner counts shifts still to come; a day off is not one.
+        const work = held.filter((d) => d >= storeTomorrow && cellsOf(gridData[n]?.[d])
+          .some((c) => isWorkCell(c.role, c.start_hour, c.end_hour)));
+        return { name: n, any: held.length, days: work.length };
+      })
+      .filter((x) => x.any > 0),
+    [staffList, hiddenSet, weekDates, gridData, storeTomorrow],
+  );
+  // Only the ones with shifts still ahead need doing anything about.
+  const hiddenWithShiftsAhead = useMemo(
+    () => hiddenButScheduled.filter((x) => x.days > 0),
+    [hiddenButScheduled],
+  );
+  const gridStaff = useMemo(() => {
+    const keep = new Set(hiddenButScheduled.map((x) => x.name));
+    return staffList.filter((n) => !hiddenSet.has(n) || keep.has(n));
+  }, [staffList, hiddenSet, hiddenButScheduled]);
+
   // Derive the shifts in the cell currently being edited (for delete button + segment list)
-  const editingCellRaw = editTarget ? (gridData[editTarget.staffName]?.[editTarget.dateStr] ?? null) : null;
+  // As last asked for: a removed segment still waiting on its question is already gone here.
+  const editingCellRaw = editTarget ? (latestCell(editTarget.staffName, editTarget.dateStr) ?? null) : null;
   const editingCellShifts = cellsOf(editingCellRaw);
 
   return (
@@ -1972,13 +2782,20 @@ export default function ManualShiftPage() {
         {/* Stays until the export actually happens. A message that can be waved
             away is waved away; this one has the button in it and only the
             export clears it. */}
-        {needsExport && (
+        {(needsExport || excelStatus?.stale === true) && (
           <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-3 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-amber-900">
                 <span className="font-semibold">The Excel on Drive is out of date.</span>{" "}
-                {publishedMonthLabel} was published after the last export — export again so the
-                stores read the schedule that is live.
+                {publishedMonthLabel} changed after the last export
+                {excelStatus?.stale && excelStatus.file_name
+                  ? ` (${excelStatus.file_name}${excelStatus.exported_by ? `, by ${excelStatus.exported_by}` : ""})`
+                  : ""}
+                {excelStatus?.stale && (excelStatus.changed_branches?.length ?? 0) > 0
+                  ? ` — ${excelStatus.changed_branches!.join(", ")}`
+                  : ""}
+                . Export again, and post the new schedule image where the stores look — the one already
+                posted still shows the old shifts.
               </p>
               <button
                 type="button"
@@ -2075,8 +2892,11 @@ export default function ManualShiftPage() {
                 return (
                   <div className="mt-3 max-h-80 overflow-y-auto overscroll-contain rounded-xl border border-gray-100">
                     {shown.map((r, i) => {
-                      const onGrid = staffList.includes(r.name) && !removedStaff.includes(r.name);
-                      const hidden = removedStaff.includes(r.name);
+                      // A hidden person can still be listed (a red row with shifts left), so
+                      // "on the grid" means shown and not hidden -- else they read as already
+                      // there and could not be put back from here.
+                      const hidden = removedStaff.includes(r.name) || hiddenSet.has(r.name);
+                      const onGrid = gridStaff.includes(r.name) && !hidden;
                       const prevHere = i > 0 ? shown[i - 1].here : null;
                       return (
                         <div key={r.name}>
@@ -2307,6 +3127,10 @@ export default function ManualShiftPage() {
               <button
                 type="button"
                 onClick={async () => {
+                  // Same order as the week-change load: the hidden list first, or
+                  // this first load showed hidden rows as ordinary ones and only a
+                  // week change applied it.
+                  await loadHiddenStaff();
                   const staffOk = await loadStaff();
                   if (!staffOk) return; // staff load failed — error is already displayed, do not clear it
                   await refreshWeek();
@@ -2356,7 +3180,7 @@ export default function ManualShiftPage() {
           {staffList.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <p className="text-xs text-gray-400">
-                {staffList.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
+                {gridStaff.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
               </p>
               {outboxSize > 0 ? (
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
@@ -2582,6 +3406,25 @@ export default function ManualShiftPage() {
               </div>
             )}
 
+            {hiddenWithShiftsAhead.length > 0 && (
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-900">
+                <div className="font-semibold">
+                  Removed from the {branchCode} sheet, but still scheduled here from {storeTomorrow}:
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                  {hiddenWithShiftsAhead.map((x) => (
+                    <span key={x.name}>
+                      <strong>{stripRoleSuffix(x.name)}</strong> — {x.days} day{x.days === 1 ? "" : "s"}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-1 text-red-800/80">
+                  Published shifts still show on their own schedule and on the spreadsheet.
+                  Use 🗑 on their row to take them off from tomorrow, or put them back on the sheet if they still work here.
+                </div>
+              </div>
+            )}
+
             <div className={`${W_CARD} overflow-hidden p-0`} style={paintMode ? { cursor: "cell" } : {}}>
               {/* The header was already `sticky top-0`, but sticky resolves against the
                   nearest scrollport — here the horizontal-scroll wrapper, which grew to
@@ -2604,15 +3447,26 @@ export default function ManualShiftPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {staffList.map((name, idx) => (
+                    {gridStaff.map((name, idx) => (
                       <tr key={name} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
                         <td className="px-3 py-2 text-xs font-medium text-gray-700">
                           <div className="flex items-center justify-between gap-1">
-                            <span>{stripRoleSuffix(name)}</span>
+                            <span>
+                              {stripRoleSuffix(name)}
+                              {hiddenSet.has(name) && (
+                                <span
+                                  className="ml-1 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-700"
+                                  title="Removed from this sheet, but these shifts are still published"
+                                >
+                                  removed
+                                </span>
+                              )}
+                            </span>
                             <button
                               type="button"
                               title="Delete all shifts for this staff member"
                               onClick={() => deleteStaffFromGrid(name)}
+                              disabled={removingStaff !== null}
                               className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-100 disabled:opacity-40 transition"
                             >
                               🗑
@@ -2655,8 +3509,18 @@ export default function ManualShiftPage() {
                           const conflict = normalizedShifts.length > 0 && !publishedIsAlreadyDayOff
                             ? dayOffConflicts.get(`${name}|${d}`)
                             : undefined;
+                          const workedHere = worked.get(workedKey(name, d));
                           return (
-                            <td key={d} className="relative px-1 py-1 text-center align-top">
+                            <td key={d} className={"relative px-1 py-1 text-center align-top" + (workedHere ? " bg-emerald-50/70" : "")}>
+                              {workedHere && (
+                                <span
+                                  title={`${stripRoleSuffix(name)} ${workedHere.working ? "is working now" : "has worked this day"}${workedHere.check_in ? ` (clocked in ${workedHere.check_in})` : ""}. Changing this day asks you first.`}
+                                  className={"pointer-events-none absolute bottom-0 right-0.5 z-10 rounded px-1 text-[8px] font-bold "
+                                    + (workedHere.working ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800")}
+                                >
+                                  {workedLabel(workedHere)}
+                                </span>
+                              )}
                               {conflict ? (
                                 <span
                                   title={conflict === "approved_but_rostered"
@@ -2823,7 +3687,7 @@ export default function ManualShiftPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handlePublish(true)}
+                    onClick={() => handlePublish({ allowApprovedDayOff: true })}
                     disabled={saving}
                     className="rounded-lg border border-rose-400 bg-rose-100 px-3 py-1.5 text-xs text-rose-700 transition hover:bg-rose-200 disabled:opacity-50"
                   >
@@ -2833,11 +3697,52 @@ export default function ManualShiftPage() {
               </div>
             )}
 
+            {overlapBlockedBy.length > 0 && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                <p className="text-sm font-semibold text-rose-700">
+                  Not published — already working at another branch ({overlapBlockedBy.length})
+                </p>
+                <div className="mt-2 max-h-40 overflow-y-auto">
+                  {overlapBlockedBy.map((o, i) => (
+                    <p key={`ob${i}`} className="text-xs text-rose-700/90">
+                      {describeCrossBranchOverlap(o)}
+                    </p>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-rose-600/80">
+                  Moving someone here does not take them off the other branch. Remove those shifts on
+                  the other branch&apos;s sheet first, or clear them here. Nothing has been published yet,
+                  so the rest of your changes are still here.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOverlapBlockedBy([])}
+                    className="rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                  >
+                    Let me fix it
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePublish({
+                      allowApprovedDayOff: dayOffWaivedRef.current,
+                      allowCrossBranch: true,
+                      confirmWorkedCells: workedWaivedRef.current,
+                    })}
+                    disabled={saving}
+                    className="rounded-lg border border-rose-400 bg-rose-100 px-3 py-1.5 text-xs text-rose-700 transition hover:bg-rose-200 disabled:opacity-50"
+                  >
+                    {saving ? "Publishing…" : "Publish anyway — they really work both"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Publish footer */}
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => handlePublish(false)}
+                onClick={() => handlePublish()}
                 disabled={saving || unpublishedCells.size === 0}
                 className={`${PRIMARY_BUTTON} min-w-[180px]`}
               >
@@ -3116,6 +4021,55 @@ export default function ManualShiftPage() {
         )}
 
       </div>
+
+      {workedAsk && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="worked-ask-title">
+          <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+            <h2 id="worked-ask-title" className="text-base font-bold text-gray-900">
+              {workedAsk.items.length === 1
+                ? `${stripRoleSuffix(workedAsk.items[0].staffName)} has already clocked in on this day`
+                : `${workedAsk.items.length} of these days are already clocked in`}
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              {workedAsk.mode === "replay"
+                ? "These changes were waiting to be saved. Late, early and pay for these days are measured against this schedule."
+                : workedAsk.mode === "publish"
+                ? "These changes were saved without this question, and publishing applies them now. Late, early and pay for these days are measured against this schedule."
+                : workedAsk.mode === "import"
+                ? "Loading from DB replaces these days with the imported sheet. Late, early and pay for these days are measured against this schedule."
+                : "Late, early and pay for this day are measured against this schedule. Check it is the day you meant."}
+            </p>
+            <ul className="mt-3 space-y-2">
+              {workedAsk.items.slice(0, 20).map((it) => (
+                <li key={`${it.staffName}|${it.dateStr}`} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
+                  <div className="font-semibold text-gray-900">{stripRoleSuffix(it.staffName)} · {formatDate(it.dateStr)}</div>
+                  <div className="text-emerald-800">{workedDetail(it.info)}</div>
+                  <div className="text-gray-700">{it.before} → <span className="font-semibold">{it.after}</span></div>
+                </li>
+              ))}
+              {workedAsk.items.length > 20 && <li className="text-xs text-gray-500">and {workedAsk.items.length - 20} more</li>}
+            </ul>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              {workedAsk.mode === "bulk" ? (
+                <>
+                  <button type="button" onClick={() => answerWorked("change")} className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Overwrite them too</button>
+                  <button type="button" autoFocus onClick={() => answerWorked("skip")} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Keep worked days as they are</button>
+                </>
+              ) : (
+                <>
+                  <button type="button" autoFocus onClick={() => answerWorked("cancel")} className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    {workedAsk.mode === "replay" ? "Discard these changes" : "Cancel"}
+                  </button>
+                  <button type="button" onClick={() => answerWorked("change")} className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+                    {workedAsk.mode === "publish" ? "Publish anyway" : workedAsk.mode === "import" ? "Load anyway" : "Change anyway"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* ── Edit Modal (portal) ─────────────────────────────────────────────── */}
       {editTarget && editCellRect && typeof document !== "undefined" && createPortal(

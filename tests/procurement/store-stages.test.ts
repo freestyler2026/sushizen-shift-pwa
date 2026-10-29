@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  LANES, STAGE_LABEL, STORE_STAGES, OUTSIDE_THE_FIVE, SERVER_FETCHED_STAGES, storeStageOf, stageOf, stageAddsInformation,
+  LANES, STAGE_LABEL, STORE_STAGES, OUTSIDE_THE_FIVE, SERVER_FETCHED_STAGES,
+  storeStageOf, stageOf, stageAddsInformation,
   type DirectPurchaseRow,
 } from "@/lib/direct-purchase-stage";
 
@@ -120,9 +121,31 @@ describe("the strip's caption", () => {
   it("does not report a server-fetched chip as short of rows", () => {
     // "Request shows 0 of 261" about a chip that loads all 261 when pressed
     // is the screen calling itself broken.
-    expect(SERVER_FETCHED_STAGES.has("REQUEST")).toBe(true);
-    expect(SERVER_FETCHED_STAGES.has("APPROVAL")).toBe(true);
-    expect(SERVER_FETCHED_STAGES.has("PO_ISSUED")).toBe(false);
+    //
+    // 2026-10-12: every chip now asks the server. Before that only the two
+    // that mapped onto a status did, and the other three filtered the newest
+    // 200 — which `open_first` fills with unreceived work, so Received could
+    // only ever show a fraction: Business Bay 76 of 456, JLT 90 of 350, Al
+    // Mina 21 of 262. One received order in twelve, for Al Mina. Yusuke
+    // reported it as "the order disappears once the branch confirms receipt".
+    //
+    // ⚠️ A first count said "none at all". That counted `receiving_status`,
+    // which is what the ordering sorts by — not `stage`, which is what the
+    // chip shows. Two expressions for one idea give two answers; count with
+    // the one the screen uses.
+    for (const lane of STORE_STAGES) {
+      expect(SERVER_FETCHED_STAGES.has(lane.key), `${lane.key} must fetch its own rows`).toBe(true);
+    }
+    expect(SERVER_FETCHED_STAGES.size).toBe(STORE_STAGES.length);
+  });
+
+  it("every lane names at least one stage the server can filter on", () => {
+    // サーバーは `stage` を `PROC_STAGE_SQL` と同じ式で絞る。空の lane を
+    // 送ると、絞り込みが全件一致になって「全部」が返る。
+    for (const lane of STORE_STAGES) {
+      expect(lane.stages.length, `${lane.key} has no stages`).toBeGreaterThan(0);
+      for (const st of lane.stages) expect(st).toMatch(/^[A-Z_]+$/);
+    }
   });
 
   it("gives every outside stage its own reason", () => {

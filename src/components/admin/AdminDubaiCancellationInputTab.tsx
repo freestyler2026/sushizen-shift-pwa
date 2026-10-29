@@ -46,7 +46,11 @@ interface EditableRecord extends CancelRecord {
 }
 
 const PLATFORMS = ["Careem", "Keeta", "Talabat"] as const;
-const BRANCHES = ["Business Bay", "Arjan", "Al Barsha", "Al Hudaiba", "JLT"] as const;
+// One branch, two names: the OS calls it Al Mina everywhere else (week,
+// calendar, cold chain, daily check, app/branches.py), but this form has always
+// written "Al Hudaiba", so the table holds both. New entries use the canonical
+// name; the backend treats the two as one branch so the older rows stay visible.
+const BRANCHES = ["Business Bay", "Arjan", "Al Barsha", "Al Mina", "JLT"] as const;
 const BRANDS = ["Sushi ZEN", "Ramen ZEN", "All Veggie"] as const;
 const CATEGORIES = ["Cancellation", "Refund/Complaint"] as const;
 const CANCEL_REASON_OPTIONS = [
@@ -184,7 +188,8 @@ const BRANCH_COLORS: Record<string, string> = {
   "Business Bay": "#6366f1",
   Arjan: "#10b981",
   "Al Barsha": "#f59e0b",
-  "Al Hudaiba": "#ec4899",
+  "Al Mina": "#ec4899",
+  "Al Hudaiba": "#ec4899", // rows entered before the name was settled
   JLT: "#8b5cf6",
 };
 
@@ -515,7 +520,7 @@ function RecordCard({
             className="hidden shrink-0 text-xs font-medium sm:block"
             style={{ color: BRANCH_COLORS[rec.branch] ?? "#ccc" }}
           >
-            {rec.branch === "Business Bay" ? "Biz Bay" : rec.branch === "Al Hudaiba" ? "Hudaiba" : rec.branch}
+            {rec.branch === "Business Bay" ? "Biz Bay" : rec.branch === "Al Hudaiba" ? "Al Mina" : rec.branch}
           </span>
         ) : null}
         {rec.brand ? (
@@ -579,7 +584,7 @@ function RecordCard({
               <ToggleBtns
                 value={rec.branch}
                 onChange={(v) => onUpdate("branch", v)}
-                options={BRANCHES.map((b) => ({ label: b === "Business Bay" ? "Biz Bay" : b === "Al Hudaiba" ? "Hudaiba" : b, value: b }))}
+                options={BRANCHES.map((b) => ({ label: b === "Business Bay" ? "Biz Bay" : b, value: b }))}
                 colorMap={BRANCH_COLORS}
               />
             </div>

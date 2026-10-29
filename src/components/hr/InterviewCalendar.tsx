@@ -15,6 +15,7 @@ import {
 } from "@/lib/ui-tokens";
 import { downloadIcs } from "@/lib/interview-ics";
 import OutcomeRecorder from "@/components/hr/OutcomeRecorder";
+import SelectDark from "@/components/SelectDark";
 
 /**
  * When the interviews are.
@@ -69,12 +70,31 @@ type Interview = {
   recommendation?: string;
 };
 
+type Block = {
+  id: number;
+  from: string;
+  to: string;
+  /** Empty = everybody. */
+  interviewer: string;
+  reason: string;
+  created_by: string;
+};
+
+/** 07:00 … 21:00 in half hours, for the block form. */
+const HALF_HOURS = Array.from({ length: 29 }, (_, i) => {
+  const m = 7 * 60 + i * 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+});
+
 type Day = {
   date: string;
   is_today: boolean;
   is_past: boolean;
   interviews: Interview[];
   open_slots: number;
+  /** Times HR closed for interviews that day (a meeting, a training). No
+   *  applicant is offered them and no booking can be placed inside them. */
+  blocks?: Block[];
   /** The roster does not reach this day yet, so the standard back-office
    *  weekday is being used. Bookable, but it can change when shifts are
    *  published. Saying so beats presenting a guess as a roster. */
@@ -156,6 +176,14 @@ export default function InterviewCalendar({ onOpenInterview }: {
   const [smsSentTo, setSmsSentTo] = useState("");
   const [smsFail, setSmsFail] = useState("");
 
+  /** Closing a time for interviews, on the open day. */
+  const [blockFrom, setBlockFrom] = useState("13:00");
+  const [blockTo, setBlockTo] = useState("15:00");
+  const [blockWho, setBlockWho] = useState("");
+  const [blockReason, setBlockReason] = useState("");
+  const [blockBusy, setBlockBusy] = useState(false);
+  const [blockMsg, setBlockMsg] = useState("");
+
   const openReminder = async (id: string) => {
     if (remindFor === id) { setRemindFor(""); return; }
     setRemindFor(id); setRemindMsg(null); setRemindErr(""); setCopied(false);
@@ -231,6 +259,51 @@ export default function InterviewCalendar({ onOpenInterview }: {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  // A result belongs to the day it was about; opening another day clears it.
+  useEffect(() => { setBlockMsg(""); }, [openDay]);
+
+  const addBlock = async (date: string) => {
+    if (blockBusy) return;
+    setBlockBusy(true); setBlockMsg("");
+    try {
+      const res = await fetch("/api/admin/hr/interviews/blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, from: blockFrom, to: blockTo, interviewer: blockWho, reason: blockReason }),
+      });
+      const text = await res.text();
+      let j: Record<string, unknown> = {};
+      try { j = JSON.parse(text); } catch { /* text/plain */ }
+      if (res.status === 403) { setBlockMsg("You can see the calendar but not block times. Ask HR to block it."); return; }
+      if (!res.ok) { setBlockMsg(String(j.detail || text || "Could not block that time.").slice(0, 200)); return; }
+      const clash = (j.already_booked as { time: string; full_name: string; interviewer: string }[] | undefined) || [];
+      setBlockMsg(clash.length
+        ? `Blocked. Already booked inside it — move or cancel these: ${clash.map((c) => `${c.time} ${c.full_name} (${c.interviewer})`).join(", ")}`
+        : `Blocked ${blockFrom}–${blockTo}. No new interview can be booked in it.`);
+      setBlockReason("");
+      await load();
+    } catch {
+      setBlockMsg("Could not reach the server. Nothing was blocked.");
+    } finally {
+      setBlockBusy(false);
+    }
+  };
+
+  const removeBlock = async (id: number) => {
+    if (blockBusy) return;
+    setBlockBusy(true); setBlockMsg("");
+    try {
+      const res = await fetch(`/api/admin/hr/interviews/blocks/${id}`, { method: "DELETE" });
+      if (res.status === 403) { setBlockMsg("You can see the calendar but not open blocked times. Ask HR."); return; }
+      if (!res.ok) { setBlockMsg("Could not remove that block. Refresh and try again."); return; }
+      setBlockMsg("Block removed.");
+      await load();
+    } catch {
+      setBlockMsg("Could not reach the server.");
+    } finally {
+      setBlockBusy(false);
+    }
+  };
 
   if (loading && !data) {
     return <div className={`${GLASS_CARD} mb-6 p-4`}><p className={T_CAPTION}>Loading…</p></div>;
@@ -324,6 +397,13 @@ export default function InterviewCalendar({ onOpenInterview }: {
                     {iv.time} {iv.full_name.split(" ")[0]}
                   </div>
                 ))}
+                {(day.blocks?.length ?? 0) > 0 && (
+                  <div className="mt-0.5 truncate rounded bg-zinc-500/25 px-1 text-[10px] leading-4 text-zinc-200"
+                       title={day.blocks!.map((b) => `${b.from}–${b.to} blocked${b.reason ? ` — ${b.reason}` : ""}`).join("\n")}>
+                    {day.blocks![0].from}–{day.blocks![0].to} blocked
+                    {day.blocks!.length > 1 ? ` +${day.blocks!.length - 1}` : ""}
+                  </div>
+                )}
                 {day.interviews.length > 2 && (
                   <div className="mt-0.5 text-[10px] text-zinc-400">
                     +{day.interviews.length - 2} more
@@ -358,6 +438,63 @@ export default function InterviewCalendar({ onOpenInterview }: {
             <button className={`${SMALL_BUTTON} ml-auto`} onClick={() => setOpenDay("")}>
               Close
             </button>
+          </div>
+
+          {/* Blocked times: a meeting or a training. Taken out of the slots
+              applicants see, and refused at booking, without touching the roster. */}
+          <div className="mt-2 rounded-lg border border-white/8 bg-black/20 p-2.5">
+            <p className={T_LABEL}>Blocked for interviews</p>
+            {(selected.blocks?.length ?? 0) === 0 ? (
+              <p className={`${T_CAPTION} mt-1`}>Nothing blocked this day.</p>
+            ) : (
+              <div className="mt-1 space-y-1">
+                {selected.blocks!.map((b) => (
+                  <div key={b.id} className="flex flex-wrap items-center gap-2 text-sm text-zinc-200">
+                    <span className="font-medium tabular-nums">{b.from}–{b.to}</span>
+                    <span className="text-zinc-400">{b.interviewer || "everybody"}</span>
+                    {b.reason && <span className="text-zinc-400">· {b.reason}</span>}
+                    {b.created_by && <span className="text-xs text-zinc-500">by {b.created_by}</span>}
+                    {!selected.is_past && (
+                      <button className={`${SMALL_BUTTON} ml-auto`} disabled={blockBusy}
+                              onClick={() => void removeBlock(b.id)}>
+                        Open again
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {!selected.is_past && (
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <div className="w-24">
+                  <span className={`${T_CAPTION} block`}>From</span>
+                  <SelectDark value={blockFrom} onChange={(v) => v && setBlockFrom(v)} options={HALF_HOURS} aria-label="Block from" />
+                </div>
+                <div className="w-24">
+                  <span className={`${T_CAPTION} block`}>To</span>
+                  <SelectDark value={blockTo} onChange={(v) => v && setBlockTo(v)} options={HALF_HOURS} aria-label="Block to" />
+                </div>
+                <div className="w-44">
+                  <span className={`${T_CAPTION} block`}>Who</span>
+                  <SelectDark value={blockWho} onChange={(v) => setBlockWho(v || "")}
+                              options={[{ value: "", label: "Everybody" }, ...data.interviewers.map((n) => ({ value: n, label: n }))]}
+                              aria-label="Block for" />
+                </div>
+                <div className="min-w-[10rem] flex-1">
+                  <span className={`${T_CAPTION} block`}>Reason</span>
+                  <input className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50"
+                         value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="Management meeting" />
+                </div>
+                <button className={PRIMARY_BUTTON} disabled={blockBusy || blockTo <= blockFrom}
+                        onClick={() => void addBlock(selected.date)}>
+                  Block this time
+                </button>
+              </div>
+            )}
+            {!selected.is_past && blockTo <= blockFrom && (
+              <p className="mt-1.5 text-xs text-amber-300">The end time must be after the start time.</p>
+            )}
+            {blockMsg && <p className="mt-1.5 text-xs text-zinc-300">{blockMsg}</p>}
           </div>
 
           {selected.interviews.length === 0 ? (

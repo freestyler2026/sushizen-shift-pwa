@@ -64,6 +64,19 @@ jobs:
           NOON_SESSION:  ${{ secrets.NOON_SESSION }}
         timeout-minutes: 6
 
+      # Order counts for Order Entry, read from the portal's order list. Seven
+      # finished days, so a morning without a fresh login fills in on the next.
+      # Not on a dry run: without the proxy the portal is called straight from
+      # GitHub's IP, which Noon's WAF blocks.
+      - name: Record order counts
+        if: ${{ always() && github.event.inputs.dry_run != 'true' }}
+        run: node scripts/noon/get-orders.js
+        env:
+          WEBHOOK_URL:   ${{ github.event.inputs.dry_run != 'true' && 'https://sushizen-shift-app-038d846023bc.herokuapp.com' || '' }}
+          NOON_SESSION:  ${{ secrets.NOON_SESSION }}
+          CRON_SECRET:   ${{ secrets.MGMT_CRON_SECRET }}
+        timeout-minutes: 4
+
       - name: Refresh Daily P&L cache
         if: always()
         run: |

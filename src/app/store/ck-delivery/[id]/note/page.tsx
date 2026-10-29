@@ -68,9 +68,16 @@ export default function CKDeliveryNotePage() {
   const [error, setError] = useState("");
   const [showPrices, setShowPrices] = useState(true);
 
-  // Edit-price mode
+  // Edit mode: prices always; quantities while the note is not confirmed.
   const [editMode, setEditMode] = useState(false);
   const [draftPrices, setDraftPrices] = useState<Record<number, string>>({});
+  // A note copies its lines from the order and only the price could be changed
+  // after that, so a quantity typed wrong (510 pkt for 10, TAFT 2026-10-15) had
+  // no way out but setting the price to 0 -- which confirming undoes. The
+  // quantity is corrected here; the order line it came from is corrected with
+  // it, and why is recorded on the line.
+  const [draftQty, setDraftQty] = useState<Record<number, string>>({});
+  const [qtyReason, setQtyReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
@@ -94,6 +101,10 @@ export default function CKDeliveryNotePage() {
     const init: Record<number, string> = {};
     for (const it of items) init[it.id] = String(it.unit_price ?? 0);
     setDraftPrices(init);
+    const q: Record<number, string> = {};
+    for (const it of items) q[it.id] = String(it.qty ?? 0);
+    setDraftQty(q);
+    setQtyReason("");
     setSaveError("");
     setEditMode(true);
   }
@@ -105,14 +116,39 @@ export default function CKDeliveryNotePage() {
 
   async function saveprices() {
     if (!delivery || !auth) return;
+    const items = delivery.items || [];
+    const qtyChanged = canFixQty ? items.filter(it => {
+      const draft = parseFloat(draftQty[it.id] ?? "");
+      return Number.isFinite(draft) && Math.abs(draft - (it.qty ?? 0)) > 0.0001;
+    }) : [];
+    if (qtyChanged.some(it => (parseFloat(draftQty[it.id] ?? "") || 0) < 0)) {
+      setSaveError("A quantity cannot be negative.");
+      return;
+    }
+    if (qtyChanged.length > 0 && !qtyReason.trim()) {
+      setSaveError("Say why the quantity is being corrected.");
+      return;
+    }
     setSaving(true);
     setSaveError("");
-    const items = delivery.items || [];
     const changed = items.filter(it => {
       const draft = parseFloat(draftPrices[it.id] ?? "") || 0;
       return Math.abs(draft - (it.unit_price ?? 0)) > 0.0001;
     });
     try {
+      // Quantities first, one at a time: each corrects the order line too.
+      for (const it of qtyChanged) {
+        const r = await fetch(`/api/store/ck-delivery/deliveries/${delivery.id}/items/${it.id}/qty`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders(auth) },
+          body: JSON.stringify({ qty: parseFloat(draftQty[it.id] ?? "") || 0, reason: qtyReason.trim() }),
+        });
+        if (!r.ok) {
+          let msg = `${it.item_name}: could not correct the quantity (HTTP ${r.status}).`;
+          try { const j = await r.json(); if (j?.detail) msg = `${it.item_name}: ${j.detail}`; } catch { /* keep */ }
+          throw new Error(msg);
+        }
+      }
       await Promise.all(changed.map(it =>
         fetch(`/api/store/ck-delivery/deliveries/${delivery.id}/items/${it.id}/price`, {
           method: "PATCH",
@@ -148,12 +184,21 @@ export default function CKDeliveryNotePage() {
   }
 
   const items = delivery.items || [];
+  const canFixQty = (delivery.status || "").toUpperCase() !== "CONFIRMED";
   const autoCount = items.filter(i => i.source === "auto").length;
   const manualCount = items.filter(i => i.source === "manual").length;
 
   const displayItems = editMode
-    ? items.map(it => ({ ...it, unit_price: parseFloat(draftPrices[it.id] ?? "") || 0 }))
+    ? items.map(it => ({
+        ...it,
+        unit_price: parseFloat(draftPrices[it.id] ?? "") || 0,
+        qty: canFixQty ? (parseFloat(draftQty[it.id] ?? "") || 0) : it.qty,
+      }))
     : items;
+  const anyQtyChanged = editMode && canFixQty && items.some(it => {
+    const draft = parseFloat(draftQty[it.id] ?? "");
+    return Number.isFinite(draft) && Math.abs(draft - (it.qty ?? 0)) > 0.0001;
+  });
   const displayGrouped = groupBy(displayItems, i => i.category || "Other");
 
   const grandTotal = displayItems.reduce((sum, i) => sum + (i.qty || 0) * (i.unit_price || 0), 0);
@@ -192,7 +237,7 @@ export default function CKDeliveryNotePage() {
               className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save Prices
+              Save
             </button>
           </>
         ) : (
@@ -202,7 +247,7 @@ export default function CKDeliveryNotePage() {
                 onClick={enterEditMode}
                 className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow hover:bg-blue-100"
               >
-                <Pencil className="h-4 w-4" /> Edit Prices
+                <Pencil className="h-4 w-4" /> {canFixQty ? "Edit Qty / Prices" : "Edit Prices"}
               </button>
             )}
             {hasPrices && (
@@ -261,8 +306,26 @@ export default function CKDeliveryNotePage() {
 
         {/* Edit-mode notice */}
         {editMode && (
-          <div className="no-print mb-4 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 font-medium">
-            Price edit mode — update unit prices below, then click &quot;Save Prices&quot;.
+          <div className="no-print mb-4 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 font-medium space-y-2">
+            <p>
+              {canFixQty
+                ? <>Edit mode — correct a quantity or a unit price below, then click &quot;Save&quot;. A corrected
+                  quantity also corrects the order line it came from, and the old and new figures are written on
+                  the line.</>
+                : <>Price edit mode — this delivery is confirmed, so its quantities are the branch&apos;s received
+                  record and cannot be changed here.</>}
+            </p>
+            {anyQtyChanged && (
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-800">Why is the quantity changing? (required)</span>
+                <input
+                  value={qtyReason}
+                  onChange={e => setQtyReason(e.target.value)}
+                  placeholder="e.g. Typed 510 instead of 10"
+                  className="mt-1 w-full rounded border border-blue-300 bg-white px-2 py-1 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </label>
+            )}
           </div>
         )}
 
@@ -298,7 +361,22 @@ export default function CKDeliveryNotePage() {
                         {item.notes && <p className="text-xs text-gray-400">{item.notes}</p>}
                       </td>
                       <td className="py-1.5 text-right font-mono text-gray-800 tabular-nums">
-                        {item.qty} {item.unit}
+                        {editMode && canFixQty ? (
+                          <span className="inline-flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              aria-label={`Quantity for ${item.item_name}`}
+                              value={draftQty[origItem?.id ?? item.id] ?? "0"}
+                              onChange={e => setDraftQty(p => ({ ...p, [origItem?.id ?? item.id]: e.target.value }))}
+                              className="w-20 rounded border border-blue-300 bg-blue-50 px-1.5 py-0.5 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                            <span>{item.unit}</span>
+                          </span>
+                        ) : (
+                          <>{item.qty} {item.unit}</>
+                        )}
                       </td>
                       {(showPrices || editMode) && hasPrices && (
                         <>

@@ -183,3 +183,14 @@ jobs:
             -H "Content-Type: application/json" \
             -H "X-Cron-Secret: ${{ secrets.MGMT_CRON_SECRET }}" \
             -d "{\"city\":\"manila\",\"date_from\":\"${DATE_FROM}\",\"date_to\":\"${DATE_TO}\"}" || true
+
+      # Grab and foodpanda figures into Manila Daily Sales, so staff no longer
+      # copy them from the portals. Last 10 finished days (foodpanda invoices
+      # arrive two days late). Fails the run if the backend refuses.
+      - name: Fill Manila Daily Sales from the portals
+        if: ${{ always() && env.FULL_RUN == '1' }}
+        run: |
+          curl -sS --fail-with-body -X POST "https://sushizen-shift-app-038d846023bc.herokuapp.com/api/aggregator/manila-daily-sales/fill" \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Secret: ${{ secrets.MGMT_CRON_SECRET }}" \
+            -d '{}'

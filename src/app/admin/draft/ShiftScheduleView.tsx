@@ -123,6 +123,8 @@ function computeHeadcount(rows: DraftRow[]): Record<number, number> {
   const counts: Record<number, number> = {};
   for (const h of HOURS) counts[h] = 0;
   for (const r of rows) {
+    // A Day Off / Absent / leave row is nobody on the floor, whatever hours it holds.
+    if (!isWorkCell(r.role, r.start_hour, r.end_hour)) continue;
     for (let h = Math.max(r.start_hour, 8); h < Math.min(r.end_hour, 30); h++) {
       if (h in counts) counts[h]++;
     }
@@ -381,7 +383,9 @@ function ShiftRow({
       ) : (
         /* Display mode: colored cells */
         HOURS.map((h) => {
-          const on = h >= row.start_hour && h < row.end_hour;
+          // No bar for a row that is not a shift: the November draft copied
+          // October absences as "ABSENT 07-16" and drew them as a 07-16 shift.
+          const on = rowIsWork && h >= row.start_hour && h < row.end_hour;
           const isStart = h === row.start_hour;
           const isEnd   = h === row.end_hour - 1;
           return (
@@ -410,7 +414,7 @@ function ShiftRow({
       {/* Shift label */}
       {!isEditing && (
         <td className="min-w-[72px] px-2 py-1.5 font-mono text-[11px] text-zinc-300">
-          {fmtShift(row.start_hour, row.end_hour)}
+          {rowIsWork ? fmtShift(row.start_hour, row.end_hour) : "no shift"}
         </td>
       )}
 
@@ -593,6 +597,7 @@ function DaySection({
           (leaderNames.has(r.staff_name.toLowerCase()) ||
             r.role.toUpperCase().includes("PIC") ||
             r.staff_name.toUpperCase().includes("PIC")) &&
+          isWorkCell(r.role, r.start_hour, r.end_hour) &&
           h >= r.start_hour &&
           h < r.end_hour,
       );

@@ -93,3 +93,6 @@ CLAUDE.local.md
 # どのコードも読み返さず、実行のたびに書き換わる。追跡したままだと
 # セッションを取り直すたびに rebase が止まる。
 scripts/*/*-api-responses.json
+
+# The owner's Grab invoice capture (scripts/grab/owner-invoices.js)
+grab-owner-invoices.json

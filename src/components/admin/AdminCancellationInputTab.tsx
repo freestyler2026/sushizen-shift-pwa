@@ -1117,7 +1117,9 @@ export default function AdminCancellationInputTab({
           <p>② Select the date (‹ › or Today).</p>
           <p>③ Click + Add record; enter Order No. (required), then expand to fill fields.</p>
           <p>④ Save per card or use Save All.</p>
-          <p>⑤ Same Platform + Order No. overwrites the existing row.</p>
+          <p>⑤ Same Platform + Order No. <strong>on the same date</strong> overwrites
+            that row. The platform reuses order numbers, so the same number on another
+            date is a separate cancellation and both are kept.</p>
           <p className="pt-1 text-white/20">✕ on a saved row deletes it from the database.</p>
         </div>
       </div>

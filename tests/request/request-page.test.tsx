@@ -559,6 +559,16 @@ describe("HistoryTab — items display", () => {
     );
   });
 
+  // Joven Bermejo Jr.'s 2026-12-06, 2 days, showed one date and was refused
+  // for not saying which dates (2026-10-16).
+  it("shows every day a two-day request covers", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText("My History"));
+    await waitFor(() =>
+      expect(screen.getByText(/2026-05-10 → 2026-05-11/)).toBeInTheDocument()
+    );
+  });
+
   it("shows review note when present", async () => {
     serve({
       "/api/request/notifications/history": {
@@ -622,6 +632,46 @@ describe("InboxTab — display and review", () => {
     fireEvent.click(screen.getByText("Inbox"));
     await waitFor(() =>
       expect(screen.getByText("Alice Cruz")).toBeInTheDocument()
+    );
+  });
+
+  // Dubai, 2026-10-27: a time change showed its reason and date but not the
+  // hours asked for, so it could not be judged.
+  // Dubai, 2026-10-27: Abiskar Rai asked for 12-00; the store starts at 09:00
+  // or 11:00, so it is approved at 11-23 instead of refused.
+  it("approves a time change at other hours", async () => {
+    mockFetch.mockReset();
+    serve({ "/api/request/notifications/inbox": { items: [{
+      ...inboxItem, notification_type: "time_change", leave_type: null, leave_days: null,
+      requested: { from: "9-16", to: "12-00" } }] } });
+    await renderPage();
+    fireEvent.click(screen.getByText("Inbox"));
+    await waitFor(() => expect(screen.getByText("Review")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Review"));
+    const input = await screen.findByLabelText("Approve at (hours)");
+    expect((input as HTMLInputElement).value).toBe("12-00");
+    // 12-00 is not hours the schedule reads, so Approve waits for real hours.
+    expect(screen.getByText(/The schedule cannot read/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
+    fireEvent.change(input, { target: { value: "11-23" } });
+    expect(screen.getByRole("button", { name: /Approve/ })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Approve/ }));
+    await waitFor(() => {
+      const call = mockFetch.mock.calls.find(([u, o]) => String(u).includes("/review") && o?.method === "PATCH");
+      expect(call).toBeTruthy();
+      expect(JSON.parse(String(call![1].body))).toMatchObject({ status: "approved", approved_to: "11-23" });
+    });
+  });
+
+  it("shows the hours a time change asks for", async () => {
+    mockFetch.mockReset();
+    serve({ "/api/request/notifications/inbox": { items: [{
+      ...inboxItem, notification_type: "time_change", leave_type: null, leave_days: null,
+      requested: { from: "9-16", to: "10-18" } }] } });
+    await renderPage();
+    fireEvent.click(screen.getByText("Inbox"));
+    await waitFor(() =>
+      expect(screen.getByText("Requested: 9-16 → 10-18")).toBeInTheDocument()
     );
   });
 

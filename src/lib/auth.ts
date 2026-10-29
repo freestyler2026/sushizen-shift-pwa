@@ -476,6 +476,10 @@ export async function refreshAuthFromApi(
 export function clearAuth() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(KEY);
+  // The "Login As" backup too: left behind, the next person to sign in on this
+  // browser is shown a stale "Viewing as" banner and never gets a refresh.
+  // The logout call below clears the sz_imp cookie it belongs to.
+  window.localStorage.removeItem("sushizen_shift_auth_pre_imp");
   writeStoredPin(undefined);
   // Reset badge dismissed counts so a fresh login shows all current alerts.
   window.localStorage.removeItem("sushizen_renewals_badge_dismissed_count");

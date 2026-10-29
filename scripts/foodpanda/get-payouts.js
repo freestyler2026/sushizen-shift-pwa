@@ -188,6 +188,145 @@ async function postWebhook(payload) {
   return resp.json();
 }
 
+// ── Daily invoices (VAT plan Phase 0-3) ────────────────────────────────────
+//
+// Each payout lists its invoices' attachments (s3 paths of a pdf Sales Invoice
+// and an xls order sheet per daily statement). The Payments page's download
+// button sends them to RequestPayouts, which answers with a zip URL. The zip
+// goes to the backend as is; it reads and stores the numbers
+// (app/fp_invoices.py). Payouts already stored are skipped.
+
+const REQUEST_PAYOUTS_QUERY = `query RequestPayouts($params: DownloadPayoutsRequest!) {
+  finances {
+    downloadPayouts(input: $params) {
+      downloadUrl
+      __typename
+    }
+    __typename
+  }
+}`;
+
+// The invoice webhook writes tax records, so it takes a shared token
+// (FP_INVOICE_INGEST_TOKEN; run-payout-local.sh reads it from
+// ~/.config/sushizen/fp-invoice-ingest-token).
+const INGEST_TOKEN = process.env.FP_INVOICE_INGEST_TOKEN || '';
+const ingestHeaders = () => ({ 'Content-Type': 'application/json', 'X-Ingest-Token': INGEST_TOKEN });
+
+async function knownInvoicePayouts(ids, storeCode) {
+  try {
+    // Also the job's heartbeat (VAT plan 0-6), so it is sent even with no ids.
+    const r = await fetch(`${WEBHOOK_URL}/api/foodpanda/invoice-archive/known`, {
+      method: 'POST',
+      headers: ingestHeaders(),
+      body: JSON.stringify({ payout_ids: ids, store_code: storeCode }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return new Set((await r.json()).known || []);
+  } catch (err) {
+    // Downloading again is safe (nothing is overwritten), but say so (lesson 142).
+    console.warn(`  ⚠ could not ask which payouts are stored (${err.message}); fetching all`);
+    return new Set();
+  }
+}
+
+async function fetchInvoiceArchives(context, listReq, payouts, acct) {
+  if (!WEBHOOK_URL) {
+    console.log('\nInvoices: WEBHOOK_URL not set — not downloading');
+    return { ok: 0, failed: 0 };
+  }
+  if (!INGEST_TOKEN) {
+    console.error('\n❌ Invoices: FP_INVOICE_INGEST_TOKEN is not set — invoices not downloaded');
+    return { ok: 0, failed: 1 };
+  }
+  const invoicesOf = p => (Array.isArray(p.invoices) ? p.invoices : []);
+  const filesOf = inv => (Array.isArray(inv?.invoiceAttachments) ? inv.invoiceAttachments : []);
+  const inWindow = payouts.filter(p => (p.at || '') >= DATE_FROM && (p.at || '') <= DATE_TO);
+  const known = await knownInvoicePayouts(inWindow.map(p => String(p.payoutId)), acct.storeCode);
+  const todo = inWindow.filter(p => !known.has(String(p.payoutId)));
+  console.log(`\nInvoices: ${inWindow.length} payout(s) in window, ${known.size} stored cleanly, ${todo.length} to fetch`);
+  let ok = 0, failed = 0;
+  for (const p of todo) {
+    const payoutId = String(p.payoutId);
+    const withFiles = invoicesOf(p).filter(inv => filesOf(inv).length > 0);
+    // An invoice with no files yet is named, not skipped: the payout stays
+    // un-clean and is fetched again tomorrow (review 2026-10-21).
+    const missing = invoicesOf(p).filter(inv => filesOf(inv).length === 0).map(inv => String(inv.invoiceId));
+    const attachments = withFiles.flatMap(filesOf);
+    if (invoicesOf(p).length === 0) {
+      // A payout with no invoices at all has nothing to fetch; counting it as failed made the
+      // job exit 1 every day for the whole window (2026-10-22 ultra review).
+      console.log(`  · ${payoutId} ${p.at}: no invoices on this payout`);
+      continue;
+    }
+    if (attachments.length === 0) {
+      failed++;
+      console.error(`  ❌ ${payoutId} ${p.at}: no invoice files listed yet (${missing.join(', ') || 'no invoices'})`);
+      // Recorded, so the 16:00 feed check can say so (before, nothing knew).
+      const a0 = p.payoutAccount || {};
+      try {
+        const r0 = await fetch(`${WEBHOOK_URL}/api/foodpanda/invoice-archive/no-files`, {
+          method: 'POST', headers: ingestHeaders(),
+          body: JSON.stringify({ payout_id: payoutId, payment_date: p.at,
+                                 store_code: acct.gridToStore[a0.grid] || acct.storeCode, invoices: missing }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!r0.ok) console.warn(`    ⚠ could not record it: HTTP ${r0.status} ${(await r0.text()).slice(0, 200)}`);
+      } catch (err) {
+        console.warn(`    ⚠ could not record it: ${err.message}`);
+      }
+      continue;
+    }
+    const a = p.payoutAccount || {};
+    const storeCode = acct.gridToStore[a.grid] || acct.storeCode;
+    try {
+      const resp = await context.request.post(listReq.url, {
+        headers: listReq.headers,
+        data: JSON.stringify({
+          operationName: 'RequestPayouts',
+          query: REQUEST_PAYOUTS_QUERY,
+          variables: { params: {
+            payoutId,
+            paymentDateLocal: p.at,
+            attachments,
+            globalEntityId: acct.globalEntityId,
+            accounts: [{ grid: a.grid || '', billingParentId: a.billingParentId || '', chainId: a.chainId || '' }],
+          } },
+        }),
+        timeout: 30_000,
+      });
+      const url = (await resp.json())?.data?.finances?.downloadPayouts?.downloadUrl;
+      if (!url) throw new Error(`no download URL (HTTP ${resp.status()})`);
+      // The zip host wants the portal's auth headers, not just its cookies
+      // (cookies alone -> 401). Body headers are dropped: this is a GET.
+      const authHeaders = Object.fromEntries(Object.entries(listReq.headers)
+        .filter(([k]) => !/^(content-type|content-length|accept-encoding|host)$/i.test(k)));
+      const zip = await context.request.get(url, { headers: authHeaders, timeout: 60_000 });
+      if (!zip.ok()) throw new Error(`zip HTTP ${zip.status()}`);
+      const buf = await zip.body();
+      const post = await fetch(`${WEBHOOK_URL}/api/foodpanda/invoice-archive`, {
+        method: 'POST',
+        headers: ingestHeaders(),
+        body: JSON.stringify({ store_code: storeCode, payout_id: payoutId, payment_date: p.at,
+                               expected_statements: withFiles.length, missing_attachments: missing,
+                               zip_b64: buf.toString('base64') }),
+        signal: AbortSignal.timeout(90_000),
+      });
+      const j = await post.json().catch(() => ({}));
+      if (!post.ok) throw new Error(`store HTTP ${post.status}: ${JSON.stringify(j).slice(0, 200)}`);
+      const sts = j.statements || [];
+      console.log(`  ${j.clean ? '✓' : '⚠'} ${payoutId} ${p.at} ${storeCode}: ${sts.length} statement(s), `
+        + sts.map(x => x.error ? `ERROR ${x.error}` : `${x.kind} VAT ${x.vat_amount} (${x.result})`).join(', '));
+      for (const pr of (j.problems || [])) console.log(`    ⚠ ${pr.file ? pr.file + ': ' : ''}${pr.problem}`);
+      if (j.clean) ok++; else failed++;
+    } catch (err) {
+      failed++;
+      console.error(`  ❌ invoices for ${payoutId}: ${err.message}`);
+    }
+  }
+  return { ok, failed };
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -316,10 +455,16 @@ async function main() {
     }
   }
 
-  await browser.close();
-  try { fs.unlinkSync(TMP_SESSION); } catch (_) {}
+  // The browser stays open until the invoices are fetched (they need its
+  // session), but payouts are posted first so a slow or failed invoice step
+  // can never hold them back (review 2026-10-21).
+  const closeBrowser = async () => {
+    try { await browser.close(); } catch (_) {}
+    try { fs.unlinkSync(TMP_SESSION); } catch (_) {}
+  };
 
   if (allPayouts.length === 0) {
+    await closeBrowser();
     // Exiting 0 here made the daily job report success while importing nothing,
     // which is how the scheduled run went unnoticed. An empty capture is a
     // failure: say so and let the run go red.
@@ -408,6 +553,23 @@ async function main() {
     String(totalOrders).padStart(8),
   );
   console.log(`\n✓ ${posted}/${allPayouts.length} payouts posted to ar_payouts.`);
+
+  let invoiceResult = { ok: 0, failed: 0 };
+  if (listReq) {
+    try {
+      invoiceResult = await fetchInvoiceArchives(context, listReq, allPayouts, acct);
+    } catch (err) {
+      invoiceResult = { ok: 0, failed: 1 };
+      console.error(`  ❌ invoice step failed: ${err.message}`);
+    }
+  } else {
+    invoiceResult = { ok: 0, failed: 1 };
+    console.error('  ❌ invoices: the portal\'s payout request was not captured, so they cannot be fetched');
+  }
+  await closeBrowser();
+  console.log(`✓ invoices: ${invoiceResult.ok} payout(s) stored cleanly, ${invoiceResult.failed} with a problem.`);
+  // A failed or unbalanced invoice must not look like a green run (lesson 47).
+  if (invoiceResult.failed > 0) process.exitCode = 1;
   console.log('  Amount = net payout deposited to bank (post-commission).');
   console.log('Done.');
 }

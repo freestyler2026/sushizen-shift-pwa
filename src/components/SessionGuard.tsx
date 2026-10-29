@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getAuth, setAuth, clearAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
+import { getImpersonationInfo } from "@/lib/impersonation";
 
 const POLL_MS = 5 * 60 * 1000;
 const KEEPALIVE_MS = 20 * 60 * 1000;
@@ -89,6 +90,57 @@ export default function SessionGuard() {
     } catch { /* Network error — ignore */ }
   };
 
+  // Sign the user out with a reason, then send them to the login screen.
+  const kick = (reason: string) => {
+    if (kicked.current) return;
+    kicked.current = true;
+    if (polling.current) clearInterval(polling.current);
+
+    const msg = REASON_MESSAGES[reason] ?? "Your session is no longer valid. Please log in again.";
+    setToast(msg);
+
+    setTimeout(() => {
+      // Clear the httpOnly pair too. clearAuth() only reaches localStorage, and
+      // sz_access/sz_session are httpOnly on path=/api — JS cannot touch them.
+      // Leaving them behind is what made the next sign-in look like a re-mint
+      // of a session that no longer existed, so the user logged in, got no
+      // session, and was thrown out again within the minute.
+      void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" })
+        .catch(() => { /* the login page re-mints either way */ })
+        .finally(() => {
+          clearAuth();
+          document.cookie = "sushizen_authed=; path=/; max-age=0";
+          router.replace(`/login?reason=${encodeURIComponent(reason)}`);
+        });
+    }, 3000);
+  };
+
+  // "No session id" used to be read as fine. On 2026-10-17 the owner's browser
+  // had no session cookie and no usable token: every API answered 401, the menu
+  // still showed him signed in, and each page printed its own raw 401. Ask the
+  // server whether it can still sign this browser in; only an explicit 401
+  // counts -- a network error is not a reason to log anybody out.
+  const lostCheck = useRef<Promise<void> | null>(null);
+  const stillSignedIn = async (): Promise<boolean> => {
+    // Viewing as somebody else: the refresh is refused on purpose, and logging
+    // out from here would sign the admin out of their own account.
+    try { if (getImpersonationInfo()) return true; } catch { /* treat as not impersonating */ }
+    try {
+      // A login that keeps its token in localStorage rather than the cookie
+      // must be asked with that token, or it would be signed out by mistake.
+      const token = getAuth()?.accessToken || "";
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return res.status !== 401;
+    } catch {
+      return true;
+    }
+  };
+
   const check = async () => {
     if (kicked.current) return;
     const auth = getAuth();
@@ -137,28 +189,12 @@ export default function SessionGuard() {
       if (data.valid) return;
 
       const reason = data.reason ?? "invalidated";
-      if (reason === "no_session_id" || reason === "not_found") return;
+      if (reason === "no_session_id" || reason === "not_found") {
+        if (!(await stillSignedIn())) kick("expired");
+        return;
+      }
 
-      kicked.current = true;
-      if (polling.current) clearInterval(polling.current);
-
-      const msg = REASON_MESSAGES[reason] ?? "Your session is no longer valid. Please log in again.";
-      setToast(msg);
-
-      setTimeout(() => {
-        // Clear the httpOnly pair too. clearAuth() only reaches localStorage, and
-        // sz_access/sz_session are httpOnly on path=/api — JS cannot touch them.
-        // Leaving them behind is what made the next sign-in look like a re-mint
-        // of a session that no longer existed, so the user logged in, got no
-        // session, and was thrown out again within the minute.
-        void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" })
-          .catch(() => { /* the login page re-mints either way */ })
-          .finally(() => {
-            clearAuth();
-            document.cookie = "sushizen_authed=; path=/; max-age=0";
-            router.replace(`/login?reason=${encodeURIComponent(reason)}`);
-          });
-      }, 3000);
+      kick(reason);
     } catch {
       // Network error — don't kick the user out
     }
@@ -168,11 +204,22 @@ export default function SessionGuard() {
     if (SKIP_PATHS.has(pathname)) return;
 
     const init = setTimeout(check, 2000);
+    // A page's own call came back 401 and the retry could not refresh.
+    // Fifteen badge calls failing together ask once, not fifteen times.
+    const onLost = () => {
+      if (kicked.current || lostCheck.current || !getAuth()?.staffName) return;
+      lostCheck.current = (async () => {
+        try { if (!(await stillSignedIn())) kick("expired"); }
+        finally { setTimeout(() => { lostCheck.current = null; }, 30_000); }
+      })();
+    };
+    window.addEventListener("zen:session-lost", onLost);
     polling.current = setInterval(check, POLL_MS);
     keepalive.current = setInterval(refreshSession, KEEPALIVE_MS);
 
     return () => {
       clearTimeout(init);
+      window.removeEventListener("zen:session-lost", onLost);
       if (polling.current) clearInterval(polling.current);
       if (keepalive.current) clearInterval(keepalive.current);
     };

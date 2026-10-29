@@ -195,6 +195,31 @@ for ab in absences_list:
 - **手取りがマイナスになる場合は給与の範囲で按分**し、取れなかった額を
   `STATUTORY_UNCOLLECTED` として明細に出す。会社の納付義務は変わらない。
 
+### SSS・Pag-IBIG ローン — 登録1回、毎回の計算が読む（2026-10-19）
+`app/manila_gov_loans.py` / 画面 `/admin/payroll/manila/loans` / 表 `manila_gov_loans`。
+**ボタンで適用する仕組みは作らない。** 計算のたびにエンジンが登録を読む（押し忘れも二重もない）。
+
+- 明細コードは `LOAN_SSS` / `LOAN_PAGIBIG`。どのローンの分かは `source = 'gov_loan:<id>'`。
+  算定基礎・源泉から外すのは `RECOVERY_CODES`（エンジン先頭・**1か所**）。
+  店舗人件費（`db.py` `get_labor_from_payroll_items`）も明示的に外している（接頭辞判定に当たらないため）。
+- **1Hは月額の半分、2Hは「月額 − 1Hでこのローンが実際に取った額」。** 1Hの期間は
+  `first_half_period_id` が空でも年・月で引く（空を「0円」と読むと2Hが月額を二重に取る）。
+- 順番: 法定控除 → 源泉 → 会社の回収（寮費等）→ **ローンは残りから**。手取りをマイナスにしない。
+  足りない分は `LOAN_UNCOLLECTED`（警告・`quantity` に金額、寮費等が先に取った額も本文に書く）。
+  ⚠️ 当初は会社の回収より前に置いたが、回収側に上限が無いため **+₱500 の明細が −₱1,500 になった**（2026-10-19 レビュー）。
+- 1人のローン読み取りが失敗しても後続が全滅しないよう SAVEPOINT で囲む（Compute All は接続を共有し、間でロールバックしない／教訓7）。
+- 削除は**論理削除**（`status='deleted'`）。承認済み・支払済みの期間が引いていたら拒否。ローンの変更は run の「needs recompute」に出る。
+- 同じ種類で期間が重なるローンは `allow_overlap` が無いと 409（金額変更を「停止＋再登録」でやると月が二重になるため）。
+- **退職の締め:** SSSは残高を最終給与から一括（sss.gov.ph/salary-loan）。Pag-IBIGは本人が
+  Authority to Deduct に署名しているときだけ（Labor Code Art.113）。**残高は機関の明細の値だけを使う** —
+  「月額×残り月数」は未発生の利息を含み過大になる。未入力なら月額だけ取り `LOAN_BALANCE_NEEDED`。
+- 手入力の `LOAN_DEDUCTION` は **400 で拒否**（入口を1つにする）。登録済みの人に「loan」を含む手入力控除があれば
+  `LOAN_MANUAL_DUPLICATE`。
+- 残り回数はカウンタで持たない。**支払済み期間の明細から数える**（下書きの再計算で減らないように）。
+- 登録できるのはこの給与で計算される人だけ（機密・7CZ は拒否）。
+- 納付一覧: `GET /gov-loans/remittance?month=YYYY-MM`。SSSの期限は翌月末。Pag-IBIGは機関の請求に従う。
+  ⚠️ 既存の Remittances 自動生成は存在しない表（`manila_payroll_run_items`）を読んでおり動かない（未修正）。
+
 ### 未実装（重要）
 - **年末調整（NIRC §79(H)）が無い。** 12月に差額を精算していない。
   過大徴収を返金しないと **NIRC §252** の罰則対象で、substituted filing も壊れる（教訓107）。

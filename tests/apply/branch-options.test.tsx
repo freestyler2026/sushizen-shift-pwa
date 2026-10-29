@@ -40,13 +40,18 @@ describe("apply form — branch options", () => {
                         json: () => Promise.resolve({ ok: true, id: "x" }) } as Response));
   });
 
-  it("offers SM South Mall", async () => {
+  it("no longer offers SM South Mall", async () => {
+    // Taken off 2026-10-06 (owner), after 82 applications had chosen it. Pinned
+    // because the entry carried a paragraph of its own about how its label was
+    // sized, which is the kind of thing that gets restored by someone reading
+    // the comment rather than the decision.
     const Apply = (await import("@/app/apply/page")).default;
     render(<Apply />);
     await screen.findByText("Send application");
     fireEvent.click(screen.getByText("Which branch do you prefer?").closest("div")!
       .querySelector("[data-value]") as HTMLElement);
-    expect(screen.getAllByText("SM South Mall").length).toBeGreaterThan(0);
+    expect(screen.queryAllByText("SM South Mall")).toHaveLength(0);
+    expect(formCodes()).not.toContain("SSM");
   });
 
   it("every code the form offers is one the backend will accept", () => {
@@ -57,19 +62,24 @@ describe("apply form — branch options", () => {
     const line = py.split("\n").find((l) => l.startsWith("BRANCHES = ["));
     expect(line, "BRANCHES not found in db_public_apply.py").toBeTruthy();
     const accepted = [...line!.matchAll(/"([A-Z]+)"/g)].map((m) => m[1]);
-    expect(accepted).toContain("SSM");
     for (const code of formCodes()) {
       expect(accepted, `form offers ${code}, backend rejects it`).toContain(code);
     }
+    // ...and the other direction, which is how SSM would have been left behind:
+    // a code the backend still takes that nothing offers is a list the next
+    // person reads as current.
+    for (const code of accepted) {
+      expect(formCodes(), `backend accepts ${code}, form does not offer it`).toContain(code);
+    }
   });
 
-  it("an application for SM South Mall sends the code the backend knows", async () => {
+  it("picking a branch still names where it is", async () => {
+    // What the SM South Mall case was really about: an applicant choosing a
+    // site they have never been to should be told which city it is in.
     const Apply = (await import("@/app/apply/page")).default;
     render(<Apply />);
     await screen.findByText("Send application");
-    chooseValueByName("Which branch do you prefer?", "SSM");
-    // The address line under the select tells the applicant where it is, and
-    // must not be blank for a branch nobody has been to yet.
-    await waitFor(() => expect(screen.getByText(/Las Piñas/)).toBeInTheDocument());
+    chooseValueByName("Which branch do you prefer?", "CK");
+    await waitFor(() => expect(screen.getByText(/Quezon City/)).toBeInTheDocument());
   });
 });

@@ -41,8 +41,42 @@ const zlib = require('zlib');
 
 const SESSION = path.join(__dirname, 'keeta-session.json');
 
-// The five Dubai outlets, as the portal itself sends them.
-const SHOP_IDS = ['1644178222', '1644171212', '1644198211', '1644191210', '1644184196'];
+// Keeta gives each brand its own login, so the session decides the brand.
+// KEETA_BRAND=ramen_zen runs with the Ramen ZEN session (KEETA_RZ_SESSION).
+const KEETA_BRAND = (process.env.KEETA_BRAND || 'sushi_zen').trim().toLowerCase();
+const BRANDS = {
+  // The five Dubai outlets, as the portal itself sends them.
+  sushi_zen: {
+    name: 'Sushi Zen',
+    shops: ['1644178222', '1644171212', '1644198211', '1644191210', '1644184196'],
+    branches: ['AB', 'AM', 'ARJ', 'BB', 'JLT'],
+    ledger: true,
+    // The ledger table has no brand column, so a brand's stores carry it in the
+    // store code: Sushi ZEN keeps the bare branch ("ARJ") it always had.
+    ledgerPrefix: '',
+  },
+  // Ids from get-payouts.js. The Ramen ZEN login also holds All Veggie Sushi:
+  // shop 1644320430 ("Al Barsha 3") is AVS Al Barsha -- its daily counts equal
+  // what staff typed for AVS on Keeta on 124 of 125 days (2026-05..10).
+  ramen_zen: {
+    name: 'Ramen Zen',
+    shops: ['1644200182', '1644320430', '1644173192', '1644193201', '1644179577'],
+    branches: ['AM', 'ARJ', 'BB', 'JLT'],
+    shopBrand: { '1644320430': { name: 'All Veggie Sushi', branches: ['AB'], ledgerPrefix: 'AVS_' } },
+    // In the Prep Time ledger as RZ_ARJ / AVS_AB, beside Sushi ZEN's ARJ / AB,
+    // so the brands never mix (owner, 2026-10-28: every brand's data is needed).
+    ledger: true,
+    ledgerPrefix: 'RZ_',
+  },
+};
+const BRAND = BRANDS[KEETA_BRAND];
+if (!BRAND) {
+  console.error(`KEETA_BRAND must be one of ${Object.keys(BRANDS).join(', ')}`);
+  process.exit(1);
+}
+const SHOP_IDS = BRAND.shops;
+// Branch code → the branch name Order Entry uses.
+const BRANCH_NAME = { AB: 'Al Barsha', AM: 'Al Hudaiba', ARJ: 'Arjan', BB: 'Business Bay', JLT: 'JLT' };
 
 function ymd(d) { return d.toISOString().slice(0, 10); }
 const yesterday = ymd(new Date(Date.now() - 86400000));
@@ -62,6 +96,68 @@ const STORE_BY_NAME = [
   [/jaffiliya|jafiliya/i, 'ALJ'],
   [/quoz|central\s*kitchen/i, 'CK'],
 ];
+
+function addDays(s, n) { const d = new Date(`${s}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return ymd(d); }
+
+/**
+ * Daily order counts per outlet for Order Entry, every order the portal lists
+ * (staff count cancelled ones too; identical to their October figures).
+ * Only finished Dubai days; today's count is still growing.
+ */
+async function postCounts(webhook, rows) {
+  const today = ymd(new Date(Date.now() + 4 * 3600_000));
+  const last = TO < today ? TO : addDays(today, -1);
+  if (FROM > last) return;
+  const cells = new Map();
+  const brandsHere = [{ name: BRAND.name, branches: BRAND.branches }, ...Object.values(BRAND.shopBrand || {})];
+  for (let d = FROM; d <= last; d = addDays(d, 1)) {
+    for (const br of brandsHere) {
+      for (const b of br.branches) {
+        cells.set(`${d}|${br.name}|${b}`, { order_date: d, brand: br.name, branch: BRANCH_NAME[b], order_count: 0, revenue_aed: 0 });
+      }
+    }
+  }
+  const skipped = {};
+  // The session decides the brand. An order from a shop that is not this
+  // brand's means the wrong session was given; writing it would book one
+  // brand's orders under the other.
+  const foreign = rows.filter((r) => r.shop_id && !SHOP_IDS.includes(r.shop_id));
+  if (foreign.length) {
+    console.error(`  counts not written: ${foreign.length} orders from shops outside ${BRAND.name} `
+      + `(${[...new Set(foreign.map((r) => r.shop_id))].join(', ')})`);
+    process.exit(1);
+  }
+  const seen = new Set();
+  for (const r of rows) {
+    if (seen.has(r.long_order_id)) continue;
+    seen.add(r.long_order_id);
+    if (r.work_date < FROM || r.work_date > last) continue;
+    if (!BRANCH_NAME[r.store]) { skipped[r.store] = (skipped[r.store] || 0) + 1; continue; }
+    const brandName = ((BRAND.shopBrand || {})[r.shop_id] || {}).name || BRAND.name;
+    const k = `${r.work_date}|${brandName}|${r.store}`;
+    if (!cells.has(k)) cells.set(k, { order_date: r.work_date, brand: brandName, branch: BRANCH_NAME[r.store], order_count: 0, revenue_aed: 0 });
+    cells.get(k).order_count += 1;
+  }
+  const out = [...cells.values()];
+  console.error(`  counts ${brandsHere.map((b) => b.name).join(' + ')} ${FROM}..${last}: ${out.reduce((s, c) => s + c.order_count, 0)} orders`);
+  if (Object.keys(skipped).length) console.error('  ⚠ outlets not counted:', JSON.stringify(skipped));
+  const secret = (process.env.CRON_SECRET || '').trim();
+  if (!webhook || !secret) {
+    console.error('  (counts not written — needs WEBHOOK_URL and CRON_SECRET)');
+    return;
+  }
+  const res = await fetch(`${webhook}/api/aggregator/order-counts/ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Cron-Secret': secret },
+    body: JSON.stringify({ aggregator: 'keeta', rows: out }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const text = await res.text();
+  if (!res.ok) { console.error(`  counts ingest failed ${res.status}: ${text.slice(0, 200)}`); process.exit(1); }
+  const j = JSON.parse(text);
+  console.error(`  counts written ${j.written}, rejected ${(j.rejected || []).length}`);
+  if ((j.rejected || []).length) process.exit(1);
+}
 
 function storeCode(name) {
   for (const [re, code] of STORE_BY_NAME) if (re.test(name || '')) return code;
@@ -194,6 +290,10 @@ function pick(obj, name) {
     if (expected === null) expected = (j.data || {}).totalCount || 0;
     if (arr.length >= expected || list.length === 0) { complete = true; break; }
   }
+  // The ledger upserts per order and tolerates an early empty page; the counts
+  // overwrite whole days and are then locked, so they need every order the
+  // portal said it had.
+  const fullRead = expected !== null && arr.length >= expected;
   await browser.close();
 
   if (arr.length === 0) {
@@ -228,6 +328,7 @@ function pick(obj, name) {
         ? new Date(new Date(created).getTime() + 4 * 3600_000).toISOString().slice(0, 10)
         : null,
       order_no: String(m.seqNoStr || m.seqNo || ''),
+      shop_id: String(m.shopId || m.poiId || pick(o, 'shopId') || ''),
       long_order_id: String(m.orderViewIdStr || m.orderViewId || ''),
       created_at_utc: created,
       updated_at_utc: toIso(m.utime),
@@ -249,10 +350,15 @@ function pick(obj, name) {
   console.error(`keeta ${FROM}..${TO}: ${rows.length} orders, ${measured} with a measured prep time`);
 
   const webhook = (process.env.WEBHOOK_URL || '').trim();
-  if (webhook && rows.length) {
+  // Ledger first: a failed count write must not cost the night's Prep Time.
+  // KEETA_LEDGER=0 writes the counts only, for a backfill that should not
+  // also add months of orders to the Prep Time ledger.
+  const ledgerOn = BRAND.ledger && process.env.KEETA_LEDGER !== '0';
+  if (webhook && rows.length && ledgerOn) {
     let written = 0;
     for (let i = 0; i < rows.length; i += 200) {
-      const chunk = rows.slice(i, i + 200);
+      const chunk = rows.slice(i, i + 200).map((r) => ({
+        ...r, store: (((BRAND.shopBrand || {})[r.shop_id] || {}).ledgerPrefix ?? BRAND.ledgerPrefix) + r.store }));
       const res = await fetch(`${webhook}/api/aggregator/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -270,6 +376,11 @@ function pick(obj, name) {
   } else if (!webhook) {
     console.error('  (dry run — no WEBHOOK_URL, nothing written)');
   }
+  if (!fullRead) {
+    console.error(`  counts not written: read ${arr.length} of ${expected} orders`);
+    process.exit(1);
+  }
+  await postCounts(webhook, rows);
 
   process.stdout.write(JSON.stringify(rows, null, 2));
 })();

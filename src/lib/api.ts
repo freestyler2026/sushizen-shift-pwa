@@ -1,5 +1,6 @@
 // src/lib/api.ts
 import { getAuthHeaders, tryRefreshAccessToken } from "@/lib/auth";
+import { fetchRetriesOn401 } from "@/lib/fetch-refresh";
 
 export type ShiftRow = {
   work_date: string;
@@ -57,13 +58,21 @@ export function qs(params: Record<string, any>) {
   return s ? `?${s}` : "";
 }
 
-function _extractErrorMessage(text: string, status: number): string {
+export function _extractErrorMessage(text: string, status: number): string {
   try {
     const j = JSON.parse(text);
     const msg = j?.detail || j?.message;
     if (msg && typeof msg === "string") return msg;
   } catch {
     // not JSON
+  }
+  // An HTML page is the host's error page, not a message: Heroku's
+  // "Application Error" while the backend restarts after a deploy was printed
+  // on My Shift as raw markup (2026-10-27).
+  if (/^\s*</.test(text || "")) {
+    return status >= 500 || !status
+      ? "The server is restarting or unavailable. Please try again in a minute."
+      : `Request failed (HTTP ${status}).`;
   }
   return text || `HTTP ${status}`;
 }
@@ -84,7 +93,9 @@ export async function apiGet<T>(path: string, approverPin?: string): Promise<T> 
 
   let res = await doFetch();
   // Retry on 401 (expired token) — backend also returns 401 when no valid token is present
-  if (res.status === 401) {
+  // The global fetch wrapper (src/lib/fetch-refresh.ts) already refreshed and
+  // retried; doing it again here only doubled the calls.
+  if (res.status === 401 && !fetchRetriesOn401()) {
     const refreshed = await tryRefreshAccessToken();
     if (refreshed) res = await doFetch();
   }
@@ -98,6 +109,34 @@ export async function apiGet<T>(path: string, approverPin?: string): Promise<T> 
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+/** PATCH / DELETE with the same auth, refresh and error handling as apiPost. */
+async function apiSend<T>(method: "PATCH" | "DELETE", path: string, body?: unknown): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const doFetch = () =>
+    fetch(url, {
+      method,
+      credentials: "same-origin",
+      headers: getAuthHeaders(),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  let res = await doFetch();
+  if (res.status === 401 && !fetchRetriesOn401()) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) res = await doFetch();
+  }
+  const text = await res.text();
+  if (!res.ok) throw new Error(_extractErrorMessage(text, res.status));
+  return (text ? JSON.parse(text) : {}) as T;
+}
+
+export function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  return apiSend<T>("PATCH", path, body);
+}
+
+export function apiDelete<T>(path: string): Promise<T> {
+  return apiSend<T>("DELETE", path);
+}
+
 export async function apiPost<T>(path: string, body: any, approverPin?: string): Promise<T> {
   const url = `${API_BASE}${path}`;
   const doFetch = () =>
@@ -109,7 +148,9 @@ export async function apiPost<T>(path: string, body: any, approverPin?: string):
     });
 
   let res = await doFetch();
-  if (res.status === 401) {
+  // The global fetch wrapper (src/lib/fetch-refresh.ts) already refreshed and
+  // retried; doing it again here only doubled the calls.
+  if (res.status === 401 && !fetchRetriesOn401()) {
     const refreshed = await tryRefreshAccessToken();
     if (refreshed) res = await doFetch();
   }

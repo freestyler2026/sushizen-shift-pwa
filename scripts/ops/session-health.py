@@ -499,6 +499,52 @@ def last_run(workflow):
             "consecutive_failures": fails}
 
 
+# UrbanPiper Atlas: two logins, tokens kept on Heroku (the backend's daily Dubai
+# sync and the price monitor read them). They live 7 days and are not extended
+# by use. Checked by expiry and by one real read, so "alive" means it works.
+URBANPIPER = [
+    ("urbanpiper (Sushi ZEN)", "URBANPIPER_TOKEN"),
+    ("urbanpiper (Ramen ZEN & AVS)", "URBANPIPER_RAMEN_TOKEN"),
+]
+URBANPIPER_STOPS = "ドバイの店舗別売上・Talabat/Smiles の件数・価格監視"
+
+
+def urbanpiper_status(env):
+    """(left_hours or None, alive True/False/None, basis). The token stays in this
+    process; it is never printed."""
+    try:
+        tok = subprocess.run(["heroku", "config:get", env, "-a", "sushizen-shift-app"],
+                             capture_output=True, text=True, timeout=60).stdout.strip()
+    except Exception as e:
+        return None, None, f"heroku config:get が使えない（{e}）"
+    if not tok:
+        return None, False, f"{env} が Heroku に無い"
+    try:
+        import base64
+        p = tok.split(".")[1]
+        p += "=" * (-len(p) % 4)
+        info = json.loads(base64.urlsafe_b64decode(p))
+        exp = datetime.fromisoformat(str(info.get("expires_on"))[:19]).replace(tzinfo=timezone.utc)
+        left = (exp - NOW).total_seconds() / 3600
+    except Exception:
+        return None, None, "トークンを読めない"
+    if left <= 0:
+        return left, False, f"{exp:%m-%d %H:%M} UTC に失効"
+    try:
+        import urllib.request
+        body = json.dumps({"query": "{ biz { id } }"}).encode()
+        req = urllib.request.Request("https://atlas-backend.svc.urbanpiper.com/graphql", data=body,
+                                     headers={"Content-Type": "application/json",
+                                              "Authorization": f"Bearer {tok}"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            alive = r.status == 200 and "errors" not in json.loads(r.read().decode())
+    except Exception:
+        alive = False
+    if not alive:
+        return left, False, "期限は残っているが Atlas が受け付けない"
+    return left, True, f"{exp:%m-%d %H:%M} UTC まで・いま実際に通ることを確認"
+
+
 def main():
     dead, soon, ok, unknown = [], [], [], []
 
@@ -565,7 +611,23 @@ def main():
         else:
             ok.append((label, f"あと {left/24:.1f}日（{basis}）", platform, store))
 
+    for label, env in URBANPIPER:
+        left, alive, basis = urbanpiper_status(env)
+        if alive is False:
+            dead.append((label, f"{basis}（止まるもの: {URBANPIPER_STOPS}）", "urbanpiper", env))
+        elif alive is None or left is None:
+            unknown.append((label, basis, "urbanpiper", env))
+        elif left < 48:
+            # Weekly login: warn two days ahead so it can be done on a weekday.
+            soon.append((label, f"あと {left:.0f}時間（{basis}）", "urbanpiper", env))
+        else:
+            ok.append((label, f"あと {left/24:.1f}日（{basis}）", "urbanpiper", env))
+
     def how(platform, store):
+        if platform == "urbanpiper":
+            which = "sushi" if store == "URBANPIPER_TOKEN" else "ramen"
+            return [f"      node scripts/urbanpiper/setup-session.js {which}",
+                    "      ※ 開いたブラウザで本人がログインすると Heroku まで自動で入る"]
         return refresh_steps(platform, store, readers, cron_of)
 
     print(f"アグリゲーター・セッション状態  {NOW.astimezone().strftime('%Y-%m-%d %H:%M')}")
@@ -581,6 +643,9 @@ def main():
         print("🟡 まもなく切れる")
         for label, why, p, s in soon:
             print(f"   {label:<22} {why}")
+            if p == "urbanpiper":
+                for line in how(p, s):
+                    print(line)
         print()
     if ok:
         print("🟢 当面は問題なし")
