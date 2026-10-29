@@ -82,6 +82,8 @@ type CalcResult = {
   grace_waived_count?: number;
   grace_window?: string;
   grace_waived?: { staff_name: string; work_date: string; subtype: string }[];
+  shape_waived_count?: number;
+  shape_waived?: { staff_name: string; work_date: string; break_minutes: number; reason: string }[];
 };
 
 /** Somebody on this cycle's payroll who joined after it started and still
@@ -704,6 +706,26 @@ export default function DubaiPayrollPage() {
                                   {w.work_date} · {w.staff_name} · {w.subtype.replace(/_/g, " ")}
                                 </div>
                               ))}
+                            </div>
+                          </div>
+                        )}
+                        {!!res.shape_waived_count && res.shape_waived_count > 0 && (
+                          <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-900/15 p-2.5">
+                            <div className="text-xs font-semibold text-amber-300">
+                              {res.shape_waived_count} long {res.shape_waived_count === 1 ? "break" : "breaks"} not charged — the punches do not describe a break
+                            </div>
+                            {/* These days write no adjustment row at all, so this
+                                list is the only place they appear. The record is
+                                still wrong and only a person can correct it. */}
+                            <div className="mt-1.5 max-h-32 overflow-y-auto text-xs text-slate-400">
+                              {(res.shape_waived ?? []).map((w, i) => (
+                                <div key={i} className="tabular-nums">
+                                  {w.work_date} · {w.staff_name} · {w.break_minutes} min · {w.reason}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="mt-1.5 text-xs text-slate-500">
+                              Nothing is deducted for these. Ask the staff to press Break Out when they come back, and the branch manager to correct the day.
                             </div>
                           </div>
                         )}
