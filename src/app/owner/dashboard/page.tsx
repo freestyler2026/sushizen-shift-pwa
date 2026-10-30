@@ -9,12 +9,12 @@ import {
 
 type Tab = "daily" | "ledger" | "sales" | "ck" | "payouts" | "quality";
 const TABS: { key: Tab; label: string }[] = [
-  { key: "daily", label: "Daily" },
-  { key: "ledger", label: "Distributions" },
-  { key: "sales", label: "Sales" },
-  { key: "ck", label: "CK Billing" },
-  { key: "payouts", label: "Payouts" },
-  { key: "quality", label: "Store Performance" },
+  { key: "daily", label: "日次" },
+  { key: "ledger", label: "分配" },
+  { key: "sales", label: "売上" },
+  { key: "ck", label: "CK供給" },
+  { key: "payouts", label: "入金" },
+  { key: "quality", label: "運営品質" },
 ];
 
 // The owner's month is the calendar month (like their books, BIR and the mall rent).
@@ -36,12 +36,19 @@ function iso(d: Date) {
 }
 function cycleLabel(cycle: string) {
   const [a, b] = cycleBounds(cycle);
-  const fmt = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
-  const month = new Date(`${cycle}-01T00:00:00`).toLocaleDateString("en-PH", { month: "long", year: "numeric" });
-  return `${month} (${fmt(a)} – ${fmt(b)})`;
+  const fmt = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
+  const month = new Date(`${cycle}-01T00:00:00`).toLocaleDateString("ja-JP", { month: "long", year: "numeric" });
+  return `${month}（${fmt(a)}〜${fmt(b)}）`;
 }
-const php = (n: number | null | undefined, digits = 0) =>
+// Yen beside every peso amount, at today's rate (display only: the ledger is in pesos,
+// and the contract's own conversion -- the investment -- does not move with it).
+type Fx = { rate: number; rate_date: string; source: string; stale: boolean };
+let FX: Fx | null = null;
+const peso = (n: number | null | undefined, digits = 0) =>
   n == null ? "—" : `₱${Number(n).toLocaleString("en-PH", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+const yen = (n: number | null | undefined) =>
+  n == null || !FX ? "" : `（¥${Math.round(Number(n) * FX.rate).toLocaleString("ja-JP")}）`;
+const php = (n: number | null | undefined, digits = 0) => (n == null ? "—" : `${peso(n, digits)}${yen(n)}`);
 const num = (n: number | null | undefined, digits = 0) =>
   n == null ? "—" : Number(n).toLocaleString("en-PH", { maximumFractionDigits: digits });
 
@@ -65,12 +72,15 @@ export default function OwnerDashboard() {
     return out.reverse();
   }, [today]);
   const [cycle, setCycle] = useState(cycles[0]);
+  const [fx, setFx] = useState<Fx | null>(null);
+  FX = fx;
 
   useEffect(() => {
     const s = getOwnerSession();
     if (!s) { router.replace("/owner"); return; }
     setSession(s);
     setStore(s.stores[0]?.code || "");
+    ownerFetch<Fx>("/api/owner/fx").then(setFx).catch(() => setFx(null));
   }, [router]);
 
   const onAuthError = useCallback((e: unknown) => {
@@ -87,21 +97,21 @@ export default function OwnerDashboard() {
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Sushi ZEN · Owner Portal</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400">Sushi ZEN · オーナーポータル</p>
           <h1 className="mt-1 text-2xl font-bold text-white">{storeName}</h1>
-          <p className="text-sm text-slate-400">{session.displayName}</p>
+          <p className="text-sm text-slate-400">{session.displayName} 様</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {session.stores.length > 1 && (
-            <SelectDark value={store} onChange={setStore} aria-label="Store" className="min-w-[9rem]"
+            <SelectDark value={store} onChange={setStore} aria-label="店舗" className="min-w-[9rem]"
               options={session.stores.map((s) => ({ value: s.code, label: s.name }))} />
           )}
           {tab !== "ledger" && tab !== "daily" && (
-            <SelectDark value={cycle} onChange={setCycle} aria-label="Month" className="min-w-[14rem]"
+            <SelectDark value={cycle} onChange={setCycle} aria-label="月" className="min-w-[14rem]"
               options={cycles.map((c) => ({ value: c, label: cycleLabel(c) }))} />
           )}
           <button onClick={() => { clearOwnerSession(); router.replace("/owner"); }}
-            className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">Sign out</button>
+            className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">ログアウト</button>
         </div>
       </header>
 
@@ -113,6 +123,11 @@ export default function OwnerDashboard() {
           </button>
         ))}
       </nav>
+      {fx && (
+        <p className="mt-2 text-[11px] text-slate-500">
+          括弧内の円は参考表示です：1ペソ＝{fx.rate.toFixed(4)}円（{fx.rate_date}・{fx.source}{fx.stale ? "・最新レートを取得できなかったため直近のレート" : ""}）。契約上の金額はすべてペソです。
+        </p>
+      )}
 
       <main className="mt-6">
         {tab === "daily" && <DailyTab store={store} yesterday={yesterday} onAuthError={onAuthError} />}
@@ -136,7 +151,7 @@ function useOwnerData<T>(path: string, onAuthError: (e: unknown) => void) {
     ownerFetch<T>(path).then((d) => { if (live) setData(d); }).catch((e) => {
       if (!live) return;
       onAuthError(e);
-      setError(e instanceof Error ? e.message : "Could not load.");
+      setError(e instanceof Error ? e.message : "読み込めませんでした。");
     });
     return () => { live = false; };
   }, [path, onAuthError]);
@@ -146,14 +161,19 @@ function useOwnerData<T>(path: string, onAuthError: (e: unknown) => void) {
 function Card({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-      <p className="text-xs uppercase tracking-wider text-slate-400">{label}</p>
-      <p className="mt-1 text-xl font-bold tabular-nums text-white">{value}</p>
+      <p className="text-xs tracking-wider text-slate-400">{label}</p>
+      {value.includes("（¥") ? (
+        <>
+          <p className="mt-1 text-xl font-bold tabular-nums text-white">{value.split("（¥")[0]}</p>
+          <p className="text-xs tabular-nums text-slate-400">（¥{value.split("（¥")[1]}</p>
+        </>
+      ) : <p className="mt-1 text-xl font-bold tabular-nums text-white">{value}</p>}
       {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
     </div>
   );
 }
 function Loading({ error }: { error: string }) {
-  return error ? <p role="alert" className="text-sm text-red-300">{error}</p> : <p className="text-sm text-slate-400">Loading…</p>;
+  return error ? <p role="alert" className="text-sm text-red-300">{error}</p> : <p className="text-sm text-slate-400">読み込み中…</p>;
 }
 
 // ── Daily: how the store traded and ran yesterday ──────────────────────────
@@ -181,10 +201,11 @@ type Daily = {
   flags: string[];
   freshness: { pos: string | null; grab_orders: string | null; foodpanda_orders: string | null };
 };
-const CHANNEL_LABEL: Record<string, string> = { dine_in: "Dine-in / Beep", grab: "GrabFood", foodpanda: "foodpanda" };
-const CHECK_LABEL: Record<string, string> = { OPENING: "Opening", LUNCH_OPEN: "Lunch open", LUNCH_CLOSE: "Lunch close", BUSINESS_CLOSE: "Business close" };
+const CHANNEL_LABEL: Record<string, string> = { dine_in: "店内・Beep", grab: "GrabFood", foodpanda: "foodpanda" };
+const CHECK_LABEL: Record<string, string> = { OPENING: "開店", LUNCH_OPEN: "ランチ開始", LUNCH_CLOSE: "ランチ終了", BUSINESS_CLOSE: "閉店" };
+const CATEGORY_LABEL: Record<string, string> = { sushi: "寿司", general: "その他の料理", ramen: "ラーメン" };
 const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00`); x.setDate(x.getDate() + n); return iso(x); };
-const dayLabel = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+const dayLabel = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("ja-JP", { weekday: "short", month: "long", day: "numeric", year: "numeric" });
 const signed = (n: number | null | undefined) => (n == null ? "—" : `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}%`);
 
 function DailyTab({ store, yesterday, onAuthError }: { store: string; yesterday: string; onAuthError: (e: unknown) => void }) {
@@ -196,10 +217,10 @@ function DailyTab({ store, yesterday, onAuthError }: { store: string; yesterday:
   useEffect(() => { setShown(12); }, [day, store]);
   const nav = (
     <div className="flex items-center gap-2">
-      <button disabled={day <= first} onClick={() => setDay(addDays(day, -1))} aria-label="Previous day"
+      <button disabled={day <= first} onClick={() => setDay(addDays(day, -1))} aria-label="前の日"
         className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-30">‹</button>
       <p className="min-w-0 flex-1 text-center text-sm font-semibold text-white sm:flex-none">{dayLabel(day)}</p>
-      <button disabled={day >= yesterday} onClick={() => setDay(addDays(day, 1))} aria-label="Next day"
+      <button disabled={day >= yesterday} onClick={() => setDay(addDays(day, 1))} aria-label="次の日"
         className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-30">›</button>
     </div>
   );
@@ -213,30 +234,30 @@ function DailyTab({ store, yesterday, onAuthError }: { store: string; yesterday:
       {nav}
       {data.flags.length > 0 ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-          <p className="font-semibold">Worth a look</p>
+          <p className="font-semibold">確認しておきたい点</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-5">{data.flags.map((f) => <li key={f}>{f}</li>)}</ul>
         </div>
       ) : (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">Nothing out of the ordinary.</div>
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">特に変わった点はありません。</div>
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card label="Sales" value={php(s.net)} sub={data.sales_change == null ? "without VAT" : `${signed(data.sales_change)} vs ${new Date(`${data.compare_day}T00:00:00`).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" })}`} />
-        <Card label="Orders" value={num(s.orders)} sub={data.sales_week_ago ? `${num(data.sales_week_ago.total.orders)} a week before` : undefined} />
-        <Card label="Average ticket" value={php(s.avg_ticket)} />
-        <Card label="Month to date" value={php(data.mtd.total.net)} sub={data.prev_mtd ? `${signed(data.prev_mtd.total.net ? data.mtd.total.net / data.prev_mtd.total.net - 1 : null)} vs last month` : `${num(data.mtd.total.orders)} orders`} />
+        <Card label="売上（税抜）" value={php(s.net)} sub={data.sales_change == null ? undefined : `先週の${new Date(`${data.compare_day}T00:00:00`).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", weekday: "short" })}比 ${signed(data.sales_change)}`} />
+        <Card label="注文数" value={`${num(s.orders)}件`} sub={data.sales_week_ago ? `先週同曜日 ${num(data.sales_week_ago.total.orders)}件` : undefined} />
+        <Card label="客単価" value={php(s.avg_ticket)} />
+        <Card label="今月の累計" value={php(data.mtd.total.net)} sub={data.prev_mtd ? `先月同期比 ${signed(data.prev_mtd.total.net ? data.mtd.total.net / data.prev_mtd.total.net - 1 : null)}` : `${num(data.mtd.total.orders)}件`} />
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-sm font-semibold text-white">By channel</p>
+          <p className="text-sm font-semibold text-white">チャネル別</p>
           <div className="mt-3 space-y-2">
             {(["grab", "foodpanda", "dine_in"] as const).map((ch) => {
               const c = data.sales.channels[ch];
               const share = s.net ? c.net / s.net : 0;
               return (
                 <div key={ch} className="text-sm">
-                  <div className="flex justify-between text-slate-300"><span>{CHANNEL_LABEL[ch]}</span><span className="tabular-nums text-white">{php(c.net)} · {num(c.orders)} orders</span></div>
+                  <div className="flex justify-between text-slate-300"><span>{CHANNEL_LABEL[ch]}</span><span className="tabular-nums text-white">{php(c.net)} · {num(c.orders)}件</span></div>
                   <div className="mt-1 h-2 rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${(share * 100).toFixed(1)}%` }} /></div>
                 </div>
               );
@@ -244,11 +265,11 @@ function DailyTab({ store, yesterday, onAuthError }: { store: string; yesterday:
           </div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-sm font-semibold text-white">Delivery orders by hour</p>
+          <p className="text-sm font-semibold text-white">時間帯別のデリバリー注文</p>
           {hourlyShown.length ? (
             <div className="mt-2 h-48">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.hourly.map((h) => ({ hour: `${h.hour}:00`, GrabFood: hourlyShown.includes("grab") ? h.grab : 0, foodpanda: hourlyShown.includes("foodpanda") ? h.foodpanda : 0 }))}>
+                <BarChart data={data.hourly.map((h) => ({ hour: `${h.hour}時`, GrabFood: hourlyShown.includes("grab") ? h.grab : 0, foodpanda: hourlyShown.includes("foodpanda") ? h.foodpanda : 0 }))}>
                   <CartesianGrid stroke="#1e293b" vertical={false} />
                   <XAxis dataKey="hour" tick={{ fill: "#94a3b8", fontSize: 10 }} />
                   <YAxis allowDecimals={false} tick={{ fill: "#94a3b8", fontSize: 10 }} width={24} />
@@ -258,65 +279,65 @@ function DailyTab({ store, yesterday, onAuthError }: { store: string; yesterday:
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          ) : <p className="mt-2 text-sm text-slate-400">The order times for this day are still coming in.</p>}
+          ) : <p className="mt-2 text-sm text-slate-400">この日の注文時刻はまだ取り込み中です。</p>}
           {(["grab", "foodpanda"] as const).filter((p) => !data.hourly_coverage[p].complete && data.hourly_coverage[p].pos > 0).map((p) => (
-            <p key={p} className="mt-1 text-xs text-slate-500">{CHANNEL_LABEL[p]}: order times not complete yet ({data.hourly_coverage[p].ledger} of {data.hourly_coverage[p].pos}); shown once they are in.</p>
+            <p key={p} className="mt-1 text-xs text-slate-500">{CHANNEL_LABEL[p]}：注文時刻の取り込みが途中です（{data.hourly_coverage[p].pos}件中{data.hourly_coverage[p].ledger}件）。揃いしだい表示します。</p>
           ))}
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card label="GrabFood rating" value={q.grab_rating?.toFixed(2) ?? "—"} sub={q.grab_rating_week_ago != null ? `${q.grab_rating_week_ago.toFixed(2)} a week before` : undefined} />
-        <Card label="foodpanda rating" value={q.foodpanda_rating?.toFixed(2) ?? "—"} sub={q.foodpanda_rating_week_ago != null ? `${q.foodpanda_rating_week_ago.toFixed(2)} a week before` : undefined} />
-        <Card label="Preparation time" value={q.foodpanda_prep_min != null ? `${q.foodpanda_prep_min} min` : q.grab_prep_median_min != null ? `${q.grab_prep_median_min} min` : "—"} sub={q.foodpanda_prep_min != null ? "foodpanda average" : q.grab_prep_median_min != null ? "GrabFood median" : "not in yet"} />
-        <Card label="Time offline" value={`${q.grab_offline_min ?? "—"} / ${q.foodpanda_offline_min ?? "—"} min`} sub="GrabFood / foodpanda" />
-        <Card label="Team on duty" value={`${data.team.people} people`} sub={`${data.team.hours} hours${data.team.still_clocked_in ? ` · ${data.team.still_clocked_in} not clocked out` : ""}`} />
-        <Card label="CK deliveries received" value={String(data.ck.notes)} sub={`${data.ck.lines} lines`} />
-        <Card label="Customer contacts" value={q.foodpanda_complaints != null ? `${q.foodpanda_complaints}%` : "—"} sub="of foodpanda orders" />
-        <Card label="Orders rejected" value={q.foodpanda_rejection_pct != null ? `${q.foodpanda_rejection_pct}%` : "—"} sub="foodpanda" />
+        <Card label="GrabFood の評価" value={q.grab_rating?.toFixed(2) ?? "—"} sub={q.grab_rating_week_ago != null ? `1週間前 ${q.grab_rating_week_ago.toFixed(2)}` : undefined} />
+        <Card label="foodpanda の評価" value={q.foodpanda_rating?.toFixed(2) ?? "—"} sub={q.foodpanda_rating_week_ago != null ? `1週間前 ${q.foodpanda_rating_week_ago.toFixed(2)}` : undefined} />
+        <Card label="調理時間" value={q.foodpanda_prep_min != null ? `${q.foodpanda_prep_min}分` : q.grab_prep_median_min != null ? `${q.grab_prep_median_min}分` : "—"} sub={q.foodpanda_prep_min != null ? "foodpanda の平均" : q.grab_prep_median_min != null ? "GrabFood の中央値" : "未取り込み"} />
+        <Card label="オフライン時間" value={`${q.grab_offline_min ?? "—"} / ${q.foodpanda_offline_min ?? "—"}分`} sub="GrabFood / foodpanda" />
+        <Card label="出勤スタッフ" value={`${data.team.people}人`} sub={`合計${data.team.hours}時間${data.team.still_clocked_in ? `・退勤未打刻 ${data.team.still_clocked_in}人` : ""}`} />
+        <Card label="CKからの納品" value={`${data.ck.notes}件`} sub={`${data.ck.lines}品目`} />
+        <Card label="お客様からの問い合わせ" value={q.foodpanda_complaints != null ? `${q.foodpanda_complaints}%` : "—"} sub="foodpanda 注文に対して" />
+        <Card label="注文の拒否" value={q.foodpanda_rejection_pct != null ? `${q.foodpanda_rejection_pct}%` : "—"} sub="foodpanda" />
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-        <p className="text-sm font-semibold text-white">Store checks</p>
+        <p className="text-sm font-semibold text-white">店舗チェック</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {data.checks.map((c) => {
             const tone = c.status === "MISSING" ? "border-red-500/40 text-red-200" : c.status.includes("ISSUE") ? "border-amber-500/40 text-amber-200" : c.confirmed ? "border-emerald-500/40 text-emerald-200" : "border-sky-500/40 text-sky-200";
-            const text = c.status === "MISSING" ? "not submitted" : c.status.includes("ISSUE") ? "issue found" : c.confirmed ? "done, confirmed" : "done, being reviewed";
-            return <span key={c.type} className={`rounded-full border px-3 py-1 text-xs ${tone}`}>{CHECK_LABEL[c.type] || c.type}: {text}</span>;
+            const text = c.status === "MISSING" ? "未提出" : c.status.includes("ISSUE") ? "問題あり" : c.confirmed ? "実施・確認済み" : "実施・確認中";
+            return <span key={c.type} className={`rounded-full border px-3 py-1 text-xs ${tone}`}>{CHECK_LABEL[c.type] || c.type}：{text}</span>;
           })}
         </div>
-        <p className="mt-2 text-xs text-slate-500">The team checks the delivery tablets and the store at opening, lunch and closing; back office reviews each one.</p>
+        <p className="mt-2 text-xs text-slate-500">開店・ランチ・閉店のたびに、スタッフがデリバリー端末と店舗の状態を確認し、本部（バックオフィス）が一件ずつ確認しています。</p>
       </div>
 
       <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm font-semibold text-white">Product scoring <span className="font-normal text-slate-400">— every dish photo the kitchen sends is scored</span></p>
-          <p className="text-sm tabular-nums text-slate-300">{data.product.count} photos · average {data.product.avg ?? "—"}{data.product.avg_last_7_days != null && <span className="text-slate-500"> (previous 7 days {data.product.avg_last_7_days})</span>}</p>
+          <p className="text-sm font-semibold text-white">料理写真の評価 <span className="font-normal text-slate-400">— 厨房が送る料理写真をすべて採点しています</span></p>
+          <p className="text-sm tabular-nums text-slate-300">{data.product.count}枚・平均{data.product.avg ?? "—"}点{data.product.avg_last_7_days != null && <span className="text-slate-500">（直前7日間 {data.product.avg_last_7_days}点）</span>}</p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           {Object.entries(data.product.by_grade).sort().map(([g, n]) => (
-            <span key={g} className={`rounded-full border px-2.5 py-0.5 ${g === "A" ? "border-emerald-500/40 text-emerald-200" : g === "C" ? "border-amber-500/40 text-amber-200" : "border-white/15 text-slate-300"}`}>Grade {g}: {n}</span>
+            <span key={g} className={`rounded-full border px-2.5 py-0.5 ${g === "A" ? "border-emerald-500/40 text-emerald-200" : g === "C" ? "border-amber-500/40 text-amber-200" : "border-white/15 text-slate-300"}`}>{g}評価：{n}枚</span>
           ))}
-          {Object.entries(data.product.by_category).map(([c, v]) => <span key={c} className="rounded-full border border-white/10 px-2.5 py-0.5 text-slate-400">{c}: {v}</span>)}
+          {Object.entries(data.product.by_category).map(([c, v]) => <span key={c} className="rounded-full border border-white/10 px-2.5 py-0.5 text-slate-400">{CATEGORY_LABEL[c] || c}：{v}点</span>)}
           {data.product.count > 0 && (
-            <button onClick={() => setLowestFirst(!lowestFirst)} className="ml-auto rounded-lg border border-white/10 px-2.5 py-0.5 text-slate-300 hover:bg-white/5">{lowestFirst ? "Show in time order" : "Lowest scores first"}</button>
+            <button onClick={() => setLowestFirst(!lowestFirst)} className="ml-auto rounded-lg border border-white/10 px-2.5 py-0.5 text-slate-300 hover:bg-white/5">{lowestFirst ? "時刻順に並べる" : "点数の低い順に並べる"}</button>
           )}
         </div>
-        {data.product.count === 0 ? <p className="text-sm text-slate-400">No dish photos scored this day.</p> : (
+        {data.product.count === 0 ? <p className="text-sm text-slate-400">この日に採点された料理写真はありません。</p> : (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {items.slice(0, shown).map((it) => <ScorePhoto key={it.id} store={store} item={it} />)}
             </div>
             {shown < items.length && (
-              <button onClick={() => setShown(shown + 12)} className="w-full rounded-lg border border-white/10 py-2 text-sm text-slate-300 hover:bg-white/5">Show more ({items.length - shown} more)</button>
+              <button onClick={() => setShown(shown + 12)} className="w-full rounded-lg border border-white/10 py-2 text-sm text-slate-300 hover:bg-white/5">もっと見る（残り{items.length - shown}枚）</button>
             )}
           </>
         )}
       </div>
 
       <p className="text-xs text-slate-500">
-        Sales here are from the store&apos;s till (StoreHub), which records every channel by the next morning, without VAT. The monthly figures on the Distributions tab use each platform&apos;s own settlement and can differ by a few percent. Profit is not shown day by day: it is only right once the month is closed.
-        {" "}Data in: till to {data.freshness.pos ?? "—"}, GrabFood orders to {data.freshness.grab_orders ?? "—"}, foodpanda orders to {data.freshness.foodpanda_orders ?? "—"}.
+        この画面の売上は店舗のレジ（StoreHub）の記録で、全チャネルが翌朝までにそろいます（税抜）。「分配」タブの月次の数字は各プラットフォームの精算明細を使うため、数%の差が出ることがあります。利益は月を締めないと正確に出せないため、日次では表示していません。
+        {" "}データの取り込み状況：レジ {data.freshness.pos ?? "—"}まで、GrabFood の注文 {data.freshness.grab_orders ?? "—"}まで、foodpanda の注文 {data.freshness.foodpanda_orders ?? "—"}まで。
       </p>
     </section>
   );
@@ -337,16 +358,17 @@ function ScorePhoto({ store, item }: { store: string; item: ScoreItem }) {
   return (
     <button onClick={() => setOpen(!open)} className="overflow-hidden rounded-lg border border-white/10 bg-slate-900 text-left">
       <div className="relative aspect-square bg-slate-800">
-        {url ? <img src={url} alt={`${item.food_category} dish, score ${item.total_score}`} className="h-full w-full object-cover" />
-          : <div className="flex h-full items-center justify-center text-xs text-slate-500">{failed ? "Photo not available" : "Loading…"}</div>}
+        {url ? <img src={url} alt={`${CATEGORY_LABEL[item.food_category] || item.food_category}の料理写真、${item.total_score}点`} className="h-full w-full object-cover" />
+          : <div className="flex h-full items-center justify-center text-xs text-slate-500">{failed ? "写真を表示できません" : "読み込み中…"}</div>}
         <span className={`absolute left-2 top-2 rounded px-1.5 py-0.5 text-xs font-bold ${tone}`}>{item.grade} {item.total_score}</span>
       </div>
       <div className="p-2 text-xs text-slate-400">
-        <p>{item.at ?? ""} · {item.food_category}</p>
+        <p>{item.at ?? ""} · {CATEGORY_LABEL[item.food_category] || item.food_category}</p>
         {open && (
           <div className="mt-1 space-y-1">
             <p className="text-slate-300">{item.feedback}</p>
-            <p className="text-[11px]">Shape {item.score_shape} · Size {item.score_size_consistency} · Completion {item.score_completion} · Topping {item.score_topping} · Cut {item.score_cut_uniformity} · Arrangement {item.score_arrangement} · Portion {item.score_portioning}</p>
+            <p className="text-[10px] text-slate-500">（AIによる講評・英語）</p>
+            <p className="text-[11px]">形 {item.score_shape}・大きさの均一さ {item.score_size_consistency}・仕上がり {item.score_completion}・トッピング {item.score_topping}・カット {item.score_cut_uniformity}・盛り付け {item.score_arrangement}・量 {item.score_portioning}</p>
           </div>
         )}
       </div>
@@ -378,7 +400,7 @@ type Ledger = {
   fl: { month: string; fl_ratio: number | null; over: boolean; streak: number }[];
 };
 
-const monthName = (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString("en-PH", { month: "short", year: "numeric" });
+const monthName = (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString("ja-JP", { month: "long", year: "numeric" });
 const pct = (n: number | null | undefined, d = 1) => (n == null ? "—" : `${(n * 100).toFixed(d)}%`);
 
 function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unknown) => void }) {
@@ -395,34 +417,34 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap gap-x-8 gap-y-1 text-sm text-slate-300">
-        <span>Investment <b className="text-white">{php(c.investment_php)}</b> <span className="text-slate-500">(¥{num(c.investment_jpy)} at the BSP rate of {c.fx_date}, ₱{c.fx_php_per_jpy} per yen)</span></span>
-        <span>Opening date <b className="text-white">{c.opening_date}</b></span>
-        <span>Term ends <b className="text-white">{c.term_end}</b> · {c.months_left} months left</span>
+        <span>出資額 <b className="text-white">{peso(c.investment_php)}</b> <span className="text-slate-500">（¥{num(c.investment_jpy)}を{c.fx_date}のBSPレート 1円＝₱{c.fx_php_per_jpy} で換算した契約上の金額）</span></span>
+        <span>開業日 <b className="text-white">{c.opening_date}</b></span>
+        <span>契約期間の終了 <b className="text-white">{c.term_end}</b>・残り{c.months_left}か月</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card label="Distributions paid" value={php(k.paid_to_date, 2)} sub={`${data.payments.length} payment(s)`} />
-        <Card label="Recovery rate" value={pct(k.recovery_rate)} sub="paid ÷ investment, in pesos" />
-        <Card label="Due, not yet paid" value={php(k.due_not_paid, 2)} sub="interim distribution" />
-        <Card label="Last month published" value={k.last_month ? monthName(k.last_month) : "—"} />
+        <Card label="お支払い済みの分配" value={php(k.paid_to_date, 2)} sub={`${data.payments.length}回`} />
+        <Card label="回収率" value={pct(k.recovery_rate)} sub="お支払い済み ÷ 出資額（ペソ）" />
+        <Card label="お支払い予定（未払い）" value={php(k.due_not_paid, 2)} sub="期中分配" />
+        <Card label="最新の確定月" value={k.last_month ? monthName(k.last_month) : "—"} />
       </div>
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-300">
-          No month has been published yet. HQ closes each month once its bills and payroll are in, and publishes it here — usually by the 20th of the following month.
+          まだ確定した月はありません。本部は、請求書と給与がそろった時点で月を締めてここに公開します（通常は翌月20日ごろ）。
         </div>
       ) : (
         <>
           {yearLast && (
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-sm font-semibold text-white">Preferred distribution, {yearLast.financial_year}</p>
-                <p className="text-sm tabular-nums text-slate-300">{php(yearLast.ytd_preferred, 2)} of {php(yearLast.preferred_cap_year, 2)}</p>
+                <p className="text-sm font-semibold text-white">{yearLast.financial_year}年度の優先分配</p>
+                <p className="text-sm tabular-nums text-slate-300">{php(yearLast.ytd_preferred, 2)} ／ 上限 {php(yearLast.preferred_cap_year, 2)}</p>
               </div>
               <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10">
                 <div className="h-full rounded-full bg-emerald-400" style={{ width: `${(prefUsed * 100).toFixed(1)}%` }} />
               </div>
-              <p className="mt-2 text-xs text-slate-400">Up to 30% a year of your investment, counted over the financial year (January to December; {yearLast.financial_year === 2026 ? "2026 runs October to December, so its share is three months" : "a full year"}). What is not reached in a year is not carried into the next. Profit beyond it is shared {100 - c.excess_owner_pct}% Company / {c.excess_owner_pct}% you.</p>
+              <p className="mt-2 text-xs text-slate-400">出資額の年30%までを、会計年度（1月〜12月）ごとに計算します（{yearLast.financial_year === 2026 ? "2026年度は10月〜12月の3か月分" : "1年分"}）。その年に届かなかった分は翌年に繰り越しません。上限を超えた利益は、会社{100 - c.excess_owner_pct}%・オーナー様{c.excess_owner_pct}%で分けます。</p>
             </div>
           )}
 
@@ -431,14 +453,14 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
             {rows.map((r) => (
               <div key={r.month} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm tabular-nums">
                 <div className="flex items-baseline justify-between">
-                  <p className="font-semibold text-white">{monthName(r.month)}{r.revision > 1 && <span className="ml-1 text-[10px] text-amber-300">rev {r.revision}</span>}</p>
-                  <p className="text-xs text-slate-400">tax {(r.corp_tax_rate * 100).toFixed(0)}% {r.corp_tax_basis === "filed" ? "as filed" : "provisional"}</p>
+                  <p className="font-semibold text-white">{monthName(r.month)}{r.revision > 1 && <span className="ml-1 text-[10px] text-amber-300">訂正{r.revision - 1}回</span>}</p>
+                  <p className="text-xs text-slate-400">法人税 {(r.corp_tax_rate * 100).toFixed(0)}%（{r.corp_tax_basis === "filed" ? "申告済み" : "暫定"}）</p>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
                   {([
-                    ["Net sales", r.net_sales], ["Store costs", r.store_costs], ["Company fees", r.foco_fees],
-                    ["Operating profit", r.operating_profit], ["Corporate tax", r.corp_tax], ["Renewal reserve", r.capex_reserve],
-                    ["After-tax profit", r.after_tax_profit],
+                    ["純売上", r.net_sales], ["店舗費用", r.store_costs], ["会社へのフィー", r.foco_fees],
+                    ["営業利益", r.operating_profit], ["法人税", r.corp_tax], ["設備更新積立", r.capex_reserve],
+                    ["税引後利益", r.after_tax_profit],
                   ] as [string, number][]).map(([k, v]) => (
                     <Fragment key={k}>
                       <dt className="text-slate-400">{k}</dt>
@@ -447,12 +469,12 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
                   ))}
                 </dl>
                 <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
-                  <div><p className="text-xs text-slate-400">Payable, year to date</p><p className="font-semibold text-white">{php(r.ytd_payable, 2)}</p>
-                    {r.year_end_due != null && r.year_end_due > 0 && <p className="text-[11px] text-emerald-300">year-end settlement {php(r.year_end_due, 2)}</p>}</div>
-                  <div className="text-right"><p className="text-xs text-slate-400">Paid, year to date</p><p className="font-semibold text-white">{php(r.ytd_paid, 2)}</p>
-                    {r.overpayment_carried_in > 0 && <p className="text-[11px] text-amber-300">incl. {php(r.overpayment_carried_in, 2)} overpaid last year</p>}</div>
+                  <div><p className="text-xs text-slate-400">年度累計のお支払い額</p><p className="font-semibold text-white">{php(r.ytd_payable, 2)}</p>
+                    {r.year_end_due != null && r.year_end_due > 0 && <p className="text-[11px] text-emerald-300">年度末の精算 {php(r.year_end_due, 2)}</p>}</div>
+                  <div className="text-right"><p className="text-xs text-slate-400">年度累計のお支払い済み</p><p className="font-semibold text-white">{php(r.ytd_paid, 2)}</p>
+                    {r.overpayment_carried_in > 0 && <p className="text-[11px] text-amber-300">前年度の払い過ぎ {php(r.overpayment_carried_in, 2)} を含む</p>}</div>
                 </div>
-                <p className="mt-2 text-[11px] text-slate-500">Fees: CK {php(r.ck_supply_fee)} · Operating {php(r.operating_fee)} · Royalty {php(r.royalty)}</p>
+                <p className="mt-2 text-[11px] text-slate-500">フィー内訳：食材供給 {php(r.ck_supply_fee)}・運営 {php(r.operating_fee)}・ロイヤリティ {php(r.royalty)}</p>
               </div>
             ))}
           </div>
@@ -461,35 +483,35 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
             <table className="w-full min-w-[980px] text-sm tabular-nums">
               <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
                 <tr>
-                  <th className="px-3 py-2">Month</th><th className="px-3 py-2 text-right">Net sales</th>
-                  <th className="px-3 py-2 text-right">Store costs</th><th className="px-3 py-2 text-right">Company fees</th>
-                  <th className="px-3 py-2 text-right">Operating profit</th><th className="px-3 py-2 text-right">Corporate tax</th>
-                  <th className="px-3 py-2 text-right">Renewal reserve</th><th className="px-3 py-2 text-right">After-tax profit</th>
-                  <th className="px-3 py-2 text-right">Payable, year to date</th><th className="px-3 py-2 text-right">Paid, year to date</th>
+                  <th className="px-3 py-2">月</th><th className="px-3 py-2 text-right">純売上</th>
+                  <th className="px-3 py-2 text-right">店舗費用</th><th className="px-3 py-2 text-right">会社へのフィー</th>
+                  <th className="px-3 py-2 text-right">営業利益</th><th className="px-3 py-2 text-right">法人税</th>
+                  <th className="px-3 py-2 text-right">設備更新積立</th><th className="px-3 py-2 text-right">税引後利益</th>
+                  <th className="px-3 py-2 text-right">年度累計のお支払い額</th><th className="px-3 py-2 text-right">年度累計のお支払い済み</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.month} className="border-t border-white/5 align-top">
-                    <td className="px-3 py-2 text-white">{monthName(r.month)}{r.revision > 1 && <span className="ml-1 text-[10px] text-amber-300">rev {r.revision}</span>}</td>
+                    <td className="px-3 py-2 text-white">{monthName(r.month)}{r.revision > 1 && <span className="ml-1 text-[10px] text-amber-300">訂正{r.revision - 1}回</span>}</td>
                     <td className="px-3 py-2 text-right">{php(r.net_sales)}</td>
                     <td className="px-3 py-2 text-right">{php(r.store_costs)}</td>
-                    <td className="px-3 py-2 text-right" title={`Food Supply Fee ${php(r.ck_supply_fee)} · Operating Fee ${php(r.operating_fee)} · Royalty ${php(r.royalty)}`}>
+                    <td className="px-3 py-2 text-right" title={`食材供給フィー ${php(r.ck_supply_fee)}・運営フィー ${php(r.operating_fee)}・ロイヤリティ ${php(r.royalty)}`}>
                       {php(r.foco_fees)}
-                      <div className="text-[11px] text-slate-500">CK {php(r.ck_supply_fee)} · Op {php(r.operating_fee)} · Roy {php(r.royalty)}</div>
+                      <div className="text-[11px] text-slate-500">食材供給 {php(r.ck_supply_fee)}・運営 {php(r.operating_fee)}・ロイヤリティ {php(r.royalty)}</div>
                     </td>
                     <td className={`px-3 py-2 text-right ${r.operating_profit < 0 ? "text-red-300" : ""}`}>{php(r.operating_profit)}</td>
-                    <td className="px-3 py-2 text-right">{php(r.corp_tax)}<div className="text-[11px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}% {r.corp_tax_basis === "filed" ? "as filed" : "provisional"}</div></td>
+                    <td className="px-3 py-2 text-right">{php(r.corp_tax)}<div className="text-[11px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}%（{r.corp_tax_basis === "filed" ? "申告済み" : "暫定"}）</div></td>
                     <td className="px-3 py-2 text-right">{php(r.capex_reserve)}</td>
                     <td className={`px-3 py-2 text-right ${r.after_tax_profit < 0 ? "text-red-300" : "text-white"}`}>{php(r.after_tax_profit)}</td>
                     <td className="px-3 py-2 text-right font-semibold text-white">
                       {php(r.ytd_payable, 2)}
-                      {r.year_end_due != null && r.year_end_due > 0 && <div className="text-[11px] font-normal text-emerald-300">year-end settlement {php(r.year_end_due, 2)}</div>}
+                      {r.year_end_due != null && r.year_end_due > 0 && <div className="text-[11px] font-normal text-emerald-300">年度末の精算 {php(r.year_end_due, 2)}</div>}
                     </td>
                     <td className="px-3 py-2 text-right">
                       {php(r.ytd_paid, 2)}
-                      {r.paid ? <div className="text-[11px] text-slate-500">this month {php(r.paid, 2)}</div> : null}
-                      {r.overpayment_carried_in > 0 && <div className="text-[11px] text-amber-300">incl. {php(r.overpayment_carried_in, 2)} overpaid last year</div>}
+                      {r.paid ? <div className="text-[11px] text-slate-500">今月のお支払い {php(r.paid, 2)}</div> : null}
+                      {r.overpayment_carried_in > 0 && <div className="text-[11px] text-amber-300">前年度の払い過ぎ {php(r.overpayment_carried_in, 2)} を含む</div>}
                     </td>
                   </tr>
                 ))}
@@ -499,11 +521,11 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-              <p className="text-sm font-semibold text-white">FL ratio <span className="font-normal text-slate-400">(food + Food Supply Fee + store payroll) ÷ net sales</span></p>
+              <p className="text-sm font-semibold text-white">FL比率 <span className="font-normal text-slate-400">（食材費＋食材供給フィー＋店舗人件費）÷ 純売上</span></p>
               <div className="mt-3 space-y-1.5">
                 {data.fl.map((f) => (
                   <div key={f.month} className="flex items-center gap-3 text-sm">
-                    <span className="w-20 text-slate-400">{monthName(f.month)}</span>
+                    <span className="w-24 text-slate-400">{monthName(f.month)}</span>
                     <div className="relative h-2 flex-1 rounded-full bg-white/10">
                       <div className={`h-full rounded-full ${f.over ? "bg-amber-400" : "bg-sky-400"}`} style={{ width: `${Math.min(100, (f.fl_ratio || 0) * 100)}%` }} />
                       <div className="absolute inset-y-[-3px] w-px bg-white/60" style={{ left: "55%" }} title="55%" />
@@ -513,21 +535,21 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
                 ))}
               </div>
               <p className="mt-2 text-xs text-slate-400">
-                The line is 55%. In a month above it the Company explains the cause and the plan in the next month&apos;s report; after three months in a row it gives you a written remediation plan (Article 9.4).
-                {flLast?.streak >= 3 && <b className="text-amber-300"> Three months in a row above 55%: a written plan is due.</b>}
+                線は55%です。超えた月は、原因と改善方針を翌月の報告でご説明します。3か月続けて超えた場合は、書面で改善計画をお出しします（契約第9条4項）。
+                {flLast?.streak >= 3 && <b className="text-amber-300"> 3か月連続で55%を超えています：書面の改善計画をお出しします。</b>}
               </p>
             </div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
-              <p className="font-semibold text-white">Company fees (Schedule 1)</p>
+              <p className="font-semibold text-white">会社へのフィー（契約 Schedule 1）</p>
               <ul className="mt-2 space-y-1">
-                <li>Food Supply Fee: {c.food_supply_fee_pct}% of the Supply Cost — line by line on the CK Billing tab</li>
-                <li>Operating Fee: {c.operating_fee_pct}% of net sales</li>
-                <li>Franchise Royalty: {c.royalty_pct}% of net sales</li>
-                <li>Equipment Renewal Reserve: {c.capex_reserve_pct}% of net sales, kept for the store&apos;s repairs</li>
+                <li>食材供給フィー：供給原価の{c.food_supply_fee_pct}%（明細は「CK供給」タブ）</li>
+                <li>運営フィー：純売上の{c.operating_fee_pct}%</li>
+                <li>フランチャイズ・ロイヤリティ：純売上の{c.royalty_pct}%</li>
+                <li>設備更新積立：純売上の{c.capex_reserve_pct}%（店舗の修繕のために積み立て）</li>
               </ul>
-              <p className="mt-2 text-xs text-slate-400">No other head-office charge is made to the store (Article 7.7). You may have the accounts and the Supply Cost checked by an independent accountant once a year at your own cost (Article 9.6).</p>
+              <p className="mt-2 text-xs text-slate-400">これ以外の本部費用を店舗に負担させることはありません（契約第7条7項）。年1回、オーナー様のご負担で、独立した会計士に損益と供給原価を検証させることができます（契約第9条6項）。</p>
               {k.buyout_reference != null && (
-                <p className="mt-2 text-xs text-slate-400">Buyout reference (Article 12.3): {php(k.buyout_reference, 2)} — the last twelve months&apos; distributions × 0.8. A right of the Company, not an obligation, and not part of the recovery rate.</p>
+                <p className="mt-2 text-xs text-slate-400">買取価格の参考値（契約第12条3項）：{php(k.buyout_reference, 2)}（直近12か月の分配×0.8）。会社の権利であって義務ではなく、回収率には含めません。</p>
               )}
             </div>
           </div>
@@ -535,11 +557,11 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
       )}
 
       <ul className="list-disc space-y-1 pl-5 text-xs text-slate-400">
-        <li>Amounts are in pesos. The recovery rate is distributions paid ÷ your investment in pesos ({php(c.investment_php)}); yen figures are for reference only.</li>
-        <li>Distributions are after Philippine corporate income tax and before any tax on you: withholding tax on the distribution and tax where you live are not included, so what you receive can be lower.</li>
-        <li>Corporate tax is worked out each month at 25% on the year so far. When the company files its return for the year, the year is worked out again at the rate filed (20% if the company qualifies) and the difference is settled.</li>
-        <li>Monthly distributions are interim, on unaudited accounts: what is payable on the year so far is at most 70% of the year&apos;s profit so far. When the year&apos;s accounts are final it is settled: the rest of the year&apos;s entitlement is paid, or an overpayment comes off the next distributions (Schedule 2, Articles 3 and 4).</li>
-        <li>Projected yields and recovery are targets, not guarantees. Each month is shown once HQ has closed it; a corrected month shows its revision number.</li>
+        <li>金額はペソが基準です。回収率は、お支払い済みの分配 ÷ 出資額（ペソ、{peso(c.investment_php)}）で計算します。括弧内の円はその日のレートによる参考表示です。</li>
+        <li>分配はフィリピンの法人税を差し引いた後、オーナー様ご自身にかかる税を差し引く前の金額です。分配にかかる源泉税や、お住まいの国での課税は含まれていないため、実際の受取額はこれより少なくなることがあります。</li>
+        <li>法人税は、毎月その年度の累計に25%をかけて暫定で計算します。会社が年度の申告をした時点で、申告した税率（条件を満たせば20%）で年度全体を計算し直し、差額を精算します。</li>
+        <li>毎月の分配は監査前の月次決算にもとづく期中分配で、年度累計の利益の70%が上限です。年度の決算が確定した時点で精算し、残りをお支払いするか、払い過ぎは翌期以降の分配から差し引きます（契約 Schedule 2 第3条・第4条）。</li>
+        <li>利回りや回収は目標であり、保証ではありません。各月は本部が締めてから表示し、訂正した月には訂正回数を表示します。</li>
       </ul>
     </section>
   );
@@ -557,19 +579,19 @@ function SalesTab({ store, from, to, onAuthError }: { store: string; from: strin
   const { data, error } = useOwnerData<Sales>(`/api/owner/sales?store=${store}&date_from=${from}&date_to=${to}`, onAuthError);
   if (!data) return <Loading error={error} />;
   const t = data.totals;
-  const chart = data.days.map((d) => ({ day: d.day.slice(5), GrabFood: d.grab_net, foodpanda: d.foodpanda_net, "Dine-in / Beep": d.store_net }));
+  const chart = data.days.map((d) => ({ day: d.day.slice(5), GrabFood: d.grab_net, foodpanda: d.foodpanda_net, "店内・Beep": d.store_net }));
   return (
     <section className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card label="Sales" value={php(t.total_net as number)} sub={`${from} – ${to}`} />
-        <Card label="Orders" value={num(t.total_orders as number)} />
-        <Card label="Average ticket" value={php(t.avg_ticket as number)} />
-        <Card label="Days" value={String(data.days.length)} />
+        <Card label="売上（税抜）" value={php(t.total_net as number)} sub={`${from}〜${to}`} />
+        <Card label="注文数" value={`${num(t.total_orders as number)}件`} />
+        <Card label="客単価" value={php(t.avg_ticket as number)} />
+        <Card label="日数" value={`${data.days.length}日`} />
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Card label="GrabFood" value={php(t.grab_net as number)} sub={`${num(t.grab_orders as number)} orders · gross ${php(t.grab_gross as number)}`} />
-        <Card label="foodpanda" value={php(t.foodpanda_net as number)} sub={`${num(t.foodpanda_orders as number)} orders · gross ${php(t.foodpanda_gross as number)}`} />
-        <Card label="Dine-in / Beep" value={php(t.store_net as number)} sub={`${num(t.store_orders as number)} orders`} />
+        <Card label="GrabFood" value={php(t.grab_net as number)} sub={`${num(t.grab_orders as number)}件・割引前 ${peso(t.grab_gross as number)}`} />
+        <Card label="foodpanda" value={php(t.foodpanda_net as number)} sub={`${num(t.foodpanda_orders as number)}件・割引前 ${peso(t.foodpanda_gross as number)}`} />
+        <Card label="店内・Beep" value={php(t.store_net as number)} sub={`${num(t.store_orders as number)}件`} />
       </div>
       <div className="h-72 rounded-xl border border-white/10 bg-white/[0.03] p-3">
         <ResponsiveContainer width="100%" height="100%">
@@ -581,11 +603,11 @@ function SalesTab({ store, from, to, onAuthError }: { store: string; from: strin
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="GrabFood" stackId="a" fill="#10b981" />
             <Bar dataKey="foodpanda" stackId="a" fill="#ec4899" />
-            <Bar dataKey="Dine-in / Beep" stackId="a" fill="#38bdf8" />
+            <Bar dataKey="店内・Beep" stackId="a" fill="#38bdf8" />
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-xs text-slate-500">Net Sales as in your agreement: without VAT, after discounts the store funds; foodpanda orders refunded to the customer are left out. Senior citizen and PWD sales are VAT-exempt and are not divided by 1.12. &quot;Gross&quot; is what the orders came to before the store-funded discount, VAT included.</p>
+      <p className="text-xs text-slate-500">契約上の純売上です：VAT抜き、店舗が負担した割引を差し引いた後の金額で、お客様に返金した foodpanda の注文は除いています。シニア・PWDの売上はVAT免税のため1.12で割っていません。「割引前」は店舗負担の割引を差し引く前の注文金額（VAT込み）です。</p>
     </section>
   );
 }
@@ -606,55 +628,54 @@ function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; on
   return (
     <section className="space-y-6">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Card label="CK cost" value={php(t.cost, 2)} sub={`${data.confirmed_notes} confirmed deliveries`} />
-        <Card label={`Food Supply Fee ${data.margin_pct}%`} value={php(t.margin, 2)} />
-        <Card label="CK cost + Food Supply Fee" value={php(t.amount, 2)} sub={`${data.period_from} – ${data.period_to}`} />
+        <Card label="CKの食材原価" value={php(t.cost, 2)} sub={`受領確認済みの納品 ${data.confirmed_notes}件`} />
+        <Card label={`食材供給フィー ${data.margin_pct}%`} value={php(t.margin, 2)} />
+        <Card label="食材原価＋食材供給フィー" value={php(t.amount, 2)} sub={`${data.period_from}〜${data.period_to}`} />
       </div>
       {data.pending_notes.length > 0 && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-          {data.pending_notes.length} delivery note(s) not yet confirmed by the store are not counted yet
-          ({php(data.pending_notes.reduce((s, n) => s + n.sent_cost, 0))} at sent quantities). They are counted in the month the store confirms what it received.
+          店舗がまだ受領確認していない納品書が{data.pending_notes.length}件あり、まだ計上していません（出荷数量で{php(data.pending_notes.reduce((s, n) => s + n.sent_cost, 0))}）。店舗が受け取った数量を確認した月に計上します。
         </div>
       )}
       {data.unpriced_lines > 0 && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-          {data.unpriced_lines} line(s) have no CK price yet and are not in the amount. HQ is setting their price.
+          CKの単価が未設定の品目が{data.unpriced_lines}行あり、金額に含まれていません。本部で単価を設定中です。
         </div>
       )}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">By item</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">品目別</h2>
         <button onClick={() => ownerDownload(`/api/owner/ck-billing/csv?store=${store}&cycle=${cycle}`, `ck-billing-${store.toLowerCase()}-${cycle}.csv`).catch((e) => setDlError(String(e.message || e)))}
-          className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5">Download line detail (CSV)</button>
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5">明細をダウンロード（CSV）</button>
       </div>
       {dlError && <p className="text-xs text-red-300">{dlError}</p>}
       <div className="overflow-x-auto rounded-xl border border-white/10">
         <table className="w-full text-sm tabular-nums">
           <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
-            <tr><th className="px-3 py-2">Item</th><th className="px-3 py-2">Unit</th><th className="px-3 py-2 text-right">Qty received</th>
-              <th className="px-3 py-2 text-right">Unit cost</th><th className="px-3 py-2 text-right">Cost</th>
-              <th className="px-3 py-2 text-right">Food Supply Fee</th><th className="px-3 py-2 text-right">Amount</th></tr>
+            <tr><th className="px-3 py-2">品目</th><th className="px-3 py-2">単位</th><th className="px-3 py-2 text-right">受領数量</th>
+              <th className="px-3 py-2 text-right">単価</th><th className="px-3 py-2 text-right">原価</th>
+              <th className="px-3 py-2 text-right">食材供給フィー</th><th className="px-3 py-2 text-right">合計</th></tr>
           </thead>
           <tbody>
             {data.by_item.map((i) => (
               <tr key={`${i.item_name}|${i.unit}|${i.unit_cost}`} className="border-t border-white/5">
                 <td className="px-3 py-2 text-white">{i.item_name}</td><td className="px-3 py-2 text-slate-400">{i.unit}</td>
                 <td className="px-3 py-2 text-right">{num(i.received_qty, 2)}</td>
-                <td className={`px-3 py-2 text-right ${i.unit_cost > 0 ? "" : "text-amber-300"}`}>{i.unit_cost > 0 ? php(i.unit_cost, 2) : "no price"}</td>
+                <td className={`px-3 py-2 text-right ${i.unit_cost > 0 ? "" : "text-amber-300"}`}>{i.unit_cost > 0 ? php(i.unit_cost, 2) : "単価未設定"}</td>
                 <td className="px-3 py-2 text-right">{php(i.cost, 2)}</td><td className="px-3 py-2 text-right">{php(i.margin, 2)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-white">{php(i.amount, 2)}</td>
               </tr>
             ))}
-            {data.by_item.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-400">No confirmed CK deliveries in this month yet.</td></tr>}
+            {data.by_item.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-400">この月に受領確認されたCKの納品はまだありません。</td></tr>}
           </tbody>
           {data.by_item.length > 0 && (
             <tfoot className="border-t border-white/10 bg-white/[0.04] font-semibold text-white">
-              <tr><td className="px-3 py-2" colSpan={4}>Total</td><td className="px-3 py-2 text-right">{php(t.cost, 2)}</td>
+              <tr><td className="px-3 py-2" colSpan={4}>合計</td><td className="px-3 py-2 text-right">{php(t.cost, 2)}</td>
                 <td className="px-3 py-2 text-right">{php(t.margin, 2)}</td><td className="px-3 py-2 text-right">{php(t.amount, 2)}</td></tr>
             </tfoot>
           )}
         </table>
       </div>
-      <p className="text-xs text-slate-500">Food cost from the Central Kitchen and the Food Supply Fee ({data.margin_pct}% of the Supply Cost, Schedule 1 of your agreement). Counted on the quantity your store confirmed it received, at the CK price on each delivery note, in the month your store confirmed receipt. Both are costs of the store in its monthly profit.</p>
+      <p className="text-xs text-slate-500">セントラルキッチンからの食材原価と食材供給フィー（供給原価の{data.margin_pct}%、契約 Schedule 1）です。店舗が受け取りを確認した数量に、各納品書のCK単価をかけて、受領確認した月に計上します。どちらも月次損益における店舗の費用です。</p>
     </section>
   );
 }
@@ -668,15 +689,15 @@ function PayoutsTab({ store, from, to, onAuthError }: { store: string; from: str
   return (
     <section className="space-y-6">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Card label="GrabFood paid out" value={php(data.totals.grab || 0, 2)} />
-        <Card label="foodpanda paid out" value={php(data.totals.foodpanda || 0, 2)} />
-        <Card label="Total" value={php((data.totals.grab || 0) + (data.totals.foodpanda || 0), 2)} sub={`${from} – ${to}`} />
+        <Card label="GrabFood からの入金" value={php(data.totals.grab || 0, 2)} />
+        <Card label="foodpanda からの入金" value={php(data.totals.foodpanda || 0, 2)} />
+        <Card label="合計" value={php((data.totals.grab || 0) + (data.totals.foodpanda || 0), 2)} sub={`${from}〜${to}`} />
       </div>
       <div className="overflow-x-auto rounded-xl border border-white/10">
         <table className="w-full text-sm tabular-nums">
           <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
-            <tr><th className="px-3 py-2">Paid on</th><th className="px-3 py-2">Platform</th><th className="px-3 py-2">For sales of</th>
-              <th className="px-3 py-2 text-right">Orders</th><th className="px-3 py-2 text-right">Amount paid</th></tr>
+            <tr><th className="px-3 py-2">入金日</th><th className="px-3 py-2">プラットフォーム</th><th className="px-3 py-2">対象の売上期間</th>
+              <th className="px-3 py-2 text-right">注文数</th><th className="px-3 py-2 text-right">入金額</th></tr>
           </thead>
           <tbody>
             {data.payouts.map((p, i) => (
@@ -684,18 +705,18 @@ function PayoutsTab({ store, from, to, onAuthError }: { store: string; from: str
                 <td className="px-3 py-2">{p.payout_date}</td>
                 <td className="px-3 py-2">{p.platform === "grab" ? "GrabFood" : "foodpanda"}</td>
                 <td className="px-3 py-2 text-slate-400">
-                  {p.period_start === p.period_end ? p.period_start : `${p.period_start} – ${p.period_end}`}
-                  {p.before_transfer && <span className="ml-2 text-xs text-amber-300">includes sales before {data.owned_from}; not in the totals</span>}
+                  {p.period_start === p.period_end ? p.period_start : `${p.period_start}〜${p.period_end}`}
+                  {p.before_transfer && <span className="block text-xs text-amber-300">{data.owned_from}より前の売上を含むため、合計には入れていません</span>}
                 </td>
                 <td className="px-3 py-2 text-right">{num(p.orders)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-white">{php(p.amount, 2)}</td>
               </tr>
             ))}
-            {data.payouts.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No payouts in this month.</td></tr>}
+            {data.payouts.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">この月の入金はありません。</td></tr>}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-slate-500">What each platform transferred to the bank, after its commission and fees.</p>
+      <p className="text-xs text-slate-500">各プラットフォームが手数料を差し引いて銀行に振り込んだ金額です。</p>
     </section>
   );
 }
@@ -723,13 +744,13 @@ function QualityTab({ store, from, to, onAuthError }: { store: string; from: str
   return (
     <section className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card label="GrabFood rating" value={latest("GrabFood")?.toFixed(2) ?? "—"} sub="latest" />
-        <Card label="foodpanda rating" value={latest("FoodPanda")?.toFixed(2) ?? "—"} sub="latest" />
-        <Card label="foodpanda prep time" value={fpPrep == null ? "—" : `${fpPrep.toFixed(1)} min`} sub="daily average" />
-        <Card label="Time offline" value={`${Math.round(grabOffline + fpOffline)} min`} sub={`GrabFood ${Math.round(grabOffline)} · foodpanda ${Math.round(fpOffline)}`} />
+        <Card label="GrabFood の評価" value={latest("GrabFood")?.toFixed(2) ?? "—"} sub="最新" />
+        <Card label="foodpanda の評価" value={latest("FoodPanda")?.toFixed(2) ?? "—"} sub="最新" />
+        <Card label="foodpanda の調理時間" value={fpPrep == null ? "—" : `${fpPrep.toFixed(1)}分`} sub="日ごとの平均" />
+        <Card label="オフライン時間" value={`${Math.round(grabOffline + fpOffline)}分`} sub={`GrabFood ${Math.round(grabOffline)}分・foodpanda ${Math.round(fpOffline)}分`} />
       </div>
       <div className="h-72 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-        <p className="mb-1 text-xs uppercase tracking-wider text-slate-400">Preparation time (minutes)</p>
+        <p className="mb-1 text-xs uppercase tracking-wider text-slate-400">調理時間（分）</p>
         <ResponsiveContainer width="100%" height="90%">
           <LineChart data={prepChart}>
             <CartesianGrid stroke="#1e293b" vertical={false} />
@@ -742,7 +763,7 @@ function QualityTab({ store, from, to, onAuthError }: { store: string; from: str
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-xs text-slate-500">GrabFood: median minutes from accepting an order to marking it ready. foodpanda: the platform&apos;s own daily average. Offline time is time the store was closed on the app during its scheduled hours.</p>
+      <p className="text-xs text-slate-500">GrabFood：注文を受けてから「準備完了」にするまでの時間（中央値）。foodpanda：プラットフォームが出している日ごとの平均。オフライン時間は、営業時間中にアプリ上で店舗が閉じていた時間です。</p>
     </section>
   );
 }

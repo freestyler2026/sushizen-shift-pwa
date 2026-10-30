@@ -35,14 +35,14 @@ export class OwnerAuthError extends Error {}
 
 export async function ownerFetch<T = unknown>(path: string): Promise<T> {
   const s = getOwnerSession();
-  if (!s) throw new OwnerAuthError("Please sign in.");
+  if (!s) throw new OwnerAuthError("ログインしてください。");
   const res = await fetch(path, { headers: { Authorization: `Bearer ${s.token}` }, cache: "no-store" });
   if (res.status === 401) {
     clearOwnerSession();
-    throw new OwnerAuthError("Your session ended. Please sign in again.");
+    throw new OwnerAuthError("ログインの有効期限が切れました。もう一度ログインしてください。");
   }
   if (!res.ok) {
-    let detail = `Request failed (${res.status})`;
+    let detail = `読み込めませんでした（${res.status}）`;
     try { detail = (await res.json()).detail || detail; } catch { /* keep the status */ }
     throw new Error(detail);
   }
@@ -51,9 +51,9 @@ export async function ownerFetch<T = unknown>(path: string): Promise<T> {
 
 export async function ownerDownload(path: string, filename: string) {
   const s = getOwnerSession();
-  if (!s) throw new OwnerAuthError("Please sign in.");
+  if (!s) throw new OwnerAuthError("ログインしてください。");
   const res = await fetch(path, { headers: { Authorization: `Bearer ${s.token}` }, cache: "no-store" });
-  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  if (!res.ok) throw new Error(`ダウンロードできませんでした（${res.status}）`);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -66,8 +66,8 @@ export async function ownerDownload(path: string, filename: string) {
 /** An image the owner's session may see, as an object URL (an <img> cannot send the token). */
 export async function ownerImageUrl(path: string): Promise<string> {
   const s = getOwnerSession();
-  if (!s) throw new OwnerAuthError("Please sign in.");
+  if (!s) throw new OwnerAuthError("ログインしてください。");
   const res = await fetch(path, { headers: { Authorization: `Bearer ${s.token}` }, cache: "no-store" });
-  if (!res.ok) throw new Error(`Photo not available (${res.status})`);
+  if (!res.ok) throw new Error(`写真を表示できません（${res.status}）`);
   return URL.createObjectURL(await res.blob());
 }
