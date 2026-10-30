@@ -104,6 +104,16 @@ function yesterdayInTz(tz = "Asia/Manila"): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
+// The business day a Business Close belongs to: before 18:00 it is last night's
+// close (after midnight, or one filed late the next day), from 18:00 it is tonight's.
+// The server decides the same way; this only makes the screen say the right date.
+// It used to be "yesterday" always, so a store closing before midnight recorded
+// tonight's close on the day before and overwrote that day's record.
+function closeDayInTz(tz = "Asia/Manila"): string {
+  const hour = Number(new Date().toLocaleString("en-GB", { timeZone: tz, hour: "2-digit", hour12: false }));
+  return hour < 18 ? yesterdayInTz(tz) : todayInTz(tz);
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SubmittedCheck = {
@@ -236,9 +246,9 @@ export default function DailyCheckPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const today = todayInTz(tz);
-  const yesterday = yesterdayInTz(tz);
-  // BUSINESS_CLOSE records the previous business day (stores close after midnight)
-  const checkDate = checkType === "BUSINESS_CLOSE" ? yesterday : today;
+  const closeDay = closeDayInTz(tz);
+  // BUSINESS_CLOSE records the business day being closed (see closeDayInTz)
+  const checkDate = checkType === "BUSINESS_CLOSE" ? closeDay : today;
 
   // ── Auth guard ──
   useEffect(() => {
@@ -403,7 +413,7 @@ export default function DailyCheckPage() {
           {checkType === "BUSINESS_CLOSE" && (
             <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-300/80">
               <Clock size={11} />
-              Recorded as previous business day: <strong>{yesterday}</strong>
+              Recorded for business day: <strong>{closeDay}</strong>
             </p>
           )}
         </div>
@@ -613,7 +623,7 @@ export default function DailyCheckPage() {
             className="w-full flex items-center justify-between text-sm font-medium text-white/70">
             <span className="flex items-center gap-2">
               <Clock size={14} />
-              {checkType === "BUSINESS_CLOSE" ? `${yesterday} Submissions` : "Today's Submissions"} — {branchLabel}
+              {checkType === "BUSINESS_CLOSE" ? `${closeDay} Submissions` : "Today's Submissions"} — {branchLabel}
               {loadingToday
                 ? <span className="text-xs text-white/30 ml-1">loading...</span>
                 : <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-xs">{todayChecks.length}</span>}
