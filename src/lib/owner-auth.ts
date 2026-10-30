@@ -62,3 +62,12 @@ export async function ownerDownload(path: string, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** An image the owner's session may see, as an object URL (an <img> cannot send the token). */
+export async function ownerImageUrl(path: string): Promise<string> {
+  const s = getOwnerSession();
+  if (!s) throw new OwnerAuthError("Please sign in.");
+  const res = await fetch(path, { headers: { Authorization: `Bearer ${s.token}` }, cache: "no-store" });
+  if (!res.ok) throw new Error(`Photo not available (${res.status})`);
+  return URL.createObjectURL(await res.blob());
+}

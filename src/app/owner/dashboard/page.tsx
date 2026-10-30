@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import SelectDark from "@/components/SelectDark";
 import {
-  clearOwnerSession, getOwnerSession, OwnerAuthError, ownerDownload, ownerFetch, type OwnerSession,
+  clearOwnerSession, getOwnerSession, OwnerAuthError, ownerDownload, ownerFetch, ownerImageUrl, type OwnerSession,
 } from "@/lib/owner-auth";
 
-type Tab = "ledger" | "sales" | "ck" | "payouts" | "quality";
+type Tab = "daily" | "ledger" | "sales" | "ck" | "payouts" | "quality";
 const TABS: { key: Tab; label: string }[] = [
+  { key: "daily", label: "Daily" },
   { key: "ledger", label: "Distributions" },
   { key: "sales", label: "Sales" },
   { key: "ck", label: "CK Billing" },
@@ -50,7 +51,7 @@ export default function OwnerDashboard() {
   const router = useRouter();
   const [session, setSession] = useState<OwnerSession | null>(null);
   const [store, setStore] = useState("");
-  const [tab, setTab] = useState<Tab>("ledger");
+  const [tab, setTab] = useState<Tab>("daily");
   const today = useMemo(() => manilaToday(), []);
   const cycles = useMemo(() => {
     const out: string[] = [];
@@ -95,7 +96,7 @@ export default function OwnerDashboard() {
             <SelectDark value={store} onChange={setStore} aria-label="Store" className="min-w-[9rem]"
               options={session.stores.map((s) => ({ value: s.code, label: s.name }))} />
           )}
-          {tab !== "ledger" && (
+          {tab !== "ledger" && tab !== "daily" && (
             <SelectDark value={cycle} onChange={setCycle} aria-label="Month" className="min-w-[14rem]"
               options={cycles.map((c) => ({ value: c, label: cycleLabel(c) }))} />
           )}
@@ -114,6 +115,7 @@ export default function OwnerDashboard() {
       </nav>
 
       <main className="mt-6">
+        {tab === "daily" && <DailyTab store={store} yesterday={yesterday} onAuthError={onAuthError} />}
         {tab === "ledger" && <LedgerTab store={store} onAuthError={onAuthError} />}
         {tab === "sales" && <SalesTab store={store} from={from} to={rangeTo} onAuthError={onAuthError} />}
         {tab === "ck" && <CkTab store={store} cycle={cycle} onAuthError={onAuthError} />}
@@ -152,6 +154,204 @@ function Card({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 function Loading({ error }: { error: string }) {
   return error ? <p role="alert" className="text-sm text-red-300">{error}</p> : <p className="text-sm text-slate-400">Loading…</p>;
+}
+
+// ── Daily: how the store traded and ran yesterday ──────────────────────────
+type ChannelSales = { orders: number; paid: number; net: number };
+type SalesBlock = { channels: Record<"dine_in" | "grab" | "foodpanda", ChannelSales>; total: ChannelSales & { avg_ticket: number | null } };
+type ScoreItem = {
+  id: number; food_category: string; total_score: number; grade: string; feedback: string; at: string | null;
+  score_shape: number; score_size_consistency: number; score_completion: number; score_topping: number;
+  score_cut_uniformity: number; score_arrangement: number; score_portioning: number;
+};
+type Daily = {
+  day: string; compare_day: string; sales: SalesBlock; sales_week_ago: SalesBlock | null; sales_change: number | null;
+  mtd: SalesBlock & { from: string; to: string }; prev_mtd: (SalesBlock & { from: string; to: string }) | null;
+  hourly: { hour: number; grab: number; foodpanda: number }[];
+  hourly_coverage: Record<"grab" | "foodpanda", { ledger: number; pos: number; complete: boolean }>;
+  quality: {
+    grab_rating: number | null; grab_rating_week_ago: number | null; foodpanda_rating: number | null; foodpanda_rating_week_ago: number | null;
+    foodpanda_prep_min: number | null; foodpanda_offline_min: number | null; foodpanda_rejection_pct: number | null;
+    foodpanda_complaints: number | null; grab_offline_min: number | null; grab_prep_median_min: number | null;
+  };
+  team: { people: number; hours: number; still_clocked_in: number };
+  checks: { type: string; status: string; submitted_at: string | null; confirmed: boolean }[];
+  ck: { notes: number; lines: number };
+  product: { count: number; avg: number | null; avg_last_7_days: number | null; by_grade: Record<string, number>; by_category: Record<string, number>; items: ScoreItem[] };
+  flags: string[];
+  freshness: { pos: string | null; grab_orders: string | null; foodpanda_orders: string | null };
+};
+const CHANNEL_LABEL: Record<string, string> = { dine_in: "Dine-in / Beep", grab: "GrabFood", foodpanda: "foodpanda" };
+const CHECK_LABEL: Record<string, string> = { OPENING: "Opening", LUNCH_OPEN: "Lunch open", LUNCH_CLOSE: "Lunch close", BUSINESS_CLOSE: "Business close" };
+const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00`); x.setDate(x.getDate() + n); return iso(x); };
+const dayLabel = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+const signed = (n: number | null | undefined) => (n == null ? "—" : `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}%`);
+
+function DailyTab({ store, yesterday, onAuthError }: { store: string; yesterday: string; onAuthError: (e: unknown) => void }) {
+  const [day, setDay] = useState(yesterday);
+  const first = FIRST_CYCLE + "-01";
+  const { data, error } = useOwnerData<Daily>(`/api/owner/daily?store=${store}&day=${day}`, onAuthError);
+  const [lowestFirst, setLowestFirst] = useState(false);
+  const [shown, setShown] = useState(12);
+  useEffect(() => { setShown(12); }, [day, store]);
+  const nav = (
+    <div className="flex items-center gap-2">
+      <button disabled={day <= first} onClick={() => setDay(addDays(day, -1))} aria-label="Previous day"
+        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-30">‹</button>
+      <p className="min-w-0 flex-1 text-center text-sm font-semibold text-white sm:flex-none">{dayLabel(day)}</p>
+      <button disabled={day >= yesterday} onClick={() => setDay(addDays(day, 1))} aria-label="Next day"
+        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-30">›</button>
+    </div>
+  );
+  if (!data) return <section className="space-y-4">{nav}<Loading error={error} /></section>;
+  const s = data.sales.total;
+  const q = data.quality;
+  const items = [...data.product.items].sort((a, b) => (lowestFirst ? a.total_score - b.total_score : (a.at || "").localeCompare(b.at || "")));
+  const hourlyShown = (["grab", "foodpanda"] as const).filter((p) => data.hourly_coverage[p].complete);
+  return (
+    <section className="space-y-6">
+      {nav}
+      {data.flags.length > 0 ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <p className="font-semibold">Worth a look</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">{data.flags.map((f) => <li key={f}>{f}</li>)}</ul>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">Nothing out of the ordinary.</div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card label="Sales" value={php(s.net)} sub={data.sales_change == null ? "without VAT" : `${signed(data.sales_change)} vs ${new Date(`${data.compare_day}T00:00:00`).toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" })}`} />
+        <Card label="Orders" value={num(s.orders)} sub={data.sales_week_ago ? `${num(data.sales_week_ago.total.orders)} a week before` : undefined} />
+        <Card label="Average ticket" value={php(s.avg_ticket)} />
+        <Card label="Month to date" value={php(data.mtd.total.net)} sub={data.prev_mtd ? `${signed(data.prev_mtd.total.net ? data.mtd.total.net / data.prev_mtd.total.net - 1 : null)} vs last month` : `${num(data.mtd.total.orders)} orders`} />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-sm font-semibold text-white">By channel</p>
+          <div className="mt-3 space-y-2">
+            {(["grab", "foodpanda", "dine_in"] as const).map((ch) => {
+              const c = data.sales.channels[ch];
+              const share = s.net ? c.net / s.net : 0;
+              return (
+                <div key={ch} className="text-sm">
+                  <div className="flex justify-between text-slate-300"><span>{CHANNEL_LABEL[ch]}</span><span className="tabular-nums text-white">{php(c.net)} · {num(c.orders)} orders</span></div>
+                  <div className="mt-1 h-2 rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${(share * 100).toFixed(1)}%` }} /></div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-sm font-semibold text-white">Delivery orders by hour</p>
+          {hourlyShown.length ? (
+            <div className="mt-2 h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.hourly.map((h) => ({ hour: `${h.hour}:00`, GrabFood: hourlyShown.includes("grab") ? h.grab : 0, foodpanda: hourlyShown.includes("foodpanda") ? h.foodpanda : 0 }))}>
+                  <CartesianGrid stroke="#1e293b" vertical={false} />
+                  <XAxis dataKey="hour" tick={{ fill: "#94a3b8", fontSize: 10 }} />
+                  <YAxis allowDecimals={false} tick={{ fill: "#94a3b8", fontSize: 10 }} width={24} />
+                  <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155" }} />
+                  {hourlyShown.includes("grab") && <Bar dataKey="GrabFood" stackId="a" fill="#10b981" />}
+                  {hourlyShown.includes("foodpanda") && <Bar dataKey="foodpanda" stackId="a" fill="#ec4899" />}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <p className="mt-2 text-sm text-slate-400">The order times for this day are still coming in.</p>}
+          {(["grab", "foodpanda"] as const).filter((p) => !data.hourly_coverage[p].complete && data.hourly_coverage[p].pos > 0).map((p) => (
+            <p key={p} className="mt-1 text-xs text-slate-500">{CHANNEL_LABEL[p]}: order times not complete yet ({data.hourly_coverage[p].ledger} of {data.hourly_coverage[p].pos}); shown once they are in.</p>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card label="GrabFood rating" value={q.grab_rating?.toFixed(2) ?? "—"} sub={q.grab_rating_week_ago != null ? `${q.grab_rating_week_ago.toFixed(2)} a week before` : undefined} />
+        <Card label="foodpanda rating" value={q.foodpanda_rating?.toFixed(2) ?? "—"} sub={q.foodpanda_rating_week_ago != null ? `${q.foodpanda_rating_week_ago.toFixed(2)} a week before` : undefined} />
+        <Card label="Preparation time" value={q.foodpanda_prep_min != null ? `${q.foodpanda_prep_min} min` : q.grab_prep_median_min != null ? `${q.grab_prep_median_min} min` : "—"} sub={q.foodpanda_prep_min != null ? "foodpanda average" : q.grab_prep_median_min != null ? "GrabFood median" : "not in yet"} />
+        <Card label="Time offline" value={`${q.grab_offline_min ?? "—"} / ${q.foodpanda_offline_min ?? "—"} min`} sub="GrabFood / foodpanda" />
+        <Card label="Team on duty" value={`${data.team.people} people`} sub={`${data.team.hours} hours${data.team.still_clocked_in ? ` · ${data.team.still_clocked_in} not clocked out` : ""}`} />
+        <Card label="CK deliveries received" value={String(data.ck.notes)} sub={`${data.ck.lines} lines`} />
+        <Card label="Customer contacts" value={q.foodpanda_complaints != null ? `${q.foodpanda_complaints}%` : "—"} sub="of foodpanda orders" />
+        <Card label="Orders rejected" value={q.foodpanda_rejection_pct != null ? `${q.foodpanda_rejection_pct}%` : "—"} sub="foodpanda" />
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <p className="text-sm font-semibold text-white">Store checks</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {data.checks.map((c) => {
+            const tone = c.status === "MISSING" ? "border-red-500/40 text-red-200" : c.status.includes("ISSUE") ? "border-amber-500/40 text-amber-200" : c.confirmed ? "border-emerald-500/40 text-emerald-200" : "border-sky-500/40 text-sky-200";
+            const text = c.status === "MISSING" ? "not submitted" : c.status.includes("ISSUE") ? "issue found" : c.confirmed ? "done, confirmed" : "done, being reviewed";
+            return <span key={c.type} className={`rounded-full border px-3 py-1 text-xs ${tone}`}>{CHECK_LABEL[c.type] || c.type}: {text}</span>;
+          })}
+        </div>
+        <p className="mt-2 text-xs text-slate-500">The team checks the delivery tablets and the store at opening, lunch and closing; back office reviews each one.</p>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="text-sm font-semibold text-white">Product scoring <span className="font-normal text-slate-400">— every dish photo the kitchen sends is scored</span></p>
+          <p className="text-sm tabular-nums text-slate-300">{data.product.count} photos · average {data.product.avg ?? "—"}{data.product.avg_last_7_days != null && <span className="text-slate-500"> (previous 7 days {data.product.avg_last_7_days})</span>}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {Object.entries(data.product.by_grade).sort().map(([g, n]) => (
+            <span key={g} className={`rounded-full border px-2.5 py-0.5 ${g === "A" ? "border-emerald-500/40 text-emerald-200" : g === "C" ? "border-amber-500/40 text-amber-200" : "border-white/15 text-slate-300"}`}>Grade {g}: {n}</span>
+          ))}
+          {Object.entries(data.product.by_category).map(([c, v]) => <span key={c} className="rounded-full border border-white/10 px-2.5 py-0.5 text-slate-400">{c}: {v}</span>)}
+          {data.product.count > 0 && (
+            <button onClick={() => setLowestFirst(!lowestFirst)} className="ml-auto rounded-lg border border-white/10 px-2.5 py-0.5 text-slate-300 hover:bg-white/5">{lowestFirst ? "Show in time order" : "Lowest scores first"}</button>
+          )}
+        </div>
+        {data.product.count === 0 ? <p className="text-sm text-slate-400">No dish photos scored this day.</p> : (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {items.slice(0, shown).map((it) => <ScorePhoto key={it.id} store={store} item={it} />)}
+            </div>
+            {shown < items.length && (
+              <button onClick={() => setShown(shown + 12)} className="w-full rounded-lg border border-white/10 py-2 text-sm text-slate-300 hover:bg-white/5">Show more ({items.length - shown} more)</button>
+            )}
+          </>
+        )}
+      </div>
+
+      <p className="text-xs text-slate-500">
+        Sales here are from the store&apos;s till (StoreHub), which records every channel by the next morning, without VAT. The monthly figures on the Distributions tab use each platform&apos;s own settlement and can differ by a few percent. Profit is not shown day by day: it is only right once the month is closed.
+        {" "}Data in: till to {data.freshness.pos ?? "—"}, GrabFood orders to {data.freshness.grab_orders ?? "—"}, foodpanda orders to {data.freshness.foodpanda_orders ?? "—"}.
+      </p>
+    </section>
+  );
+}
+
+function ScorePhoto({ store, item }: { store: string; item: ScoreItem }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let live = true; let made: string | null = null;
+    ownerImageUrl(`/api/owner/product-scores/${item.id}/photo?store=${store}`)
+      .then((u) => { made = u; if (live) setUrl(u); else URL.revokeObjectURL(u); })
+      .catch(() => { if (live) setFailed(true); });
+    return () => { live = false; if (made) URL.revokeObjectURL(made); };
+  }, [store, item.id]);
+  const tone = item.grade === "A" ? "bg-emerald-500 text-slate-950" : item.grade === "C" ? "bg-amber-400 text-slate-950" : "bg-slate-200 text-slate-900";
+  return (
+    <button onClick={() => setOpen(!open)} className="overflow-hidden rounded-lg border border-white/10 bg-slate-900 text-left">
+      <div className="relative aspect-square bg-slate-800">
+        {url ? <img src={url} alt={`${item.food_category} dish, score ${item.total_score}`} className="h-full w-full object-cover" />
+          : <div className="flex h-full items-center justify-center text-xs text-slate-500">{failed ? "Photo not available" : "Loading…"}</div>}
+        <span className={`absolute left-2 top-2 rounded px-1.5 py-0.5 text-xs font-bold ${tone}`}>{item.grade} {item.total_score}</span>
+      </div>
+      <div className="p-2 text-xs text-slate-400">
+        <p>{item.at ?? ""} · {item.food_category}</p>
+        {open && (
+          <div className="mt-1 space-y-1">
+            <p className="text-slate-300">{item.feedback}</p>
+            <p className="text-[11px]">Shape {item.score_shape} · Size {item.score_size_consistency} · Completion {item.score_completion} · Topping {item.score_topping} · Cut {item.score_cut_uniformity} · Arrangement {item.score_arrangement} · Portion {item.score_portioning}</p>
+          </div>
+        )}
+      </div>
+    </button>
+  );
 }
 
 // ── Distributions (the ledger under the agreement) ──────────────────────────
