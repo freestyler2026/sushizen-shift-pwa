@@ -196,9 +196,24 @@ async function main() {
     process.stdout.write(`  ${i}s remaining — page: ${page.url().slice(0, 60)}\n`);
   }
 
-  // Save session
-  await context.storageState({ path: OUT_JSON });
-  const data = JSON.parse(fs.readFileSync(OUT_JSON, 'utf8'));
+  // Save session -- only if it is this store's login. 2026-10-30: the Taft run
+  // was signed in with the Paranaque account and saved over Taft's session, so
+  // every Taft import would have read Paranaque. The vendor code the portal
+  // keeps for the login decides.
+  const EXPECT_VENDOR = { paranaque: 't0z4', taft: 'ryqc', qc: 'a97i' }[LOCATION];
+  const TMP_JSON = OUT_JSON + '.new';
+  await context.storageState({ path: TMP_JSON });
+  const raw = fs.readFileSync(TMP_JSON, 'utf8');
+  if (!new RegExp(`FP_PH[;:]${EXPECT_VENDOR}`).test(raw)) {
+    const seen = [...new Set((raw.match(/FP_PH[;:](\w{4})/g) || []))].join(', ') || 'none';
+    fs.unlinkSync(TMP_JSON);
+    console.error(`\n❌ This login is not ${LOCATION} (expected vendor ${EXPECT_VENDOR}, saw ${seen}). `
+      + `Sign in as ${ACCOUNTS[LOCATION]}. Nothing saved — the existing session file is unchanged.`);
+    await browser.close();
+    process.exit(1);
+  }
+  fs.renameSync(TMP_JSON, OUT_JSON);
+  const data = JSON.parse(raw);
   // Include full localStorage — authSessionFlag and other keys the portal needs to
   // skip the /login redirect when restoring the session in a new browser context.
   const fullState = { cookies: data.cookies, origins: data.origins || [] };
