@@ -14,16 +14,15 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "quality", label: "Store Performance" },
 ];
 
-// The OS month runs 26th to 25th; "2026-10" is 26 Sep - 25 Oct.
+// The owner's month is the calendar month (like their books, BIR and the mall rent).
 function cycleBounds(cycle: string): [string, string] {
   const [y, m] = cycle.split("-").map(Number);
-  const prev = m === 1 ? [y - 1, 12] : [y, m - 1];
   const pad = (n: number) => String(n).padStart(2, "0");
-  return [`${prev[0]}-${pad(prev[1])}-26`, `${y}-${pad(m)}-25`];
+  const last = new Date(y, m, 0).getDate();
+  return [`${y}-${pad(m)}-01`, `${y}-${pad(m)}-${pad(last)}`];
 }
 function cycleOf(d: Date): string {
-  const x = new Date(d.getTime() + 6 * 86400000);
-  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 function manilaToday(): Date {
   const now = new Date();
@@ -221,7 +220,7 @@ function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; on
       {data.pending_notes.length > 0 && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
           {data.pending_notes.length} delivery note(s) not yet confirmed by the store are not billed yet
-          ({php(data.pending_notes.reduce((s, n) => s + n.sent_cost, 0))} at sent quantities). They are added once the store confirms what it received.
+          ({php(data.pending_notes.reduce((s, n) => s + n.sent_cost, 0))} at sent quantities). They are billed in the month the store confirms what it received.
         </div>
       )}
       {data.unpriced_lines > 0 && (
@@ -262,7 +261,7 @@ function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; on
           )}
         </table>
       </div>
-      <p className="text-xs text-slate-500">Billed on the quantity your store confirmed it received, at the CK price on each delivery note, plus a {data.margin_pct}% margin.</p>
+      <p className="text-xs text-slate-500">Billed on the quantity your store confirmed it received, at the CK price on each delivery note, plus a {data.margin_pct}% margin. Each delivery is billed in the month your store confirmed receipt.</p>
     </section>
   );
 }
