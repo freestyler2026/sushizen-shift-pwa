@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import SelectDark from "@/components/SelectDark";
@@ -226,7 +226,38 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
             </div>
           )}
 
-          <div className="overflow-x-auto rounded-xl border border-white/10">
+          {/* On a phone each month is a card; the ten-column table is for wider screens. */}
+          <div className="space-y-3 md:hidden">
+            {rows.map((r) => (
+              <div key={r.month} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm tabular-nums">
+                <div className="flex items-baseline justify-between">
+                  <p className="font-semibold text-white">{monthName(r.month)}{r.revision > 1 && <span className="ml-1 text-[10px] text-amber-300">rev {r.revision}</span>}</p>
+                  <p className="text-xs text-slate-400">tax {(r.corp_tax_rate * 100).toFixed(0)}% {r.corp_tax_basis === "filed" ? "as filed" : "provisional"}</p>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  {([
+                    ["Net sales", r.net_sales], ["Store costs", r.store_costs], ["Company fees", r.foco_fees],
+                    ["Operating profit", r.operating_profit], ["Corporate tax", r.corp_tax], ["Renewal reserve", r.capex_reserve],
+                    ["After-tax profit", r.after_tax_profit],
+                  ] as [string, number][]).map(([k, v]) => (
+                    <Fragment key={k}>
+                      <dt className="text-slate-400">{k}</dt>
+                      <dd className={`text-right ${v < 0 ? "text-red-300" : "text-white"}`}>{php(v)}</dd>
+                    </Fragment>
+                  ))}
+                </dl>
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
+                  <div><p className="text-xs text-slate-400">Payable, year to date</p><p className="font-semibold text-white">{php(r.ytd_payable, 2)}</p>
+                    {r.year_end_due != null && r.year_end_due > 0 && <p className="text-[11px] text-emerald-300">year-end settlement {php(r.year_end_due, 2)}</p>}</div>
+                  <div className="text-right"><p className="text-xs text-slate-400">Paid, year to date</p><p className="font-semibold text-white">{php(r.ytd_paid, 2)}</p>
+                    {r.overpayment_carried_in > 0 && <p className="text-[11px] text-amber-300">incl. {php(r.overpayment_carried_in, 2)} overpaid last year</p>}</div>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">Fees: CK {php(r.ck_supply_fee)} · Operating {php(r.operating_fee)} · Royalty {php(r.royalty)}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-xl border border-white/10 md:block">
             <table className="w-full min-w-[980px] text-sm tabular-nums">
               <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
                 <tr>
