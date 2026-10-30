@@ -73,8 +73,8 @@ async function main() {
   console.log('(Enter the password yourself in the browser)\n');
 
   // Poll for login: detect URL change away from /login
-  console.log('Waiting for login (up to 5 min)...');
-  const deadline = Date.now() + 5 * 60 * 1000;
+  console.log('Waiting for login and any phone verification (up to 15 min)...');
+  const deadline = Date.now() + 15 * 60 * 1000;
   let loggedIn = false;
   const loginPageUrl = page.url();
 
@@ -134,7 +134,34 @@ async function main() {
   }
 
   if (!loggedIn) {
-    console.log('Timed out waiting for login — proceeding anyway (browser may be logged in)');
+    // 2026-10-30: a login that did not finish in time used to fall through and
+    // save the logged-out browser over the working session file, so the next
+    // morning's import died. Nothing is saved unless the portal shows a
+    // signed-in page.
+    await page.goto('https://partner.foodpanda.com/dashboard', { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
+    if (/\/login|\/signin/.test(page.url())) {
+      console.error('\n❌ Not signed in — nothing saved. The existing session file is unchanged. Run this again and finish signing in.');
+      await browser.close();
+      process.exit(1);
+    }
+    console.log('Login not detected by token, but the dashboard opens — continuing');
+  }
+  // Phone verification (2026-10-30): the portal opens a "verify your phone
+  // number" drawer, and until it is done its own report calls answer 403 --
+  // the operations metrics stop for that store. Wait here for the person to
+  // finish it, instead of saving a session that cannot read them.
+  await page.goto('https://partner.foodpanda.com/reports?tab=ops&mode=page', { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
+  await page.waitForTimeout(4000);
+  if (/phone-verification/.test(page.url())) {
+    console.log('\n📱 foodpanda asks to verify the phone number — finish it in the browser (code goes to the registered phone).');
+    const until = Date.now() + 15 * 60 * 1000;
+    while (Date.now() < until && /phone-verification/.test(page.url())) await page.waitForTimeout(3000);
+    if (/phone-verification/.test(page.url())) {
+      console.error('❌ Phone verification not finished — nothing saved. The existing session file is unchanged.');
+      await browser.close();
+      process.exit(1);
+    }
+    console.log('✓ Phone verification done');
   }
   // Always enable capturing before page navigation — even if login detection
   // timed out, the browser may already be authenticated.
