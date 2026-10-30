@@ -208,30 +208,75 @@ const addDays = (d: string, n: number) => { const x = new Date(`${d}T00:00:00`);
 const dayLabel = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("ja-JP", { weekday: "short", month: "long", day: "numeric", year: "numeric" });
 const signed = (n: number | null | undefined) => (n == null ? "—" : `${n >= 0 ? "+" : ""}${(n * 100).toFixed(1)}%`);
 
+const monthsBetween = (first: string, last: string) => {
+  const out: string[] = [];
+  for (let m = first; m <= last; m = nextMonth(m)) out.push(m);
+  return out;
+};
+const nextMonth = (m: string) => { const [y, mo] = m.split("-").map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`; };
+const prevMonth = (m: string) => { const [y, mo] = m.split("-").map(Number); return mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, "0")}`; };
+const navBtn = "rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-30";
+
+// Daily tab: one day, or a month at a glance whose squares open their day (owner, 2026-10-30).
 function DailyTab({ store, yesterday, onAuthError }: { store: string; yesterday: string; onAuthError: (e: unknown) => void }) {
+  const [mode, setMode] = useState<"day" | "month">("day");
   const [day, setDay] = useState(yesterday);
+  const [month, setMonth] = useState(yesterday.slice(0, 7));
   const first = FIRST_CYCLE + "-01";
+  const months = useMemo(() => monthsBetween(FIRST_CYCLE, yesterday.slice(0, 7)), [yesterday]);
+  const toggle = (
+    <div className="inline-flex rounded-lg border border-white/10 p-0.5" role="group" aria-label="表示の単位">
+      {([["day", "日別"], ["month", "月別"]] as const).map(([k, label]) => (
+        <button key={k} onClick={() => { if (k === "month") setMonth(day.slice(0, 7)); setMode(k); }} aria-pressed={mode === k}
+          className={`rounded-md px-3 py-1 text-sm ${mode === k ? "bg-white/10 font-semibold text-white" : "text-slate-400 hover:text-slate-200"}`}>{label}</button>
+      ))}
+    </div>
+  );
+  const dayNav = (
+    <div className="flex items-center gap-2">
+      <button disabled={day <= first} onClick={() => setDay(addDays(day, -1))} aria-label="前の日" className={navBtn}>‹</button>
+      {/* The native date picker sits over the label: a tap opens the phone's calendar, a click the browser's. */}
+      <label className="relative flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/5 sm:flex-none">
+        <span>{dayLabel(day)}</span>
+        <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4.5" width="14" height="12" rx="2" /><path d="M3 8.5h14M7 3v3M13 3v3" /></svg>
+        <input type="date" aria-label="日付を選ぶ" value={day} min={first} max={yesterday}
+          onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* the tap opens it */ } }}
+          onChange={(e) => { const v = e.target.value; if (v && v >= first && v <= yesterday) setDay(v); }}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 [color-scheme:dark]" />
+      </label>
+      <button disabled={day >= yesterday} onClick={() => setDay(addDays(day, 1))} aria-label="次の日" className={navBtn}>›</button>
+    </div>
+  );
+  const monthNav = (
+    <div className="flex items-center gap-2">
+      <button disabled={month <= months[0]} onClick={() => setMonth(prevMonth(month))} aria-label="前の月" className={navBtn}>‹</button>
+      <SelectDark value={month} onChange={setMonth} aria-label="月を選ぶ" className="min-w-[9rem]"
+        options={months.map((m) => ({ value: m, label: monthName(m) }))} />
+      <button disabled={month >= months[months.length - 1]} onClick={() => setMonth(nextMonth(month))} aria-label="次の月" className={navBtn}>›</button>
+    </div>
+  );
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">{toggle}{mode === "day" ? dayNav : monthNav}</div>
+      {mode === "day"
+        ? <DayView store={store} day={day} onAuthError={onAuthError} />
+        : <MonthView store={store} month={month} onAuthError={onAuthError} onOpenDay={(d) => { setDay(d); setMode("day"); }} />}
+    </section>
+  );
+}
+
+function DayView({ store, day, onAuthError }: { store: string; day: string; onAuthError: (e: unknown) => void }) {
   const { data, error } = useOwnerData<Daily>(`/api/owner/daily?store=${store}&day=${day}`, onAuthError);
   const [lowestFirst, setLowestFirst] = useState(false);
   const [shown, setShown] = useState(12);
   useEffect(() => { setShown(12); }, [day, store]);
-  const nav = (
-    <div className="flex items-center gap-2">
-      <button disabled={day <= first} onClick={() => setDay(addDays(day, -1))} aria-label="前の日"
-        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-30">‹</button>
-      <p className="min-w-0 flex-1 text-center text-sm font-semibold text-white sm:flex-none">{dayLabel(day)}</p>
-      <button disabled={day >= yesterday} onClick={() => setDay(addDays(day, 1))} aria-label="次の日"
-        className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-30">›</button>
-    </div>
-  );
-  if (!data) return <section className="space-y-4">{nav}<Loading error={error} /></section>;
+  if (!data) return <Loading error={error} />;
   const s = data.sales.total;
   const q = data.quality;
   const items = [...data.product.items].sort((a, b) => (lowestFirst ? a.total_score - b.total_score : (a.at || "").localeCompare(b.at || "")));
   const hourlyShown = (["grab", "foodpanda"] as const).filter((p) => data.hourly_coverage[p].complete);
   return (
-    <section className="space-y-6">
-      {nav}
+    <div className="space-y-6">
       {data.flags.length > 0 ? (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
           <p className="font-semibold">確認しておきたい点</p>
@@ -339,7 +384,121 @@ function DailyTab({ store, yesterday, onAuthError }: { store: string; yesterday:
         この画面の売上は店舗のレジ（StoreHub）の記録で、全チャネルが翌朝までにそろいます（税抜）。「分配」タブの月次の数字は各プラットフォームの精算明細を使うため、数%の差が出ることがあります。利益は月を締めないと正確に出せないため、日次では表示していません。
         {" "}データの取り込み状況：レジ {data.freshness.pos ?? "—"}まで、GrabFood の注文 {data.freshness.grab_orders ?? "—"}まで、foodpanda の注文 {data.freshness.foodpanda_orders ?? "—"}まで。
       </p>
-    </section>
+    </div>
+  );
+}
+
+type MonthDay = {
+  day: string; net: number; orders: number; change: number | null; people: number; hours: number;
+  checks_done: number; check_issues: number; photos: number; c_photos: number; ck_notes: number;
+  grab_offline_min: number | null; foodpanda_offline_min: number | null; foodpanda_prep_min: number | null; flags: string[];
+};
+type Month = {
+  month: string; from: string; to: string; complete: boolean;
+  sales: { channels: Record<string, ChannelSales>; total: ChannelSales & { avg_ticket: number | null } };
+  prev: { from: string; to: string } | null; sales_change: number | null; daily_avg_net: number | null;
+  days: MonthDay[];
+  quality: { grab_rating: number | null; grab_rating_start: number | null; foodpanda_rating: number | null; foodpanda_rating_start: number | null;
+    foodpanda_prep_avg_min: number | null; grab_prep_median_avg_min: number | null; grab_offline_min: number; foodpanda_offline_min: number };
+  checks: { expected: number; done: number; issues: number };
+  team: { person_days: number; hours: number };
+  ck_notes: number;
+  product: { count: number; avg: number | null; by_grade: Record<string, number>; by_category: Record<string, number> };
+  days_with_flags: number;
+};
+const short = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
+const kilo = (n: number) => (n >= 1000 ? `₱${(n / 1000).toFixed(n >= 100000 ? 0 : 1)}k` : `₱${Math.round(n)}`);
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+function MonthView({ store, month, onAuthError, onOpenDay }: { store: string; month: string; onAuthError: (e: unknown) => void; onOpenDay: (d: string) => void }) {
+  const { data, error } = useOwnerData<Month>(`/api/owner/daily-month?store=${store}&month=${month}`, onAuthError);
+  if (!data) return <Loading error={error} />;
+  const t = data.sales.total;
+  const q = data.quality;
+  const byDay = new Map(data.days.map((d) => [d.day, d]));
+  const m1 = new Date(`${month}-01T00:00:00`);
+  const daysInMonth = new Date(m1.getFullYear(), m1.getMonth() + 1, 0).getDate();
+  const cells: (string | null)[] = [...Array(m1.getDay()).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
+  const maxNet = Math.max(1, ...data.days.map((d) => d.net));
+  const rating = (now: number | null, start: number | null) =>
+    now == null ? "—" : now.toFixed(2);
+  const ratingSub = (now: number | null, start: number | null) =>
+    start == null || now == null ? undefined : start === now ? "月初から変わらず" : `月初 ${start.toFixed(2)} から`;
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card label="売上（税抜）" value={php(t.net)} sub={data.sales_change != null && data.prev ? `先月の${short(data.prev.from)}〜${short(data.prev.to)}比 ${signed(data.sales_change)}` : `${short(data.from)}〜${short(data.to)}${data.complete ? "" : "（途中まで）"}`} />
+        <Card label="注文数" value={`${num(t.orders)}件`} />
+        <Card label="客単価" value={php(t.avg_ticket)} />
+        <Card label="1日あたりの売上" value={php(data.daily_avg_net)} sub={`${data.days.length}日間の平均`} />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-sm font-semibold text-white">チャネル別</p>
+          <div className="mt-3 space-y-2">
+            {(["grab", "foodpanda", "dine_in"] as const).map((ch) => {
+              const c = data.sales.channels[ch];
+              const share = t.net ? c.net / t.net : 0;
+              return (
+                <div key={ch} className="text-sm">
+                  <div className="flex justify-between gap-2 text-slate-300"><span>{CHANNEL_LABEL[ch]}</span><span className="text-right tabular-nums text-white">{php(c.net)} · {num(c.orders)}件</span></div>
+                  <div className="mt-1 h-2 rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${(share * 100).toFixed(1)}%` }} /></div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-sm font-semibold text-white">日ごとの売上 <span className="font-normal text-slate-400">— 日付を押すとその日の詳細を開きます</span></p>
+          </div>
+          <div className="mt-3 grid grid-cols-7 gap-1 text-center">
+            {WEEKDAYS.map((w, i) => <div key={w} className={`pb-1 text-[11px] ${i === 0 ? "text-rose-300" : i === 6 ? "text-sky-300" : "text-slate-400"}`}>{w}</div>)}
+            {cells.map((c, i) => {
+              if (!c) return <div key={`e${i}`} />;
+              const d = byDay.get(c);
+              const dayNum = Number(c.slice(8));
+              if (!d) return <div key={c} className="rounded-md border border-white/5 py-2 text-[11px] text-slate-600">{dayNum}</div>;
+              const warn = d.checks_done < 4 || d.check_issues > 0 || (d.change != null && d.change <= -0.2)
+                || (d.grab_offline_min ?? 0) >= 60 || (d.foodpanda_offline_min ?? 0) >= 60 || (d.foodpanda_prep_min ?? 0) > 25;
+              return (
+                <button key={c} onClick={() => onOpenDay(c)} title={d.flags.length ? d.flags.join("\n") : "特に変わった点はありません"}
+                  className={`relative overflow-hidden rounded-md border px-0.5 pb-1 pt-1 text-left hover:border-emerald-400/60 ${warn ? "border-amber-500/40 bg-amber-500/[0.07]" : "border-white/10 bg-white/[0.02]"}`}>
+                  <div className="absolute inset-x-0 bottom-0 bg-emerald-400/15" style={{ height: `${Math.round((d.net / maxNet) * 70)}%` }} aria-hidden />
+                  <div className="relative flex items-start justify-between px-0.5">
+                    <span className="text-[11px] font-semibold text-slate-200">{dayNum}</span>
+                    {warn && <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-400" aria-label="確認しておきたい点あり" />}
+                  </div>
+                  <div className="relative mt-1 text-center text-[10px] tabular-nums text-white sm:text-xs">{kilo(d.net)}</div>
+                  <div className="relative hidden text-center text-[10px] tabular-nums text-slate-400 sm:block">{d.orders}件{d.c_photos ? <span className="text-slate-500">・C{d.c_photos}</span> : null}</div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-500">
+            <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-400 align-middle" />店舗チェックの未提出・問題、オフライン60分以上、調理時間25分超、先週同曜日より売上20%以上減のいずれかがあった日。「C」はC評価の料理写真の枚数です（スマートフォンでは注文数と合わせて省略しています）。緑の帯の高さは、この月で一番売上が多い日に対する割合です。
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card label="GrabFood の評価" value={rating(q.grab_rating, q.grab_rating_start)} sub={ratingSub(q.grab_rating, q.grab_rating_start)} />
+        <Card label="foodpanda の評価" value={rating(q.foodpanda_rating, q.foodpanda_rating_start)} sub={ratingSub(q.foodpanda_rating, q.foodpanda_rating_start)} />
+        <Card label="調理時間" value={q.foodpanda_prep_avg_min != null ? `${q.foodpanda_prep_avg_min}分` : "—"} sub={`foodpanda の平均${q.grab_prep_median_avg_min != null ? `・GrabFood ${q.grab_prep_median_avg_min}分` : ""}`} />
+        <Card label="オフライン時間（合計）" value={`${num(q.grab_offline_min + q.foodpanda_offline_min)}分`} sub={`GrabFood ${num(q.grab_offline_min)}分・foodpanda ${num(q.foodpanda_offline_min)}分`} />
+        <Card label="店舗チェック" value={`${data.checks.done} / ${data.checks.expected}回`} sub={data.checks.issues ? `問題あり ${data.checks.issues}回` : "問題の報告なし"} />
+        <Card label="出勤スタッフ" value={`延べ${num(data.team.person_days)}人`} sub={`合計${num(data.team.hours)}時間`} />
+        <Card label="CKからの納品" value={`${data.ck_notes}件`} />
+        <Card label="料理写真の評価" value={data.product.avg != null ? `平均${data.product.avg}点` : "—"} sub={`${num(data.product.count)}枚・${["A", "B", "C"].filter((g) => data.product.by_grade[g]).map((g) => `${g} ${num(data.product.by_grade[g])}`).join("・")}`} />
+      </div>
+
+      <p className="text-xs text-slate-500">
+        売上は店舗のレジ（StoreHub）の記録で税抜です。「分配」タブの月次の数字は各プラットフォームの精算明細を使うため、数%の差が出ることがあります。{data.complete ? "" : `この月は${short(data.to)}までの集計です。`}
+      </p>
+    </div>
   );
 }
 
