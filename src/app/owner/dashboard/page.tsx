@@ -161,7 +161,8 @@ type LedgerRow = {
   operating_profit: number; corp_tax: number; corp_tax_rate: number; corp_tax_basis: "provisional" | "filed";
   capex_reserve: number; after_tax_profit: number; ytd_after_tax_profit: number; preferred_cap_year: number;
   ytd_preferred: number; ytd_owner_excess: number; ytd_entitled: number; interim_distribution: number;
-  paid: number | null; ytd_payable: number; ytd_paid: number; fl_ratio: number | null; status: string;
+  paid: number | null; ytd_payable: number; ytd_paid: number; year_end_due: number | null; overpayment_carried_in: number;
+  fl_ratio: number | null; status: string;
   revision: number; published_at: string | null;
 };
 type Ledger = {
@@ -233,7 +234,7 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
                   <th className="px-3 py-2 text-right">Store costs</th><th className="px-3 py-2 text-right">Company fees</th>
                   <th className="px-3 py-2 text-right">Operating profit</th><th className="px-3 py-2 text-right">Corporate tax</th>
                   <th className="px-3 py-2 text-right">Renewal reserve</th><th className="px-3 py-2 text-right">After-tax profit</th>
-                  <th className="px-3 py-2 text-right">Due for the month</th><th className="px-3 py-2 text-right">Paid</th>
+                  <th className="px-3 py-2 text-right">Payable, year to date</th><th className="px-3 py-2 text-right">Paid, year to date</th>
                 </tr>
               </thead>
               <tbody>
@@ -250,8 +251,15 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
                     <td className="px-3 py-2 text-right">{php(r.corp_tax)}<div className="text-[11px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}% {r.corp_tax_basis === "filed" ? "as filed" : "provisional"}</div></td>
                     <td className="px-3 py-2 text-right">{php(r.capex_reserve)}</td>
                     <td className={`px-3 py-2 text-right ${r.after_tax_profit < 0 ? "text-red-300" : "text-white"}`}>{php(r.after_tax_profit)}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-white">{php(r.interim_distribution, 2)}</td>
-                    <td className="px-3 py-2 text-right">{r.paid ? php(r.paid, 2) : "—"}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-white">
+                      {php(r.ytd_payable, 2)}
+                      {r.year_end_due != null && r.year_end_due > 0 && <div className="text-[11px] font-normal text-emerald-300">year-end settlement {php(r.year_end_due, 2)}</div>}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {php(r.ytd_paid, 2)}
+                      {r.paid ? <div className="text-[11px] text-slate-500">this month {php(r.paid, 2)}</div> : null}
+                      {r.overpayment_carried_in > 0 && <div className="text-[11px] text-amber-300">incl. {php(r.overpayment_carried_in, 2)} overpaid last year</div>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -299,7 +307,7 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
         <li>Amounts are in pesos. The recovery rate is distributions paid ÷ your investment in pesos ({php(c.investment_php)}); yen figures are for reference only.</li>
         <li>Distributions are after Philippine corporate income tax and before any tax on you: withholding tax on the distribution and tax where you live are not included, so what you receive can be lower.</li>
         <li>Corporate tax is worked out each month at 25% on the year so far. When the company files its return for the year, the year is worked out again at the rate filed (20% if the company qualifies) and the difference is settled.</li>
-        <li>Monthly distributions are interim, on unaudited accounts: at most 70% of the year&apos;s profit so far. They are settled when the year&apos;s accounts are final (Schedule 2, Articles 3 and 4).</li>
+        <li>Monthly distributions are interim, on unaudited accounts: what is payable on the year so far is at most 70% of the year&apos;s profit so far. When the year&apos;s accounts are final it is settled: the rest of the year&apos;s entitlement is paid, or an overpayment comes off the next distributions (Schedule 2, Articles 3 and 4).</li>
         <li>Projected yields and recovery are targets, not guarantees. Each month is shown once HQ has closed it; a corrected month shows its revision number.</li>
       </ul>
     </section>

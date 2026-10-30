@@ -149,7 +149,7 @@ export default function OwnerPortalAdminPage() {
 // ── HQ only: the store's month, line by line (FOCO ledger stage 1) ───────────
 type SheetLine = { group: "sales" | "cost"; key: string; label: string; amount: number | null; source: string; status: string; note: string };
 type Sheet = {
-  store: string; month: string; period_from: string; period_to: string; lines: SheetLine[]; gaps: string[]; missing: string[];
+  store: string; month: string; period_from: string; period_to: string; lines: SheetLine[]; gaps: string[]; notes?: string[]; missing: string[];
   complete: boolean; net_sales: number; store_costs: number; ck_cost: number; food_cost: number; labor: number; profit_before_fees: number;
 };
 const SHEET_STORES = [{ code: "TAFT", name: "Taft" }, { code: "PAR", name: "Paranaque" }];
@@ -170,11 +170,11 @@ function sheetMonths(): string[] {
 const peso = (n: number | null) => (n == null ? "—" : `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const STATUS_STYLE: Record<string, string> = {
   actual: "text-slate-400", unreviewed: "text-amber-300", estimate: "text-sky-300", missing: "text-red-300",
-  adjustment: "text-violet-300",
+  adjustment: "text-violet-300", not_counted: "text-slate-500 line-through",
 };
 const STATUS_TEXT: Record<string, string> = {
   actual: "Recorded", unreviewed: "Invoice not checked yet", estimate: "Estimate", missing: "Not in the OS",
-  adjustment: "Entered by HQ",
+  adjustment: "Entered by HQ", not_counted: "Not counted (bill is in)",
 };
 
 function CostSheet() {
@@ -251,6 +251,9 @@ function CostSheet() {
               </tbody>
             </table>
           </div>
+          {(sheet.notes || []).length > 0 && (
+            <ul className="list-disc space-y-0.5 pl-5 text-xs text-slate-500">{(sheet.notes || []).map((n) => <li key={n}>{n}</li>)}</ul>
+          )}
           {sheet.gaps.length > 0 && (
             <div className="space-y-1 text-sm">
               <p className="font-semibold text-slate-200">To check</p>
@@ -268,7 +271,9 @@ type CloseRow = {
   month: string; status: "open" | "approved" | "published"; revision: number; net_sales: number; store_costs: number;
   foco_fees: number; operating_profit: number; corp_tax: number; corp_tax_rate: number; corp_tax_basis: string;
   after_tax_profit: number; ytd_after_tax_profit: number; interim_distribution: number; paid: number | null;
+  ytd_payable: number; ytd_paid: number; year_end_due: number | null;
   complete: boolean; missing: string[]; gaps: string[]; approved_by: string | null; published_by: string | null;
+  sheet: { lines: { status: string }[] } | null;
 };
 type Adjustment = { id: number; month: string; key: string; label: string; amount: number; note: string; entered_by: string; withdrawn_at: string | null };
 type HqLedger = {
@@ -310,8 +315,10 @@ function MonthClose() {
     catch (e) { setError(e instanceof Error ? e.message : "Could not save."); return false; }
     finally { setBusy(false); }
   }
+  const openItems = (r: CloseRow) => r.missing.length + r.gaps.length
+    + (r.sheet?.lines || []).filter((l) => l.status === "estimate" || l.status === "unreviewed").length;
   function approve(r: CloseRow) {
-    const open = r.missing.length + r.gaps.length;
+    const open = openItems(r);
     if (open && !confirm(`${r.month} still has ${open} open item(s) (missing lines and checks). Approve it as it stands?`)) return;
     act({ action: "approve", month: r.month, acknowledge_gaps: open > 0 });
   }
@@ -340,7 +347,7 @@ function MonthClose() {
               <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
                 <tr><th className="px-3 py-2">Month</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Net sales</th>
                   <th className="px-3 py-2 text-right">Operating profit</th><th className="px-3 py-2 text-right">Tax</th>
-                  <th className="px-3 py-2 text-right">After tax</th><th className="px-3 py-2 text-right">Due</th><th className="px-3 py-2 text-right">Paid</th>
+                  <th className="px-3 py-2 text-right">After tax</th><th className="px-3 py-2 text-right">Payable YTD</th><th className="px-3 py-2 text-right">Paid YTD</th>
                   <th className="px-3 py-2">Open items</th><th className="px-3 py-2" /></tr>
               </thead>
               <tbody>
@@ -352,9 +359,9 @@ function MonthClose() {
                     <td className="px-3 py-2 text-right">{peso(r.operating_profit)}</td>
                     <td className="px-3 py-2 text-right">{peso(r.corp_tax)}<div className="text-[10px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}% {r.corp_tax_basis}</div></td>
                     <td className="px-3 py-2 text-right">{peso(r.after_tax_profit)}</td>
-                    <td className="px-3 py-2 text-right text-white">{peso(r.interim_distribution)}</td>
-                    <td className="px-3 py-2 text-right">{r.paid ? peso(r.paid) : "—"}</td>
-                    <td className="px-3 py-2 text-xs text-slate-400">{r.missing.length} missing · {r.gaps.length} to check</td>
+                    <td className="px-3 py-2 text-right text-white">{peso(r.ytd_payable)}{r.year_end_due ? <div className="text-[10px] text-emerald-300">settle {peso(r.year_end_due)}</div> : null}</td>
+                    <td className="px-3 py-2 text-right">{peso(r.ytd_paid)}{r.paid ? <div className="text-[10px] text-slate-500">this month {peso(r.paid)}</div> : null}</td>
+                    <td className="px-3 py-2 text-xs text-slate-400">{r.missing.length} missing · {r.gaps.length} to check · {openItems(r) - r.missing.length - r.gaps.length} unchecked/estimate</td>
                     <td className="space-x-1 whitespace-nowrap px-3 py-2 text-right">
                       {r.status === "open" && <button disabled={busy} onClick={() => approve(r)} className="rounded border border-amber-500/40 px-2 py-1 text-xs text-amber-200 disabled:opacity-40">Approve</button>}
                       {r.status === "approved" && <button disabled={busy} onClick={() => act({ action: "publish", month: r.month })} className="rounded border border-emerald-500/40 px-2 py-1 text-xs text-emerald-200 disabled:opacity-40">Publish to owner</button>}
