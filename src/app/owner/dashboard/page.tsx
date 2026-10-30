@@ -421,8 +421,7 @@ function MonthView({ store, month, onAuthError, onOpenDay }: { store: string; mo
   const cells: (string | null)[] = [...Array(m1.getDay()).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
   const maxNet = Math.max(1, ...data.days.map((d) => d.net));
-  const rating = (now: number | null, start: number | null) =>
-    now == null ? "—" : now.toFixed(2);
+  const rating = (now: number | null) => (now == null ? "—" : now.toFixed(2));
   const ratingSub = (now: number | null, start: number | null) =>
     start == null || now == null ? undefined : start === now ? "月初から変わらず" : `月初 ${start.toFixed(2)} から`;
   return (
@@ -485,8 +484,8 @@ function MonthView({ store, month, onAuthError, onOpenDay }: { store: string; mo
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card label="GrabFood の評価" value={rating(q.grab_rating, q.grab_rating_start)} sub={ratingSub(q.grab_rating, q.grab_rating_start)} />
-        <Card label="foodpanda の評価" value={rating(q.foodpanda_rating, q.foodpanda_rating_start)} sub={ratingSub(q.foodpanda_rating, q.foodpanda_rating_start)} />
+        <Card label="GrabFood の評価" value={rating(q.grab_rating)} sub={ratingSub(q.grab_rating, q.grab_rating_start)} />
+        <Card label="foodpanda の評価" value={rating(q.foodpanda_rating)} sub={ratingSub(q.foodpanda_rating, q.foodpanda_rating_start)} />
         <Card label="調理時間" value={q.foodpanda_prep_avg_min != null ? `${q.foodpanda_prep_avg_min}分` : "—"} sub={`foodpanda の平均${q.grab_prep_median_avg_min != null ? `・GrabFood ${q.grab_prep_median_avg_min}分` : ""}`} />
         <Card label="オフライン時間（合計）" value={`${num(q.grab_offline_min + q.foodpanda_offline_min)}分`} sub={`GrabFood ${num(q.grab_offline_min)}分・foodpanda ${num(q.foodpanda_offline_min)}分`} />
         <Card label="店舗チェック" value={`${data.checks.done} / ${data.checks.expected}回`} sub={data.checks.issues ? `問題あり ${data.checks.issues}回` : "問題の報告なし"} />
