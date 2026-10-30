@@ -2,12 +2,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import SelectDark from "@/components/SelectDark";
 import {
   clearOwnerSession, getOwnerSession, OwnerAuthError, ownerDownload, ownerFetch, type OwnerSession,
 } from "@/lib/owner-auth";
 
-type Tab = "sales" | "ck" | "payouts" | "quality";
+type Tab = "ledger" | "sales" | "ck" | "payouts" | "quality";
 const TABS: { key: Tab; label: string }[] = [
+  { key: "ledger", label: "Distributions" },
   { key: "sales", label: "Sales" },
   { key: "ck", label: "CK Billing" },
   { key: "payouts", label: "Payouts" },
@@ -48,7 +50,7 @@ export default function OwnerDashboard() {
   const router = useRouter();
   const [session, setSession] = useState<OwnerSession | null>(null);
   const [store, setStore] = useState("");
-  const [tab, setTab] = useState<Tab>("sales");
+  const [tab, setTab] = useState<Tab>("ledger");
   const today = useMemo(() => manilaToday(), []);
   const cycles = useMemo(() => {
     const out: string[] = [];
@@ -90,15 +92,13 @@ export default function OwnerDashboard() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {session.stores.length > 1 && (
-            <select value={store} onChange={(e) => setStore(e.target.value)} aria-label="Store"
-              className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white">
-              {session.stores.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
-            </select>
+            <SelectDark value={store} onChange={setStore} aria-label="Store" className="min-w-[9rem]"
+              options={session.stores.map((s) => ({ value: s.code, label: s.name }))} />
           )}
-          <select value={cycle} onChange={(e) => setCycle(e.target.value)} aria-label="Month"
-            className="rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white">
-            {cycles.map((c) => <option key={c} value={c}>{cycleLabel(c)}</option>)}
-          </select>
+          {tab !== "ledger" && (
+            <SelectDark value={cycle} onChange={setCycle} aria-label="Month" className="min-w-[14rem]"
+              options={cycles.map((c) => ({ value: c, label: cycleLabel(c) }))} />
+          )}
           <button onClick={() => { clearOwnerSession(); router.replace("/owner"); }}
             className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">Sign out</button>
         </div>
@@ -114,6 +114,7 @@ export default function OwnerDashboard() {
       </nav>
 
       <main className="mt-6">
+        {tab === "ledger" && <LedgerTab store={store} onAuthError={onAuthError} />}
         {tab === "sales" && <SalesTab store={store} from={from} to={rangeTo} onAuthError={onAuthError} />}
         {tab === "ck" && <CkTab store={store} cycle={cycle} onAuthError={onAuthError} />}
         {tab === "payouts" && <PayoutsTab store={store} from={from} to={rangeTo} onAuthError={onAuthError} />}
@@ -151,6 +152,158 @@ function Card({ label, value, sub }: { label: string; value: string; sub?: strin
 }
 function Loading({ error }: { error: string }) {
   return error ? <p role="alert" className="text-sm text-red-300">{error}</p> : <p className="text-sm text-slate-400">Loading…</p>;
+}
+
+// ── Distributions (the ledger under the agreement) ──────────────────────────
+type LedgerRow = {
+  month: string; financial_year: number; month_index: number; net_sales: number; store_costs: number;
+  profit_before_fees: number; ck_supply_fee: number; operating_fee: number; royalty: number; foco_fees: number;
+  operating_profit: number; corp_tax: number; corp_tax_rate: number; corp_tax_basis: "provisional" | "filed";
+  capex_reserve: number; after_tax_profit: number; ytd_after_tax_profit: number; preferred_cap_year: number;
+  ytd_preferred: number; ytd_owner_excess: number; ytd_entitled: number; interim_distribution: number;
+  paid: number | null; ytd_payable: number; ytd_paid: number; fl_ratio: number | null; status: string;
+  revision: number; published_at: string | null;
+};
+type Ledger = {
+  store_name: string;
+  contract: {
+    investment_jpy: number; fx_php_per_jpy: number; fx_date: string; investment_php: number; opening_date: string;
+    term_end: string; months_left: number; preferred_cap_year: number; operating_fee_pct: number; royalty_pct: number;
+    food_supply_fee_pct: number; capex_reserve_pct: number; excess_owner_pct: number;
+  };
+  rows: LedgerRow[];
+  payments: { id: number; month: string; amount: number; paid_on: string; reference: string }[];
+  kpi: { paid_to_date: number; recovery_rate: number | null; due_not_paid: number; last_month: string | null; buyout_reference: number | null };
+  fl: { month: string; fl_ratio: number | null; over: boolean; streak: number }[];
+};
+
+const monthName = (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString("en-PH", { month: "short", year: "numeric" });
+const pct = (n: number | null | undefined, d = 1) => (n == null ? "—" : `${(n * 100).toFixed(d)}%`);
+
+function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unknown) => void }) {
+  const { data, error } = useOwnerData<Ledger>(`/api/owner/ledger?store=${store}`, onAuthError);
+  if (!data) return <Loading error={error} />;
+  const c = data.contract;
+  const k = data.kpi;
+  const rows = data.rows;
+  const last = rows[rows.length - 1];
+  const yearRows = last ? rows.filter((r) => r.financial_year === last.financial_year) : [];
+  const yearLast = yearRows[yearRows.length - 1];
+  const prefUsed = yearLast && yearLast.preferred_cap_year > 0 ? Math.min(1, yearLast.ytd_preferred / yearLast.preferred_cap_year) : 0;
+  const flLast = data.fl[data.fl.length - 1];
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-wrap gap-x-8 gap-y-1 text-sm text-slate-300">
+        <span>Investment <b className="text-white">{php(c.investment_php)}</b> <span className="text-slate-500">(¥{num(c.investment_jpy)} at the BSP rate of {c.fx_date}, ₱{c.fx_php_per_jpy} per yen)</span></span>
+        <span>Opening date <b className="text-white">{c.opening_date}</b></span>
+        <span>Term ends <b className="text-white">{c.term_end}</b> · {c.months_left} months left</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Card label="Distributions paid" value={php(k.paid_to_date, 2)} sub={`${data.payments.length} payment(s)`} />
+        <Card label="Recovery rate" value={pct(k.recovery_rate)} sub="paid ÷ investment, in pesos" />
+        <Card label="Due, not yet paid" value={php(k.due_not_paid, 2)} sub="interim distribution" />
+        <Card label="Last month published" value={k.last_month ? monthName(k.last_month) : "—"} />
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-300">
+          No month has been published yet. HQ closes each month once its bills and payroll are in, and publishes it here — usually by the 20th of the following month.
+        </div>
+      ) : (
+        <>
+          {yearLast && (
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-sm font-semibold text-white">Preferred distribution, {yearLast.financial_year}</p>
+                <p className="text-sm tabular-nums text-slate-300">{php(yearLast.ytd_preferred, 2)} of {php(yearLast.preferred_cap_year, 2)}</p>
+              </div>
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full rounded-full bg-emerald-400" style={{ width: `${(prefUsed * 100).toFixed(1)}%` }} />
+              </div>
+              <p className="mt-2 text-xs text-slate-400">Up to 30% a year of your investment, counted over the financial year (January to December; {yearLast.financial_year === 2026 ? "2026 runs October to December, so its share is three months" : "a full year"}). What is not reached in a year is not carried into the next. Profit beyond it is shared {100 - c.excess_owner_pct}% Company / {c.excess_owner_pct}% you.</p>
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full min-w-[980px] text-sm tabular-nums">
+              <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th className="px-3 py-2">Month</th><th className="px-3 py-2 text-right">Net sales</th>
+                  <th className="px-3 py-2 text-right">Store costs</th><th className="px-3 py-2 text-right">Company fees</th>
+                  <th className="px-3 py-2 text-right">Operating profit</th><th className="px-3 py-2 text-right">Corporate tax</th>
+                  <th className="px-3 py-2 text-right">Renewal reserve</th><th className="px-3 py-2 text-right">After-tax profit</th>
+                  <th className="px-3 py-2 text-right">Due for the month</th><th className="px-3 py-2 text-right">Paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.month} className="border-t border-white/5 align-top">
+                    <td className="px-3 py-2 text-white">{monthName(r.month)}{r.revision > 1 && <span className="ml-1 text-[10px] text-amber-300">rev {r.revision}</span>}</td>
+                    <td className="px-3 py-2 text-right">{php(r.net_sales)}</td>
+                    <td className="px-3 py-2 text-right">{php(r.store_costs)}</td>
+                    <td className="px-3 py-2 text-right" title={`Food Supply Fee ${php(r.ck_supply_fee)} · Operating Fee ${php(r.operating_fee)} · Royalty ${php(r.royalty)}`}>
+                      {php(r.foco_fees)}
+                      <div className="text-[11px] text-slate-500">CK {php(r.ck_supply_fee)} · Op {php(r.operating_fee)} · Roy {php(r.royalty)}</div>
+                    </td>
+                    <td className={`px-3 py-2 text-right ${r.operating_profit < 0 ? "text-red-300" : ""}`}>{php(r.operating_profit)}</td>
+                    <td className="px-3 py-2 text-right">{php(r.corp_tax)}<div className="text-[11px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}% {r.corp_tax_basis === "filed" ? "as filed" : "provisional"}</div></td>
+                    <td className="px-3 py-2 text-right">{php(r.capex_reserve)}</td>
+                    <td className={`px-3 py-2 text-right ${r.after_tax_profit < 0 ? "text-red-300" : "text-white"}`}>{php(r.after_tax_profit)}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-white">{php(r.interim_distribution, 2)}</td>
+                    <td className="px-3 py-2 text-right">{r.paid ? php(r.paid, 2) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">FL ratio <span className="font-normal text-slate-400">(food + Food Supply Fee + store payroll) ÷ net sales</span></p>
+              <div className="mt-3 space-y-1.5">
+                {data.fl.map((f) => (
+                  <div key={f.month} className="flex items-center gap-3 text-sm">
+                    <span className="w-20 text-slate-400">{monthName(f.month)}</span>
+                    <div className="relative h-2 flex-1 rounded-full bg-white/10">
+                      <div className={`h-full rounded-full ${f.over ? "bg-amber-400" : "bg-sky-400"}`} style={{ width: `${Math.min(100, (f.fl_ratio || 0) * 100)}%` }} />
+                      <div className="absolute inset-y-[-3px] w-px bg-white/60" style={{ left: "55%" }} title="55%" />
+                    </div>
+                    <span className={`w-14 text-right tabular-nums ${f.over ? "text-amber-300" : "text-white"}`}>{pct(f.fl_ratio)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                The line is 55%. In a month above it the Company explains the cause and the plan in the next month&apos;s report; after three months in a row it gives you a written remediation plan (Article 9.4).
+                {flLast?.streak >= 3 && <b className="text-amber-300"> Three months in a row above 55%: a written plan is due.</b>}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+              <p className="font-semibold text-white">Company fees (Schedule 1)</p>
+              <ul className="mt-2 space-y-1">
+                <li>Food Supply Fee: {c.food_supply_fee_pct}% of the Supply Cost — line by line on the CK Billing tab</li>
+                <li>Operating Fee: {c.operating_fee_pct}% of net sales</li>
+                <li>Franchise Royalty: {c.royalty_pct}% of net sales</li>
+                <li>Equipment Renewal Reserve: {c.capex_reserve_pct}% of net sales, kept for the store&apos;s repairs</li>
+              </ul>
+              <p className="mt-2 text-xs text-slate-400">No other head-office charge is made to the store (Article 7.7). You may have the accounts and the Supply Cost checked by an independent accountant once a year at your own cost (Article 9.6).</p>
+              {k.buyout_reference != null && (
+                <p className="mt-2 text-xs text-slate-400">Buyout reference (Article 12.3): {php(k.buyout_reference, 2)} — the last twelve months&apos; distributions × 0.8. A right of the Company, not an obligation, and not part of the recovery rate.</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      <ul className="list-disc space-y-1 pl-5 text-xs text-slate-400">
+        <li>Amounts are in pesos. The recovery rate is distributions paid ÷ your investment in pesos ({php(c.investment_php)}); yen figures are for reference only.</li>
+        <li>Distributions are after Philippine corporate income tax and before any tax on you: withholding tax on the distribution and tax where you live are not included, so what you receive can be lower.</li>
+        <li>Corporate tax is worked out each month at 25% on the year so far. When the company files its return for the year, the year is worked out again at the rate filed (20% if the company qualifies) and the difference is settled.</li>
+        <li>Monthly distributions are interim, on unaudited accounts: at most 70% of the year&apos;s profit so far. They are settled when the year&apos;s accounts are final (Schedule 2, Articles 3 and 4).</li>
+        <li>Projected yields and recovery are targets, not guarantees. Each month is shown once HQ has closed it; a corrected month shows its revision number.</li>
+      </ul>
+    </section>
+  );
 }
 
 // ── Sales ───────────────────────────────────────────────────────────────────

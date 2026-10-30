@@ -1,5 +1,6 @@
 "use client";
 import { Fragment, useCallback, useEffect, useState } from "react";
+import SelectDark from "@/components/SelectDark";
 import { getAuthHeaders } from "@/lib/auth";
 
 // HQ: franchise owner accounts. An owner sees only the stores ticked here, and
@@ -139,6 +140,7 @@ export default function OwnerPortalAdminPage() {
         </table>
       </div>
 
+      <MonthClose />
       <CostSheet />
     </div>
   );
@@ -168,9 +170,11 @@ function sheetMonths(): string[] {
 const peso = (n: number | null) => (n == null ? "—" : `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const STATUS_STYLE: Record<string, string> = {
   actual: "text-slate-400", unreviewed: "text-amber-300", estimate: "text-sky-300", missing: "text-red-300",
+  adjustment: "text-violet-300",
 };
 const STATUS_TEXT: Record<string, string> = {
   actual: "Recorded", unreviewed: "Invoice not checked yet", estimate: "Estimate", missing: "Not in the OS",
+  adjustment: "Entered by HQ",
 };
 
 function CostSheet() {
@@ -252,6 +256,177 @@ function CostSheet() {
               <p className="font-semibold text-slate-200">To check</p>
               <ul className="list-disc space-y-0.5 pl-5 text-slate-400">{sheet.gaps.map((g) => <li key={g}>{g}</li>)}</ul>
             </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+// ── HQ only: closing the month, HQ entries, the year's tax, payments ─────────
+type CloseRow = {
+  month: string; status: "open" | "approved" | "published"; revision: number; net_sales: number; store_costs: number;
+  foco_fees: number; operating_profit: number; corp_tax: number; corp_tax_rate: number; corp_tax_basis: string;
+  after_tax_profit: number; ytd_after_tax_profit: number; interim_distribution: number; paid: number | null;
+  complete: boolean; missing: string[]; gaps: string[]; approved_by: string | null; published_by: string | null;
+};
+type Adjustment = { id: number; month: string; key: string; label: string; amount: number; note: string; entered_by: string; withdrawn_at: string | null };
+type HqLedger = {
+  rows: CloseRow[]; adjustments: Adjustment[]; year_tax_rates: Record<string, number>;
+  payments: { id: number; month: string; amount: number; paid_on: string; reference: string }[];
+  kpi: { paid_to_date: number; due_not_paid: number };
+  history: { id: number; month: string; revision: number; status: string; approved_by: string; published_by: string; superseded_by: string; reopen_reason: string }[];
+};
+const ADJ_KEYS = [
+  ["rent", "Rent"], ["cusa", "CUSA"], ["utilities", "Utilities and sanitation"], ["delivery_logistics", "Delivery and logistics"],
+  ["kitchen_equipment", "Kitchen equipment"], ["pos_fees", "POS, Wi-Fi and card terminal fees"], ["pest", "Pest control"],
+  ["repairs", "Repairs and maintenance"], ["marketing_local", "Local marketing"], ["business_taxes", "Business taxes"],
+  ["food", "Food (correction)"], ["packaging", "Packaging (correction)"], ["labor", "Store payroll (correction)"],
+  ["platform_fees", "Platform fees (correction)"], ["other", "Other store cost"], ["sales_other", "Sales (correction)"],
+].map(([value, label]) => ({ value, label }));
+const STATUS_CHIP: Record<string, string> = {
+  open: "border-slate-500/40 text-slate-300", approved: "border-amber-500/40 text-amber-200", published: "border-emerald-500/40 text-emerald-200",
+};
+
+function MonthClose() {
+  const [store, setStore] = useState("TAFT");
+  const [data, setData] = useState<HqLedger | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [adj, setAdj] = useState({ month: "", key: "rent", amount: "", note: "", label: "" });
+  const [pay, setPay] = useState({ month: "", amount: "", paid_on: "", reference: "" });
+  const [tax, setTax] = useState({ fy: "2026", rate: "0.25", note: "" });
+
+  const load = useCallback(async () => {
+    setError("");
+    try { setData(await api(`/api/admin/foco/ledger?store=${store}`)); }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not load."); }
+  }, [store]);
+  useEffect(() => { setData(null); load(); }, [load]);
+
+  async function act(body: Record<string, unknown>, path = "/api/admin/foco/close") {
+    setBusy(true); setError("");
+    try { await api(path, { method: "POST", body: JSON.stringify({ store, ...body }) }); await load(); return true; }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not save."); return false; }
+    finally { setBusy(false); }
+  }
+  function approve(r: CloseRow) {
+    const open = r.missing.length + r.gaps.length;
+    if (open && !confirm(`${r.month} still has ${open} open item(s) (missing lines and checks). Approve it as it stands?`)) return;
+    act({ action: "approve", month: r.month, acknowledge_gaps: open > 0 });
+  }
+  function reopen(r: CloseRow) {
+    const reason = prompt(`Why is ${r.month} reopened? The reason stays on record${r.status === "published" ? " and the owner will see a new revision" : ""}.`);
+    if (reason) act({ action: "reopen", month: r.month, reason });
+  }
+
+  const months = (data?.rows || []).map((r) => ({ value: r.month, label: r.month }));
+  const published = (data?.rows || []).filter((r) => r.status === "published").map((r) => ({ value: r.month, label: r.month }));
+  const pick = (on: boolean) => `rounded-lg border px-3 py-1.5 text-xs ${on ? "border-emerald-400 bg-emerald-500/15 text-emerald-200" : "border-white/10 text-slate-300 hover:bg-white/5"}`;
+  const input = "rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white";
+
+  return (
+    <section className="space-y-4 border-t border-white/10 pt-6">
+      <div>
+        <h2 className="text-lg font-bold text-white">Monthly close and distributions <span className="text-xs font-normal text-slate-400">HQ only</span></h2>
+        <p className="text-sm text-slate-400">Owners see a month only after it is approved and then published, in order. Corporate tax is 25% until the year&apos;s filed rate is set; the year is then worked out again and the difference becomes due.</p>
+      </div>
+      <div className="flex gap-2">{SHEET_STORES.map((s) => <button key={s.code} onClick={() => setStore(s.code)} className={pick(store === s.code)}>{s.name}</button>)}</div>
+      {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+      {!data ? <p className="text-sm text-slate-400">Loading…</p> : (
+        <>
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full min-w-[900px] text-sm tabular-nums">
+              <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
+                <tr><th className="px-3 py-2">Month</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 text-right">Net sales</th>
+                  <th className="px-3 py-2 text-right">Operating profit</th><th className="px-3 py-2 text-right">Tax</th>
+                  <th className="px-3 py-2 text-right">After tax</th><th className="px-3 py-2 text-right">Due</th><th className="px-3 py-2 text-right">Paid</th>
+                  <th className="px-3 py-2">Open items</th><th className="px-3 py-2" /></tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r) => (
+                  <tr key={r.month} className="border-t border-white/5 align-top">
+                    <td className="px-3 py-2 text-white">{r.month}{r.revision > 0 && <span className="ml-1 text-[10px] text-slate-500">rev {r.revision}</span>}</td>
+                    <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[r.status]}`}>{r.status}</span></td>
+                    <td className="px-3 py-2 text-right">{peso(r.net_sales)}</td>
+                    <td className="px-3 py-2 text-right">{peso(r.operating_profit)}</td>
+                    <td className="px-3 py-2 text-right">{peso(r.corp_tax)}<div className="text-[10px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}% {r.corp_tax_basis}</div></td>
+                    <td className="px-3 py-2 text-right">{peso(r.after_tax_profit)}</td>
+                    <td className="px-3 py-2 text-right text-white">{peso(r.interim_distribution)}</td>
+                    <td className="px-3 py-2 text-right">{r.paid ? peso(r.paid) : "—"}</td>
+                    <td className="px-3 py-2 text-xs text-slate-400">{r.missing.length} missing · {r.gaps.length} to check</td>
+                    <td className="space-x-1 whitespace-nowrap px-3 py-2 text-right">
+                      {r.status === "open" && <button disabled={busy} onClick={() => approve(r)} className="rounded border border-amber-500/40 px-2 py-1 text-xs text-amber-200 disabled:opacity-40">Approve</button>}
+                      {r.status === "approved" && <button disabled={busy} onClick={() => act({ action: "publish", month: r.month })} className="rounded border border-emerald-500/40 px-2 py-1 text-xs text-emerald-200 disabled:opacity-40">Publish to owner</button>}
+                      {r.status !== "open" && <button disabled={busy} onClick={() => reopen(r)} className="rounded border border-white/10 px-2 py-1 text-xs text-slate-300 disabled:opacity-40">Reopen</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-slate-400">Paid to date {peso(data.kpi.paid_to_date)} · due, not yet paid {peso(data.kpi.due_not_paid)}. The month&apos;s line-by-line sheet is in the section below.</p>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <form onSubmit={(e) => { e.preventDefault(); act({ ...adj }, "/api/admin/foco/adjustments").then((ok) => ok && setAdj({ ...adj, amount: "", note: "", label: "" })); }}
+              className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Add a cost the OS does not hold</p>
+              <p className="text-xs text-slate-400">The rent from the lease until the mall&apos;s bill comes in, or a correction found when checking. Only while the month is open.</p>
+              <SelectDark value={adj.month} onChange={(v) => setAdj({ ...adj, month: v })} options={months} placeholder="Month" aria-label="Month" />
+              <SelectDark value={adj.key} onChange={(v) => setAdj({ ...adj, key: v })} options={ADJ_KEYS} aria-label="Line" />
+              <input value={adj.amount} onChange={(e) => setAdj({ ...adj, amount: e.target.value })} placeholder="Amount (PHP, without VAT; negative for a credit)" inputMode="decimal" required className={`${input} w-full`} />
+              <input value={adj.note} onChange={(e) => setAdj({ ...adj, note: e.target.value })} placeholder="Where it comes from (shown with the line)" required className={`${input} w-full`} />
+              <button disabled={busy || !adj.month} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-40">Add</button>
+              <ul className="space-y-1 pt-2 text-xs text-slate-400">
+                {data.adjustments.filter((a) => !a.withdrawn_at).map((a) => (
+                  <li key={a.id} className="flex items-start justify-between gap-2">
+                    <span>{a.month} · {a.label || a.key} · {peso(a.amount)} — {a.note} ({a.entered_by})</span>
+                    <button type="button" onClick={() => { const r = prompt("Why is this entry withdrawn?"); if (r) act({ reason: r }, `/api/admin/foco/adjustments/${a.id}/withdraw`); }} className="text-red-300">Withdraw</button>
+                  </li>
+                ))}
+              </ul>
+            </form>
+
+            <form onSubmit={(e) => { e.preventDefault(); act({ ...pay }, "/api/admin/foco/payments").then((ok) => ok && setPay({ month: "", amount: "", paid_on: "", reference: "" })); }}
+              className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Record a distribution paid</p>
+              <p className="text-xs text-slate-400">For a published month. The owner sees it as paid; what is due next counts it.</p>
+              <SelectDark value={pay.month} onChange={(v) => setPay({ ...pay, month: v })} options={published} placeholder="Month" aria-label="Month paid for" />
+              <input value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} placeholder="Amount paid (PHP)" inputMode="decimal" required className={`${input} w-full`} />
+              <input type="date" value={pay.paid_on} onChange={(e) => setPay({ ...pay, paid_on: e.target.value })} required className={`${input} w-full`} aria-label="Paid on" />
+              <input value={pay.reference} onChange={(e) => setPay({ ...pay, reference: e.target.value })} placeholder="Bank reference" required className={`${input} w-full`} />
+              <button disabled={busy || !pay.month} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-40">Record</button>
+              <ul className="space-y-1 pt-2 text-xs text-slate-400">
+                {data.payments.map((p) => (
+                  <li key={p.id} className="flex items-start justify-between gap-2">
+                    <span>{p.paid_on} · for {p.month} · {peso(p.amount)} · {p.reference}</span>
+                    <button type="button" onClick={() => { const r = prompt("Why is this payment record voided?"); if (r) act({ reason: r }, `/api/admin/foco/payments/${p.id}/void`); }} className="text-red-300">Void</button>
+                  </li>
+                ))}
+              </ul>
+            </form>
+
+            <form onSubmit={(e) => { e.preventDefault(); act({ ...tax }, "/api/admin/foco/year-tax"); }}
+              className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-semibold text-white">Corporate tax rate for the year</p>
+              <p className="text-xs text-slate-400">The rate the company filed for the financial year (one entity: both stores). 20% only when its taxable income is at most ₱5M and its total assets at most ₱100M.</p>
+              <input value={tax.fy} onChange={(e) => setTax({ ...tax, fy: e.target.value })} placeholder="Year" inputMode="numeric" className={`${input} w-full`} aria-label="Financial year" />
+              <SelectDark value={tax.rate} onChange={(v) => setTax({ ...tax, rate: v })} options={[{ value: "0.25", label: "25%" }, { value: "0.20", label: "20%" }]} aria-label="Rate" />
+              <input value={tax.note} onChange={(e) => setTax({ ...tax, note: e.target.value })} placeholder="From (return filed, accountant)" required className={`${input} w-full`} />
+              <button disabled={busy} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-40">Set</button>
+              <p className="pt-2 text-xs text-slate-400">Set: {Object.keys(data.year_tax_rates).length ? Object.entries(data.year_tax_rates).map(([fy, r]) => `${fy} ${(r * 100).toFixed(0)}%`).join(", ") : "none yet (25% provisional)"}</p>
+            </form>
+          </div>
+
+          {data.history.length > 0 && (
+            <details className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-xs text-slate-400">
+              <summary className="cursor-pointer text-sm text-white">Close history ({data.history.length})</summary>
+              <ul className="mt-2 space-y-1">
+                {data.history.map((h) => (
+                  <li key={h.id}>{h.month} rev {h.revision} · {h.status} · approved by {h.approved_by || "—"}{h.published_by ? ` · published by ${h.published_by}` : ""}{h.reopen_reason ? ` · reopened by ${h.superseded_by}: ${h.reopen_reason}` : ""}</li>
+                ))}
+              </ul>
+            </details>
           )}
         </>
       )}
