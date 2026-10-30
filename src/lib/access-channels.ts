@@ -98,6 +98,8 @@ export const CHANNEL_ROUTES: ReadonlyArray<readonly [string, ChannelRoute]> = [
   ["/admin/travel-path", { channel: "admin.travel_path", match: "exact", admin: true }],
   ["/admin/unworked-shifts", { channel: "admin.unworked_shifts", match: "prefix", admin: true }],
   ["/admin/yield-control", { channel: "admin.yield_control", match: "prefix", admin: true }],
+  // Franchise owner accounts (2026-10-30); same permission as the investor portal it replaces.
+  ["/admin/owner-portal", { channel: "investor_portal", match: "prefix", admin: true }],
   ["/attendance", { channel: "attendance", match: "exact", admin: false }],
   ["/calendar", { channel: "calendar", match: "exact", admin: false }],
   ["/change-pin", { channel: "change_pin", match: "exact", admin: false }],

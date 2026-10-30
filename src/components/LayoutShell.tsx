@@ -37,6 +37,12 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const hideNav = HIDE_NAV_PATHS.has(pathname)
     || HIDE_NAV_PREFIXES.some((p) => pathname.startsWith(p));
 
+  // Franchise owners (2026-10-30) have no staff account: no staff chrome, no
+  // session guard bouncing them to the staff login, and the full page width.
+  if (pathname === "/owner" || pathname.startsWith("/owner/")) {
+    return <>{children}</>;
+  }
+
   if (hideNav) {
     return (
       <main className="min-h-screen px-4 pt-[max(12px,env(safe-area-inset-top))] pb-5 sm:px-6">

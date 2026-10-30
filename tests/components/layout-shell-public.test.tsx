@@ -26,6 +26,10 @@ const APPLICANT_ROUTES = [
   "/assessment/abc123",
   "/login",
   "/setup-pin",
+  // Franchise owners: no staff account either.
+  "/owner",
+  "/owner/dashboard",
+  "/owner/set-password",
 ];
 
 const STAFF_ROUTES = ["/my-shift", "/admin/hr/recruitment", "/attendance"];

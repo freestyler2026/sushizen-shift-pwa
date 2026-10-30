@@ -353,7 +353,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/payments", label: "Payment Schedule", icon: Coins, adminOnly: true, match: "prefix" , cat: "proc" },
   { href: "/admin/discord-alerts", label: "Discord Alerts", icon: Bell, adminOnly: true, match: "prefix" , cat: "sys" },
   { href: "/admin/aggregator-price-monitor", label: "Aggregator Price Monitor", icon: Activity, adminOnly: true, match: "prefix" , cat: "money" },
-  { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true , cat: "money" },
+  { href: "/admin/owner-portal", label: "FOCO Owner Portal", icon: TrendingUp, adminOnly: true, match: "prefix", cat: "money" },
 ];
 
 // Primary bottom-tab hrefs — these 4 always appear in the bottom nav bar.
