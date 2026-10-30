@@ -52,7 +52,8 @@ export default function OwnerDashboard() {
   const today = useMemo(() => manilaToday(), []);
   const cycles = useMemo(() => {
     const out: string[] = [];
-    const last = cycleOf(today);
+    // Up to yesterday's month: on the 1st the new month has no figures yet.
+    const last = cycleOf(new Date(today.getTime() - 86400000));
     for (let c = FIRST_CYCLE; c <= last; ) {
       out.push(c);
       const [y, m] = c.split("-").map(Number);
@@ -192,7 +193,7 @@ function SalesTab({ store, from, to, onAuthError }: { store: string; from: strin
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-xs text-slate-500">Sales are net of platform-funded and store-funded discounts, as each platform reports them. Gross is before discounts.</p>
+      <p className="text-xs text-slate-500">Net Sales as in your agreement: without VAT, after discounts the store funds; foodpanda orders refunded to the customer are left out. Senior citizen and PWD sales are VAT-exempt and are not divided by 1.12. &quot;Gross&quot; is what the orders came to before the store-funded discount, VAT included.</p>
     </section>
   );
 }
@@ -214,13 +215,13 @@ function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; on
     <section className="space-y-6">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Card label="CK cost" value={php(t.cost, 2)} sub={`${data.confirmed_notes} confirmed deliveries`} />
-        <Card label={`Margin ${data.margin_pct}%`} value={php(t.margin, 2)} />
-        <Card label="Amount billed" value={php(t.amount, 2)} sub={`${data.period_from} – ${data.period_to}`} />
+        <Card label={`Food Supply Fee ${data.margin_pct}%`} value={php(t.margin, 2)} />
+        <Card label="CK cost + Food Supply Fee" value={php(t.amount, 2)} sub={`${data.period_from} – ${data.period_to}`} />
       </div>
       {data.pending_notes.length > 0 && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-          {data.pending_notes.length} delivery note(s) not yet confirmed by the store are not billed yet
-          ({php(data.pending_notes.reduce((s, n) => s + n.sent_cost, 0))} at sent quantities). They are billed in the month the store confirms what it received.
+          {data.pending_notes.length} delivery note(s) not yet confirmed by the store are not counted yet
+          ({php(data.pending_notes.reduce((s, n) => s + n.sent_cost, 0))} at sent quantities). They are counted in the month the store confirms what it received.
         </div>
       )}
       {data.unpriced_lines > 0 && (
@@ -239,7 +240,7 @@ function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; on
           <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
             <tr><th className="px-3 py-2">Item</th><th className="px-3 py-2">Unit</th><th className="px-3 py-2 text-right">Qty received</th>
               <th className="px-3 py-2 text-right">Unit cost</th><th className="px-3 py-2 text-right">Cost</th>
-              <th className="px-3 py-2 text-right">Margin</th><th className="px-3 py-2 text-right">Amount</th></tr>
+              <th className="px-3 py-2 text-right">Food Supply Fee</th><th className="px-3 py-2 text-right">Amount</th></tr>
           </thead>
           <tbody>
             {data.by_item.map((i) => (
@@ -261,13 +262,13 @@ function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; on
           )}
         </table>
       </div>
-      <p className="text-xs text-slate-500">Billed on the quantity your store confirmed it received, at the CK price on each delivery note, plus a {data.margin_pct}% margin. Each delivery is billed in the month your store confirmed receipt.</p>
+      <p className="text-xs text-slate-500">Food cost from the Central Kitchen and the Food Supply Fee ({data.margin_pct}% of the Supply Cost, Schedule 1 of your agreement). Counted on the quantity your store confirmed it received, at the CK price on each delivery note, in the month your store confirmed receipt. Both are costs of the store in its monthly profit.</p>
     </section>
   );
 }
 
 // ── Payouts ─────────────────────────────────────────────────────────────────
-type Payouts = { payouts: { platform: string; payout_date: string; period_start: string; period_end: string; amount: number; orders: number | null; gross_sales: number | null; net_sales: number | null }[]; totals: Record<string, number> };
+type Payouts = { payouts: { platform: string; payout_date: string; period_start: string; period_end: string; amount: number; orders: number | null; gross_sales: number | null; net_sales: number | null; before_transfer: boolean }[]; totals: Record<string, number>; owned_from: string };
 
 function PayoutsTab({ store, from, to, onAuthError }: { store: string; from: string; to: string; onAuthError: (e: unknown) => void }) {
   const { data, error } = useOwnerData<Payouts>(`/api/owner/payouts?store=${store}&date_from=${from}&date_to=${to}`, onAuthError);
@@ -290,7 +291,10 @@ function PayoutsTab({ store, from, to, onAuthError }: { store: string; from: str
               <tr key={i} className="border-t border-white/5">
                 <td className="px-3 py-2">{p.payout_date}</td>
                 <td className="px-3 py-2">{p.platform === "grab" ? "GrabFood" : "foodpanda"}</td>
-                <td className="px-3 py-2 text-slate-400">{p.period_start === p.period_end ? p.period_start : `${p.period_start} – ${p.period_end}`}</td>
+                <td className="px-3 py-2 text-slate-400">
+                  {p.period_start === p.period_end ? p.period_start : `${p.period_start} – ${p.period_end}`}
+                  {p.before_transfer && <span className="ml-2 text-xs text-amber-300">includes sales before {data.owned_from}; not in the totals</span>}
+                </td>
                 <td className="px-3 py-2 text-right">{num(p.orders)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-white">{php(p.amount, 2)}</td>
               </tr>
