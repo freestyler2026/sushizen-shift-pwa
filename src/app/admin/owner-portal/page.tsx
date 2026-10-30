@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { getAuthHeaders } from "@/lib/auth";
 
 // HQ: franchise owner accounts. An owner sees only the stores ticked here, and
@@ -138,6 +138,123 @@ export default function OwnerPortalAdminPage() {
           </tbody>
         </table>
       </div>
+
+      <CostSheet />
     </div>
+  );
+}
+
+// ── HQ only: the store's month, line by line (FOCO ledger stage 1) ───────────
+type SheetLine = { group: "sales" | "cost"; key: string; label: string; amount: number | null; source: string; status: string; note: string };
+type Sheet = {
+  store: string; month: string; period_from: string; period_to: string; lines: SheetLine[]; gaps: string[]; missing: string[];
+  complete: boolean; net_sales: number; store_costs: number; ck_cost: number; food_cost: number; labor: number; profit_before_fees: number;
+};
+const SHEET_STORES = [{ code: "TAFT", name: "Taft" }, { code: "PAR", name: "Paranaque" }];
+const FIRST_MONTH = "2026-10";
+
+function sheetMonths(): string[] {
+  const now = new Date(Date.now() + (new Date().getTimezoneOffset() + 8 * 60) * 60000);
+  const last = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const out: string[] = [];
+  for (let c = FIRST_MONTH; c <= last;) {
+    out.push(c);
+    const [y, m] = c.split("-").map(Number);
+    c = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  }
+  return out.reverse();
+}
+
+const peso = (n: number | null) => (n == null ? "—" : `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+const STATUS_STYLE: Record<string, string> = {
+  actual: "text-slate-400", unreviewed: "text-amber-300", estimate: "text-sky-300", missing: "text-red-300",
+};
+const STATUS_TEXT: Record<string, string> = {
+  actual: "Recorded", unreviewed: "Invoice not checked yet", estimate: "Estimate", missing: "Not in the OS",
+};
+
+function CostSheet() {
+  const months = sheetMonths();
+  const [store, setStore] = useState("TAFT");
+  const [month, setMonth] = useState(months[0]);
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    setSheet(null); setError("");
+    api(`/api/admin/owner-portal/cost-sheet?store=${store}&month=${month}`)
+      .then((d) => { if (live) setSheet(d); })
+      .catch((e) => { if (live) setError(e instanceof Error ? e.message : "Could not load."); });
+    return () => { live = false; };
+  }, [store, month]);
+
+  const pick = (on: boolean) => `rounded-lg border px-3 py-1.5 text-xs ${on ? "border-emerald-400 bg-emerald-500/15 text-emerald-200" : "border-white/10 text-slate-300 hover:bg-white/5"}`;
+  const rows = (g: "sales" | "cost") => (sheet?.lines || []).filter((l) => l.group === g);
+
+  return (
+    <section className="space-y-4 border-t border-white/10 pt-6">
+      <div>
+        <h2 className="text-lg font-bold text-white">Store month sheet <span className="text-xs font-normal text-slate-400">HQ only</span></h2>
+        <p className="text-sm text-slate-400">What the owner ledger will be built from: net sales and every store cost for the calendar month, with where each figure comes from. Owners do not see this page.</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {SHEET_STORES.map((s) => <button key={s.code} onClick={() => setStore(s.code)} className={pick(store === s.code)}>{s.name}</button>)}
+        <span className="mx-1 h-5 w-px bg-white/10" />
+        {months.map((m) => (
+          <button key={m} onClick={() => setMonth(m)} className={pick(month === m)}>
+            {new Date(`${m}-01T00:00:00`).toLocaleDateString("en-PH", { month: "short", year: "numeric" })}
+          </button>
+        ))}
+      </div>
+      {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
+      {!sheet && !error && <p className="text-sm text-slate-400">Loading…</p>}
+      {sheet && (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[["Net sales (VAT out)", sheet.net_sales], ["Store costs", sheet.store_costs],
+              ["Profit before FOCO fees", sheet.profit_before_fees], ["CK goods (at CK cost)", sheet.ck_cost]].map(([k, v]) => (
+              <div key={k as string} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-xs text-slate-400">{k}</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums text-white">{peso(v as number)}</p>
+              </div>
+            ))}
+          </div>
+          {!sheet.complete && (
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              Not final: {sheet.missing.length} cost line(s) are not in the OS, and some figures are estimates or unchecked invoices. {sheet.period_from} – {sheet.period_to}.
+            </p>
+          )}
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full text-sm tabular-nums">
+              <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
+                <tr><th className="px-3 py-2">Line</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Source and detail</th></tr>
+              </thead>
+              <tbody>
+                {(["sales", "cost"] as const).map((g) => (
+                  <Fragment key={g}>
+                    <tr className="border-t border-white/10 bg-white/[0.02]"><td colSpan={4} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">{g === "sales" ? "Net sales" : "Store costs"}</td></tr>
+                    {rows(g).map((l, i) => (
+                      <tr key={`${g}-${i}`} className="border-t border-white/5 align-top">
+                        <td className="px-3 py-2 text-white">{l.label}</td>
+                        <td className="px-3 py-2 text-right text-white">{peso(l.amount)}</td>
+                        <td className={`px-3 py-2 text-xs ${STATUS_STYLE[l.status] || ""}`}>{STATUS_TEXT[l.status] || l.status}</td>
+                        <td className="px-3 py-2 text-xs text-slate-400"><span className="text-slate-300">{l.source}</span>{l.note ? ` — ${l.note}` : ""}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {sheet.gaps.length > 0 && (
+            <div className="space-y-1 text-sm">
+              <p className="font-semibold text-slate-200">To check</p>
+              <ul className="list-disc space-y-0.5 pl-5 text-slate-400">{sheet.gaps.map((g) => <li key={g}>{g}</li>)}</ul>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
