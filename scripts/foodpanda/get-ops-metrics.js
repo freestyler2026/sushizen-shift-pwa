@@ -77,16 +77,29 @@ function decodeSession(b64) {
     for (let i = 0; i < 20 && !headers; i++) await page.waitForTimeout(500);
     if (!headers) throw new Error('the portal never called vos-api — no token to read with');
 
+    // One report at a time. Four at once drew a 403 on one of them for every
+    // store on 2026-10-30 (PerimeterX); a 403 is answered by reopening the page,
+    // which mints fresh headers, and asking again.
     const post = async (report, vendor) => {
-      const resp = await context.request.post(VOS + report, {
-        headers, data: { global_vendor_codes: [`FP_PH;${vendor}`], from: FROM, to: TO, precision: 'DAY' } });
-      if (!resp.ok()) throw new Error(`${report} ${vendor} HTTP ${resp.status()}`);
-      return (await resp.json()).data || {};
+      for (let attempt = 1; ; attempt++) {
+        const resp = await context.request.post(VOS + report, {
+          headers, data: { global_vendor_codes: [`FP_PH;${vendor}`], from: FROM, to: TO, precision: 'DAY' } });
+        if (resp.ok()) return (await resp.json()).data || {};
+        if (resp.status() !== 403 || attempt === 3) throw new Error(`${report} ${vendor} HTTP ${resp.status()}`);
+        console.log(`  ${report} ${vendor} HTTP 403 — reopening the page (${attempt}/2)`);
+        headers = null;
+        await page.waitForTimeout(5000 * attempt);
+        await page.reload({ waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
+        for (let i = 0; i < 30 && !headers; i++) await page.waitForTimeout(500);
+        if (!headers) throw new Error(`${report} ${vendor}: no fresh headers after reopening the page`);
+      }
     };
     const rows = [];
     for (const [vendor, name] of Object.entries(acct.vendors)) {
-      const [offline, prep, reject, contact] = await Promise.all(
-        ['offline_duration', 'prep_time', 'order_rejection', 'contact-rate'].map((r) => post(r, vendor)));
+      const offline = await post('offline_duration', vendor);
+      const prep = await post('prep_time', vendor);
+      const reject = await post('order_rejection', vendor);
+      const contact = await post('contact-rate', vendor);
       const byDay = {};
       const day = (d) => (byDay[d] = byDay[d] || { sale_date: d, store_name: acct.store, restaurant_id: vendor, restaurant_name: name });
       for (const d of offline.dates || []) day(d.date).unavailable_time = Number(d.offlineDuration);

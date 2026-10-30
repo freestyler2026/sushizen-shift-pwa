@@ -122,13 +122,18 @@ async function postSessionExpired() {
   // first capture run got a 200 only on the second page load, so the retry is
   // a fresh navigation, not a sleep. Once one call passes, the rest of the
   // pagination goes through on the same headers.
+  // 2026-10-30: three tries five seconds apart were not enough for older
+  // windows (September refused three times running while the same morning's
+  // last-3-days read passed). Five tries, the pause growing each time.
+  const TRIES = 5;
   async function call(payload) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= TRIES; attempt++) {
       const resp = await context.request.post(req.url, { headers: req.headers, data: payload }).catch(() => null);
       if (resp && resp.ok()) return resp;
       const code = resp ? resp.status() : 'no response';
-      if (attempt === 3) { console.error(`  gave up after 3 attempts (last: HTTP ${code})`); return null; }
-      console.log(`  HTTP ${code} — reloading the page and retrying (${attempt}/2)`);
+      if (attempt === TRIES) { console.error(`  gave up after ${TRIES} attempts (last: HTTP ${code})`); return null; }
+      console.log(`  HTTP ${code} — reloading the page and retrying (${attempt}/${TRIES - 1})`);
+      await page.waitForTimeout(10000 * attempt);
       await page.goto(`https://partner.foodpanda.com/orders?from=${FROM}&to=${TO}`,
         { waitUntil: 'networkidle', timeout: 60_000 }).catch(() => {});
       await page.waitForTimeout(5000);
