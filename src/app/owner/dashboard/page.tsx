@@ -569,7 +569,42 @@ type Ledger = {
   payments: { id: number; month: string; amount: number; paid_on: string; reference: string }[];
   kpi: { paid_to_date: number; recovery_rate: number | null; due_not_paid: number; last_month: string | null; buyout_reference: number | null };
   fl: { month: string; fl_ratio: number | null; over: boolean; streak: number }[];
+  // Months that have ended and are not closed yet, as they stand now (owner, 2026-10-31).
+  preliminary?: Prelim[];
 };
+type Prelim = Pick<LedgerRow, "month" | "net_sales" | "store_costs" | "foco_fees" | "ck_supply_fee" | "operating_fee" | "royalty"
+  | "operating_profit" | "corp_tax" | "corp_tax_rate" | "capex_reserve" | "after_tax_profit" | "interim_distribution"
+  | "ytd_payable" | "financial_year" | "company_support"> & { pending: string[] };
+
+// A month as it stands before it is closed: every figure, marked not final, with what is still estimated.
+function PrelimCard({ p }: { p: Prelim }) {
+  return (
+    <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.05] p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-base font-semibold text-white">{monthName(p.month)} <span className="ml-1 rounded-full border border-amber-400/40 px-2 py-0.5 text-xs font-normal text-amber-200">速報・確定前</span></p>
+        <p className="text-xs text-slate-400">確定は翌月20日ごろの予定です</p>
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm md:grid-cols-4">
+        {([
+          ["純売上", p.net_sales], ["店舗費用", p.store_costs], ["会社へのフィー", p.foco_fees], ["営業利益", p.operating_profit],
+          ["法人税（暫定）", p.corp_tax], ["設備更新積立", p.capex_reserve], ["税引後利益", p.after_tax_profit], ["分配の見込み（期中）", p.interim_distribution],
+        ] as [string, number][]).map(([label, v]) => (
+          <div key={label}>
+            <dt className="text-xs text-slate-400">{label}</dt>
+            <dd className={`tabular-nums ${label === "分配の見込み（期中）" ? "font-semibold text-emerald-300" : v < 0 ? "text-red-300" : "text-white"}`}>{php(v)}</dd>
+          </div>
+        ))}
+      </dl>
+      {supportText(p as unknown as LedgerRow) && <p className="mt-2 text-[11px] text-sky-300">{supportText(p as unknown as LedgerRow)}</p>}
+      {p.pending.length > 0 && (
+        <div className="mt-3 text-xs text-slate-300">
+          <p className="font-semibold text-amber-200">まだ見込みの項目</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">{p.pending.map((t) => <li key={t}>{t}</li>)}</ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const monthName = (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString("ja-JP", { month: "long", year: "numeric" });
 const pct = (n: number | null | undefined, d = 1) => (n == null ? "—" : `${(n * 100).toFixed(d)}%`);
@@ -600,9 +635,24 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
         <Card label="最新の確定月" value={k.last_month ? monthName(k.last_month) : "—"} />
       </div>
 
+      {(data.preliminary || []).length > 0 && (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+            <p className="font-semibold text-white">速報（確定前）</p>
+            <p className="mt-1">
+              {"月が終わった翌日から、その月の数字をいまの記録のまま表示します。確定（お支払い額の確定）は翌月20日ごろです。"
+                + "月末の数日分の給与は「月末から翌月10日まで」の給与期間に入るため、その計算が終わるのが翌月中旬になること、"
+                + "また貸主（Sundry）の月後半分の家賃の請求書が翌月8日ごろに届くことが理由です。"
+                + "確定までは、下の「まだ見込みの項目」が実額に置き換わり、数字が動くことがあります。"}
+            </p>
+          </div>
+          {(data.preliminary || []).map((p) => <PrelimCard key={p.month} p={p} />)}
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-300">
-          まだ確定した月はありません。本部は、請求書と給与がそろった時点で月を締めてここに公開します（通常は翌月20日ごろ）。
+          まだ確定した月はありません。本部は、請求書と給与がそろった時点で月を締めてここに公開します（通常は翌月20日ごろ）。{(data.preliminary || []).length > 0 ? "それまでは上の速報をご覧ください。" : "月が終わった翌日から、その月の速報をここに表示します。"}
         </div>
       ) : (
         <>
