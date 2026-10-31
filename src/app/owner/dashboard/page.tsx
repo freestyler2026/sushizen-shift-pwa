@@ -664,15 +664,14 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.month} className="border-t border-white/5 align-top">
+                  <Fragment key={r.month}>
+                  <tr className="border-t border-white/5 align-top">
                     <td className="px-3 py-2 text-white">{monthName(r.month)}{r.revision > 1 && <span className="ml-1 text-[10px] text-amber-300">訂正{r.revision - 1}回</span>}</td>
                     <td className="px-3 py-2 text-right">{php(r.net_sales)}</td>
-                    <td className="px-3 py-2 text-right">{php(r.store_costs)}{r.company_support?.trainee_labor ? <div className="text-[11px] text-sky-300">研修スタッフ{r.company_support.trainee_people}人分 {php(r.company_support.trainee_labor)} は会社負担</div> : null}
-                      {r.company_support?.cost_share ? <div className="text-[11px] text-sky-300">うち {php(r.company_support.cost_share)} は会社負担</div> : null}</td>
+                    <td className="px-3 py-2 text-right">{php(r.store_costs)}</td>
                     <td className="px-3 py-2 text-right" title={`食材供給フィー ${php(r.ck_supply_fee)}・運営フィー ${php(r.operating_fee)}・ロイヤリティ ${php(r.royalty)}`}>
                       {php(r.foco_fees)}
                       <div className="text-[11px] text-slate-500">食材供給 {php(r.ck_supply_fee)}・運営 {php(r.operating_fee)}・ロイヤリティ {php(r.royalty)}</div>
-                      {r.company_support?.fees_waived_total ? <div className="text-[11px] text-sky-300">会社が免除 {php(r.company_support.fees_waived_total)}</div> : null}
                     </td>
                     <td className={`px-3 py-2 text-right ${r.operating_profit < 0 ? "text-red-300" : ""}`}>{php(r.operating_profit)}</td>
                     <td className="px-3 py-2 text-right">{php(r.corp_tax)}<div className="text-[11px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}%（{r.corp_tax_basis === "filed" ? "申告済み" : "暫定"}）</div></td>
@@ -688,6 +687,10 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
                       {r.overpayment_carried_in > 0 && <div className="text-[11px] text-amber-300">前年度の払い過ぎ {php(r.overpayment_carried_in, 2)} を含む</div>}
                     </td>
                   </tr>
+                  {supportText(r) && (
+                    <tr><td colSpan={10} className="px-3 pb-2 text-[11px] text-sky-300">{supportText(r)}</td></tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -793,7 +796,9 @@ type CkItem = { item_name: string; unit: string; unit_cost: number; received_qty
 type Ck = {
   cycle: string; period_from: string; period_to: string; billable: boolean; margin_pct: number;
   confirmed_notes: number; pending_notes: { note_id: number; delivery_date: string; order_no: string; status: string; sent_cost: number }[];
-  unpriced_lines: number; totals: { cost: number; margin: number; amount: number }; by_item: CkItem[];
+  unpriced_lines: number; totals: { cost: number; margin: number; amount: number; charged?: number }; by_item: CkItem[];
+  // The Company waives the Food Supply Fee for the month (its support): the store is charged the cost alone.
+  fee_waived?: boolean;
 };
 
 function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; onAuthError: (e: unknown) => void }) {
@@ -805,8 +810,10 @@ function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; on
     <section className="space-y-6">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Card label="CKの食材原価" value={php(t.cost, 2)} sub={`受領確認済みの納品 ${data.confirmed_notes}件`} />
-        <Card label={`食材供給フィー ${data.margin_pct}%`} value={php(t.margin, 2)} />
-        <Card label="食材原価＋食材供給フィー" value={php(t.amount, 2)} sub={`${data.period_from}〜${data.period_to}`} />
+        <Card label={`食材供給フィー ${data.margin_pct}%`} value={php(t.margin, 2)} sub={data.fee_waived ? "この月は会社が免除（店舗の費用になりません）" : undefined} />
+        {data.fee_waived
+          ? <Card label="店舗の費用になる額（食材原価のみ）" value={php(t.charged ?? t.cost, 2)} sub={`${data.period_from}〜${data.period_to}`} />
+          : <Card label="食材原価＋食材供給フィー" value={php(t.amount, 2)} sub={`${data.period_from}〜${data.period_to}`} />}
       </div>
       {data.pending_notes.length > 0 && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
@@ -847,11 +854,15 @@ function CkTab({ store, cycle, onAuthError }: { store: string; cycle: string; on
             <tfoot className="border-t border-white/10 bg-white/[0.04] font-semibold text-white">
               <tr><td className="px-3 py-2" colSpan={4}>合計</td><td className="px-3 py-2 text-right">{php(t.cost, 2)}</td>
                 <td className="px-3 py-2 text-right">{php(t.margin, 2)}</td><td className="px-3 py-2 text-right">{php(t.amount, 2)}</td></tr>
+              {data.fee_waived && (
+                <tr className="text-sky-300"><td className="px-3 py-2" colSpan={5}>食材供給フィー（会社が免除）</td>
+                  <td className="px-3 py-2 text-right">−{php(t.margin, 2)}</td><td className="px-3 py-2 text-right">{php(t.charged ?? t.cost, 2)}</td></tr>
+              )}
             </tfoot>
           )}
         </table>
       </div>
-      <p className="text-xs text-slate-500">セントラルキッチンからの食材原価と食材供給フィー（供給原価の{data.margin_pct}%、契約 Schedule 1）です。店舗が受け取りを確認した数量に、各納品書のCK単価をかけて、受領確認した月に計上します。どちらも月次損益における店舗の費用です。</p>
+      <p className="text-xs text-slate-500">セントラルキッチンからの食材原価と食材供給フィー（供給原価の{data.margin_pct}%、契約 Schedule 1）です。店舗が受け取りを確認した数量に、各納品書のCK単価をかけて、受領確認した月に計上します。どちらも月次損益における店舗の費用です。{data.fee_waived ? "この月は食材供給フィーを会社が免除しているため、店舗の費用になるのは食材原価だけです（「分配」タブの「会社による支援」に含まれます）。" : ""}</p>
     </section>
   );
 }
