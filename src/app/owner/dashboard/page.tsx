@@ -401,7 +401,7 @@ const monthJa = (m: string) => `${Number(m.slice(5))}月`;
 
 // This month's running total against last month's (owner, 2026-10-31): how the month is
 // going while its distribution is not known yet. Last month only when it was wholly the owner's.
-function ProgressPanel({ progress: p, now, before }: { progress: Progress; now: SalesBlock; before: SalesBlock | null }) {
+function ProgressPanel({ progress: p, now, before }: { progress: Progress; now: SalesBlock & { from: string; to: string }; before: (SalesBlock & { from: string; to: string }) | null }) {
   const thisM = monthJa(p.month);
   const prevM = monthJa(p.prev_month);
   if (!p.prev) {
@@ -446,8 +446,8 @@ function ProgressPanel({ progress: p, now, before }: { progress: Progress; now: 
           </ResponsiveContainer>
         </div>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between gap-2 text-slate-300"><span>{thisM} 1〜{p.through}日</span><span className="tabular-nums text-white">{php(nowNet)}</span></div>
-          <div className="flex justify-between gap-2 text-slate-300"><span>{prevM} 1〜{Math.min(p.through, prev.length)}日</span><span className="tabular-nums text-white">{php(beforeNet)}</span></div>
+          <div className="flex justify-between gap-2 text-slate-300"><span>{short(now.from)}〜{short(now.to)}</span><span className="tabular-nums text-white">{php(nowNet)}</span></div>
+          <div className="flex justify-between gap-2 text-slate-300"><span>{before ? `${short(before.from)}〜${short(before.to)}` : prevM}</span><span className="tabular-nums text-white">{php(beforeNet)}</span></div>
           <div className="border-t border-white/10 pt-2 text-xs text-slate-400">チャネル別（先月の同じ期間比）</div>
           {(["grab", "foodpanda", "dine_in"] as const).map((ch) => {
             const a = now.channels[ch]?.net ?? 0;
@@ -513,7 +513,7 @@ function MonthView({ store, month, onAuthError, onOpenDay }: { store: string; mo
         <Card label="1日あたりの売上" value={php(data.daily_avg_net)} sub={`${data.days.length}日間の平均`} />
       </div>
 
-      <ProgressPanel progress={data.progress} now={data.sales} before={data.prev} />
+      <ProgressPanel progress={data.progress} now={{ ...data.sales, from: data.from, to: data.to }} before={data.prev} />
 
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
