@@ -274,9 +274,9 @@ type CloseRow = {
   ytd_payable: number; ytd_paid: number; year_end_due: number | null;
   complete: boolean; missing: string[]; gaps: string[]; approved_by: string | null; published_by: string | null;
   sheet: { lines: { status: string }[] } | null;
-  company_support?: { fees_waived: Record<string, number>; fees_waived_total: number; trainee_labor: number; trainee_people: number; total: number };
+  company_support?: { fees_waived: Record<string, number>; fees_waived_total: number; trainee_labor: number; trainee_people: number; cost_share?: number; total: number };
 };
-type Support = { id: number; kind: "fee_waiver" | "trainee_labor"; month_from: string; month_to: string; fees: string[]; staff_name: string; reason: string; entered_by: string; withdrawn_at: string | null };
+type Support = { id: number; kind: "fee_waiver" | "trainee_labor" | "cost_share"; month_from: string; month_to: string; fees: string[]; staff_name: string; cost_key: string; amount: number | null; reason: string; entered_by: string; withdrawn_at: string | null };
 const FEE_LABEL: Record<string, string> = { ck_supply_fee: "Food Supply Fee", operating_fee: "Operating Fee", royalty: "Royalty" };
 // Support can be planned ahead: every contract month, not only those that have started.
 const CONTRACT_MONTHS = Array.from({ length: 36 }, (_, i) => { const d = new Date(2026, 9 + i, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })
@@ -307,7 +307,7 @@ function MonthClose() {
   const [adj, setAdj] = useState({ month: "", key: "rent", amount: "", note: "", label: "" });
   const [pay, setPay] = useState({ month: "", amount: "", paid_on: "", reference: "" });
   const [tax, setTax] = useState({ fy: "2026", rate: "0.25", note: "" });
-  const [sup, setSup] = useState({ kind: "fee_waiver", month_from: "", month_to: "", fees: [] as string[], staff_name: "", reason: "" });
+  const [sup, setSup] = useState({ kind: "fee_waiver", month_from: "", month_to: "", fees: [] as string[], staff_name: "", cost_key: "rent", amount: "", reason: "" });
 
   const load = useCallback(async () => {
     setError("");
@@ -387,21 +387,25 @@ function MonthClose() {
             <p className="text-xs text-slate-400">The owner&apos;s ledger shows it as the Company&apos;s support (an amount, and a number of people -- never names). Costs stay as they are; only open months change, a closed month keeps what it was closed with.</p>
             <div className="flex flex-wrap items-center gap-2">
               <SelectDark value={sup.kind} onChange={(v) => setSup({ ...sup, kind: v })} aria-label="Kind"
-                options={[{ value: "fee_waiver", label: "Waive fees" }, { value: "trainee_labor", label: "Pay for a person in training" }]} />
+                options={[{ value: "fee_waiver", label: "Waive fees" }, { value: "trainee_labor", label: "Pay for a person in training" }, { value: "cost_share", label: "Pay part of a store cost" }]} />
               <SelectDark value={sup.month_from} onChange={(v) => setSup({ ...sup, month_from: v })} options={CONTRACT_MONTHS} placeholder="From" aria-label="From month" />
               <SelectDark value={sup.month_to} onChange={(v) => setSup({ ...sup, month_to: v })} options={CONTRACT_MONTHS} placeholder="To" aria-label="To month" />
               {sup.kind === "fee_waiver" ? Object.entries(FEE_LABEL).map(([k, label]) => (
                 <label key={k} className="flex items-center gap-1 text-xs text-slate-300">
                   <input type="checkbox" checked={sup.fees.includes(k)} onChange={(e) => setSup({ ...sup, fees: e.target.checked ? [...sup.fees, k] : sup.fees.filter((f) => f !== k) })} />{label}
                 </label>
-              )) : <input value={sup.staff_name} onChange={(e) => setSup({ ...sup, staff_name: e.target.value })} placeholder="Staff name as in payroll" className={input} />}
+              )) : sup.kind === "trainee_labor" ? <input value={sup.staff_name} onChange={(e) => setSup({ ...sup, staff_name: e.target.value })} placeholder="Staff name as in payroll" className={input} />
+                : <>
+                  <SelectDark value={sup.cost_key} onChange={(v) => setSup({ ...sup, cost_key: v })} aria-label="Cost line" options={ADJ_KEYS.slice(0, 10)} />
+                  <input value={sup.amount} onChange={(e) => setSup({ ...sup, amount: e.target.value })} placeholder="PHP a month, without VAT" inputMode="decimal" className={input} />
+                </>}
             </div>
             <input value={sup.reason} onChange={(e) => setSup({ ...sup, reason: e.target.value })} placeholder="Why (kept on record)" required className={`${input} w-full`} />
             <button disabled={busy || !sup.month_from || !sup.month_to} className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-40">Add support</button>
             <ul className="space-y-1 pt-2 text-xs text-slate-400">
               {(data.support || []).filter((x) => !x.withdrawn_at).map((x) => (
                 <li key={x.id} className="flex items-start justify-between gap-2">
-                  <span>{x.month_from}–{x.month_to} · {x.kind === "fee_waiver" ? `waive ${x.fees.map((f) => FEE_LABEL[f] || f).join(", ")}` : `pays for ${x.staff_name}`} — {x.reason} ({x.entered_by})</span>
+                  <span>{x.month_from}–{x.month_to} · {x.kind === "fee_waiver" ? `waive ${x.fees.map((f) => FEE_LABEL[f] || f).join(", ")}` : x.kind === "trainee_labor" ? `pays for ${x.staff_name}` : `pays ${peso(x.amount)} a month of ${x.cost_key}`} — {x.reason} ({x.entered_by})</span>
                   <button type="button" onClick={() => { const r = prompt("Why is this support withdrawn?"); if (r) act({ reason: r }, `/api/admin/foco/support/${x.id}/withdraw`); }} className="text-red-300">Withdraw</button>
                 </li>
               ))}
