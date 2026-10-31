@@ -573,28 +573,36 @@ type Ledger = {
   preliminary?: Prelim[];
 };
 type Prelim = Pick<LedgerRow, "month" | "net_sales" | "store_costs" | "foco_fees" | "ck_supply_fee" | "operating_fee" | "royalty"
-  | "operating_profit" | "corp_tax" | "corp_tax_rate" | "capex_reserve" | "after_tax_profit" | "interim_distribution"
-  | "ytd_payable" | "financial_year" | "company_support"> & { pending: string[] };
+  | "operating_profit" | "corp_tax" | "corp_tax_rate" | "capex_reserve" | "after_tax_profit"
+  | "ytd_payable" | "financial_year" | "company_support"> & {
+  // What this month adds to the year's payable (adds up month by month); ytd_payable is the year so far.
+  month_payable: number; status: "open" | "approved"; pending: string[];
+};
+const prevMonthOf = (m: string) => { const [y, mo] = m.split("-").map(Number); return mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, "0")}`; };
 
 // A month as it stands before it is closed: every figure, marked not final, with what is still estimated.
 function PrelimCard({ p }: { p: Prelim }) {
+  const lastMonth = prevMonthOf(new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }).slice(0, 7));
+  const when = p.status === "approved" ? "本部で確認済み・公開の準備中です"
+    : p.month === lastMonth ? "確定は翌月20日ごろの予定です" : "本部で締めの作業中です";
   return (
     <div className="rounded-xl border border-amber-400/30 bg-amber-400/[0.05] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-base font-semibold text-white">{monthName(p.month)} <span className="ml-1 rounded-full border border-amber-400/40 px-2 py-0.5 text-xs font-normal text-amber-200">速報・確定前</span></p>
-        <p className="text-xs text-slate-400">確定は翌月20日ごろの予定です</p>
+        <p className="text-xs text-slate-400">{when}</p>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm md:grid-cols-4">
         {([
           ["純売上", p.net_sales], ["店舗費用", p.store_costs], ["会社へのフィー", p.foco_fees], ["営業利益", p.operating_profit],
-          ["法人税（暫定）", p.corp_tax], ["設備更新積立", p.capex_reserve], ["税引後利益", p.after_tax_profit], ["分配の見込み（期中）", p.interim_distribution],
+          ["法人税（暫定）", p.corp_tax], ["設備更新積立", p.capex_reserve], ["税引後利益", p.after_tax_profit], ["この月の分配の見込み", p.month_payable],
         ] as [string, number][]).map(([label, v]) => (
           <div key={label}>
             <dt className="text-xs text-slate-400">{label}</dt>
-            <dd className={`tabular-nums ${label === "分配の見込み（期中）" ? "font-semibold text-emerald-300" : v < 0 ? "text-red-300" : "text-white"}`}>{php(v)}</dd>
+            <dd className={`tabular-nums ${label === "この月の分配の見込み" ? "font-semibold text-emerald-300" : v < 0 ? "text-red-300" : "text-white"}`}>{php(v)}</dd>
           </div>
         ))}
       </dl>
+      <p className="mt-1 text-[11px] text-slate-400">年度累計のお支払い額（見込み）{php(p.ytd_payable)}。毎月のお支払いは税引後利益の70%までで、残りは年度末に精算します。</p>
       {supportText(p as unknown as LedgerRow) && <p className="mt-2 text-[11px] text-sky-300">{supportText(p as unknown as LedgerRow)}</p>}
       {p.pending.length > 0 && (
         <div className="mt-3 text-xs text-slate-300">
