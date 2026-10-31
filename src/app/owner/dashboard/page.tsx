@@ -544,7 +544,19 @@ type LedgerRow = {
   paid: number | null; ytd_payable: number; ytd_paid: number; year_end_due: number | null; overpayment_carried_in: number;
   fl_ratio: number | null; status: string;
   revision: number; published_at: string | null;
+  company_support?: { fees_waived: Record<string, number>; fees_waived_total: number; trainee_labor: number; trainee_people: number; total: number };
 };
+const WAIVED_LABEL: Record<string, string> = { ck_supply_fee: "食材供給", operating_fee: "運営", royalty: "ロイヤリティ" };
+// The Company's support for a month, in one sentence the owner can read: fees it gave up
+// and the trainees it paid for -- a count, never names (owner, 2026-10-31).
+function supportText(r: LedgerRow): string | null {
+  const cs = r.company_support;
+  if (!cs || !cs.total) return null;
+  const parts: string[] = [];
+  if (cs.fees_waived_total) parts.push(`フィー免除 ${php(cs.fees_waived_total)}（${Object.keys(cs.fees_waived).map((k) => WAIVED_LABEL[k] || k).join("・")}）`);
+  if (cs.trainee_labor) parts.push(`新店のための研修スタッフ${cs.trainee_people}人の人件費 ${php(cs.trainee_labor)}`);
+  return `会社による支援 ${php(cs.total)}：${parts.join("、")}`;
+}
 type Ledger = {
   store_name: string;
   contract: {
@@ -633,6 +645,7 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
                     {r.overpayment_carried_in > 0 && <p className="text-[11px] text-amber-300">前年度の払い過ぎ {php(r.overpayment_carried_in, 2)} を含む</p>}</div>
                 </div>
                 <p className="mt-2 text-[11px] text-slate-500">フィー内訳：食材供給 {php(r.ck_supply_fee)}・運営 {php(r.operating_fee)}・ロイヤリティ {php(r.royalty)}</p>
+                {supportText(r) && <p className="mt-1 text-[11px] text-sky-300">{supportText(r)}</p>}
               </div>
             ))}
           </div>
@@ -653,10 +666,11 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
                   <tr key={r.month} className="border-t border-white/5 align-top">
                     <td className="px-3 py-2 text-white">{monthName(r.month)}{r.revision > 1 && <span className="ml-1 text-[10px] text-amber-300">訂正{r.revision - 1}回</span>}</td>
                     <td className="px-3 py-2 text-right">{php(r.net_sales)}</td>
-                    <td className="px-3 py-2 text-right">{php(r.store_costs)}</td>
+                    <td className="px-3 py-2 text-right">{php(r.store_costs)}{r.company_support?.trainee_labor ? <div className="text-[11px] text-sky-300">研修スタッフ{r.company_support.trainee_people}人分 {php(r.company_support.trainee_labor)} は会社負担</div> : null}</td>
                     <td className="px-3 py-2 text-right" title={`食材供給フィー ${php(r.ck_supply_fee)}・運営フィー ${php(r.operating_fee)}・ロイヤリティ ${php(r.royalty)}`}>
                       {php(r.foco_fees)}
                       <div className="text-[11px] text-slate-500">食材供給 {php(r.ck_supply_fee)}・運営 {php(r.operating_fee)}・ロイヤリティ {php(r.royalty)}</div>
+                      {r.company_support?.fees_waived_total ? <div className="text-[11px] text-sky-300">会社が免除 {php(r.company_support.fees_waived_total)}</div> : null}
                     </td>
                     <td className={`px-3 py-2 text-right ${r.operating_profit < 0 ? "text-red-300" : ""}`}>{php(r.operating_profit)}</td>
                     <td className="px-3 py-2 text-right">{php(r.corp_tax)}<div className="text-[11px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}%（{r.corp_tax_basis === "filed" ? "申告済み" : "暫定"}）</div></td>
@@ -719,6 +733,7 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
         <li>分配はフィリピンの法人税を差し引いた後、オーナー様ご自身にかかる税を差し引く前の金額です。分配にかかる源泉税や、お住まいの国での課税は含まれていないため、実際の受取額はこれより少なくなることがあります。</li>
         <li>法人税は、毎月その年度の累計に25%をかけて暫定で計算します。会社が年度の申告をした時点で、申告した税率（条件を満たせば20%）で年度全体を計算し直し、差額を精算します。</li>
         <li>毎月の分配は監査前の月次決算にもとづく期中分配で、年度累計の利益の70%が上限です。年度の決算が確定した時点で精算し、残りをお支払いするか、払い過ぎは翌期以降の分配から差し引きます（契約 Schedule 2 第3条・第4条）。</li>
+        <li>「会社による支援」は、会社が受け取るはずのフィーを免除した額と、新しい店舗のために研修中のスタッフの人件費を会社が負担した額です。店舗の費用の実額は変えずに、支援として分けて表示しています。</li>
         <li>利回りや回収は目標であり、保証ではありません。各月は本部が締めてから表示し、訂正した月には訂正回数を表示します。</li>
       </ul>
     </section>

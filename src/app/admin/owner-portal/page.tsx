@@ -147,7 +147,7 @@ export default function OwnerPortalAdminPage() {
 }
 
 // ── HQ only: the store's month, line by line (FOCO ledger stage 1) ───────────
-type SheetLine = { group: "sales" | "cost"; key: string; label: string; amount: number | null; source: string; status: string; note: string };
+type SheetLine = { group: "sales" | "cost" | "support"; key: string; label: string; amount: number | null; source: string; status: string; note: string };
 type Sheet = {
   store: string; month: string; period_from: string; period_to: string; lines: SheetLine[]; gaps: string[]; notes?: string[]; missing: string[];
   complete: boolean; net_sales: number; store_costs: number; ck_cost: number; food_cost: number; labor: number; profit_before_fees: number;
@@ -170,11 +170,11 @@ function sheetMonths(): string[] {
 const peso = (n: number | null) => (n == null ? "—" : `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const STATUS_STYLE: Record<string, string> = {
   actual: "text-slate-400", unreviewed: "text-amber-300", estimate: "text-sky-300", missing: "text-red-300",
-  adjustment: "text-violet-300", not_counted: "text-slate-500 line-through",
+  adjustment: "text-violet-300", not_counted: "text-slate-500 line-through", company_paid: "text-sky-300",
 };
 const STATUS_TEXT: Record<string, string> = {
   actual: "Recorded", unreviewed: "Invoice not checked yet", estimate: "Estimate", missing: "Not in the OS",
-  adjustment: "Entered by HQ", not_counted: "Not counted (bill is in)",
+  adjustment: "Entered by HQ", not_counted: "Not counted (bill is in)", company_paid: "Paid by the Company",
 };
 
 function CostSheet() {
@@ -194,7 +194,7 @@ function CostSheet() {
   }, [store, month]);
 
   const pick = (on: boolean) => `rounded-lg border px-3 py-1.5 text-xs ${on ? "border-emerald-400 bg-emerald-500/15 text-emerald-200" : "border-white/10 text-slate-300 hover:bg-white/5"}`;
-  const rows = (g: "sales" | "cost") => (sheet?.lines || []).filter((l) => l.group === g);
+  const rows = (g: "sales" | "cost" | "support") => (sheet?.lines || []).filter((l) => l.group === g);
 
   return (
     <section className="space-y-4 border-t border-white/10 pt-6">
@@ -235,9 +235,9 @@ function CostSheet() {
                 <tr><th className="px-3 py-2">Line</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Source and detail</th></tr>
               </thead>
               <tbody>
-                {(["sales", "cost"] as const).map((g) => (
+                {(["sales", "cost", "support"] as const).filter((g) => g !== "support" || rows(g).length > 0).map((g) => (
                   <Fragment key={g}>
-                    <tr className="border-t border-white/10 bg-white/[0.02]"><td colSpan={4} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">{g === "sales" ? "Net sales" : "Store costs"}</td></tr>
+                    <tr className="border-t border-white/10 bg-white/[0.02]"><td colSpan={4} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">{g === "sales" ? "Net sales" : g === "cost" ? "Store costs" : "Paid by the Company (not a store cost)"}</td></tr>
                     {rows(g).map((l, i) => (
                       <tr key={`${g}-${i}`} className="border-t border-white/5 align-top">
                         <td className="px-3 py-2 text-white">{l.label}</td>
@@ -274,10 +274,16 @@ type CloseRow = {
   ytd_payable: number; ytd_paid: number; year_end_due: number | null;
   complete: boolean; missing: string[]; gaps: string[]; approved_by: string | null; published_by: string | null;
   sheet: { lines: { status: string }[] } | null;
+  company_support?: { fees_waived: Record<string, number>; fees_waived_total: number; trainee_labor: number; trainee_people: number; total: number };
 };
+type Support = { id: number; kind: "fee_waiver" | "trainee_labor"; month_from: string; month_to: string; fees: string[]; staff_name: string; reason: string; entered_by: string; withdrawn_at: string | null };
+const FEE_LABEL: Record<string, string> = { ck_supply_fee: "Food Supply Fee", operating_fee: "Operating Fee", royalty: "Royalty" };
+// Support can be planned ahead: every contract month, not only those that have started.
+const CONTRACT_MONTHS = Array.from({ length: 36 }, (_, i) => { const d = new Date(2026, 9 + i, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })
+  .map((m) => ({ value: m, label: m }));
 type Adjustment = { id: number; month: string; key: string; label: string; amount: number; note: string; entered_by: string; withdrawn_at: string | null };
 type HqLedger = {
-  rows: CloseRow[]; adjustments: Adjustment[]; year_tax_rates: Record<string, number>;
+  rows: CloseRow[]; adjustments: Adjustment[]; support: Support[]; year_tax_rates: Record<string, number>;
   payments: { id: number; month: string; amount: number; paid_on: string; reference: string }[];
   kpi: { paid_to_date: number; due_not_paid: number };
   history: { id: number; month: string; revision: number; status: string; approved_by: string; published_by: string; superseded_by: string; reopen_reason: string }[];
@@ -301,6 +307,7 @@ function MonthClose() {
   const [adj, setAdj] = useState({ month: "", key: "rent", amount: "", note: "", label: "" });
   const [pay, setPay] = useState({ month: "", amount: "", paid_on: "", reference: "" });
   const [tax, setTax] = useState({ fy: "2026", rate: "0.25", note: "" });
+  const [sup, setSup] = useState({ kind: "fee_waiver", month_from: "", month_to: "", fees: [] as string[], staff_name: "", reason: "" });
 
   const load = useCallback(async () => {
     setError("");
@@ -356,7 +363,7 @@ function MonthClose() {
                     <td className="px-3 py-2 text-white">{r.month}{r.revision > 0 && <span className="ml-1 text-[10px] text-slate-500">rev {r.revision}</span>}</td>
                     <td className="px-3 py-2"><span className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_CHIP[r.status]}`}>{r.status}</span></td>
                     <td className="px-3 py-2 text-right">{peso(r.net_sales)}</td>
-                    <td className="px-3 py-2 text-right">{peso(r.operating_profit)}</td>
+                    <td className="px-3 py-2 text-right">{peso(r.operating_profit)}{r.company_support?.total ? <div className="text-[10px] text-sky-300">incl. Company support {peso(r.company_support.total)}</div> : null}</td>
                     <td className="px-3 py-2 text-right">{peso(r.corp_tax)}<div className="text-[10px] text-slate-500">{(r.corp_tax_rate * 100).toFixed(0)}% {r.corp_tax_basis}</div></td>
                     <td className="px-3 py-2 text-right">{peso(r.after_tax_profit)}</td>
                     <td className="px-3 py-2 text-right text-white">{peso(r.ytd_payable)}{r.year_end_due ? <div className="text-[10px] text-emerald-300">settle {peso(r.year_end_due)}</div> : null}</td>
@@ -373,6 +380,33 @@ function MonthClose() {
             </table>
           </div>
           <p className="text-xs text-slate-400">Paid to date {peso(data.kpi.paid_to_date)} · due, not yet paid {peso(data.kpi.due_not_paid)}. The month&apos;s line-by-line sheet is in the section below.</p>
+
+          <form onSubmit={(e) => { e.preventDefault(); act({ ...sup }, "/api/admin/foco/support").then((ok) => ok && setSup({ ...sup, staff_name: "", reason: "" })); }}
+            className="space-y-2 rounded-xl border border-sky-500/30 bg-sky-500/[0.05] p-4">
+            <p className="text-sm font-semibold text-white">Company support <span className="text-xs font-normal text-slate-400">the Company gives up a fee, or pays for a person in training</span></p>
+            <p className="text-xs text-slate-400">The owner&apos;s ledger shows it as the Company&apos;s support (an amount, and a number of people -- never names). Costs stay as they are; only open months change, a closed month keeps what it was closed with.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <SelectDark value={sup.kind} onChange={(v) => setSup({ ...sup, kind: v })} aria-label="Kind"
+                options={[{ value: "fee_waiver", label: "Waive fees" }, { value: "trainee_labor", label: "Pay for a person in training" }]} />
+              <SelectDark value={sup.month_from} onChange={(v) => setSup({ ...sup, month_from: v })} options={CONTRACT_MONTHS} placeholder="From" aria-label="From month" />
+              <SelectDark value={sup.month_to} onChange={(v) => setSup({ ...sup, month_to: v })} options={CONTRACT_MONTHS} placeholder="To" aria-label="To month" />
+              {sup.kind === "fee_waiver" ? Object.entries(FEE_LABEL).map(([k, label]) => (
+                <label key={k} className="flex items-center gap-1 text-xs text-slate-300">
+                  <input type="checkbox" checked={sup.fees.includes(k)} onChange={(e) => setSup({ ...sup, fees: e.target.checked ? [...sup.fees, k] : sup.fees.filter((f) => f !== k) })} />{label}
+                </label>
+              )) : <input value={sup.staff_name} onChange={(e) => setSup({ ...sup, staff_name: e.target.value })} placeholder="Staff name as in payroll" className={input} />}
+            </div>
+            <input value={sup.reason} onChange={(e) => setSup({ ...sup, reason: e.target.value })} placeholder="Why (kept on record)" required className={`${input} w-full`} />
+            <button disabled={busy || !sup.month_from || !sup.month_to} className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-slate-950 disabled:opacity-40">Add support</button>
+            <ul className="space-y-1 pt-2 text-xs text-slate-400">
+              {(data.support || []).filter((x) => !x.withdrawn_at).map((x) => (
+                <li key={x.id} className="flex items-start justify-between gap-2">
+                  <span>{x.month_from}–{x.month_to} · {x.kind === "fee_waiver" ? `waive ${x.fees.map((f) => FEE_LABEL[f] || f).join(", ")}` : `pays for ${x.staff_name}`} — {x.reason} ({x.entered_by})</span>
+                  <button type="button" onClick={() => { const r = prompt("Why is this support withdrawn?"); if (r) act({ reason: r }, `/api/admin/foco/support/${x.id}/withdraw`); }} className="text-red-300">Withdraw</button>
+                </li>
+              ))}
+            </ul>
+          </form>
 
           <div className="grid gap-4 lg:grid-cols-3">
             <form onSubmit={(e) => { e.preventDefault(); act({ ...adj }, "/api/admin/foco/adjustments").then((ok) => ok && setAdj({ ...adj, amount: "", note: "", label: "" })); }}
