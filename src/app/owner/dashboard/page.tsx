@@ -158,7 +158,7 @@ function useOwnerData<T>(path: string, onAuthError: (e: unknown) => void) {
   return { data, error };
 }
 
-function Card({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Card({ label, value, sub, sub2 }: { label: string; value: string; sub?: string; sub2?: string }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
       <p className="text-xs tracking-wider text-slate-400">{label}</p>
@@ -169,6 +169,7 @@ function Card({ label, value, sub }: { label: string; value: string; sub?: strin
         </>
       ) : <p className="mt-1 text-xl font-bold tabular-nums text-white">{value}</p>}
       {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
+      {sub2 && <p className="text-xs text-slate-400">{sub2}</p>}
     </div>
   );
 }
@@ -187,6 +188,8 @@ type ScoreItem = {
 type Daily = {
   day: string; compare_day: string; sales: SalesBlock; sales_week_ago: SalesBlock | null; sales_change: number | null;
   mtd: SalesBlock & { from: string; to: string }; prev_mtd: (SalesBlock & { from: string; to: string }) | null;
+  mtd_change: number | null; same_day_last_month: { day: string; net: number; change: number | null } | null;
+  progress: Progress;
   hourly: { hour: number; grab: number; foodpanda: number }[];
   hourly_coverage: Record<"grab" | "foodpanda", { ledger: number; pos: number; complete: boolean }>;
   quality: {
@@ -201,6 +204,8 @@ type Daily = {
   flags: string[];
   freshness: { pos: string | null; grab_orders: string | null; foodpanda_orders: string | null };
 };
+type ProgressDay = { day: number; net: number; cum: number };
+type Progress = { month: string; prev_month: string; through: number; this: ProgressDay[]; prev: ProgressDay[] | null };
 const CHANNEL_LABEL: Record<string, string> = { dine_in: "店内・Beep", grab: "GrabFood", foodpanda: "foodpanda" };
 const CHECK_LABEL: Record<string, string> = { OPENING: "開店", LUNCH_OPEN: "ランチ開始", LUNCH_CLOSE: "ランチ終了", BUSINESS_CLOSE: "閉店" };
 const CATEGORY_LABEL: Record<string, string> = { sushi: "寿司", general: "その他の料理", ramen: "ラーメン" };
@@ -287,11 +292,14 @@ function DayView({ store, day, onAuthError }: { store: string; day: string; onAu
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card label="売上（税抜）" value={php(s.net)} sub={data.sales_change == null ? undefined : `先週の${new Date(`${data.compare_day}T00:00:00`).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", weekday: "short" })}比 ${signed(data.sales_change)}`} />
+        <Card label="売上（税抜）" value={php(s.net)} sub={data.sales_change == null ? undefined : `先週の${mdw(data.compare_day)}比 ${signed(data.sales_change)}`}
+          sub2={data.same_day_last_month?.change != null ? `先月の${mdw(data.same_day_last_month.day)}比 ${signed(data.same_day_last_month.change)}` : undefined} />
         <Card label="注文数" value={`${num(s.orders)}件`} sub={data.sales_week_ago ? `先週同曜日 ${num(data.sales_week_ago.total.orders)}件` : undefined} />
         <Card label="客単価" value={php(s.avg_ticket)} />
-        <Card label="今月の累計" value={php(data.mtd.total.net)} sub={data.prev_mtd ? `先月同期比 ${signed(data.prev_mtd.total.net ? data.mtd.total.net / data.prev_mtd.total.net - 1 : null)}` : `${num(data.mtd.total.orders)}件`} />
+        <Card label="今月の累計" value={php(data.mtd.total.net)} sub={data.prev_mtd && data.mtd_change != null ? `先月の${short(data.prev_mtd.from)}〜${short(data.prev_mtd.to)}比 ${signed(data.mtd_change)}` : `${num(data.mtd.total.orders)}件`} />
       </div>
+
+      <ProgressPanel progress={data.progress} now={data.mtd} before={data.prev_mtd} />
 
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
@@ -388,6 +396,77 @@ function DayView({ store, day, onAuthError }: { store: string; day: string; onAu
   );
 }
 
+const mdw = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", weekday: "short" });
+const monthJa = (m: string) => `${Number(m.slice(5))}月`;
+
+// This month's running total against last month's (owner, 2026-10-31): how the month is
+// going while its distribution is not known yet. Last month only when it was wholly the owner's.
+function ProgressPanel({ progress: p, now, before }: { progress: Progress; now: SalesBlock; before: SalesBlock | null }) {
+  const thisM = monthJa(p.month);
+  const prevM = monthJa(p.prev_month);
+  if (!p.prev) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <p className="text-sm font-semibold text-white">先月との比較</p>
+        <p className="mt-1 text-sm text-slate-400">{prevM}は譲渡前のため比べていません。先月との比較は、{monthJa(nextMonth(p.month))}から表示されます。</p>
+      </div>
+    );
+  }
+  const prev = p.prev;
+  const len = Math.max(prev.length, new Date(Number(p.month.slice(0, 4)), Number(p.month.slice(5)), 0).getDate());
+  const chart = Array.from({ length: len }, (_, i) => ({
+    day: i + 1,
+    [`${thisM}`]: p.this[i]?.cum ?? null,
+    [`${prevM}`]: prev[i]?.cum ?? null,
+  }));
+  const nowNet = now.total.net;
+  const beforeNet = before?.total.net ?? 0;
+  const chg = beforeNet ? nowNet / beforeNet - 1 : null;
+  const prevTotal = prev[prev.length - 1]?.cum ?? 0;
+  const tone = (x: number | null) => (x == null ? "text-slate-300" : x >= 0 ? "text-emerald-300" : "text-rose-300");
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold text-white">先月との比較 <span className="font-normal text-slate-400">— 1日から{p.through}日までの売上の累計</span></p>
+        <p className={`text-sm font-semibold tabular-nums ${tone(chg)}`}>{signed(chg)}</p>
+      </div>
+      <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="h-52">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chart} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="#1e293b" vertical={false} />
+              <XAxis dataKey="day" tick={{ fill: "#94a3b8", fontSize: 10 }} tickFormatter={(d) => `${d}日`} interval="preserveStartEnd" />
+              <YAxis tick={{ fill: "#94a3b8", fontSize: 10 }} width={44} tickFormatter={(v) => kilo(Number(v))} />
+              <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155" }} labelFormatter={(d) => `${d}日まで`}
+                formatter={(v) => (v == null ? "—" : php(Number(v)))} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey={prevM} stroke="#94a3b8" strokeDasharray="4 3" dot={false} strokeWidth={1.5} connectNulls={false} />
+              <Line type="monotone" dataKey={thisM} stroke="#34d399" dot={false} strokeWidth={2.5} connectNulls={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between gap-2 text-slate-300"><span>{thisM} 1〜{p.through}日</span><span className="tabular-nums text-white">{php(nowNet)}</span></div>
+          <div className="flex justify-between gap-2 text-slate-300"><span>{prevM} 1〜{Math.min(p.through, prev.length)}日</span><span className="tabular-nums text-white">{php(beforeNet)}</span></div>
+          <div className="border-t border-white/10 pt-2 text-xs text-slate-400">チャネル別（先月の同じ期間比）</div>
+          {(["grab", "foodpanda", "dine_in"] as const).map((ch) => {
+            const a = now.channels[ch]?.net ?? 0;
+            const b = before?.channels[ch]?.net ?? 0;
+            const c = b ? a / b - 1 : null;
+            return (
+              <div key={ch} className="flex justify-between gap-2 text-slate-300">
+                <span>{CHANNEL_LABEL[ch]}</span><span className={`tabular-nums ${tone(c)}`}>{signed(c)}</span>
+              </div>
+            );
+          })}
+          <div className="border-t border-white/10 pt-2 text-xs text-slate-400">{prevM}の月合計 {php(prevTotal)}</div>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-slate-500">緑の線が今月、点線が先月の売上（税抜）を1日から積み上げたものです。同じ日付でも曜日が違うため、週末の並びによって差が一時的に開いたり縮んだりします。</p>
+    </div>
+  );
+}
+
 type MonthDay = {
   day: string; net: number; orders: number; change: number | null; people: number; hours: number;
   checks_done: number; check_issues: number; photos: number; c_photos: number; ck_notes: number;
@@ -396,7 +475,8 @@ type MonthDay = {
 type Month = {
   month: string; from: string; to: string; complete: boolean;
   sales: { channels: Record<string, ChannelSales>; total: ChannelSales & { avg_ticket: number | null } };
-  prev: { from: string; to: string } | null; sales_change: number | null; daily_avg_net: number | null;
+  prev: ({ from: string; to: string } & SalesBlock) | null; sales_change: number | null; daily_avg_net: number | null;
+  progress: Progress;
   days: MonthDay[];
   quality: { grab_rating: number | null; grab_rating_start: number | null; foodpanda_rating: number | null; foodpanda_rating_start: number | null;
     foodpanda_prep_avg_min: number | null; grab_prep_median_avg_min: number | null; grab_offline_min: number; foodpanda_offline_min: number };
@@ -432,6 +512,8 @@ function MonthView({ store, month, onAuthError, onOpenDay }: { store: string; mo
         <Card label="客単価" value={php(t.avg_ticket)} />
         <Card label="1日あたりの売上" value={php(data.daily_avg_net)} sub={`${data.days.length}日間の平均`} />
       </div>
+
+      <ProgressPanel progress={data.progress} now={data.sales} before={data.prev} />
 
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
