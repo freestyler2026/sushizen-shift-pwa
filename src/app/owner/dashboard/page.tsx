@@ -555,7 +555,7 @@ function supportText(r: LedgerRow): string | null {
   const parts: string[] = [];
   if (cs.fees_waived_total) parts.push(`フィー免除 ${php(cs.fees_waived_total)}（${Object.keys(cs.fees_waived).map((k) => WAIVED_LABEL[k] || k).join("・")}）`);
   if (cs.trainee_labor) parts.push(`新店のための研修スタッフ${cs.trainee_people}人の人件費 ${php(cs.trainee_labor)}`);
-  if (cs.cost_share) parts.push(`家賃などの一部 ${php(cs.cost_share)}`);
+  if (cs.cost_share) parts.push(`家賃・食材費などの一部 ${php(cs.cost_share)}`);
   return `会社による支援 ${php(cs.total)}：${parts.join("、")}`;
 }
 type Ledger = {
@@ -796,7 +796,7 @@ function LedgerTab({ store, onAuthError }: { store: string; onAuthError: (e: unk
         <li>分配はフィリピンの法人税を差し引いた後、オーナー様ご自身にかかる税を差し引く前の金額です。分配にかかる源泉税や、お住まいの国での課税は含まれていないため、実際の受取額はこれより少なくなることがあります。</li>
         <li>法人税は、毎月その年度の累計に25%をかけて暫定で計算します。会社が年度の申告をした時点で、申告した税率（条件を満たせば20%）で年度全体を計算し直し、差額を精算します。</li>
         <li>毎月の分配は監査前の月次決算にもとづく期中分配で、年度累計の利益の70%が上限です。年度の決算が確定した時点で精算し、残りをお支払いするか、払い過ぎは翌期以降の分配から差し引きます（契約 Schedule 2 第3条・第4条）。</li>
-        <li>「会社による支援」は、会社が受け取るはずのフィーを免除した額、新しい店舗のために研修中のスタッフの人件費、家賃などの一部を会社が負担した額です。店舗の費用の実額は変えずに、支援として分けて表示しています。</li>
+        <li>「会社による支援」は、会社が受け取るはずのフィーを免除した額、新しい店舗のために研修中のスタッフの人件費、家賃や食材費などの一部を会社が負担した額です。店舗の費用の実額は変えずに、支援として分けて表示しています。</li>
         <li>家賃と光熱費は、請求書が届くまでは見込みで計上し、請求書の実額が入ると置き換えます。家賃は、貸主（Sundry）の計算式を、その月の売上にあてはめて計算しています。</li>
         <li>利回りや回収は目標であり、保証ではありません。各月は本部が締めてから表示し、訂正した月には訂正回数を表示します。</li>
       </ul>
