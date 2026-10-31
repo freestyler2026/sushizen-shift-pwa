@@ -228,6 +228,8 @@ type UploadResponse = {
     file_name?: string;
     branch_folder_name?: string;
     web_view_link?: string;
+    // The upload is also an Invoice Inbox row: read, checked and in the VAT ledger.
+    inbox?: { id?: number; store_name?: string; branch_known?: boolean; error?: string };
   };
 };
 
@@ -1055,10 +1057,16 @@ export default function ProcurementInvoicesPage() {
       const data = JSON.parse(text || "{}") as UploadResponse;
       const path = String(data?.upload?.path || "").trim();
       const placement = String(data?.upload?.placement || "branch");
+      const inbox = data?.upload?.inbox || {};
+      const inboxText = inbox.error
+        ? ` ${inbox.error}`
+        : inbox.id
+          ? ` Added to the Invoice Inbox (#${inbox.id}, ${inbox.store_name}) -- it is read in a few minutes.${inbox.branch_known ? "" : " Set its branch in the Inbox."}`
+          : "";
       setNotice(
-        placement === "exception"
+        (placement === "exception"
           ? `Invoice uploaded to Exception folder: ${path || String(data?.upload?.file_name || uploadFile.name)}`
-          : `Invoice uploaded to Drive: ${path || String(data?.upload?.file_name || uploadFile.name)}`,
+          : `Invoice uploaded to Drive: ${path || String(data?.upload?.file_name || uploadFile.name)}`) + inboxText,
       );
       const fileLink = String(data?.upload?.web_view_link || "").trim();
       if (fileLink) setNoticeLink(fileLink);
