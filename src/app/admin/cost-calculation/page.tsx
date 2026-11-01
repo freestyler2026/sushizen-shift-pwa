@@ -3679,7 +3679,14 @@ export default function CostCalculationPage() {
       const dirty = ingredients.filter((row) => row._dirty || row._new);
       // New rows the server now has: taken off the local list before any reload (see costIngredientRows).
       const savedNewIds = new Set<string>();
-      const settleSaved = () => setIngredients((prev) => withoutSavedNewRows(prev, savedNewIds));
+      const settleSaved = () => {
+        if (!savedNewIds.size) return;
+        setIngredients((prev) => withoutSavedNewRows(prev, savedNewIds));
+        // Selection is by row number: the saved rows were at the end, so that number is another
+        // item after the reload. Let go of it rather than type into the wrong ingredient.
+        setSelectedCell(null);
+        setEditingCell(null);
+      };
       for (const row of dirty) {
         const payload = {
           category: row.category,
@@ -3724,6 +3731,8 @@ export default function CostCalculationPage() {
                     body: JSON.stringify({ city, ...capturedPayload, force_rename: true }),
                   });
                   setIngredients((prev) => withoutSavedNewRows(prev, new Set([String(capturedRow.id)])));
+                  setSelectedCell(null);
+                  setEditingCell(null);
                 } else {
                   await costJson(`/api/cost/ingredients/${capturedRow.id}`, {
                     method: "PATCH",
@@ -6926,6 +6935,8 @@ export default function CostCalculationPage() {
                             ingredientIdForDetail = newId;
                             // Saved: the local "new-" row goes, or the reload keeps it beside the created item.
                             setIngredients((prev) => withoutSavedNewRows(prev, new Set([String(selectedIngredientDetail.id)])));
+                            setSelectedCell(null);
+                            setEditingCell(null);
                           } else {
                             const payload: Record<string, unknown> = {
                               notes_for_history: trimmedFormula ? "Ingredient cost formula updated from cost admin" : "Ingredient price updated from cost admin",
