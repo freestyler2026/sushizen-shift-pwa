@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { canAccessCostAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { ApiError, costJson } from "@/lib/costClient";
+import { withoutSavedNewRows } from "@/lib/costIngredientRows";
 import SelectDark from "@/components/SelectDark";
 
 type SheetKey = string;
@@ -3676,6 +3677,9 @@ export default function CostCalculationPage() {
     setImportMessage("");
     try {
       const dirty = ingredients.filter((row) => row._dirty || row._new);
+      // New rows the server now has: taken off the local list before any reload (see costIngredientRows).
+      const savedNewIds = new Set<string>();
+      const settleSaved = () => setIngredients((prev) => withoutSavedNewRows(prev, savedNewIds));
       for (const row of dirty) {
         const payload = {
           category: row.category,
@@ -3694,6 +3698,7 @@ export default function CostCalculationPage() {
               method: "POST",
               body: JSON.stringify({ city, ...payload }),
             });
+            savedNewIds.add(String(row.id));
           } else {
             await costJson(`/api/cost/ingredients/${row.id}`, {
               method: "PATCH",
@@ -3704,6 +3709,11 @@ export default function CostCalculationPage() {
           if (rowErr instanceof ApiError && rowErr.status === 409 && rowErr.body?.detail?.conflict) {
             const capturedRow = row;
             const capturedPayload = payload;
+            // The rows saved before this one are saved: they must not wait for the dialog as local rows.
+            if (savedNewIds.size) {
+              settleSaved();
+              await loadIngredients();
+            }
             setDupNameConflict({
               message: rowErr.body.detail.message || rowErr.message,
               conflict: rowErr.body.detail.conflict,
@@ -3713,6 +3723,7 @@ export default function CostCalculationPage() {
                     method: "POST",
                     body: JSON.stringify({ city, ...capturedPayload, force_rename: true }),
                   });
+                  setIngredients((prev) => withoutSavedNewRows(prev, new Set([String(capturedRow.id)])));
                 } else {
                   await costJson(`/api/cost/ingredients/${capturedRow.id}`, {
                     method: "PATCH",
@@ -3726,9 +3737,15 @@ export default function CostCalculationPage() {
             });
             return;
           }
+          if (savedNewIds.size) {
+            // A later row failed: the ones already created are saved, not local.
+            settleSaved();
+            await loadIngredients();
+          }
           throw rowErr;
         }
       }
+      settleSaved();
       await loadIngredients();
       setDirtyRows(new Set());
       setImportMessage(`${sheetName(activeSheet)} saved.`);
@@ -6907,6 +6924,8 @@ export default function CostCalculationPage() {
                             const newId = created?.item?.id;
                             if (!newId) throw new Error("Registration failed.");
                             ingredientIdForDetail = newId;
+                            // Saved: the local "new-" row goes, or the reload keeps it beside the created item.
+                            setIngredients((prev) => withoutSavedNewRows(prev, new Set([String(selectedIngredientDetail.id)])));
                           } else {
                             const payload: Record<string, unknown> = {
                               notes_for_history: trimmedFormula ? "Ingredient cost formula updated from cost admin" : "Ingredient price updated from cost admin",
