@@ -233,6 +233,28 @@ type UploadResponse = {
   };
 };
 
+// What the Inbox read from an upload, and whether it already had that invoice (owner, 2026-11-01:
+// an invoice uploaded twice counted twice in the owner's costs).
+type InboxRead = {
+  id: number; ocr_status: string; review_status: string; document_kind: string | null;
+  vendor_name: string; invoice_number: string; invoice_date: string | null; total_amount: number | null;
+  store_name: string; duplicate_of: { id: number; vendor_name?: string; invoice_number?: string; invoice_date?: string | null;
+    total_amount?: number | null; store_name?: string; uploaded_on?: string | null } | null; note: string;
+};
+type InboxCheck = { tone: "info" | "ok" | "warn" | "error"; text: string };
+const peso2 = (n: number | null | undefined) => (n == null ? "no amount read" : n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+function describeInboxRead(r: InboxRead): InboxCheck {
+  const what = [r.vendor_name || "seller not read", r.invoice_number && `No. ${r.invoice_number}`, r.invoice_date, peso2(r.total_amount)].filter(Boolean).join(", ");
+  if (r.duplicate_of) {
+    const d = r.duplicate_of;
+    return { tone: "warn", text: `Already registered: ${what} is in the Invoice Inbox as #${d.id}${d.store_name ? ` (${d.store_name})` : ""}, uploaded ${d.uploaded_on || "earlier"}. This upload (#${r.id}) was set aside as a duplicate, so the invoice is counted once. Nothing else to do.` };
+  }
+  if (r.ocr_status === "error" || r.ocr_status === "skipped") return { tone: "error", text: `#${r.id} could not be read. Check it in the Invoice Inbox below.` };
+  if (r.document_kind && r.document_kind !== "SUPPLIER_INVOICE") return { tone: "info", text: `Read #${r.id}: this is not a supplier invoice (${r.document_kind.toLowerCase().replace(/_/g, " ")}), so it is not counted as a purchase.` };
+  if (r.note) return { tone: "warn", text: `Read #${r.id}: ${what}. ${r.note}` };
+  return { tone: "ok", text: `Read #${r.id}: ${what}. It is in the Invoice Inbox for review.` };
+}
+
 const SUPPLIER_SPREADSHEET_URLS: Record<"dubai" | "manila", string> = {
   dubai: "https://docs.google.com/spreadsheets/d/1w3xuCORU26MWqYk5okxA5xnyVlU291y-XA_rBCyA_YU/edit?gid=953422773#gid=953422773",
   manila: "https://docs.google.com/spreadsheets/d/1kFdSqLMtr1Clr2IT6cELXhQPlIsthtFjQ4G-lFzhreE/edit?gid=1190036959#gid=1190036959",
@@ -579,6 +601,7 @@ export default function ProcurementInvoicesPage() {
   // broken.
   const [driveFolderAuto, setDriveFolderAuto] = useState(true);
   const [noticeLink, setNoticeLink] = useState("");
+  const [inboxCheck, setInboxCheck] = useState<InboxCheck | null>(null);
   const [alertBannerOpen, setAlertBannerOpen] = useState(false);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
   const [expandedAlertKeys, setExpandedAlertKeys] = useState<Record<string, boolean>>({});
@@ -1018,6 +1041,24 @@ export default function ProcurementInvoicesPage() {
     setNotice("");
   }, []);
 
+  // Wait for the reading (the sweep takes the newest first: usually under two minutes) and say
+  // what was read -- above all, whether the Inbox already had this invoice.
+  const watchInboxRead = useCallback(async (id: number, headers: HeadersInit) => {
+    setInboxCheck({ tone: "info", text: `Reading the invoice (#${id})... this usually takes under two minutes. You can keep working.` });
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 6000));
+      try {
+        const res = await fetch(`/api/admin/procurement/analytics/supplier-invoices/inbox-status/${id}?market=${city}`, { headers, cache: "no-store" });
+        if (!res.ok) continue;
+        const r = (await res.json())?.invoice as InboxRead | undefined;
+        if (!r || r.ocr_status === "pending" || r.ocr_status === "processing") continue;
+        setInboxCheck(describeInboxRead(r));
+        return;
+      } catch { /* try again */ }
+    }
+    setInboxCheck({ tone: "info", text: `#${id} is still waiting to be read. It will show in the Invoice Inbox below; a duplicate is set aside there automatically.` });
+  }, [city]);
+
   const submitDriveUpload = useCallback(async () => {
     if (!uploadFile) {
       setError("Please choose an invoice file.");
@@ -1035,6 +1076,7 @@ export default function ProcurementInvoicesPage() {
     setError("");
     setNotice("");
     setNoticeLink("");
+    setInboxCheck(null);
     try {
       const headers = await procurementTokenHeaders(requestedBy, pin);
       const formData = new FormData();
@@ -1052,7 +1094,9 @@ export default function ProcurementInvoicesPage() {
       });
       const text = await res.text();
       if (!res.ok) {
-        throw new Error(text || `Upload failed (${res.status})`);
+        let detail = text;
+        try { detail = String(JSON.parse(text)?.detail || text); } catch { /* not JSON */ }
+        throw new Error(detail || `Upload failed (${res.status})`);
       }
       const data = JSON.parse(text || "{}") as UploadResponse;
       const path = String(data?.upload?.path || "").trim();
@@ -1061,7 +1105,7 @@ export default function ProcurementInvoicesPage() {
       const inboxText = inbox.error
         ? ` ${inbox.error}`
         : inbox.id
-          ? ` Added to the Invoice Inbox (#${inbox.id}, ${inbox.store_name}) -- it is read in a few minutes.${inbox.branch_known ? "" : " Set its branch in the Inbox."}`
+          ? ` Added to the Invoice Inbox (#${inbox.id}, ${inbox.store_name}).${inbox.branch_known ? "" : " Set its branch in the Inbox."}`
           : "";
       setNotice(
         (placement === "exception"
@@ -1071,12 +1115,13 @@ export default function ProcurementInvoicesPage() {
       const fileLink = String(data?.upload?.web_view_link || "").trim();
       if (fileLink) setNoticeLink(fileLink);
       resetUploadDraft();
+      if (inbox.id) void watchInboxRead(inbox.id, headers);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
       setUploadBusy(false);
     }
-  }, [city, pin, requestedBy, resetUploadDraft, uploadBranchName, uploadFile, uploadInvoiceDate]);
+  }, [city, pin, requestedBy, resetUploadDraft, uploadBranchName, uploadFile, uploadInvoiceDate, watchInboxRead]);
 
   const syncSpreadsheet = useCallback(async () => {
     setSyncBusy(true);
@@ -1543,6 +1588,15 @@ export default function ProcurementInvoicesPage() {
               Open in Drive ↗
             </a>
           )}
+        </div>
+      ) : null}
+      {inboxCheck ? (
+        <div role="status" className={`rounded-2xl border px-4 py-3 text-sm ${
+          inboxCheck.tone === "warn" ? "border-amber-700/60 bg-amber-950/40 text-amber-100"
+            : inboxCheck.tone === "error" ? "border-red-900/50 bg-red-950/30 text-red-200"
+              : inboxCheck.tone === "ok" ? "border-emerald-900/50 bg-emerald-950/30 text-emerald-200"
+                : "border-sky-900/50 bg-sky-950/30 text-sky-200"}`}>
+          {inboxCheck.text}
         </div>
       ) : null}
 
