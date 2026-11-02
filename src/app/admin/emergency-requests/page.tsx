@@ -306,6 +306,9 @@ function RequestCard({
           <div className="flex gap-1.5 mt-1 flex-wrap">
             {urgencyBadge(req.urgency)}
             {statusBadge(req.status)}
+            {req.status === "completed" && !req.source_type && (
+              <span className={BADGE_WARNING} title="Open the request and use Record it">Source not recorded</span>
+            )}
             {req.approval_level && (
               <span className={req.approval_level === "hq" ? BADGE_ERROR : BADGE_WARNING}>
                 {req.approval_level === "hq" ? "HQ Required" : "Ops Mgr"}
