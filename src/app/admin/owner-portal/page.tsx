@@ -153,6 +153,9 @@ type Sheet = {
   complete: boolean; net_sales: number; store_costs: number; ck_cost: number; food_cost: number; labor: number; profit_before_fees: number;
 };
 const SHEET_STORES = [{ code: "TAFT", name: "Taft" }, { code: "PAR", name: "Paranaque" }];
+// The month sheet also covers the Company's own store, for the Company's P&L (owner, 2026-11-02).
+// It has no owner, so it is never in the ledger below.
+const COST_SHEET_STORES = [...SHEET_STORES, { code: "CUB", name: "Cubao (company)" }];
 const FIRST_MONTH = "2026-10";
 
 function sheetMonths(): string[] {
@@ -203,7 +206,7 @@ function CostSheet() {
         <p className="text-sm text-slate-400">What the owner ledger will be built from: net sales and every store cost for the calendar month, with where each figure comes from. Owners do not see this page.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {SHEET_STORES.map((s) => <button key={s.code} onClick={() => setStore(s.code)} className={pick(store === s.code)}>{s.name}</button>)}
+        {COST_SHEET_STORES.map((s) => <button key={s.code} onClick={() => setStore(s.code)} className={pick(store === s.code)}>{s.name}</button>)}
         <span className="mx-1 h-5 w-px bg-white/10" />
         {months.map((m) => (
           <button key={m} onClick={() => setMonth(m)} className={pick(month === m)}>
@@ -217,10 +220,13 @@ function CostSheet() {
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[["Net sales (VAT out)", sheet.net_sales], ["Store costs", sheet.store_costs],
-              ["Profit before FOCO fees", sheet.profit_before_fees], ["CK goods (at CK cost)", sheet.ck_cost]].map(([k, v]) => (
+              // Cubao takes CK's food without a note-by-note bill (one kitchen): the Company pays for it as CK's purchases.
+              ...(sheet.store === "CUB"
+                ? [["Store profit (before CK's food)", sheet.profit_before_fees], ["CK goods", "not billed (same kitchen)"]]
+                : [["Profit before FOCO fees", sheet.profit_before_fees], ["CK goods (at CK cost)", sheet.ck_cost]])].map(([k, v]) => (
               <div key={k as string} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                 <p className="text-xs text-slate-400">{k}</p>
-                <p className="mt-1 text-lg font-semibold tabular-nums text-white">{peso(v as number)}</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums text-white">{typeof v === "string" ? <span className="text-sm font-normal text-slate-400">{v}</span> : peso(v as number)}</p>
               </div>
             ))}
           </div>
