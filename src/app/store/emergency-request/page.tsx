@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, AlertTriangle, Clock, CheckCircle2, XCircle, RefreshCw, Truck, Package, PackageCheck, Banknote, Search } from "lucide-react";
 import SelectDark from "@/components/SelectDark";
+import EmergencySourceFields, { sourceLabel, sourceProblem, type EmergencySource } from "@/components/EmergencySourceFields";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
@@ -64,6 +65,8 @@ interface EPRRequest {
   completed_by: string;
   completed_at: string | null;
   completion_notes: string;
+  source_type?: string;
+  source_name?: string;
   arranging_by: string;
   arranging_at: string | null;
   dispatched_by: string;
@@ -274,7 +277,7 @@ export default function EmergencyRequestPage() {
   const [dispatchingId, setDispatchingId] = useState<number | null>(null);
   const [dispatchForm, setDispatchForm] = useState<{ id: number; method: string; cost: string } | null>(null);
   const [completingId, setCompletingId] = useState<number | null>(null);
-  const [completeForm, setCompleteForm] = useState<{ id: number; notes: string; finalAmount: string } | null>(null);
+  const [completeForm, setCompleteForm] = useState<{ id: number; store: string; notes: string; finalAmount: string; source: EmergencySource } | null>(null);
 
   const city = (auth?.city || "manila").toLowerCase();
   const catalogCity = MANILA_STORES.includes(store) ? "manila" : city;
@@ -415,6 +418,8 @@ export default function EmergencyRequestPage() {
   // ─── Complete ─────────────────────────────────────────────────────────────
   async function handleComplete() {
     if (!completeForm) return;
+    const problem = sourceProblem(completeForm.source, completeForm.store, completeForm.finalAmount);
+    if (problem) { setToast({ msg: problem, ok: false }); return; }
     setCompletingId(completeForm.id);
     try {
       const res = await fetch(`/api/store/emergency-request/${completeForm.id}/complete`, {
@@ -422,8 +427,10 @@ export default function EmergencyRequestPage() {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({
           completed_by: actorName,
-          final_amount: completeForm.finalAmount ? parseFloat(completeForm.finalAmount) : null,
+          final_amount: parseFloat(completeForm.finalAmount),
           completion_notes: completeForm.notes,
+          source_type: completeForm.source.type,
+          source_name: completeForm.source.name,
         }),
       });
       const data = await res.json();
@@ -820,13 +827,19 @@ export default function EmergencyRequestPage() {
                     {completeForm?.id === req.id ? (
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
                         <p className="text-xs font-semibold text-zinc-300">Completion Details</p>
+                        <EmergencySourceFields
+                          value={completeForm.source}
+                          onChange={(v) => setCompleteForm((f) => f ? { ...f, source: v } : f)}
+                          requestStore={completeForm.store}
+                          supplierHint={req.supplier_name || ""}
+                        />
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className={T_LABEL}>Final Amount (₱)</label>
+                            <label className={T_LABEL}>Amount of the goods (₱)</label>
                             <input
                               type="number" min={0} step="0.01"
                               className={`mt-0.5 ${INPUT_CLASS}`}
-                              placeholder="Optional"
+                              placeholder="Required"
                               value={completeForm.finalAmount}
                               onChange={(e) => setCompleteForm((f) => f ? { ...f, finalAmount: e.target.value } : f)}
                             />
@@ -842,10 +855,12 @@ export default function EmergencyRequestPage() {
                             />
                           </div>
                         </div>
+                        {(() => { const p = sourceProblem(completeForm.source, completeForm.store, completeForm.finalAmount);
+                          return p ? <p className="text-xs text-amber-300">{p}</p> : null; })()}
                         <div className="flex gap-2">
                           <button
                             className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`}
-                            disabled={completingId === req.id}
+                            disabled={completingId === req.id || !!sourceProblem(completeForm.source, completeForm.store, completeForm.finalAmount)}
                             onClick={handleComplete}
                           >
                             <CheckCircle2 className="h-4 w-4 inline mr-1" />
@@ -862,7 +877,8 @@ export default function EmergencyRequestPage() {
                     ) : (
                       <button
                         className={`w-full ${SECONDARY_BUTTON} py-2 text-sm`}
-                        onClick={() => setCompleteForm({ id: req.id, notes: "", finalAmount: "" })}
+                        onClick={() => setCompleteForm({ id: req.id, store: req.store, notes: "", finalAmount: String(req.final_amount ?? req.total_estimated_amount ?? ""),
+                          source: { type: "", name: req.supplier_name || "" } })}
                       >
                         <CheckCircle2 className="h-4 w-4 inline mr-1" />
                         Mark as Completed
@@ -873,6 +889,9 @@ export default function EmergencyRequestPage() {
 
                 {req.status === "completed" && req.completion_notes && (
                   <p className="text-xs text-violet-400">✓ Completed: {req.completion_notes}</p>
+                )}
+                {req.status === "completed" && req.source_type && (
+                  <p className="text-xs text-zinc-400">Came from: {sourceLabel(req.source_type, req.source_name || "")}</p>
                 )}
               </div>
             ))}

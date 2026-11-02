@@ -32,6 +32,7 @@ import {
   KPI_VALUE,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import EmergencySourceFields, { sourceLabel, sourceProblem, type EmergencySource } from "@/components/EmergencySourceFields";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,9 @@ interface EPRRequest {
   completed_by: string;
   completed_at: string | null;
   completion_notes: string;
+  source_type?: string;
+  source_name?: string;
+  source_set_by?: string;
   arranging_by: string;
   arranging_at: string | null;
   dispatched_by: string;
@@ -146,6 +150,11 @@ function RequestCard({
   const [rejectReason, setRejectReason] = useState("");
   const [completeAmount, setCompleteAmount] = useState(String(req.final_amount ?? req.total_estimated_amount));
   const [completeNotes, setCompleteNotes] = useState("");
+  const [completeSource, setCompleteSource] = useState<EmergencySource>({ type: "", name: req.supplier_name || "" });
+  // A request completed before the source was asked for (October 2026) takes it here.
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [lateSource, setLateSource] = useState<EmergencySource>({ type: "", name: "" });
+  const [lateAmount, setLateAmount] = useState(String(req.final_amount ?? req.total_estimated_amount));
   const [deliveryMethod, setDeliveryMethod] = useState("in_house");
   const [deliveryCost, setDeliveryCost] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -159,6 +168,8 @@ function RequestCard({
   const [confirmAction, setConfirmAction] = useState<
     "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items" | "adjust_qty" | null
   >(null);
+  const completeProblem = sourceProblem(completeSource, req.store, completeAmount);
+  const lateProblem = sourceProblem(lateSource, req.store, lateAmount);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -173,6 +184,25 @@ function RequestCard({
       if (req.items[i] && Math.abs(q - Number(req.items[i].qty)) > 1e-9) out.push({ index: i, qty: q });
     }
     return out;
+  }
+
+  async function saveLateSource() {
+    if (lateProblem) { setError(lateProblem); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/emergency-requests/${req.id}/source`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ source_type: lateSource.type, source_name: lateSource.name, final_amount: parseFloat(lateAmount), set_by: actorName }),
+      });
+      const data = await res.json();
+      if (data.ok) { setSourceOpen(false); onAction(); } else setError(data.detail || "Could not save the source");
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function doAction(action: "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items" | "adjust_qty") {
@@ -202,7 +232,9 @@ function RequestCard({
       } else if (action === "receive") {
         body = { received_by: actorName };
       } else if (action === "complete") {
-        body = { completed_by: actorName, final_amount: parseFloat(completeAmount) || null, completion_notes: completeNotes };
+        if (completeProblem) { setError(completeProblem); setLoading(false); return; }
+        body = { completed_by: actorName, final_amount: parseFloat(completeAmount), completion_notes: completeNotes,
+                 source_type: completeSource.type, source_name: completeSource.name };
       } else if (action === "cancel") {
         body = { cancelled_by: actorName, cancel_reason: cancelReason };
       } else if (action === "void") {
@@ -335,6 +367,26 @@ function RequestCard({
             {req.received_by && <p><span className="text-zinc-500">Received by:</span> {req.received_by} {req.received_at ? `at ${req.received_at}` : ""}</p>}
             {req.rejection_reason && <p className="text-red-400"><span className="text-zinc-500">Rejected:</span> {req.rejection_reason}</p>}
             {req.completion_notes && <p><span className="text-zinc-500">Completion:</span> {req.completion_notes}</p>}
+            {req.source_type ? (
+              <p><span className="text-zinc-500">Came from:</span> {sourceLabel(req.source_type, req.source_name || "")}
+                {req.final_amount != null && <> · ₱{Number(req.final_amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</>}
+                {req.source_set_by && <span className="text-zinc-500"> (by {req.source_set_by})</span>}</p>
+            ) : req.status === "completed" && (
+              <p className="text-amber-300">Where the goods came from was not recorded.{" "}
+                {!sourceOpen && <button className="underline hover:text-amber-200" onClick={() => setSourceOpen(true)}>Record it</button>}</p>
+            )}
+            {sourceOpen && (
+              <div className="mt-2 space-y-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
+                <EmergencySourceFields value={lateSource} onChange={setLateSource} requestStore={req.store} supplierHint={req.supplier_name || ""} />
+                <label className={T_LABEL}>Amount of the goods (PHP)</label>
+                <input type="number" className={INPUT_CLASS} value={lateAmount} onChange={(e) => setLateAmount(e.target.value)} />
+                {lateProblem && <p className="text-xs text-amber-300">{lateProblem}</p>}
+                <div className="flex gap-2">
+                  <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading || !!lateProblem} onClick={saveLateSource}>{loading ? "…" : "Save"}</button>
+                  <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setSourceOpen(false)}>Cancel</button>
+                </div>
+              </div>
+            )}
             {req.cancelled_by && <p className="text-orange-300"><span className="text-zinc-500">Cancelled by:</span> {req.cancelled_by} {req.cancelled_at ? `at ${req.cancelled_at}` : ""}{req.cancel_reason ? ` — ${req.cancel_reason}` : ""}</p>}
             {req.voided_by && <p className="text-rose-300"><span className="text-zinc-500">Voided by:</span> {req.voided_by} {req.voided_at ? `at ${req.voided_at}` : ""}{req.void_reason ? ` — ${req.void_reason}` : ""}</p>}
             {req.items.some((it) => it.cancelled) && (
@@ -575,12 +627,14 @@ function RequestCard({
 
       {confirmAction === "complete" && (
         <div className="space-y-2">
-          <label className={T_LABEL}>Final Amount (PHP)</label>
+          <EmergencySourceFields value={completeSource} onChange={setCompleteSource} requestStore={req.store} supplierHint={req.supplier_name || ""} />
+          <label className={T_LABEL}>Amount of the goods (PHP)</label>
           <input type="number" className={INPUT_CLASS} value={completeAmount} onChange={(e) => setCompleteAmount(e.target.value)} />
           <label className={T_LABEL}>Completion Notes</label>
           <textarea className={TEXTAREA_CLASS} rows={2} value={completeNotes} onChange={(e) => setCompleteNotes(e.target.value)} placeholder="What was procured? How?" />
+          {completeProblem && <p className="text-xs text-amber-300">{completeProblem}</p>}
           <div className="flex gap-2">
-            <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading} onClick={() => doAction("complete")}>
+            <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading || !!completeProblem} onClick={() => doAction("complete")}>
               {loading ? "…" : "Mark Completed"}
             </button>
             <button className={`${SECONDARY_BUTTON} py-2 text-sm`} onClick={() => setConfirmAction(null)}>Back</button>
