@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { prepareDataUrl } from "@/lib/image-compress";
 import { getAuth, getAuthHeaders, canAccessAttendancePage } from "@/lib/auth";
+import { ACTION_NOUN, isNetworkFailure } from "@/lib/attendanceErrors";
 import { GLASS_CARD } from "@/lib/ui-tokens";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -766,6 +767,16 @@ export default function AttendancePage() {
               : (action === "checkin"
                   ? "Not clocked in. The passkey check did not complete, so nothing was recorded. Tap Clock In again."
                   : "Nothing was recorded — the passkey check did not complete. Tap the button again.")
+          );
+        } else if (!isPasskeyMissing && isNetworkFailure(e, msg)) {
+          // The browser's own words ("Failed to fetch", "Load failed", "NetworkError ...") say
+          // nothing about the punch. Peter Villafuerte pressed Break Out at 13:39 on 3 Nov 2026,
+          // the request never left the phone, and he read the red "Failed to fetch" as done:
+          // his break ran to 18:30 on the record. Say that nothing was recorded.
+          setError(
+            ACTION_NOUN[action]
+              ? `No connection — your ${ACTION_NOUN[action]} was NOT recorded. Check your internet (Wi-Fi or data) and tap the button again.`
+              : "No connection — nothing was recorded. Check your internet (Wi-Fi or data) and tap the button again.",
           );
         } else {
           setError(
