@@ -64,12 +64,13 @@ function payload(token) {
   ctx.on('close', () => { closed = true; });
   const first = ctx.pages()[0] || await ctx.newPage();
   await first.goto('https://atlas.urbanpiper.com', { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
-  if (AUTO) {
-    // A token Atlas still holds may be days old. Drop it so Atlas fetches a
-    // new one from the UrbanPiper sign-in, if that is still valid.
-    await first.evaluate(() => { try { localStorage.removeItem('AT'); } catch {} }).catch(() => {});
-    await first.goto('https://atlas.urbanpiper.com', { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
-  }
+  // A token Atlas still holds may be days old. Drop it so Atlas fetches a new
+  // one. This must happen in the manual run too: the profile is reused, so
+  // without it the loop below reads last week's token before anyone signs in
+  // and puts it back on Heroku unchanged (2026-11-07: "valid until 11-08 19:00"
+  // again after a "successful" refresh).
+  await first.evaluate(() => { try { localStorage.removeItem('AT'); } catch {} }).catch(() => {});
+  await first.goto('https://atlas.urbanpiper.com', { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
 
   // The sign-in can finish in another tab, and a tab can close on the way
   // (the login page hands over to Atlas). Look at every open Atlas tab each
@@ -110,6 +111,16 @@ function payload(token) {
   if (!acct || (which && acct !== ACCOUNTS[which])) {
     const want = which ? ACCOUNTS[which].label : 'Sushi ZEN or Ramen ZEN & AVS';
     console.error(`This login is business ${p.biz_id}, not ${want}. Nothing changed.`);
+    process.exit(1);
+  }
+  // A fresh token lives 7 days. Less than 6 left means Atlas handed back an old
+  // one; setting it would only restart the dyno and change nothing.
+  // The token has no `exp`; its expiry is `expires_on`, a UTC wall-clock string.
+  const until = p.expires_on ? Date.parse(String(p.expires_on).replace(' ', 'T').slice(0, 19) + 'Z') : NaN;
+  const left = Number.isFinite(until) ? (until - Date.now()) / 3_600_000 : null;
+  if (left !== null && left < 6 * 24) {
+    console.error(`✗ ${acct.label}: this is not a new token (valid until ${p.expires_on}, ${left.toFixed(0)}h left). Heroku not changed.`);
+    console.error('  Sign out in the window that opens and sign in again, or run once more.');
     process.exit(1);
   }
   console.log(`✓ ${acct.label}: token valid until ${p.expires_on}`);
