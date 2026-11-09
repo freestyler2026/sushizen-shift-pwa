@@ -443,10 +443,14 @@ export default function DubaiYoYTab({
                           return [
                             <td key={`${m}c`} className="px-3 py-2 text-right tabular-nums">{fmtInt(val(cur, m))}</td>,
                             <td key={`${m}p`} className="px-3 py-2 text-right tabular-nums text-zinc-400">{fmtInt(val(prev, m))}</td>,
-                            <td key={`${m}d`} className={`px-3 py-2 text-right tabular-nums ${flag ? "text-amber-400" : changeClass(val(cur, m), val(prev, m))}`}>
-                              {fmtChange(val(cur, m), val(prev, m))}
-                              {flag ? "†" : ""}
-                            </td>,
+                            r.closed ? (
+                              <td key={`${m}d`} className="px-3 py-2 text-right text-zinc-600">closed</td>
+                            ) : (
+                              <td key={`${m}d`} className={`px-3 py-2 text-right tabular-nums ${flag ? "text-amber-400" : changeClass(val(cur, m), val(prev, m))}`}>
+                                {fmtChange(val(cur, m), val(prev, m))}
+                                {flag ? "†" : ""}
+                              </td>
+                            ),
                           ];
                         })}
                       </tr>
@@ -502,6 +506,7 @@ export default function DubaiYoYTab({
                       r.kind === "total" ? m.total : r.kind === "lfl" ? m.like_for_like : m.stores[r.key];
                     const cellFor = (p: Pair | undefined, current: boolean) => {
                       if (!p) return <span className="text-zinc-700">—</span>;
+                      if (r.closed) current = false;
                       const c = val(p.cur, metric);
                       const pv = val(p.prev, metric);
                       const flag = metric === "net" && netFlagged(p);
@@ -535,13 +540,13 @@ export default function DubaiYoYTab({
                           return (
                             <td
                               key={m.month}
-                              className={`px-2 py-2 text-right tabular-nums ${m.has_current && p && !metricFlag ? tint(val(p.cur, metric), val(p.prev, metric)) : ""}`}
+                              className={`px-2 py-2 text-right tabular-nums ${m.has_current && p && !metricFlag && !r.closed ? tint(val(p.cur, metric), val(p.prev, metric)) : ""}`}
                             >
                               {cellFor(p, m.has_current)}
                             </td>
                           );
                         })}
-                        <td className={`px-3 py-2 text-right tabular-nums ${yearPair && !(metric === "net" && netFlagged(yearPair)) ? tint(val(yearPair.cur, metric), val(yearPair.prev, metric)) : ""}`}>
+                        <td className={`px-3 py-2 text-right tabular-nums ${yearPair && !r.closed && !(metric === "net" && netFlagged(yearPair)) ? tint(val(yearPair.cur, metric), val(yearPair.prev, metric)) : ""}`}>
                           {cellFor(yearPair, data.ytd.through_month > 0)}
                         </td>
                       </tr>
