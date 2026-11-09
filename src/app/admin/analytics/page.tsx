@@ -1392,7 +1392,7 @@ function scrollToSection(id: string) {
 const SALES_SECTION_OPTIONS = [
   { value: "summary", label: "Summary", id: "sales-summary" },
   { value: "orderCounts", label: "Number of Orders", id: "sales-order-counts" },
-  { value: "yoy", label: "YoY", id: "sales-yoy" },
+  { value: "yoy", label: "YoY & Trend", id: "sales-yoy" },
   { value: "hourly", label: "Hourly", id: "sales-hourly" },
   { value: "operationTime", label: "Op Time", id: "sales-operation-time" },
   { value: "manilaOverallRatings", label: "Overall Rating", id: "sales-manila-overall-ratings" },

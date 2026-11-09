@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarRange, RefreshCw } from "lucide-react";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import {
@@ -45,7 +46,70 @@ type YoYResp = {
   stores: { code: string; name: string; closed: boolean }[];
   months: MonthBlock[];
   ytd: Block & { through_month: number; cutoff_day: number | null };
+  series?: {
+    latest_date: string;
+    months: { key: string; stores: Record<string, Cell>; total: Cell; partial: boolean; through_day: number | null }[];
+  };
 };
+
+const STORE_COLORS: Record<string, string> = {
+  BB: "#a78bfa",
+  JLT: "#38bdf8",
+  ARJ: "#f97316",
+  AM: "#22c55e",
+  AB: "#f472b6",
+  DSO: "#71717a",
+  MIR: "#a1a1aa",
+};
+const TOTAL_COLOR = "#e4e4e7";
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const monthLabel = (key: string) => `${MONTH_SHORT[Number(key.slice(5, 7)) - 1]} ${key.slice(2, 4)}`;
+const kFmt = (v: number) => (Math.abs(v) >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : String(Math.round(v)));
+const TOOLTIP_STYLE = {
+  background: "#1e2433",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "8px",
+  color: "#fff",
+  fontSize: 12,
+};
+
+function TrendChart({
+  title,
+  rows,
+  lines,
+  money,
+}: {
+  title: string;
+  rows: Record<string, number | string | null>[];
+  lines: { key: string; name: string; color: string; width: number }[];
+  money: boolean;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">{title}</p>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={rows} margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 11 }} interval="preserveStartEnd" />
+            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} width={48} tickFormatter={(v: number) => kFmt(v)} />
+            <Tooltip
+              contentStyle={TOOLTIP_STYLE}
+              formatter={(value: number | string, name: string) => [
+                typeof value === "number" ? `${money ? "AED " : ""}${Math.round(value).toLocaleString("en-US")}` : value,
+                name,
+              ]}
+            />
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+            {lines.map((l) => (
+              <Line key={l.key} type="monotone" dataKey={l.key} name={l.name} stroke={l.color} strokeWidth={l.width} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={false} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
 
 type Metric = "orders" | "gross" | "net";
 const METRICS: { key: Metric; label: string }[] = [
@@ -136,6 +200,8 @@ export default function DubaiYoYTab({
   const [brand, setBrand] = useState<string>("");
   const [metric, setMetric] = useState<Metric>("orders");
   const [month, setMonth] = useState<number>(0); // 0 = latest month with data
+  const [trendView, setTrendView] = useState<"total" | "stores">("total");
+  const [trendSales, setTrendSales] = useState<"gross" | "net">("gross");
   const [data, setData] = useState<YoYResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -189,6 +255,33 @@ export default function DubaiYoYTab({
     { key: "__total", label: "Total (all stores)", closed: false, pair: b.total, kind: "total" as const },
     { key: "__lfl", label: "Like-for-like", closed: false, pair: b.like_for_like, kind: "lfl" as const },
   ];
+
+  // Trend: every month OS has, one point per month. The running month is left
+  // off the lines -- a part month would read as a fall.
+  const trend = useMemo(() => {
+    const months = (data?.series?.months ?? []).filter((m) => !m.partial);
+    const partial = (data?.series?.months ?? []).find((m) => m.partial) ?? null;
+    const codes = (data?.stores ?? []).map((s) => s.code);
+    const build = (pick: (c: Cell) => number) =>
+      months.map((m) => {
+        const row: Record<string, number | string | null> = { label: monthLabel(m.key), total: pick(m.total) };
+        for (const c of codes) row[c] = m.stores[c] ? pick(m.stores[c]) : null;
+        return row;
+      });
+    const lines =
+      trendView === "total"
+        ? [{ key: "total", name: "All stores", color: TOTAL_COLOR, width: 2.5 }]
+        : (data?.stores ?? [])
+            .filter((s) => months.some((m) => (m.stores[s.code]?.orders ?? 0) > 0))
+            .map((s) => ({ key: s.code, name: s.closed ? `${s.name} (closed)` : s.name, color: STORE_COLORS[s.code] ?? "#94a3b8", width: 2 }));
+    return {
+      orders: build((c) => c.orders),
+      sales: build((c) => (trendSales === "gross" ? c.gross : c.net)),
+      lines,
+      partial,
+      netFlagged: months.some((m) => m.total.net_flag),
+    };
+  }, [data, trendView, trendSales]);
 
   const periodLabel = (m: MonthBlock | null) => {
     if (!m) return "";
@@ -251,6 +344,41 @@ export default function DubaiYoYTab({
         <p className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
           No {data.previous_year} figures to compare with: OS has UrbanPiper sales from {data.history_from}.
         </p>
+      ) : null}
+
+      {data && trend.orders.length ? (
+        <div className="mt-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-white">Monthly trend</span>
+            <div className={TAB_CONTAINER}>
+              <button type="button" onClick={() => setTrendView("total")} className={trendView === "total" ? TAB_ACTIVE : TAB_INACTIVE}>
+                All stores
+              </button>
+              <button type="button" onClick={() => setTrendView("stores")} className={trendView === "stores" ? TAB_ACTIVE : TAB_INACTIVE}>
+                By store
+              </button>
+            </div>
+            <div className={TAB_CONTAINER}>
+              <button type="button" onClick={() => setTrendSales("gross")} className={trendSales === "gross" ? TAB_ACTIVE : TAB_INACTIVE}>
+                Sales gross
+              </button>
+              <button type="button" onClick={() => setTrendSales("net")} className={trendSales === "net" ? TAB_ACTIVE : TAB_INACTIVE}>
+                Sales net
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <TrendChart title="Orders" rows={trend.orders} lines={trend.lines} money={false} />
+            <TrendChart title={trendSales === "gross" ? "Sales gross (AED)" : "Sales net (AED)"} rows={trend.sales} lines={trend.lines} money />
+          </div>
+          <p className={`${T_CAPTION} mt-2`}>
+            Whole months only, from {data.history_from.slice(0, 7)}
+            {trend.partial ? ` — ${monthLabel(trend.partial.key)} is plotted once the month ends (data through day ${trend.partial.through_day})` : ""}.
+            {trendSales === "net" && trend.netFlagged ? (
+              <span className="text-amber-400"> Net reads high from Oct 2025 to May 2026 (discounts missing in UrbanPiper); gross shows the real movement.</span>
+            ) : null}
+          </p>
+        </div>
       ) : null}
 
       {data && monthBlock ? (
