@@ -21,7 +21,7 @@ import {
 } from "@/lib/ui-tokens";
 import { Spinner } from "@/components/ui/Spinner";
 
-type Cell = { orders: number; gross: number; net: number; net_flag: boolean };
+type Cell = { orders: number; gross: number; net: number; net_flag: boolean; low_days?: string };
 type Pair = { cur: Cell; prev: Cell };
 type Block = {
   stores: Record<string, Pair>;
@@ -407,8 +407,11 @@ export default function DubaiYoYTab({
   }, [data, barStore, trendSales]);
 
   const periodLabel = (m: MonthBlock | null) => {
-    if (!m) return "";
-    return m.cutoff_day ? `${MONTHS[m.month - 1]} 1–${m.cutoff_day}` : MONTHS[m.month - 1];
+    if (!m || !data) return "";
+    const days = m.cutoff_day ?? new Date(data.year, m.month, 0).getDate();
+    return m.cutoff_day
+      ? `${MONTHS[m.month - 1]} 1–${m.cutoff_day} (${days} days)`
+      : `${MONTHS[m.month - 1]} (${days} days)`;
   };
 
   return (
@@ -551,7 +554,8 @@ export default function DubaiYoYTab({
           <div className="mt-6">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-white">
-                {periodLabel(monthBlock)} {data.year} vs {data.previous_year}
+                {periodLabel(monthBlock)} · {data.year} vs {data.previous_year}
+                <span className="ml-2 text-xs font-normal text-zinc-400">same days in both years</span>
               </span>
               <div className="flex flex-wrap gap-1">
                 {data.months.map((m) => (
@@ -601,6 +605,16 @@ export default function DubaiYoYTab({
                         <td className="whitespace-nowrap px-3 py-2">
                           {r.label}
                           {r.closed ? <span className="ml-1.5 text-[10px] font-normal uppercase text-zinc-500">closed</span> : null}
+                          {cur.low_days ? (
+                            <span className="ml-2 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-normal text-amber-300">
+                              Closed/offline {MONTHS[monthBlock.month - 1]} {cur.low_days}
+                            </span>
+                          ) : null}
+                          {prev.low_days ? (
+                            <span className="ml-2 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-normal text-zinc-400">
+                              {data.previous_year}: closed/offline {MONTHS[monthBlock.month - 1]} {prev.low_days}
+                            </span>
+                          ) : null}
                         </td>
                         {(["orders", "gross", "net"] as Metric[]).map((m) => {
                           const flag = m === "net" && netFlagged(r.pair);
@@ -691,6 +705,17 @@ export default function DubaiYoYTab({
                         <span title={title} className={flag ? "text-amber-400" : changeClass(c, pv)}>
                           {fmtChange(c, pv)}
                           {flag ? "†" : ""}
+                          {p.cur.low_days || p.prev.low_days ? (
+                            <span
+                              className="ml-0.5 text-amber-400"
+                              title={[
+                                p.cur.low_days ? `${data.year}: closed/offline days ${p.cur.low_days}` : "",
+                                p.prev.low_days ? `${data.previous_year}: closed/offline days ${p.prev.low_days}` : "",
+                              ].filter(Boolean).join(" · ")}
+                            >
+                              •
+                            </span>
+                          ) : null}
                           <span className="block text-[10px] text-zinc-500">{fmtInt(c)}</span>
                         </span>
                       );
@@ -731,8 +756,14 @@ export default function DubaiYoYTab({
               only stores open in both months. Closed stores (Dubai Silicon Oasis, Mirdif) count in the total only.
             </p>
             <p>
-              <span className="text-amber-400">†</span> Net not comparable: UrbanPiper left part of the discounts out in this month
-              (Oct 2025 to 12 May 2026), so its net reads high. The discount rate did not change, so read the change from gross.
+              <span className="text-zinc-300">Net, Oct 2025 – 12 May 2026</span>: UrbanPiper did not record Keeta&apos;s discounts in
+              that span, so Keeta&apos;s days are corrected at Keeta&apos;s own rate from 13 May (net/gross 0.459). The same correction
+              matches the P&amp;L within −2.1% to +0.3% for Mar–Jul 2026. <span className="text-amber-400">†</span> marks a month whose
+              net still reads high.
+            </p>
+            <p>
+              <span className="text-amber-400">Closed/offline</span>: days a store sold under 15% of its usual day that month
+              (shown in the table, and as <span className="text-amber-400">•</span> in the grid — hover for the days).
             </p>
             <p>The orders here are UrbanPiper&apos;s own count; Number of Orders (by platform) may differ by a few orders a day.</p>
           </div>
