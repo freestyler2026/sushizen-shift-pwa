@@ -102,6 +102,7 @@ import ManilaAggregatorRatingsTab from "@/components/analytics/ManilaAggregatorR
 import { ManilaGrabOfflineTab } from "@/components/analytics/ManilaGrabOfflineTab";
 import { ManilaOverallRatingsTab } from "@/components/analytics/ManilaOverallRatingsTab";
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
+import DubaiYoYTab from "@/components/analytics/dubai/DubaiYoYTab";
 import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
 import DubaiMonthlySummaryTable from "@/components/analytics/dubai/DubaiMonthlySummaryTable";
 import DubaiSalesCheckPanel from "@/components/analytics/dubai/DubaiSalesCheckPanel";
@@ -1391,6 +1392,7 @@ function scrollToSection(id: string) {
 const SALES_SECTION_OPTIONS = [
   { value: "summary", label: "Summary", id: "sales-summary" },
   { value: "orderCounts", label: "Number of Orders", id: "sales-order-counts" },
+  { value: "yoy", label: "YoY", id: "sales-yoy" },
   { value: "hourly", label: "Hourly", id: "sales-hourly" },
   { value: "operationTime", label: "Op Time", id: "sales-operation-time" },
   { value: "manilaOverallRatings", label: "Overall Rating", id: "sales-manila-overall-ratings" },
@@ -2323,6 +2325,7 @@ export default function AdminAnalyticsPage() {
     | "daily"
     | "dataCheck"
     | "orderCounts"
+    | "yoy"
     | "aggregatorRatings"
     | "dubaiCancellations"
     | "manilaSales"
@@ -8571,6 +8574,9 @@ export default function AdminAnalyticsPage() {
               <div id="sales-order-counts">
                 <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} externalDateFrom={summaryDateFrom} externalDateTo={summaryDateTo} externalBranchCode={summaryBranchCode} />
               </div>
+            ) : null}
+            {salesSectionView === "all" || salesSectionView === "yoy" ? (
+              <DubaiYoYTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
             ) : null}
             {salesSectionView === "all" || salesSectionView === "manilaOverallRatings" ? (
               <div id="sales-manila-overall-ratings">
