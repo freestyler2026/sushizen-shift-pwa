@@ -295,9 +295,9 @@ export default function DubaiYoYTab({
   const canLoad = !!approverName.trim() && !!pin.trim() && stepUpReady;
 
   // The page settles its sign-in in a few steps after it opens, and every step
-  // used to fetch again and hand the charts a new object -- the bars re-animated
-  // and the change labels blinked each time. A fetch now happens when the year
-  // or brand changes (or on Refresh), and an identical answer keeps the old object.
+  // used to hand the charts a new object -- the bars re-animated and the change
+  // labels blinked each time. Now an identical answer keeps the old object (no
+  // redraw), a stale answer is dropped, and the charts do not animate.
   const lastBody = useRef("");
   const loadedKey = useRef("");
   const seq = useRef(0);
@@ -318,9 +318,8 @@ export default function DubaiYoYTab({
       }
     } catch (e: unknown) {
       if (mine !== seq.current) return;
-      lastBody.current = "";
-      loadedKey.current = ""; // try again once the sign-in settles
-      setData(null);
+      loadedKey.current = ""; // try again on the next sign-in change
+      // A failed reload keeps what is on screen; only the error is shown.
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (mine === seq.current) setLoading(false);
@@ -329,11 +328,13 @@ export default function DubaiYoYTab({
 
   useEffect(() => {
     if (!canLoad) return;
-    const key = `${year}|${brand}`;
+    // Sign-in changes fetch again too (a request sent mid sign-in can fail);
+    // an identical answer does not redraw, so the charts stay still.
+    const key = `${year}|${brand}|${approverName.trim()}|${pin.trim()}`;
     if (loadedKey.current === key) return;
     loadedKey.current = key;
     void load();
-  }, [canLoad, year, brand, load]);
+  }, [canLoad, year, brand, approverName, pin, load]);
 
   const years = useMemo(() => {
     const ys: number[] = [];
