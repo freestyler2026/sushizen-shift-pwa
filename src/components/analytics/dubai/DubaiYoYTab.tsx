@@ -4,7 +4,7 @@
 // against the same month a year earlier. Both years come from UrbanPiper
 // (pos_revenue_location_daily); 2025 was read back from Atlas on 2026-11-09.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarRange, RefreshCw } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -125,8 +125,8 @@ function YoYBarChart({
               <YAxis type="category" dataKey="label" tick={{ fill: "#9ca3af", fontSize: 11 }} width={58} interval={0} />
               {tooltip}
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="prev" name={String(previousYear)} fill="#52525b" radius={[0, 3, 3, 0]} />
-              <Bar dataKey="cur" name={String(year)} fill="#8b5cf6" radius={[0, 3, 3, 0]}>
+              <Bar dataKey="prev" name={String(previousYear)} fill="#52525b" isAnimationActive={false} radius={[0, 3, 3, 0]} />
+              <Bar dataKey="cur" name={String(year)} fill="#8b5cf6" isAnimationActive={false} radius={[0, 3, 3, 0]}>
                 <LabelList dataKey="chg" position="right" style={{ fill: "#d4d4d8", fontSize: 10 }} />
               </Bar>
             </BarChart>
@@ -146,8 +146,8 @@ function YoYBarChart({
             <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} width={48} tickFormatter={(v: number) => kFmt(v)} />
             {tooltip}
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
-            <Bar dataKey="prev" name={String(previousYear)} fill="#52525b" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="cur" name={String(year)} fill="#8b5cf6" radius={[3, 3, 0, 0]}>
+            <Bar dataKey="prev" name={String(previousYear)} fill="#52525b" isAnimationActive={false} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="cur" name={String(year)} fill="#8b5cf6" isAnimationActive={false} radius={[3, 3, 0, 0]}>
               <LabelList dataKey="chg" position="top" style={{ fill: "#d4d4d8", fontSize: 10 }} />
             </Bar>
           </BarChart>
@@ -186,7 +186,7 @@ function TrendChart({
             />
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
             {lines.map((l) => (
-              <Line key={l.key} type="monotone" dataKey={l.key} name={l.name} stroke={l.color} strokeWidth={l.width} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={false} />
+              <Line key={l.key} isAnimationActive={false} type="monotone" dataKey={l.key} name={l.name} stroke={l.color} strokeWidth={l.width} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={false} />
             ))}
           </LineChart>
         </ResponsiveContainer>
@@ -294,25 +294,46 @@ export default function DubaiYoYTab({
 
   const canLoad = !!approverName.trim() && !!pin.trim() && stepUpReady;
 
+  // The page settles its sign-in in a few steps after it opens, and every step
+  // used to fetch again and hand the charts a new object -- the bars re-animated
+  // and the change labels blinked each time. A fetch now happens when the year
+  // or brand changes (or on Refresh), and an identical answer keeps the old object.
+  const lastBody = useRef("");
+  const loadedKey = useRef("");
+  const seq = useRef(0);
   const load = useCallback(async () => {
     if (!canLoad) return;
+    const mine = ++seq.current;
     setLoading(true);
     setError("");
     try {
       const qs = new URLSearchParams({ year: String(year), approver_name: approverName.trim(), pin: pin.trim() });
       if (brand) qs.set("brand", brand);
-      setData(await apiGet<YoYResp>(`/api/admin/analytics/dubai/yoy?${qs}`));
+      const next = await apiGet<YoYResp>(`/api/admin/analytics/dubai/yoy?${qs}`);
+      if (mine !== seq.current) return; // a newer request is on its way
+      const body = JSON.stringify(next);
+      if (body !== lastBody.current) {
+        lastBody.current = body;
+        setData(next);
+      }
     } catch (e: unknown) {
+      if (mine !== seq.current) return;
+      lastBody.current = "";
+      loadedKey.current = ""; // try again once the sign-in settles
       setData(null);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (mine === seq.current) setLoading(false);
     }
   }, [approverName, pin, year, brand, canLoad]);
 
   useEffect(() => {
+    if (!canLoad) return;
+    const key = `${year}|${brand}`;
+    if (loadedKey.current === key) return;
+    loadedKey.current = key;
     void load();
-  }, [load]);
+  }, [canLoad, year, brand, load]);
 
   const years = useMemo(() => {
     const ys: number[] = [];
