@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarRange, RefreshCw } from "lucide-react";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import {
@@ -73,6 +73,89 @@ const TOOLTIP_STYLE = {
   color: "#fff",
   fontSize: 12,
 };
+
+// Phone width: twelve month pairs side by side do not fit, so the chart turns on
+// its side (months down the left, the change at the end of this year's bar).
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return narrow;
+}
+
+// Each month, last year's bar beside this year's, the change above this year's.
+function YoYBarChart({
+  title,
+  rows,
+  year,
+  previousYear,
+  money,
+}: {
+  title: string;
+  rows: { label: string; prev: number | null; cur: number | null; chg: string }[];
+  year: number;
+  previousYear: number;
+  money: boolean;
+}) {
+  const narrow = useNarrow();
+  const tooltip = (
+    <Tooltip
+      cursor={{ fill: "rgba(255,255,255,0.04)" }}
+      contentStyle={TOOLTIP_STYLE}
+      formatter={(value: number | string, name: string) => [
+        typeof value === "number" ? `${money ? "AED " : ""}${Math.round(value).toLocaleString("en-US")}` : value,
+        name,
+      ]}
+    />
+  );
+  if (narrow) {
+    return (
+      <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">{title}</p>
+        <div style={{ height: rows.length * 38 + 40 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 56, bottom: 0, left: 0 }} barGap={1} barCategoryGap="18%">
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+              <XAxis type="number" tick={{ fill: "#6b7280", fontSize: 10 }} tickFormatter={(v: number) => kFmt(v)} />
+              <YAxis type="category" dataKey="label" tick={{ fill: "#9ca3af", fontSize: 11 }} width={58} interval={0} />
+              {tooltip}
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="prev" name={String(previousYear)} fill="#52525b" radius={[0, 3, 3, 0]} />
+              <Bar dataKey="cur" name={String(year)} fill="#8b5cf6" radius={[0, 3, 3, 0]}>
+                <LabelList dataKey="chg" position="right" style={{ fill: "#d4d4d8", fontSize: 10 }} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">{title}</p>
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} margin={{ top: 18, right: 8, bottom: 4, left: 4 }} barGap={2} barCategoryGap="22%">
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: "#6b7280", fontSize: 11 }} interval={0} />
+            <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} width={48} tickFormatter={(v: number) => kFmt(v)} />
+            {tooltip}
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
+            <Bar dataKey="prev" name={String(previousYear)} fill="#52525b" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="cur" name={String(year)} fill="#8b5cf6" radius={[3, 3, 0, 0]}>
+              <LabelList dataKey="chg" position="top" style={{ fill: "#d4d4d8", fontSize: 10 }} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
 
 function TrendChart({
   title,
@@ -203,6 +286,8 @@ export default function DubaiYoYTab({
   const [month, setMonth] = useState<number>(0); // 0 = latest month with data
   const [trendView, setTrendView] = useState<"total" | "stores">("total");
   const [trendSales, setTrendSales] = useState<"gross" | "net">("gross");
+  const [chartMode, setChartMode] = useState<"bars" | "line">("bars");
+  const [barStore, setBarStore] = useState<string>(""); // "" = all stores
   const [data, setData] = useState<YoYResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -285,6 +370,21 @@ export default function DubaiYoYTab({
     };
   }, [data, trendView, trendSales]);
 
+  // Bars: the selected year's months against the same months a year earlier
+  // (the running month over the same days, as in the tables below).
+  const bars = useMemo(() => {
+    if (!data) return { orders: [], sales: [] };
+    const build = (pick: (c: Cell) => number) =>
+      data.months.map((m) => {
+        const pair = barStore ? m.stores[barStore] : m.total;
+        const prev = pair && m.has_previous ? pick(pair.prev) : null;
+        const cur = pair && m.has_current ? pick(pair.cur) : null;
+        const chg = cur !== null && prev ? fmtChange(cur, prev) : "";
+        return { label: m.cutoff_day ? `${MONTHS[m.month - 1]} 1–${m.cutoff_day}` : MONTHS[m.month - 1], prev, cur, chg };
+      });
+    return { orders: build((c) => c.orders), sales: build((c) => (trendSales === "gross" ? c.gross : c.net)) };
+  }, [data, barStore, trendSales]);
+
   const periodLabel = (m: MonthBlock | null) => {
     if (!m) return "";
     return m.cutoff_day ? `${MONTHS[m.month - 1]} 1–${m.cutoff_day}` : MONTHS[m.month - 1];
@@ -351,15 +451,36 @@ export default function DubaiYoYTab({
       {data && trend.orders.length ? (
         <div className="mt-6">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-white">Monthly trend</span>
             <div className={TAB_CONTAINER}>
-              <button type="button" onClick={() => setTrendView("total")} className={trendView === "total" ? TAB_ACTIVE : TAB_INACTIVE}>
-                All stores
+              <button type="button" onClick={() => setChartMode("bars")} className={chartMode === "bars" ? TAB_ACTIVE : TAB_INACTIVE}>
+                {data.year} vs {data.previous_year}
               </button>
-              <button type="button" onClick={() => setTrendView("stores")} className={trendView === "stores" ? TAB_ACTIVE : TAB_INACTIVE}>
-                By store
+              <button type="button" onClick={() => setChartMode("line")} className={chartMode === "line" ? TAB_ACTIVE : TAB_INACTIVE}>
+                Trend
               </button>
             </div>
+            {chartMode === "bars" ? (
+              <select
+                aria-label="Store"
+                value={barStore}
+                onChange={(e) => setBarStore(e.target.value)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white outline-none focus:border-violet-500/50"
+              >
+                <option value="" className="bg-zinc-900">All stores</option>
+                {data.stores.filter((st) => !st.closed).map((st) => (
+                  <option key={st.code} value={st.code} className="bg-zinc-900">{st.name}</option>
+                ))}
+              </select>
+            ) : (
+              <div className={TAB_CONTAINER}>
+                <button type="button" onClick={() => setTrendView("total")} className={trendView === "total" ? TAB_ACTIVE : TAB_INACTIVE}>
+                  All stores
+                </button>
+                <button type="button" onClick={() => setTrendView("stores")} className={trendView === "stores" ? TAB_ACTIVE : TAB_INACTIVE}>
+                  By store
+                </button>
+              </div>
+            )}
             <div className={TAB_CONTAINER}>
               <button type="button" onClick={() => setTrendSales("gross")} className={trendSales === "gross" ? TAB_ACTIVE : TAB_INACTIVE}>
                 Sales gross
@@ -369,13 +490,32 @@ export default function DubaiYoYTab({
               </button>
             </div>
           </div>
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <TrendChart title="Orders" rows={trend.orders} lines={trend.lines} money={false} />
-            <TrendChart title={trendSales === "gross" ? "Sales gross (AED)" : "Sales net (AED)"} rows={trend.sales} lines={trend.lines} money />
-          </div>
+          {chartMode === "bars" ? (
+            <div className="mt-3 grid gap-3 xl:grid-cols-2">
+              <YoYBarChart title="Orders" rows={bars.orders} year={data.year} previousYear={data.previous_year} money={false} />
+              <YoYBarChart
+                title={trendSales === "gross" ? "Sales gross (AED)" : "Sales net (AED)"}
+                rows={bars.sales}
+                year={data.year}
+                previousYear={data.previous_year}
+                money
+              />
+            </div>
+          ) : (
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              <TrendChart title="Orders" rows={trend.orders} lines={trend.lines} money={false} />
+              <TrendChart title={trendSales === "gross" ? "Sales gross (AED)" : "Sales net (AED)"} rows={trend.sales} lines={trend.lines} money />
+            </div>
+          )}
           <p className={`${T_CAPTION} mt-2`}>
-            Whole months only, from {(data.series_from || data.history_from).slice(0, 7)}
-            {trend.partial ? ` — ${monthLabel(trend.partial.key)} is plotted once the month ends (data through day ${trend.partial.through_day})` : ""}.
+            {chartMode === "bars" ? (
+              <>The figure above each {data.year} bar is the change against {data.previous_year}. The running month is compared over the same days.</>
+            ) : (
+              <>
+                Whole months only, from {(data.series_from || data.history_from).slice(0, 7)}
+                {trend.partial ? ` — ${monthLabel(trend.partial.key)} is plotted once the month ends (data through day ${trend.partial.through_day})` : ""}.
+              </>
+            )}
             {trendSales === "net" && trend.netFlagged ? (
               <span className="text-amber-400"> Net reads high from Oct 2025 to May 2026 (discounts missing in UrbanPiper); gross shows the real movement.</span>
             ) : null}
