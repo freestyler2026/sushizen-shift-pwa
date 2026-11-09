@@ -34,7 +34,6 @@ type MonthBlock = Block & {
   has_current: boolean;
   has_previous: boolean;
   cutoff_day: number | null;
-  prev_incomplete?: boolean;
 };
 type YoYResp = {
   ok: boolean;
@@ -50,7 +49,7 @@ type YoYResp = {
   ytd: Block & { through_month: number; cutoff_day: number | null };
   series?: {
     latest_date: string;
-    months: { key: string; stores: Record<string, Cell>; total: Cell; partial: boolean; through_day: number | null; incomplete?: boolean }[];
+    months: { key: string; stores: Record<string, Cell>; total: Cell; partial: boolean; through_day: number | null }[];
   };
 };
 
@@ -83,7 +82,7 @@ function TrendChart({
 }: {
   title: string;
   rows: Record<string, number | string | null>[];
-  lines: { key: string; name: string; color: string; width: number; dashed?: boolean }[];
+  lines: { key: string; name: string; color: string; width: number }[];
   money: boolean;
 }) {
   return (
@@ -104,20 +103,7 @@ function TrendChart({
             />
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
             {lines.map((l) => (
-              <Line
-                key={l.key}
-                type="monotone"
-                dataKey={l.key}
-                name={l.name}
-                stroke={l.color}
-                strokeWidth={l.width}
-                strokeDasharray={l.dashed ? "4 4" : undefined}
-                strokeOpacity={l.dashed ? 0.6 : 1}
-                legendType={l.dashed ? "none" : "line"}
-                dot={l.dashed ? false : { r: 2 }}
-                activeDot={{ r: 4 }}
-                connectNulls={false}
-              />
+              <Line key={l.key} type="monotone" dataKey={l.key} name={l.name} stroke={l.color} strokeWidth={l.width} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls={false} />
             ))}
           </LineChart>
         </ResponsiveContainer>
@@ -277,37 +263,24 @@ export default function DubaiYoYTab({
     const months = (data?.series?.months ?? []).filter((m) => !m.partial);
     const partial = (data?.series?.months ?? []).find((m) => m.partial) ?? null;
     const codes = (data?.stores ?? []).map((s) => s.code);
-    // Months Atlas holds only in part (May-Dec 2024) go on a dashed line of
-    // their own, which meets the solid line at the first whole month.
-    const firstWhole = months.findIndex((m) => !m.incomplete);
     const build = (pick: (c: Cell) => number) =>
-      months.map((m, i) => {
-        const row: Record<string, number | string | null> = { label: monthLabel(m.key) };
-        const put = (k: string, v: number | null) => {
-          row[k] = m.incomplete ? null : v;
-          row[`${k}__inc`] = m.incomplete || i === firstWhole ? v : null;
-        };
-        put("total", pick(m.total));
-        for (const c of codes) put(c, m.stores[c] ? pick(m.stores[c]) : null);
+      months.map((m) => {
+        const row: Record<string, number | string | null> = { label: monthLabel(m.key), total: pick(m.total) };
+        for (const c of codes) row[c] = m.stores[c] ? pick(m.stores[c]) : null;
         return row;
       });
-    const solid =
+    const lines =
       trendView === "total"
         ? [{ key: "total", name: "All stores", color: TOTAL_COLOR, width: 2.5 }]
         : (data?.stores ?? [])
             .filter((s) => months.some((m) => (m.stores[s.code]?.orders ?? 0) > 0))
             .map((s) => ({ key: s.code, name: s.closed ? `${s.name} (closed)` : s.name, color: STORE_COLORS[s.code] ?? "#94a3b8", width: 2 }));
-    const anyIncomplete = months.some((m) => m.incomplete);
-    const lines = [
-      ...solid,
-      ...(anyIncomplete ? solid.map((l) => ({ ...l, key: `${l.key}__inc`, name: `${l.name} (partial data)`, width: 1.5, dashed: true })) : []),
-    ];
+
     return {
       orders: build((c) => c.orders),
       sales: build((c) => (trendSales === "gross" ? c.gross : c.net)),
       lines,
       partial,
-      anyIncomplete,
       netFlagged: months.some((m) => m.total.net_flag),
     };
   }, [data, trendView, trendSales]);
@@ -407,21 +380,8 @@ export default function DubaiYoYTab({
               <span className="text-amber-400"> Net reads high from Oct 2025 to May 2026 (discounts missing in UrbanPiper); gross shows the real movement.</span>
             ) : null}
           </p>
-          {trend.anyIncomplete ? (
-            <p className={`${T_CAPTION} mt-1`}>
-              <span className="text-zinc-300">Dashed (May–Dec 2024)</span>: only part of the orders. UrbanPiper did not yet carry every
-              store and platform — May–Aug 2024 holds 3–32% of the orders staff counted, Sep–Dec 80–95%. Read it as a shape, not
-              as the real level.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
 
-      {data && data.months.some((m) => m.prev_incomplete && m.has_previous) ? (
-        <p className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
-          {data.previous_year} is only partly on UrbanPiper (some stores and platforms were not on it yet), so changes against it read
-          too high. They are shown in grey with *.
-        </p>
+        </div>
       ) : null}
 
       {data && monthBlock ? (
@@ -491,10 +451,10 @@ export default function DubaiYoYTab({
                             ) : (
                               <td
                                 key={`${m}d`}
-                                className={`px-3 py-2 text-right tabular-nums ${monthBlock.prev_incomplete ? "text-zinc-500" : flag ? "text-amber-400" : changeClass(val(cur, m), val(prev, m))}`}
+                                className={`px-3 py-2 text-right tabular-nums ${flag ? "text-amber-400" : changeClass(val(cur, m), val(prev, m))}`}
                               >
                                 {fmtChange(val(cur, m), val(prev, m))}
-                                {monthBlock.prev_incomplete ? "*" : flag ? "†" : ""}
+                                {flag ? "†" : ""}
                               </td>
                             ),
                           ];
@@ -548,10 +508,9 @@ export default function DubaiYoYTab({
                     const yearPair = r.pair;
                     if (r.closed && yearPair && !yearPair.cur.orders && !data.months.some((m) => m.stores[r.key]?.prev.orders)) return null;
                     const strong = r.kind !== "store";
-                    const ytdPartialPrev = data.months.slice(0, data.ytd.through_month).some((m) => m.prev_incomplete);
                     const pairOf = (m: MonthBlock): Pair | undefined =>
                       r.kind === "total" ? m.total : r.kind === "lfl" ? m.like_for_like : m.stores[r.key];
-                    const cellFor = (p: Pair | undefined, current: boolean, partialPrev = false) => {
+                    const cellFor = (p: Pair | undefined, current: boolean) => {
                       if (!p) return <span className="text-zinc-700">—</span>;
                       if (r.closed) current = false;
                       const c = val(p.cur, metric);
@@ -568,9 +527,9 @@ export default function DubaiYoYTab({
                         );
                       }
                       return (
-                        <span title={title} className={partialPrev ? "text-zinc-500" : flag ? "text-amber-400" : changeClass(c, pv)}>
+                        <span title={title} className={flag ? "text-amber-400" : changeClass(c, pv)}>
                           {fmtChange(c, pv)}
-                          {partialPrev ? "*" : flag ? "†" : ""}
+                          {flag ? "†" : ""}
                           <span className="block text-[10px] text-zinc-500">{fmtInt(c)}</span>
                         </span>
                       );
@@ -587,14 +546,14 @@ export default function DubaiYoYTab({
                           return (
                             <td
                               key={m.month}
-                              className={`px-2 py-2 text-right tabular-nums ${m.has_current && p && !metricFlag && !r.closed && !m.prev_incomplete ? tint(val(p.cur, metric), val(p.prev, metric)) : ""}`}
+                              className={`px-2 py-2 text-right tabular-nums ${m.has_current && p && !metricFlag && !r.closed ? tint(val(p.cur, metric), val(p.prev, metric)) : ""}`}
                             >
-                              {cellFor(p, m.has_current, !!m.prev_incomplete)}
+                              {cellFor(p, m.has_current)}
                             </td>
                           );
                         })}
-                        <td className={`px-3 py-2 text-right tabular-nums ${yearPair && !r.closed && !ytdPartialPrev && !(metric === "net" && netFlagged(yearPair)) ? tint(val(yearPair.cur, metric), val(yearPair.prev, metric)) : ""}`}>
-                          {cellFor(yearPair, data.ytd.through_month > 0, ytdPartialPrev)}
+                        <td className={`px-3 py-2 text-right tabular-nums ${yearPair && !r.closed && !(metric === "net" && netFlagged(yearPair)) ? tint(val(yearPair.cur, metric), val(yearPair.prev, metric)) : ""}`}>
+                          {cellFor(yearPair, data.ytd.through_month > 0)}
                         </td>
                       </tr>
                     );
@@ -614,11 +573,6 @@ export default function DubaiYoYTab({
               <span className="text-amber-400">†</span> Net not comparable: UrbanPiper left part of the discounts out in this month
               (Oct 2025 to 12 May 2026), so its net reads high. The discount rate did not change, so read the change from gross.
             </p>
-            {data.months.some((m) => m.prev_incomplete) ? (
-              <p>
-                * Against {data.previous_year}, which UrbanPiper holds only in part: the change reads too high.
-              </p>
-            ) : null}
             <p>The orders here are UrbanPiper&apos;s own count; Number of Orders (by platform) may differ by a few orders a day.</p>
           </div>
         </>
