@@ -476,10 +476,10 @@ function RequestCard({
                     )}
                   </div>
                 ))}
-                <button className="text-xs text-amber-300 underline" onClick={() => setLateLines([...lateLines, { source: { type: "", name: "" }, amount: "", items: [] }])}>
+                <button className="block text-xs text-amber-300 underline" onClick={() => setLateLines([...lateLines, { source: { type: "", name: "" }, amount: "", items: [] }])}>
                   + Add another source
                 </button>
-                <label className={T_LABEL}>Delivery cost (Lalamove etc., PHP) — leave empty if none or already in the amount</label>
+                <label className={`block ${T_LABEL}`}>Delivery cost (Lalamove etc., PHP) — leave empty if none or already in the amount</label>
                 <input type="number" min={0} step="0.01" className={INPUT_CLASS} value={lateDelivery} onChange={(e) => setLateDelivery(e.target.value)} placeholder="0.00" />
                 <p className="text-xs text-zinc-300">Goods total ₱{peso(lateTotal)}{lateDelivery.trim() !== "" && parseFloat(lateDelivery) > 0 ? ` + delivery ₱${peso(parseFloat(lateDelivery))}` : ""}</p>
                 {lateProblem && <p className="text-xs text-amber-300">{lateProblem}</p>}
