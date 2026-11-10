@@ -121,6 +121,35 @@ function decodeSession(b64) {
     const text = await resp.text();
     if (!resp.ok) throw new Error(`backend HTTP ${resp.status}: ${text.slice(0, 300)}`);
     console.log(`✓ posted: ${text.slice(0, 200)}`);
+
+    // Offline time by month and reason (the Foodpanda tab's "Monthly Offline
+    // Duration"), in place of the offlineDurationPerMonth CSVs that stopped at
+    // 2026-03 (owner, 2026-11-10). The same report with precision MONTH: seconds,
+    // with the scheduled time and the per-reason split. Last month and this one
+    // each morning; OFFLINE_MONTHLY_FROM=YYYY-MM-01 reads further back (the
+    // portal has 2025-10 onward). Ramen Zen Paranaque (fdwv) is left out.
+    const firstOf = (d) => d.slice(0, 8) + '01';
+    const prevMonth = (() => { const d = new Date(TO + 'T00:00:00Z'); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 1); return d.toISOString().slice(0, 10); })();
+    const mFrom = process.env.OFFLINE_MONTHLY_FROM || firstOf(prevMonth);
+    const monthly = [];
+    for (const [vendor, name] of Object.entries(acct.vendors)) {
+      if (vendor === 'fdwv') continue;
+      const resp = await context.request.post(VOS + 'offline_duration', {
+        headers, data: { global_vendor_codes: [`FP_PH;${vendor}`], from: mFrom, to: TO, precision: 'MONTH' } });
+      if (!resp.ok()) throw new Error(`offline_duration MONTH ${vendor} HTTP ${resp.status()}`);
+      for (const m of ((await resp.json()).data || {}).dates || []) {
+        monthly.push({ restaurant_id: vendor, restaurant_name: name, month: m.date,
+          scheduled_seconds: Number(m.scheduledDuration || 0),
+          reasons: (m.reasons || []).map((r) => ({ reason: r.reason, offline_seconds: Number(r.offlineDuration || 0) })) });
+      }
+    }
+    const mresp = await fetch(`${WEBHOOK}/api/aggregator/foodpanda/offline-monthly`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Cron-Secret': process.env.MGMT_CRON_SECRET || '' },
+      body: JSON.stringify({ rows: monthly }), signal: AbortSignal.timeout(60_000) });
+    const mtext = await mresp.text();
+    if (!mresp.ok) throw new Error(`backend HTTP ${mresp.status} (monthly offline): ${mtext.slice(0, 300)}`);
+    console.log(`✓ monthly offline ${mFrom.slice(0, 7)}..${TO.slice(0, 7)}: ${mtext.slice(0, 200)}`);
   } finally {
     await browser.close().catch(() => {});
     try { fs.unlinkSync(tmp); } catch (_) {}
