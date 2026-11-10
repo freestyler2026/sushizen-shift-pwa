@@ -830,11 +830,22 @@ export default function CancellationReportPage() {
     setSyncMsg("");
     const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim() }).toString();
     try {
-      const res = await apiPost<{ ok?: boolean; total_updated?: number; files_found?: number; total_not_found?: string[] }>(
+      const res = await apiPost<{
+        ok?: boolean; source?: string; total_updated?: number; files_found?: number;
+        adjustments_found?: number; total_not_found?: string[]; stale_stores?: Record<string, string | null>;
+        newly_confirmed?: string[];
+      }>(
         `/api/admin/analytics/manila/cancellations/grab-finance-sync?${qs}`,
       );
       setSyncStatus("done");
-      setSyncMsg(`${res.files_found ?? 0} file(s) scanned · ${res.total_updated ?? 0} record(s) updated`);
+      // Since 2026-11-10 the refunds are read from Grab's API, not Drive files.
+      const stale = Object.keys(res.stale_stores ?? {});
+      setSyncMsg(
+        res.source === "grab_finance_txns"
+          ? `${res.adjustments_found ?? 0} settled Grab order(s) checked · ${res.newly_confirmed?.length ?? 0} newly confirmed`
+            + (stale.length ? ` · No recent Grab data for ${stale.join(", ")}` : "")
+          : `${res.files_found ?? 0} file(s) scanned · ${res.total_updated ?? 0} record(s) updated`,
+      );
       setTimeout(() => setSyncStatus("idle"), 6000);
       void fetchRecords();
     } catch (e: unknown) {
