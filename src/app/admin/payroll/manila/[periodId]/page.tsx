@@ -2052,7 +2052,7 @@ export default function ManilaPayrollPeriodPage() {
                     </div>
                     <span className="shrink-0 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-300">WARNING</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1.5">Auto-fix: {issue.fix}</p>
+                  <p className="text-xs text-slate-400 mt-1.5">What to do: {issue.fix}</p>
                 </div>
               ))}
             </div>
