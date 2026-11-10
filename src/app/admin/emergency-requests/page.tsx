@@ -78,6 +78,8 @@ interface EPRRequest {
   source_type?: string;
   source_name?: string;
   source_set_by?: string;
+  /** One request, several sources (owner 2026-11-10). final_amount is their sum. */
+  source_lines?: { source_type: string; source_name: string; amount: number; items: number[] }[];
   arranging_by: string;
   arranging_at: string | null;
   dispatched_by: string;
@@ -93,6 +95,41 @@ interface EPRRequest {
   voided_by: string;
   voided_at: string | null;
   created_at: string;
+}
+
+// ─── Source lines (several sources on one request) ──────────────────────────
+
+type SourceLineDraft = { source: EmergencySource; amount: string; items: number[] };
+
+function peso(n: number) {
+  return Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function initialLines(req: EPRRequest): SourceLineDraft[] {
+  if (req.source_lines && req.source_lines.length > 0) {
+    return req.source_lines.map((l) => ({ source: { type: l.source_type, name: l.source_name || "" },
+                                          amount: String(l.amount ?? ""), items: [...(l.items || [])] }));
+  }
+  if (req.source_type && req.source_type !== "mixed") {
+    return [{ source: { type: req.source_type, name: req.source_name || "" },
+              amount: String(req.final_amount ?? req.total_estimated_amount ?? ""), items: [] }];
+  }
+  return [{ source: { type: "", name: req.supplier_name || "" },
+            amount: String(req.final_amount ?? req.total_estimated_amount ?? ""), items: [] }];
+}
+
+/** "" when the lines can be saved; the server checks the same (set_emergency_request_sources). */
+function linesProblem(lines: SourceLineDraft[], store: string, delivery: string): string {
+  if (lines.length === 0) return "Add at least one source.";
+  for (let i = 0; i < lines.length; i++) {
+    const p = sourceProblem(lines[i].source, store, lines[i].amount, true);
+    if (p) return lines.length > 1 ? `Source ${i + 1}: ${p}` : p;
+  }
+  if (delivery.trim() !== "") {
+    const d = parseFloat(delivery);
+    if (!Number.isFinite(d) || d < 0) return "Enter the delivery cost as a number of 0 or more.";
+  }
+  return "";
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -151,10 +188,12 @@ function RequestCard({
   const [completeAmount, setCompleteAmount] = useState(String(req.final_amount ?? req.total_estimated_amount));
   const [completeNotes, setCompleteNotes] = useState("");
   const [completeSource, setCompleteSource] = useState<EmergencySource>({ type: "", name: req.supplier_name || "" });
-  // A request completed before the source was asked for (October 2026) takes it here.
+  // A request completed before the source was asked for (October 2026) takes it here,
+  // and a recorded one can be entered again. Several lines when the goods came from
+  // more than one place -- CK's sauces and a supplier's eggs on one request (2026-11-10).
   const [sourceOpen, setSourceOpen] = useState(false);
-  const [lateSource, setLateSource] = useState<EmergencySource>({ type: "", name: "" });
-  const [lateAmount, setLateAmount] = useState(String(req.final_amount ?? req.total_estimated_amount));
+  const [lateLines, setLateLines] = useState<SourceLineDraft[]>(() => initialLines(req));
+  const [lateDelivery, setLateDelivery] = useState(req.delivery_cost != null ? String(req.delivery_cost) : "");
   const [deliveryMethod, setDeliveryMethod] = useState("in_house");
   const [deliveryCost, setDeliveryCost] = useState("");
   const [cancelReason, setCancelReason] = useState("");
@@ -169,7 +208,8 @@ function RequestCard({
     "approve" | "reject" | "arrange" | "dispatch" | "receive" | "complete" | "cancel" | "void" | "cancel_items" | "adjust_qty" | null
   >(null);
   const completeProblem = sourceProblem(completeSource, req.store, completeAmount);
-  const lateProblem = sourceProblem(lateSource, req.store, lateAmount);
+  const lateProblem = linesProblem(lateLines, req.store, lateDelivery);
+  const lateTotal = lateLines.reduce((t, l) => t + (parseFloat(l.amount) || 0), 0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -194,7 +234,12 @@ function RequestCard({
       const res = await fetch(`/api/admin/emergency-requests/${req.id}/source`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ source_type: lateSource.type, source_name: lateSource.name, final_amount: parseFloat(lateAmount), set_by: actorName }),
+        body: JSON.stringify({
+          set_by: actorName,
+          delivery_cost: lateDelivery.trim() === "" ? null : parseFloat(lateDelivery),
+          lines: lateLines.map((l) => ({ source_type: l.source.type, source_name: l.source.name,
+                                         amount: l.amount.trim() === "" ? 0 : parseFloat(l.amount), items: l.items })),
+        }),
       });
       const data = await res.json();
       if (data.ok) { setSourceOpen(false); onAction(); } else setError(data.detail || "Could not save the source");
@@ -371,18 +416,72 @@ function RequestCard({
             {req.rejection_reason && <p className="text-red-400"><span className="text-zinc-500">Rejected:</span> {req.rejection_reason}</p>}
             {req.completion_notes && <p><span className="text-zinc-500">Completion:</span> {req.completion_notes}</p>}
             {req.source_type ? (
-              <p><span className="text-zinc-500">Came from:</span> {sourceLabel(req.source_type, req.source_name || "")}
-                {req.final_amount != null && <> · ₱{Number(req.final_amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</>}
-                {req.source_set_by && <span className="text-zinc-500"> (by {req.source_set_by})</span>}</p>
+              <div>
+                {(req.source_lines?.length ?? 0) > 1 ? (
+                  <>
+                    <p className="text-zinc-500">Came from:</p>
+                    {req.source_lines!.map((l, i) => (
+                      <p key={i} className="pl-2">• {sourceLabel(l.source_type, l.source_name)} · ₱{peso(l.amount)}
+                        {l.items.length > 0 && <span className="text-zinc-500"> — {l.items.map((ix) => req.items[ix]?.item_name).filter(Boolean).join(", ")}</span>}</p>
+                    ))}
+                    <p className="pl-2 text-zinc-400">Total ₱{peso(req.final_amount ?? 0)}</p>
+                  </>
+                ) : (
+                  <p><span className="text-zinc-500">Came from:</span> {sourceLabel(req.source_type, req.source_name || "")}
+                    {req.final_amount != null && <> · ₱{peso(req.final_amount)}</>}</p>
+                )}
+                <p className="text-zinc-500">{req.source_set_by && <>Recorded by {req.source_set_by} </>}
+                  {req.status === "completed" && !sourceOpen && (
+                    <button className="ml-1 underline text-amber-300 hover:text-amber-200"
+                      onClick={() => { setLateLines(initialLines(req)); setSourceOpen(true); }}>Edit</button>
+                  )}</p>
+              </div>
             ) : req.status === "completed" && (
               <p className="text-amber-300">Where the goods came from was not recorded.{" "}
                 {!sourceOpen && <button className="underline hover:text-amber-200" onClick={() => setSourceOpen(true)}>Record it</button>}</p>
             )}
             {sourceOpen && (
-              <div className="mt-2 space-y-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
-                <EmergencySourceFields value={lateSource} onChange={setLateSource} requestStore={req.store} supplierHint={req.supplier_name || ""} />
-                <label className={T_LABEL}>Amount of the goods (PHP)</label>
-                <input type="number" className={INPUT_CLASS} value={lateAmount} onChange={(e) => setLateAmount(e.target.value)} />
+              <div className="mt-2 space-y-3 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
+                <p className={T_CAPTION}>
+                  One line per place the goods came from. If part of the request came from CK and part
+                  from a supplier, add a second line and tick which items each covers.
+                </p>
+                {lateLines.map((line, li) => (
+                  <div key={li} className="space-y-2 rounded-lg border border-white/8 bg-black/20 p-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-zinc-300">Source {li + 1}</p>
+                      {lateLines.length > 1 && (
+                        <button className="text-xs text-rose-300 underline" onClick={() => setLateLines(lateLines.filter((_, k) => k !== li))}>Remove</button>
+                      )}
+                    </div>
+                    <EmergencySourceFields allowNone value={line.source} requestStore={req.store} supplierHint={req.supplier_name || ""}
+                      onChange={(v) => setLateLines(lateLines.map((l, k) => k === li ? { ...l, source: v, amount: v.type === "none" ? "0" : l.amount } : l))} />
+                    <label className={T_LABEL}>Amount of the goods (PHP)</label>
+                    <input type="number" min={0} step="0.01" className={INPUT_CLASS} value={line.amount} disabled={line.source.type === "none"}
+                      onChange={(e) => setLateLines(lateLines.map((l, k) => k === li ? { ...l, amount: e.target.value } : l))} />
+                    {lateLines.length > 1 && (
+                      <div className="space-y-1">
+                        <p className={T_LABEL}>Items this source covers</p>
+                        {req.items.map((it, ix) => it.cancelled ? null : (
+                          <label key={ix} className="flex items-center gap-2 text-xs text-zinc-300">
+                            <input type="checkbox" checked={line.items.includes(ix)}
+                              onChange={(e) => setLateLines(lateLines.map((l, k) => k === li
+                                ? { ...l, items: e.target.checked ? [...l.items, ix].sort((a, b) => a - b) : l.items.filter((x) => x !== ix) }
+                                : { ...l, items: e.target.checked ? l.items.filter((x) => x !== ix) : l.items }))} />
+                            {it.item_name} ×{it.qty}{it.unit}
+                            {it.estimated_total ? <span className="text-zinc-500">(est. ₱{peso(it.estimated_total)})</span> : null}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <button className="text-xs text-amber-300 underline" onClick={() => setLateLines([...lateLines, { source: { type: "", name: "" }, amount: "", items: [] }])}>
+                  + Add another source
+                </button>
+                <label className={T_LABEL}>Delivery cost (Lalamove etc., PHP) — leave empty if none or already in the amount</label>
+                <input type="number" min={0} step="0.01" className={INPUT_CLASS} value={lateDelivery} onChange={(e) => setLateDelivery(e.target.value)} placeholder="0.00" />
+                <p className="text-xs text-zinc-300">Goods total ₱{peso(lateTotal)}{lateDelivery.trim() !== "" && parseFloat(lateDelivery) > 0 ? ` + delivery ₱${peso(parseFloat(lateDelivery))}` : ""}</p>
                 {lateProblem && <p className="text-xs text-amber-300">{lateProblem}</p>}
                 <div className="flex gap-2">
                   <button className={`flex-1 ${PRIMARY_BUTTON} py-2 text-sm`} disabled={loading || !!lateProblem} onClick={saveLateSource}>{loading ? "…" : "Save"}</button>

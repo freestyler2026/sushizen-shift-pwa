@@ -20,17 +20,27 @@ export const SOURCE_TYPES = [
   { value: "store", label: "From another store" },
 ];
 
+// Not bought and not sent: the goods came with the regular delivery, or never came
+// (October's #171, #184's salmon). HQ's late entry only -- completing at the store is
+// for goods that did arrive. Costs nothing (owner, 2026-11-10).
+export const NONE_SOURCE = { value: "none", label: "Not bought — came with the regular delivery or not sent" };
+
 // The stores an emergency can be sent from. Manila's three; anything else can be typed.
 const STORES = ["Taft", "Paranaque", "Cubao"];
 
 export function sourceLabel(type: string, name: string): string {
-  const t = SOURCE_TYPES.find((s) => s.value === type)?.label;
+  const t = [...SOURCE_TYPES, NONE_SOURCE].find((s) => s.value === type)?.label;
   if (!t) return "";
   return name ? `${t} — ${name}` : t;
 }
 
 /** "" when the source can be sent, else what is missing. */
-export function sourceProblem(src: EmergencySource, requestStore: string, amount: string): string {
+export function sourceProblem(src: EmergencySource, requestStore: string, amount: string, allowNone = false): string {
+  if (allowNone && src.type === NONE_SOURCE.value) {
+    const n = parseFloat(amount);
+    return amount.trim() !== "" && Number.isFinite(n) && Math.abs(n) > 0.004
+      ? "Goods that were not bought or sent cost nothing: enter 0." : "";
+  }
   if (!SOURCE_TYPES.some((s) => s.value === src.type)) return "Choose where the goods came from.";
   if (src.type === "supplier" && !src.name.trim()) return "Name the supplier.";
   if (src.type === "store" && !src.name.trim()) return "Choose the store the goods came from.";
@@ -42,11 +52,12 @@ export function sourceProblem(src: EmergencySource, requestStore: string, amount
   return "";
 }
 
-export default function EmergencySourceFields({ value, onChange, requestStore, supplierHint = "" }: {
+export default function EmergencySourceFields({ value, onChange, requestStore, supplierHint = "", allowNone = false }: {
   value: EmergencySource;
   onChange: (v: EmergencySource) => void;
   requestStore: string;
   supplierHint?: string;
+  allowNone?: boolean;
 }) {
   const stores = STORES.filter((s) => s.toLowerCase() !== requestStore.trim().toLowerCase());
   return (
@@ -57,7 +68,7 @@ export default function EmergencySourceFields({ value, onChange, requestStore, s
         placeholder="Choose…"
         value={value.type}
         onChange={(t) => onChange({ type: t, name: t === "supplier" ? (value.type === "supplier" ? value.name : supplierHint) : t === "store" && value.type === "store" ? value.name : "" })}
-        options={SOURCE_TYPES}
+        options={allowNone ? [...SOURCE_TYPES, NONE_SOURCE] : SOURCE_TYPES}
       />
       {value.type === "supplier" && (
         <input className={INPUT_CLASS} value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })}
