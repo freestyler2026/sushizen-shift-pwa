@@ -9,6 +9,9 @@ function SetPasswordForm() {
   const [pw2, setPw2] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ login_id: string; display_name: string } | null>(null);
+  // The link works once. Owners kept reopening it to sign in later, met "already
+  // used", and were sent a new one -- which wipes the password (2026-11-10).
+  const [linkUsed, setLinkUsed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -23,7 +26,10 @@ function SetPasswordForm() {
         body: JSON.stringify({ token, password: pw }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "パスワードを設定できませんでした。");
+      if (!res.ok) {
+        if (res.status === 400 && String(data.detail || "").includes("すでに使われています")) setLinkUsed(true);
+        throw new Error(data.detail || "パスワードを設定できませんでした。");
+      }
       setDone(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "パスワードを設定できませんでした。");
@@ -33,13 +39,32 @@ function SetPasswordForm() {
   }
 
   if (!token) {
-    return <p className="text-sm text-slate-300">リンクが不完全です。本部からお送りしたリンクをそのまま開いてください。</p>;
+    return (
+      <div className="space-y-4 text-sm text-slate-300">
+        <p>リンクが不完全です。本部からお送りしたリンクをそのまま開いてください。</p>
+        <LoginLink />
+      </div>
+    );
+  }
+  if (linkUsed) {
+    return (
+      <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-sm text-slate-300">
+        <p className="font-semibold text-white">このリンクはすでに使われています。</p>
+        <p>パスワードを設定済みの方は、ログイン画面からログインIDとパスワードでログインしてください。新しいリンクは不要です。</p>
+        <LoginLink />
+        <p className="text-xs text-slate-500">パスワードを忘れた場合だけ、本部に新しいリンクを依頼してください（新しいリンクを出すと、今のパスワードは使えなくなります）。</p>
+      </div>
+    );
   }
   if (done) {
     return (
       <div className="space-y-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-sm">
         <p className="font-semibold text-emerald-300">{done.display_name} 様のパスワードを設定しました。</p>
         <p className="text-slate-300">ログインIDは <span className="font-mono text-white">{done.login_id}</span> です。</p>
+        <p className="text-slate-300">
+          このリンクは1回だけ使えるものです。<strong className="text-white">次回からは下のログイン画面</strong>
+          （<span className="font-mono text-white">{loginUrl()}</span>）を開いて、ログインIDとパスワードでログインしてください。ブックマークしておくと便利です。
+        </p>
         <Link href="/owner" className="inline-block rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950">ログイン画面へ</Link>
       </div>
     );
@@ -61,7 +86,20 @@ function SetPasswordForm() {
       <button type="submit" disabled={busy} className="w-full rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-60">
         {busy ? "保存中…" : "パスワードを設定"}
       </button>
+      <p className="text-center text-xs text-slate-400">
+        パスワードを設定済みの方は <Link href="/owner" className="font-semibold text-emerald-400 underline">ログイン画面</Link> からログインしてください。
+      </p>
     </form>
+  );
+}
+
+function loginUrl() {
+  return typeof window === "undefined" ? "/owner" : `${window.location.origin}/owner`;
+}
+
+function LoginLink() {
+  return (
+    <Link href="/owner" className="inline-block rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950">ログイン画面へ</Link>
   );
 }
 
