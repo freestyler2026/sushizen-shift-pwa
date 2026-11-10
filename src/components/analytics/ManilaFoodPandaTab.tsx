@@ -282,7 +282,7 @@ export function ManilaFoodPandaTab({
             <h2 className={T_SECTION}>Foodpanda Analytics</h2>
           </div>
           <div className={T_CAPTION}>
-            Ops summary, daily prep time trend, and monthly offline duration, read from foodpanda's partner portal each morning.
+            Ops summary, daily prep time trend, and monthly offline duration, read from the foodpanda partner portal each morning.
             Upload CSVs to Google Drive and run &quot;Sync Manila Sales&quot; to import.
           </div>
         </div>
