@@ -2021,7 +2021,7 @@ export default function ManilaPayrollPeriodPage() {
               <h3 className="text-base font-semibold text-white">DTR Issues Detected</h3>
             </div>
             <p className="text-sm text-slate-400 mb-1">
-              Fix errors before computing payroll. Warnings are auto-corrected by Compute All.
+              Fix errors before computing payroll. Warnings do not block: check them, then compute.
             </p>
             {(dtrIssues.errors.length + dtrIssues.warnings.length) > 0 && (
               <p className="text-xs text-slate-500 mb-3">
