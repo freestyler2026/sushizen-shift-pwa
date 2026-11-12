@@ -259,6 +259,25 @@ function isTicketSent(email_status: string | null): boolean {
 function isResolved(refund_status: string | null): boolean {
   return (refund_status ?? "").trim().length > 0;
 }
+// Compensation the aggregator pays us for an incident (Aliana, owner 2026-11-12).
+//   Dubai  -- typed by staff in "Compensation (AED)"; confirmed once the Refund /
+//             Resolution Status says it was settled, expected while it is empty or
+//             still disputed / pending.
+//   Manila -- what Grab actually settled, read automatically from Grab's finance
+//             data into refund_amount (grab_synced_at set): confirmed. Before Grab
+//             has settled it, the staff's "Compensation" figure: expected.
+function isUnsettledStatus(refund_status: string | null): boolean {
+  const s = (refund_status ?? "").trim().toLowerCase();
+  return !s || /disput|pending|under |waiting|follow/.test(s);
+}
+function compensationOf(row: CancelRow, city: "dubai" | "manila"): { amount: number; confirmed: boolean } {
+  if (city === "manila") {
+    if (row.grab_synced_at) return { amount: Number(row.refund_amount) || 0, confirmed: true };
+    return { amount: Number(row.compensation_amount) || 0, confirmed: false };
+  }
+  const amount = Number(row.compensation_amount) || 0;
+  return { amount, confirmed: amount > 0 && !isUnsettledStatus(row.refund_status) };
+}
 function isPending(row: CancelRow): boolean {
   return isTicketSent(row.email_status) && !isResolved(row.refund_status);
 }
@@ -888,6 +907,10 @@ export default function CancellationReportPage() {
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
+      if (sortCol === "compensation_amount") {
+        const cmp = compensationOf(a, city).amount - compensationOf(b, city).amount;
+        return sortAsc ? cmp : -cmp;
+      }
       const av = a[sortCol], bv = b[sortCol];
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
@@ -899,7 +922,7 @@ export default function CancellationReportPage() {
       const cmp = String(av) < String(bv) ? -1 : String(av) > String(bv) ? 1 : 0;
       return sortAsc ? cmp : -cmp;
     });
-  }, [filtered, sortCol, sortAsc]);
+  }, [filtered, sortCol, sortAsc, city]);
 
   function handleSort(col: SortKey) {
     if (col === sortCol) { setSortAsc((v) => !v); } else { setSortCol(col); setSortAsc(false); }
@@ -914,14 +937,25 @@ export default function CancellationReportPage() {
     const resolved = filtered.filter(r => isResolved(r.refund_status)).length;
     const pending = filtered.filter(r => isPending(r)).length;
     const overdue = city === "manila" ? filtered.filter(r => isOverdue(r)).length : 0;
-    return { totalRefund, total, ticketSent, resolved, pending, overdue };
+    let compConfirmed = 0, compExpected = 0, compCount = 0;
+    const compByPlatform: Record<string, number> = {};
+    for (const r of filtered) {
+      const c = compensationOf(r, city);
+      if (!c.amount) continue;
+      compCount += 1;
+      if (c.confirmed) compConfirmed += c.amount; else compExpected += c.amount;
+      compByPlatform[r.platform] = (compByPlatform[r.platform] || 0) + c.amount;
+    }
+    return { totalRefund, total, ticketSent, resolved, pending, overdue,
+             compConfirmed, compExpected, compCount, compByPlatform };
   }, [filtered, city]);
 
   // ── CSV download ─────────────────────────────────────────────────────────
 
   function downloadCsv() {
     const amtCol = city === "dubai" ? "refund_aed" : "amount_php";
-    const headers = ["date", "branch", "platform", "category", "order_id", amtCol, "reason", "ticket_status", "refund_status", "pic_notes"];
+    const compCol = city === "dubai" ? "compensation_aed" : "compensation_php";
+    const headers = ["date", "branch", "platform", "category", "order_id", amtCol, compCol, "compensation_state", "reason", "ticket_status", "refund_status", "pic_notes"];
     const esc = (v: unknown) => {
       const s = String(v ?? "");
       return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
@@ -931,6 +965,7 @@ export default function CancellationReportPage() {
       ...sorted.map((r) => [
         r.incident_date, r.branch, r.platform, r.category ?? "",
         r.order_id ?? "", r.refund_amount ?? 0,
+        compensationOf(r, city).amount || "", compensationOf(r, city).amount ? (compensationOf(r, city).confirmed ? "confirmed" : "expected") : "",
         esc(r.cancellation_reason), esc(r.email_status), esc(r.refund_status), esc(r.pic_notes),
       ].join(",")),
     ];
@@ -965,6 +1000,7 @@ export default function CancellationReportPage() {
     { key: "platform",            label: "Platform" },
     { key: "category",            label: "Category" },
     { key: "refund_amount",       label: amountLabel },
+    { key: "compensation_amount", label: city === "dubai" ? "Compensation (AED)" : "Compensation (PHP)" },
     { key: "cancellation_reason", label: "Reason" },
     { key: "email_status",        label: "Ticket Status" },
     { key: "refund_status",       label: "Refund Status" },
@@ -1046,13 +1082,23 @@ export default function CancellationReportPage() {
         )}
 
         {/* ── KPI Cards ──────────────────────────────────────────────────── */}
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <KpiCard
             icon={<span className="text-lg">💰</span>}
             label={city === "dubai" ? "Total Refund" : "Total Amount"}
             value={kpi.totalRefund > 0 ? fmtAmount(kpi.totalRefund) : "—"}
             sub={`${kpi.total} incidents total`}
             accent="text-amber-400"
+          />
+          <KpiCard
+            icon={<span className="text-lg">🤝</span>}
+            label="Total Compensation"
+            value={kpi.compConfirmed + kpi.compExpected > 0 ? fmtAmount(kpi.compConfirmed + kpi.compExpected) : "—"}
+            sub={kpi.compCount > 0
+              ? `${city === "manila" ? "Settled by Grab" : "Settled"} ${fmtAmount(kpi.compConfirmed)} · Expected ${fmtAmount(kpi.compExpected)} · ${
+                  Object.entries(kpi.compByPlatform).sort((a, b) => b[1] - a[1]).map(([p, v]) => `${p} ${fmtAmount(v)}`).join(", ")}`
+              : "From the aggregators"}
+            accent="text-emerald-400"
           />
           <KpiCard
             icon={<span className="text-lg">📋</span>}
@@ -1286,6 +1332,18 @@ export default function CancellationReportPage() {
                       </td>
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 text-right font-semibold text-amber-400`}>
                         {fmtAmount(r.refund_amount)}
+                      </td>
+                      <td className={`${TABLE_CELL} whitespace-nowrap px-4 text-right`}>
+                        {(() => {
+                          const c = compensationOf(r, city);
+                          if (!c.amount) return <span className="text-white/20">—</span>;
+                          return (
+                            <span className={c.confirmed ? "font-semibold text-emerald-400" : "font-semibold text-sky-300"}
+                              title={c.confirmed ? (city === "manila" ? "Settled by Grab" : "Settled (Refund / Resolution Status)") : "Expected — not settled yet"}>
+                              {fmtAmount(c.amount)}{!c.confirmed && <span className="ml-1 text-[10px] font-normal text-sky-300/70">exp.</span>}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className={`${TABLE_CELL} px-4 text-white/50`}>
                         <TextCell text={r.cancellation_reason} />
