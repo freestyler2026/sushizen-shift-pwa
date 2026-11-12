@@ -132,6 +132,8 @@ type CancelRow = {
   photo_upload_urls: string[] | null;
   grab_refund_reason: string | null;
   grab_synced_at: string | null;
+  /** Manila FoodPanda: what FoodPanda paid for the cancelled order ("Cancelled orders wastage" on its invoice). */
+  fp_paid: number | null;
   // Set when the date on this row cannot be believed. Until the reused order
   // number was taken out of the key, a later cancellation with the same number
   // overwrote an older one, date included.
@@ -166,6 +168,7 @@ type ManilaApiRow = {
   photo_upload_urls?: string | null;
   grab_refund_reason?: string | null;
   grab_synced_at?: string | null;
+  fp_paid?: number | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -185,6 +188,7 @@ function normalizeManilaRow(r: ManilaApiRow): CancelRow {
     total_amount: null,
     refund_amount: r.refund_amount ?? null,  // actual refund amount
     compensation_amount: r.compensation_amount ?? null,
+    fp_paid: r.fp_paid ?? null,
     cancellation_reason: r.cancellation_reason ?? null,
     encoded_by: r.recorded_by ?? null,
     customer_note: null,
@@ -267,8 +271,9 @@ function isResolved(refund_status: string | null): boolean {
 //             Grab's compensation for the order (172 rows, money in), Grab's
 //             chargebacks "Deduction - Eater Compensation" (69, money out) and
 //             FoodPanda's cancellation fees / refunds typed by staff (44, money
-//             out). Only the first is compensation: settled when Grab's finance
-//             data has it, the staff's "Compensation" figure until then.
+//             out). Grab's compensation is settled when Grab's finance data has
+//             it; FoodPanda's when its invoice pays the order (fpPaid below);
+//             before either, the staff's "Compensation" figure is expected.
 function isUnsettledStatus(refund_status: string | null): boolean {
   const s = (refund_status ?? "").trim().toLowerCase();
   return !s || /disput|pending|under |waiting|follow/.test(s);
@@ -277,9 +282,17 @@ function isGrabCompensation(row: CancelRow): boolean {
   return row.platform === "GrabFood" && !!row.grab_synced_at
     && /compensation - (orders|commission)/i.test(row.grab_refund_reason ?? "");
 }
+// FoodPanda pays for a cancelled order it had the store make ("Cancelled orders
+// wastage" on its invoice; 42 orders, PHP 23,467 Jun-Nov 2026). Staff had been
+// typing that same figure into Refund, so a Refund equal to it is the payment,
+// not money out (owner, 2026-11-12).
+function fpPaid(row: CancelRow): number {
+  return row.platform === "FoodPanda" ? Number(row.fp_paid) || 0 : 0;
+}
 function compensationOf(row: CancelRow, city: "dubai" | "manila"): { amount: number; confirmed: boolean } {
   if (city === "manila") {
     if (isGrabCompensation(row)) return { amount: Number(row.refund_amount) || 0, confirmed: true };
+    if (fpPaid(row) > 0) return { amount: fpPaid(row), confirmed: true };
     if (row.grab_synced_at) return { amount: 0, confirmed: false };
     return { amount: Number(row.compensation_amount) || 0, confirmed: false };
   }
@@ -291,7 +304,9 @@ function compensationOf(row: CancelRow, city: "dubai" | "manila"): { amount: num
  *  Grab's compensation. */
 function chargeOf(row: CancelRow, city: "dubai" | "manila"): number {
   if (city === "manila" && isGrabCompensation(row)) return 0;
-  return Number(row.refund_amount) || 0;
+  const refund = Number(row.refund_amount) || 0;
+  if (city === "manila" && fpPaid(row) > 0 && Math.abs(refund - fpPaid(row)) < 1) return 0;
+  return refund;
 }
 function isPending(row: CancelRow): boolean {
   return isTicketSent(row.email_status) && !isResolved(row.refund_status);
@@ -1114,7 +1129,7 @@ export default function CancellationReportPage() {
             label="Total Compensation"
             value={kpi.compConfirmed + kpi.compExpected > 0 ? fmtAmount(kpi.compConfirmed + kpi.compExpected) : "—"}
             sub={kpi.compCount > 0
-              ? `${city === "manila" ? "Paid by Grab" : "Settled"} ${fmtAmount(kpi.compConfirmed)} · Expected ${fmtAmount(kpi.compExpected)} · ${
+              ? `${city === "manila" ? "Paid by Grab / FoodPanda" : "Settled"} ${fmtAmount(kpi.compConfirmed)} · Expected ${fmtAmount(kpi.compExpected)} · ${
                   Object.entries(kpi.compByPlatform).sort((a, b) => b[1] - a[1]).map(([p, v]) => `${p} ${fmtAmount(v)}`).join(", ")}`
               : "From the aggregators"}
             accent="text-emerald-400"
@@ -1358,7 +1373,7 @@ export default function CancellationReportPage() {
                           if (!c.amount) return <span className="text-white/20">—</span>;
                           return (
                             <span className={c.confirmed ? "font-semibold text-emerald-400" : "font-semibold text-sky-300"}
-                              title={c.confirmed ? (city === "manila" ? "Paid by Grab" : "Settled (Refund / Resolution Status)") : "Expected — not settled yet"}>
+                              title={c.confirmed ? (city === "manila" ? (r.platform === "FoodPanda" ? "Paid by FoodPanda (invoice)" : "Paid by Grab") : "Settled (Refund / Resolution Status)") : "Expected — not settled yet"}>
                               {fmtAmount(c.amount)}{!c.confirmed && <span className="ml-1 text-[10px] font-normal text-sky-300/70">exp.</span>}
                             </span>
                           );
