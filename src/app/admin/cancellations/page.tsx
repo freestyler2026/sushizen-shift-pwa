@@ -278,11 +278,12 @@ function isResolved(refund_status: string | null): boolean {
 //             out). Grab's compensation is settled when Grab's finance data has
 //             it; FoodPanda's when its invoice pays the order (fpPaid below);
 //             before either, the staff's "Compensation" figure is expected.
-// "The company will be compensated for the order" is a promise, not a payment
-// (26 rows, AED 1,178 since June 2026): expected until the status changes.
+// "The company will be compensated for the order" is not on today's list of
+// statuses; it is on 26 records from June-July 2026 (AED 1,178), long since paid,
+// so it counts as settled like the rest (owner, 2026-11-12).
 function isUnsettledStatus(refund_status: string | null): boolean {
   const s = (refund_status ?? "").trim().toLowerCase();
-  return !s || /disput|pending|under |waiting|follow|will be/.test(s);
+  return !s || /disput|pending|under |waiting|follow|investigation|escalated/.test(s);
 }
 function isGrabCompensation(row: CancelRow): boolean {
   return row.platform === "GrabFood" && !!row.grab_synced_at
