@@ -134,6 +134,8 @@ type CancelRow = {
   grab_synced_at: string | null;
   /** Manila FoodPanda: what FoodPanda paid for the cancelled order ("Cancelled orders wastage" on its invoice). */
   fp_paid: number | null;
+  /** Manila GrabFood: what Grab actually paid -- its compensation less the commission it keeps. */
+  grab_paid: number | null;
   // Set when the date on this row cannot be believed. Until the reused order
   // number was taken out of the key, a later cancellation with the same number
   // overwrote an older one, date included.
@@ -169,6 +171,7 @@ type ManilaApiRow = {
   grab_refund_reason?: string | null;
   grab_synced_at?: string | null;
   fp_paid?: number | null;
+  grab_paid?: number | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -189,6 +192,7 @@ function normalizeManilaRow(r: ManilaApiRow): CancelRow {
     refund_amount: r.refund_amount ?? null,  // actual refund amount
     compensation_amount: r.compensation_amount ?? null,
     fp_paid: r.fp_paid ?? null,
+    grab_paid: r.grab_paid ?? null,
     cancellation_reason: r.cancellation_reason ?? null,
     encoded_by: r.recorded_by ?? null,
     customer_note: null,
@@ -274,9 +278,11 @@ function isResolved(refund_status: string | null): boolean {
 //             out). Grab's compensation is settled when Grab's finance data has
 //             it; FoodPanda's when its invoice pays the order (fpPaid below);
 //             before either, the staff's "Compensation" figure is expected.
+// "The company will be compensated for the order" is a promise, not a payment
+// (26 rows, AED 1,178 since June 2026): expected until the status changes.
 function isUnsettledStatus(refund_status: string | null): boolean {
   const s = (refund_status ?? "").trim().toLowerCase();
-  return !s || /disput|pending|under |waiting|follow/.test(s);
+  return !s || /disput|pending|under |waiting|follow|will be/.test(s);
 }
 function isGrabCompensation(row: CancelRow): boolean {
   return row.platform === "GrabFood" && !!row.grab_synced_at
@@ -291,7 +297,12 @@ function fpPaid(row: CancelRow): number {
 }
 function compensationOf(row: CancelRow, city: "dubai" | "manila"): { amount: number; confirmed: boolean } {
   if (city === "manila") {
-    if (isGrabCompensation(row)) return { amount: Number(row.refund_amount) || 0, confirmed: true };
+    // grab_paid is what came in (compensation less Grab's commission); refund_amount
+    // adds the two as positives, so it is only the fallback for the 16 older records
+    // that carry no Grab order id.
+    if (isGrabCompensation(row)) {
+      return { amount: row.grab_paid != null ? Number(row.grab_paid) : Number(row.refund_amount) || 0, confirmed: true };
+    }
     if (fpPaid(row) > 0) return { amount: fpPaid(row), confirmed: true };
     if (row.grab_synced_at) return { amount: 0, confirmed: false };
     return { amount: Number(row.compensation_amount) || 0, confirmed: false };
