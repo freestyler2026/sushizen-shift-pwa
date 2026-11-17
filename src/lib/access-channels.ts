@@ -59,6 +59,7 @@ export const CHANNEL_ROUTES: ReadonlyArray<readonly [string, ChannelRoute]> = [
   ["/admin/incidents", { channel: "admin.incident_reports", match: "prefix", admin: true }],
   ["/admin/incidents/unowned", { channel: "admin.incidents_unowned", match: "exact", admin: true }],
   ["/admin/inventory", { channel: "admin.inventory", match: "prefix", admin: true }],
+  ["/admin/investor-funding", { channel: "admin.investor_funding", match: "prefix", admin: true }],
   ["/admin/management/area-review", { channel: "admin.management_area_review", match: "prefix", admin: true }],
   ["/admin/management/back-office", { channel: "admin.management_back_office", match: "prefix", admin: true }],
   ["/admin/management/par-levels", { channel: "admin.management_par_levels", match: "prefix", admin: true }],

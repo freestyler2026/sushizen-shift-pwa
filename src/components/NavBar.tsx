@@ -354,6 +354,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/discord-alerts", label: "Discord Alerts", icon: Bell, adminOnly: true, match: "prefix" , cat: "sys" },
   { href: "/admin/aggregator-price-monitor", label: "Aggregator Price Monitor", icon: Activity, adminOnly: true, match: "prefix" , cat: "money" },
   { href: "/admin/owner-portal", label: "FOCO Owner Portal", icon: TrendingUp, adminOnly: true, match: "prefix", cat: "money" },
+  { href: "/admin/investor-funding", label: "Investor Funding", icon: Coins, adminOnly: true, match: "prefix", cat: "money" },
 ];
 
 // Primary bottom-tab hrefs — these 4 always appear in the bottom nav bar.
@@ -536,6 +537,10 @@ export default function NavBar() {
     if (href === "/admin/back-office-activity" || href === "/admin/work-evidence") {
       return BACK_OFFICE_ACTIVITY_VIEWERS.includes(String(auth.staffName || "").trim());
     }
+    // HQ alone (owner, 2026-11-17): investors' names, contacts and amounts.
+    // Checked before the HQ/ADMIN blanket below, which would hand it to ADMIN.
+    // The server refuses everyone but HQ whatever the menu shows.
+    if (href === "/admin/investor-funding") return role === "HQ";
     if (role === "HQ" || role === "ADMIN") return true;
     if (href === "/admin") return canAccessAdminDashboard(auth);
     // Falls through to channelAccessForRoute below, which is the designed path:
