@@ -177,6 +177,12 @@ export default function ManilaPayrollPage() {
             >
               🌴 Leave (SIL)
             </Link>
+            <Link
+              href="/admin/payroll/manila/13th-month"
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
+            >
+              13th Month
+            </Link>
             <button
               onClick={() => setShowCreate(v => !v)}
               className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}

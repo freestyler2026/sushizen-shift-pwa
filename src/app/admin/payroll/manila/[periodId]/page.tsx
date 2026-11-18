@@ -12,6 +12,7 @@ import Link from "next/link";
 import { getAuth, canAccessPayrollAdmin, hasPayrollViewSalary } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
 import { SALARY_HIDDEN } from "@/lib/salary";
+import { LATE_ABSENT_CODES, LATE_ABSENT_LABEL, splitLateAbsent } from "@/lib/manila-late-absent";
 
 const API = "/api/admin/manila-payroll";
 
@@ -1558,13 +1559,30 @@ function PayslipDetail({
                   <span className="text-xs text-slate-500">Amount Deducted</span>
                 </div>
                 <div className="rounded-xl border border-white/5 overflow-hidden">
-                  {deductions.map((item, idx) => {
+                  {(() => {
+                  // Late / absent / undertime first, totalled on one line: HR
+                  // takes that figure off the basic for the 13th month (2026-11-18).
+                  const la = splitLateAbsent(deductions);
+                  const ordered = [...la.lines, ...la.other];
+                  return (<>
+                  {la.lines.length > 0 && (
+                    <div className="flex items-center justify-between border-b border-white/5 bg-red-900/10 px-4 py-2.5">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-100">{LATE_ABSENT_LABEL}</p>
+                        <p className="text-[10px] text-slate-500">Total of the {la.lines.length} line{la.lines.length === 1 ? "" : "s"} below · taken off the basic for the 13th month</p>
+                      </div>
+                      <span className="tabular-nums text-sm font-bold text-red-300">
+                        {canSeeSalary && la.total != null ? `(${fmtPHP(la.total)})` : "(****)"}
+                      </span>
+                    </div>
+                  )}
+                  {ordered.map((item, idx) => {
                     const formula = itemFormula(item.item_code);
                     return (
                       <div
                         key={item.id}
-                        className={`flex items-start justify-between px-4 py-3 ${
-                          idx < deductions.length - 1 ? "border-b border-white/5" : ""
+                        className={`flex items-start justify-between ${LATE_ABSENT_CODES.has(item.item_code) ? "py-2 pl-8 pr-4" : "px-4 py-3"} ${
+                          idx < ordered.length - 1 ? "border-b border-white/5" : ""
                         } hover:bg-white/5`}
                       >
                         <div className="min-w-0 flex-1">
@@ -1599,6 +1617,8 @@ function PayslipDetail({
                       </div>
                     );
                   })}
+                  </>);
+                  })()}
                   {/* Deductions subtotal */}
                   <div className="flex items-center justify-between bg-red-900/20 border-t border-red-500/20 px-4 py-2.5">
                     <p className="text-xs font-bold text-red-400/80 uppercase tracking-wide">Total Deductions</p>

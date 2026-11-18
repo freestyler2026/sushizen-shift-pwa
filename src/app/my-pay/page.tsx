@@ -37,6 +37,7 @@ import {
 } from "@/lib/ui-tokens";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
+import { LATE_ABSENT_CODES, LATE_ABSENT_LABEL, splitLateAbsent } from "@/lib/manila-late-absent";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -612,6 +613,7 @@ function PayslipModal({
     i.item_code !== "13TH_MONTH_ACCRUAL"
   );
   const manilaDeductions = manilaItems.filter(i => i.item_type === "deduction");
+  const manilaLateAbsent = splitLateAbsent(manilaDeductions);
   const manilaHasDetail = manilaItems.length > 0;
   const manilaBasicAmount = manilaBasicItem?.amount ?? slip.basic_salary;
   const manilaNetAdditions = manilaEarnings.reduce((s, i) => s + i.amount, 0);
@@ -803,8 +805,19 @@ function PayslipModal({
                       <Loader2 className="h-3 w-3 animate-spin" />Loading breakdown…
                     </div>
                   ) : isManila ? (
-                    manilaDeductions.map((item, i) => (
-                      <div key={i} className="flex justify-between items-center py-1.5 border-b border-slate-50">
+                    <>
+                    {/* Late / absent / undertime totalled on one line, as on the old
+                        payslip -- HR takes it off the basic for the 13th month. */}
+                    {manilaLateAbsent.lines.length > 0 && (
+                      <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
+                        <span className="text-sm font-semibold text-slate-700">{LATE_ABSENT_LABEL}</span>
+                        <span className={`text-sm font-semibold tabular-nums ml-4 ${manilaLateAbsent.total ? "text-red-500" : "text-slate-400"}`}>
+                          {manilaLateAbsent.total ? "−" : ""}{fmt(manilaLateAbsent.total ?? 0, slip.currency)}
+                        </span>
+                      </div>
+                    )}
+                    {[...manilaLateAbsent.lines, ...manilaLateAbsent.other].map((item, i) => (
+                      <div key={i} className={`flex justify-between items-center py-1.5 border-b border-slate-50 ${LATE_ABSENT_CODES.has(item.item_code) ? "pl-4" : ""}`}>
                         <div className="flex-1 min-w-0">
                           <span className="text-sm text-slate-600">{item.label}</span>
                           {lineWorking(item, slip.currency) && (
@@ -820,7 +833,8 @@ function PayslipModal({
                           {item.amount !== 0 ? "−" : ""}{fmt(Math.abs(item.amount), slip.currency)}
                         </span>
                       </div>
-                    ))
+                    ))}
+                    </>
                   ) : deductions.length > 0 ? (
                     deductions.map((item, i) => (
                       <div key={i} className="flex justify-between items-start py-1.5 border-b border-slate-50">

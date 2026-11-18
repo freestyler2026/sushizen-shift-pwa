@@ -723,6 +723,38 @@ function LaptopDeviceSection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (u
 }
 
 
+type OsCutoff = {
+  period_label: string; cutoff: string; start_date: string | null; end_date: string | null;
+  period_status: string; released: boolean; basic_pay: number | null; deductions: number | null;
+};
+
+// A cut-off's dates as day numbers, so an HR-typed label ("Sept 26  to  Oct 10",
+// "Dec 26 to Jan 10", "Apr 26 – May 10") can be compared with the OS's dates.
+type DayRange = { start: number; end: number; endYear: number };
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+function dayNumber(y: number, m: number, d: number) { return Date.UTC(y, m, d) / 86400000; }
+function isoRange(start: string | null, end: string | null): DayRange | null {
+  if (!start || !end) return null;
+  const [sy, sm, sd] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  return { start: dayNumber(sy, sm - 1, sd), end: dayNumber(ey, em - 1, ed), endYear: ey };
+}
+function labelRange(label: string, endYear: number): DayRange | null {
+  const m = /([A-Za-z]{3})[a-z]*\.?\s*(\d{1,2})\s*(?:to|-|–|—)\s*(?:([A-Za-z]{3})[a-z]*\.?\s*)?(\d{1,2})/i.exec(label || "");
+  if (!m) return null;
+  const sm = MONTH_INDEX[m[1].toLowerCase()];
+  const em = m[3] ? MONTH_INDEX[m[3].toLowerCase()] : sm;
+  if (sm === undefined || em === undefined) return null;
+  // "Dec 26 to Jan 10" starts in the year before it ends.
+  const sy = sm > em ? endYear - 1 : endYear;
+  return { start: dayNumber(sy, sm, Number(m[2])), end: dayNumber(endYear, em, Number(m[4])), endYear };
+}
+function overlaps(a: DayRange | null, b: DayRange): boolean {
+  return !!a && a.start <= b.end && b.start <= a.end;
+}
+
 type SalaryRow = {
   id?: string;
   period_label: string;
@@ -791,6 +823,48 @@ function SalaryHistory({ caseId, entered13th, city }: { caseId: string; entered1
       if (!res.ok) { setErr(String(j.detail || `Could not save (${res.status}).`)); return; }
       setRows((j.rows ?? []) as SalaryRow[]);
       setMsg("Saved.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally { setBusy(false); }
+  }
+
+  // Cut-offs since the OS payroll began, read from it (HR, 2026-11-18): basic
+  // and late / absent / undertime per cut-off, so HR types only the earlier ones.
+  // Nothing is saved until "Save cut-offs"; a cut-off whose dates overlap a row
+  // already in the table is left alone, so a row is never counted twice.
+  async function fillFromOs() {
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${caseId}/os-cutoffs`, {
+        headers: getAuthHeaders(getAuth()), cache: "no-store",
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(String(j.detail || `Could not read the OS payroll (${res.status}).`)); return; }
+      if (!j.payroll_name) {
+        setErr((j.candidates || []).length > 1
+          ? `More than one person in the payroll matches this name: ${(j.candidates as string[]).join(", ")}. Enter the cut-offs by hand.`
+          : "This name is not in the OS payroll. Enter the cut-offs by hand.");
+        return;
+      }
+      const os = (j.rows || []) as OsCutoff[];
+      const added: SalaryRow[] = [];
+      let skipped = 0;
+      for (const c of os) {
+        const range = isoRange(c.start_date, c.end_date);
+        if (range && rows.some(r => overlaps(labelRange(r.period_label, range.endYear), range))) { skipped++; continue; }
+        added.push({ period_label: c.cutoff, basic_pay: c.basic_pay, deductions: c.deductions,
+                     note: `From OS payroll ${c.period_label}` +
+                       (!c.released ? " — not released on OS, check the payslip" : c.period_status !== "paid" ? " (not paid yet)" : "") });
+      }
+      setRows(p => [...p, ...added]);
+      const unreleased = added.filter(r => r.note.includes("not released")).length;
+      const who = j.payroll_name !== j.staff_name ? ` (payroll name: ${j.payroll_name})` : "";
+      setMsg(os.length === 0
+        ? `No OS payroll cut-offs for ${j.year}${who}.`
+        : `Added ${added.length} cut-off${added.length === 1 ? "" : "s"} from the OS payroll${who}` +
+          (skipped ? `; ${skipped} already in the table were left as they are` : "") +
+          (unreleased ? `. ${unreleased} of them were never released on the OS — check those against the payslip` : "") +
+          `. Check them, then Save cut-offs. The OS paid from ${j.first_os_period}; earlier cut-offs are typed from the payslips.`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not reach the server.");
     } finally { setBusy(false); }
@@ -901,6 +975,12 @@ function SalaryHistory({ caseId, entered13th, city }: { caseId: string; entered1
         <button className={SMALL_BUTTON} disabled={busy} onClick={save}>
           {busy ? "Saving…" : "Save cut-offs"}
         </button>
+        {thirteenth && (
+          <button className={SMALL_BUTTON} disabled={busy} onClick={fillFromOs}
+                  title="Adds the cut-offs the OS payroll computed for this person this year. Rows already in the table are kept.">
+            Fill from OS payroll
+          </button>
+        )}
         {msg && <span className="text-xs text-emerald-300">{msg}</span>}
         {err && <span className="text-xs text-red-300">{err}</span>}
       </div>
