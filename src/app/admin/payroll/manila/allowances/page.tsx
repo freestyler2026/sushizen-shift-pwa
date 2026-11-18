@@ -22,6 +22,28 @@ interface UnsyncedCutoff {
 }
 type Unsynced = { cutoff1: UnsyncedCutoff; cutoff2: UnsyncedCutoff } | null;
 
+type RequestDetail = { work_date: string; request_type: string; why: "rejected" | "late_filed"; days_before: number | null };
+
+const REQUEST_TYPE_TEXT: Record<string, string> = {
+  day_off: "Day off", absence: "Absence", time_change: "Time change", swap: "Swap",
+};
+
+/** The requests counted against the ₱500, one line each, so HR can see which
+ *  ones and why instead of a bare count. */
+function RequestLines({ details }: { details?: RequestDetail[] | null }) {
+  if (!details || details.length === 0) return null;
+  return (
+    <ul className="ml-3 space-y-0.5 text-[11px] text-red-300/90">
+      {details.map((d, i) => (
+        <li key={i}>
+          {d.work_date} · {REQUEST_TYPE_TEXT[d.request_type] || d.request_type} ·{" "}
+          {d.why === "rejected" ? "rejected, and the day was not worked" : `filed ${d.days_before ?? "?"} days ahead and not approved`}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 interface AllowanceItem {
   id: number;
   staff_name: string;
@@ -56,6 +78,10 @@ interface AllowanceItem {
   cutoff1_short_days?: number | null;
   cutoff2_short_days?: number | null;
   rules_version?: string | null;
+  // Which shift-change requests were counted, and why (from the November 2026
+  // payout). Empty on rows computed before the column existed.
+  cutoff1_request_details?: RequestDetail[] | null;
+  cutoff2_request_details?: RequestDetail[] | null;
   pa_eligible: boolean;
   pa_disqualify_reasons: string;
   pa_amount: number | null;
@@ -473,7 +499,12 @@ export default function ManilaAllowancesPage() {
                               <p className="text-zinc-400">Late count: <span className={!isV2(it) && it.cutoff1_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_count}x</span><span className="text-[10px] text-zinc-600"> · this cutoff</span></p>
                               <p className="text-zinc-400">Late minutes: <span className={!isV2(it) && it.cutoff1_late_minutes >= 60 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_late_minutes}min</span></p>
                               <p className="text-zinc-400">AWOL days: <span className={it.cutoff1_awol_days > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_awol_days}</span></p>
-                              <p className="text-zinc-400">Rejected requests: <span className={it.cutoff1_rejected_requests > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_rejected_requests}</span></p>
+                              <p className="text-zinc-400">Rejected or late-filed changes: <span className={it.cutoff1_rejected_requests > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff1_rejected_requests}</span>
+                                {(it.cutoff1_request_details?.length ?? 0) === 0 && it.cutoff1_rejected_requests > 0 && (
+                                  <span className="text-[10px] text-zinc-600"> · listed from the Nov 2026 payout on — compute again if this is that month or later</span>
+                                )}
+                              </p>
+                              <RequestLines details={it.cutoff1_request_details} />
                               {/* Condition 4 manual flag */}
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <input
@@ -510,7 +541,12 @@ export default function ManilaAllowancesPage() {
                               <p className="text-zinc-400">Late count: <span className={!isV2(it) && it.cutoff2_late_count >= 3 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_count}x</span><span className="text-[10px] text-zinc-600"> · this cutoff</span></p>
                               <p className="text-zinc-400">Late minutes: <span className={!isV2(it) && it.cutoff2_late_minutes >= 60 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_late_minutes}min</span></p>
                               <p className="text-zinc-400">AWOL days: <span className={it.cutoff2_awol_days > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_awol_days}</span></p>
-                              <p className="text-zinc-400">Rejected requests: <span className={it.cutoff2_rejected_requests > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_rejected_requests}</span></p>
+                              <p className="text-zinc-400">Rejected or late-filed changes: <span className={it.cutoff2_rejected_requests > 0 ? "text-red-300" : "text-zinc-200"}>{it.cutoff2_rejected_requests}</span>
+                                {(it.cutoff2_request_details?.length ?? 0) === 0 && it.cutoff2_rejected_requests > 0 && (
+                                  <span className="text-[10px] text-zinc-600"> · listed from the Nov 2026 payout on — compute again if this is that month or later</span>
+                                )}
+                              </p>
+                              <RequestLines details={it.cutoff2_request_details} />
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <input
                                   type="checkbox"
