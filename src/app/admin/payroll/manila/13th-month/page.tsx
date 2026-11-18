@@ -65,7 +65,7 @@ export default function ThirteenthMonthPage() {
     }));
     const detail = rows.flatMap((r) => r.cutoffs.map((c) => ({
       Employee: r.staff_name, "Payroll period": c.period_label, "Cut-off": c.cutoff,
-      Source: c.source === "os" ? "OS" : "Old payslip", Status: c.period_status,
+      Source: c.source === "os" ? "OS" : "Old payslip",
       "Released on OS": c.source === "os" ? (c.released ? "Yes" : "No — check the payslip") : "",
       "Basic pay": c.basic_pay, [LATE_ABSENT_LABEL]: c.late_absent, "Basic earned": c.basic_earned,
     })));
@@ -102,13 +102,12 @@ export default function ThirteenthMonthPage() {
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
           The OS payroll starts at {data.first_os_period}. Cut-offs before it come from the old payslips once they are imported
           {withoutImport > 0 && year <= Number(data.first_os_period.slice(0, 4)) ? ` — ${withoutImport} employee${withoutImport === 1 ? " has" : "s have"} none imported for ${year} yet` : ""}.
-          Periods not yet paid are included as computed and marked “not paid yet”.
         </p>
       )}
       {unreleased > 0 && (
         <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
           {unreleased} employee{unreleased === 1 ? " has" : "s have"} cut-offs computed in the OS but never released to them
-          (marked “not released on OS”). They were paid another way, so check those cut-offs against the payslip that was released.
+          (marked “not released on OS”) — paid another way, or not yet published. Check those cut-offs against the payslip that was released.
         </p>
       )}
       {error && <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
@@ -134,7 +133,6 @@ export default function ThirteenthMonthPage() {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-slate-300">
                     {r.cutoffs.length}
-                    {r.unpaid_cutoffs > 0 && <span className="ml-1 text-xs text-amber-300">({r.unpaid_cutoffs} not paid yet)</span>}
                     {r.unreleased_cutoffs > 0 && <span className="ml-1 text-xs text-red-300">({r.unreleased_cutoffs} not released on OS)</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-slate-200">{money(r.basic_pay)}</td>
@@ -147,7 +145,6 @@ export default function ThirteenthMonthPage() {
                     <td className="py-1.5 pl-10 pr-3 text-slate-300">
                       {c.cutoff || c.period_label}
                       <span className="ml-2 text-slate-500">{c.source === "os" ? c.period_label : "old payslip"}</span>
-                      {c.period_status !== "paid" && <span className="ml-2 text-amber-300">not paid yet</span>}
                       {!c.released && <span className="ml-2 text-red-300">not released on OS</span>}
                     </td>
                     <td />
@@ -159,7 +156,7 @@ export default function ThirteenthMonthPage() {
                 ))}
               </Fragment>
             ))}
-            {!loading && rows.length === 0 && (
+            {!loading && !error && rows.length === 0 && (
               <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-400">No cut-offs for {year}.</td></tr>
             )}
             {loading && <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-400">Loading…</td></tr>}

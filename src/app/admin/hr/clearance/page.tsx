@@ -854,7 +854,7 @@ function SalaryHistory({ caseId, entered13th, city }: { caseId: string; entered1
         if (range && rows.some(r => overlaps(labelRange(r.period_label, range.endYear), range))) { skipped++; continue; }
         added.push({ period_label: c.cutoff, basic_pay: c.basic_pay, deductions: c.deductions,
                      note: `From OS payroll ${c.period_label}` +
-                       (!c.released ? " — not released on OS, check the payslip" : c.period_status !== "paid" ? " (not paid yet)" : "") });
+                       (!c.released ? " — not released on OS, check the payslip" : "") });
       }
       setRows(p => [...p, ...added]);
       const unreleased = added.filter(r => r.note.includes("not released")).length;
