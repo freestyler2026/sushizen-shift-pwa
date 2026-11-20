@@ -75,6 +75,8 @@ type DispatchBoxForm = {
   item_type: "FROZEN" | "CHILLED";
   dispatch_at: string;
   dispatch_temp: string;
+  /** Ice packs CK put inside (Caila, 2026-11-19). null until entered. */
+  ice_packs: number | null;
   is_soft_bag?: boolean;  // true for S1-S4 soft bag containers
 };
 
@@ -85,6 +87,7 @@ type DispatchBoxRow = {
   item_type: string;
   dispatch_at: string;
   dispatch_temp: number | null;
+  ice_packs?: number | null;
   received_at: string | null;
   received_temp: number | null;
   received_by: string | null;
@@ -130,7 +133,7 @@ function nowHHMM() {
 }
 
 function emptyDispatchBox(n: number, isSoftBag = false): DispatchBoxForm {
-  return { box_number: n, item_type: "FROZEN", dispatch_at: nowHHMM(), dispatch_temp: "", is_soft_bag: isSoftBag };
+  return { box_number: n, item_type: "FROZEN", dispatch_at: nowHHMM(), dispatch_temp: "", ice_packs: null, is_soft_bag: isSoftBag };
 }
 
 // ─── Small UI components ──────────────────────────────────────────────────────
@@ -265,6 +268,28 @@ function DispatchBoxRow({
             />
           </div>
         </div>
+        <div className="mt-3 flex items-center justify-between">
+          <p className={T_CAPTION}>Ice packs inside</p>
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label={`Fewer ice packs in ${label}`}
+              disabled={disabled || box.ice_packs === 0}
+              onClick={() => onChange({ ice_packs: box.ice_packs == null ? 0 : box.ice_packs - 1 })}
+              className="w-8 h-8 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center hover:bg-white/10 disabled:opacity-30">
+              <Minus size={12} />
+            </button>
+            <span className={`w-8 text-center text-sm font-semibold ${box.ice_packs == null ? "text-amber-400" : "text-white"}`}
+              aria-label={`Ice packs in ${label}`}>
+              {box.ice_packs == null ? "—" : box.ice_packs}
+            </span>
+            <button type="button" aria-label={`More ice packs in ${label}`}
+              disabled={disabled || (box.ice_packs ?? 0) >= 40}
+              onClick={() => onChange({ ice_packs: (box.ice_packs ?? 0) + 1 })}
+              className="w-8 h-8 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center hover:bg-white/10 disabled:opacity-30">
+              <Plus size={12} />
+            </button>
+            <span className={`${T_CAPTION} text-zinc-500 w-6`}>pc</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -380,6 +405,10 @@ function DispatchForm({ city }: { city: string }) {
   const submit = async () => {
     if (!dispatchedBy) { setMsg({ ok: false, text: "Select dispatching staff." }); return; }
     if (!destBranches.length) { setMsg({ ok: false, text: "Select at least one destination." }); return; }
+    if (city === "manila" && [...boxes, ...softBags].some((b) => b.ice_packs == null)) {
+      setMsg({ ok: false, text: "Enter the ice packs inside each box and bag (0 if none)." });
+      return;
+    }
     setSubmitting(true); setMsg(null);
     try {
       // Step 1: Create dispatch (+ boxes for Manila new flow)
@@ -388,6 +417,7 @@ function DispatchForm({ city }: { city: string }) {
         item_type:     b.item_type,
         dispatch_at:   b.dispatch_at,
         dispatch_temp: b.dispatch_temp ? parseFloat(b.dispatch_temp) : null,
+        ice_packs:     b.ice_packs,
       });
       const allBoxes = [
         ...(city === "manila" && boxes.length > 0 ? boxes.map(b => toBoxPayload(b)) : []),
@@ -690,6 +720,21 @@ function DispatchForm({ city }: { city: string }) {
           {boxes.length === 0 && softBags.length === 0 && gcDispatched.length === 0 && gcReturned.length === 0 && (
             <p className="text-xs text-amber-400">⚠ No container selected — tap box or bag above.</p>
           )}
+          {(() => {
+            const inBoxes = [...boxes, ...softBags].reduce((s, b) => s + (b.ice_packs ?? 0), 0);
+            const fromEquipment = MANILA_EQUIPMENT.filter((e) => e.group === "Ice Pack")
+              .reduce((s, e) => s + (equipmentQty[e.id] ?? 0), 0);
+            const anyBox = boxes.length + softBags.length > 0;
+            const allEntered = [...boxes, ...softBags].every((b) => b.ice_packs != null);
+            if (!anyBox) return null;
+            const differs = allEntered && inBoxes !== fromEquipment;
+            return (
+              <p className={`text-xs ${differs ? "text-amber-400" : "text-zinc-400"}`}>
+                Ice packs in boxes: <span className="font-semibold">{inBoxes}</span> · Equipment Used: <span className="font-semibold">{fromEquipment}</span>
+                {differs && " — these should match. Check the count in each box or under Equipment Used."}
+              </p>
+            );
+          })()}
           {boxes.map((box, idx) => (
             <DispatchBoxRow
               key={`cooler-${box.box_number}`}
@@ -1136,6 +1181,7 @@ function ReceivingForm({ city }: { city: string }) {
                               : "text-red-400"
                             : "text-zinc-500"
                         }`}>{box.dispatch_temp != null ? `${box.dispatch_temp}°C` : "—"}</span></span>
+                        <span>Ice packs: <span className="text-zinc-200">{box.ice_packs ?? "—"}</span></span>
                       </div>
                     </div>
                     {/* Branch received — editable */}

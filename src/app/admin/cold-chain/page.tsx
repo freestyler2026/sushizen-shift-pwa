@@ -35,6 +35,8 @@ type CoolerBox = {
   item_type: string;
   dispatch_at: string;
   dispatch_temp: number | null;
+  /** Ice packs CK put inside (Caila, 2026-11-19); null on older boxes. */
+  ice_packs?: number | null;
   received_at: string | null;
   received_temp: number | null;
   received_by: string | null;
@@ -58,7 +60,17 @@ type Dispatch = {
   box_count: number;
   stored_count: number;
   notes: string | null;
+  equipment_json?: Array<{ id: string; label: string; qty: number; unit: string }>;
 };
+
+/** The trip's ice packs as CK entered them under Equipment Used, by size. */
+function iceSummary(eq: Dispatch["equipment_json"]) {
+  const ice = (eq ?? []).filter((e) => e.id.startsWith("ice_") && e.qty > 0);
+  if (!ice.length) return null;
+  const total = ice.reduce((s, e) => s + e.qty, 0);
+  const sizes = ice.map((e) => `${e.label.replace(" Ice Pack", "")} × ${e.qty}`).join(", ");
+  return { total, sizes };
+}
 
 const BRANCH_LABELS: Record<string, string> = {
   PAR: "Paranaque", CUB: "Cubao", TAFT: "Taft",
@@ -116,6 +128,9 @@ function TempControlCard({ box }: { box: CoolerBox }) {
               : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
           }`}>
             {box.item_type === "FROZEN" ? "🧊 Frozen" : "❄️ Chilled"}
+          </span>
+          <span className="text-[10px] rounded-full px-2 py-0.5 font-semibold bg-white/5 text-slate-300 border border-white/10">
+            Ice packs: {box.ice_packs ?? "—"}
           </span>
           {hasAlert && <AlertTriangle size={12} className="text-red-400" />}
         </div>
@@ -229,6 +244,14 @@ function DispatchLog({ city, date }: { city: string; date: string }) {
                     </span>
                   ))}
                 </div>
+                {(() => {
+                  const ice = iceSummary(d.equipment_json);
+                  return (
+                    <p className={`${T_CAPTION} mt-1.5`}>
+                      Ice packs: {ice ? <><span className="font-semibold text-slate-200">{ice.total}</span> ({ice.sizes})</> : "none entered"}
+                    </p>
+                  );
+                })()}
               </div>
               <div className="text-right shrink-0">
                 <p className={T_CAPTION}>{d.stored_count ?? 0}/{d.box_count ?? 0} boxes stored</p>
