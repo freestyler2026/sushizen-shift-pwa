@@ -487,7 +487,9 @@ function ProfileModal({
               <p className="mt-1 text-xs text-slate-500">
                 With a valid Solo Parent ID, the government pays the employee&apos;s half of the PhilHealth premium
                 (RA 11861; PhilHealth Circular 2026-0015). Nothing is deducted from pay; the employer still pays its half.
-                If this month&apos;s first cut-off already took it, the second cut-off gives it back.
+                The month&apos;s first cut-off begins on the 26th of the month before, so it still takes the share;
+                the second cut-off gives it back. Cut-offs already paid are never changed — give back earlier
+                months with a Contribution refund adjustment.
               </p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
