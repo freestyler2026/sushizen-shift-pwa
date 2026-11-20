@@ -35,6 +35,7 @@ import {
   type RenewalDocument,
   type RenewalStaff,
   type RenewalStatus,
+  applyServerRenewalsBadge,
   dismissRenewalsBadge,
 } from "@/lib/renewals";
 import SelectDark from "@/components/SelectDark";
@@ -488,6 +489,8 @@ export default function RenewalsAdminPage() {
   const router = useRouter();
   const [tab, setTab] = useState<PageTab>("alerts");
   const [alerts, setAlerts] = useState<RenewalAlertItem[]>([]);
+  /** The server's badge_count (documents still to start on + pending custom alerts). */
+  const [serverBadge, setServerBadge] = useState(0);
   const [staff, setStaff] = useState<RenewalStaff[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [staffLoading, setStaffLoading] = useState(true);
@@ -565,11 +568,26 @@ export default function RenewalsAdminPage() {
       const data = await requestJson<{ alerts: RenewalAlertItem[]; badge_count: number }>("/api/renewals/alerts");
       const nextAlerts = Array.isArray(data?.alerts) ? data.alerts : [];
       setAlerts(nextAlerts);
-      // NavBar polling handles badge count — no setRenewalsBadgeCount here
+      // Refresh the menu badge now rather than on NavBar's next 60s poll, so a
+      // status change (e.g. to IN_PROGRESS) shows at once.
+      const badge = Number(data?.badge_count ?? 0);
+      setServerBadge(badge);
+      applyServerRenewalsBadge(badge);
     } catch (error: any) {
       setToast({ kind: "error", text: error?.message || "Failed to load alerts" });
     } finally {
       setAlertsLoading(false);
+    }
+  };
+
+  const refreshBadge = async () => {
+    try {
+      const data = await requestJson<{ badge_count: number }>("/api/renewals/alerts/badge");
+      const badge = Number(data?.badge_count ?? 0);
+      setServerBadge(badge);
+      applyServerRenewalsBadge(badge);
+    } catch {
+      // the menu's own 60s poll catches up
     }
   };
 
@@ -603,11 +621,12 @@ export default function RenewalsAdminPage() {
     void loadStaff();
     void loadRegularizationAlerts();
     void loadCustomAlerts();
-    // Load staff master names for Add Staff autocomplete
-    const auth = getAuth();
-    const city = (auth?.city as string) || "dubai";
+    // Load staff master names for Add Staff autocomplete. Renewals covers the
+    // Dubai branches only, so the names are Dubai's whoever is signed in -- it
+    // used the signer's city, and Manila HR saw only Manila staff (Cyrine
+    // Fernandez, 2026-11-20).
     requestJson<{ names?: string[] }>(
-      `/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=5000`,
+      `/api/admin/staff_master/names?city=dubai&status=ACTIVE&limit=5000`,
     )
       .then((data) => setStaffMasterNames((data?.names || []).sort((a, b) => a.localeCompare(b))))
       .catch(() => {/* ignore */});
@@ -660,7 +679,9 @@ export default function RenewalsAdminPage() {
     () => customAlerts.filter((a) => a.scheduled_renewal_date && a.status !== "DONE"),
     [customAlerts],
   );
-  const alertTabBadge = alerts.filter((a) => !isResignedStatus(a.active_status)).length + activeCustomAlerts.length;
+  // Same count as the menu badge: what someone still has to start on.
+  const alertTabBadge = serverBadge;
+  const inProgressCount = alerts.filter((a) => !isResignedStatus(a.active_status) && a.renewal_status === "IN_PROGRESS").length;
   const scheduledTabBadge = scheduledCustomAlerts.length;
 
   const handleCreateCustomAlert = async () => {
@@ -727,8 +748,7 @@ export default function RenewalsAdminPage() {
   };
 
   const handleDismissBadge = () => {
-    // Use total count (staff + custom) matching server badge_count
-    dismissRenewalsBadge(alerts.length + activeCustomAlerts.length);
+    dismissRenewalsBadge(serverBadge);
     setToast({ kind: "success", text: "NavBar badge dismissed. It will reappear if new alerts arrive." });
   };
 
@@ -817,9 +837,14 @@ export default function RenewalsAdminPage() {
         setAlerts((prev) => prev.filter((item) => item.document_id !== documentId));
       } else {
         setAlerts((prev) =>
-          prev.map((item) => (item.document_id === documentId ? { ...item, renewal_status: renewalStatus } : item)),
+          prev.map((item) => (item.document_id === documentId
+            ? { ...item, renewal_status: renewalStatus,
+                in_badge: !isResignedStatus(item.active_status) && renewalStatus === "PENDING" }
+            : item)),
         );
       }
+      // Whether it counts in the badge depends on the status just set.
+      await refreshBadge();
       await loadStaff();
       if (renewalStatus === "RENEWED") {
         setToast({ kind: "success", text: "Document marked as renewed." });
@@ -919,9 +944,16 @@ export default function RenewalsAdminPage() {
         {tab === "alerts" ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-neutral-400">
-                Document renewals and active custom alerts.
-              </p>
+              <div className="space-y-1">
+                <p className="text-sm text-neutral-400">
+                  Document renewals and active custom alerts.
+                </p>
+                <p className="text-xs text-neutral-500">
+                  The menu badge counts {serverBadge} that nobody has started yet.
+                  {inProgressCount > 0 ? ` ${inProgressCount} in progress ${inProgressCount === 1 ? "is" : "are"} listed but not counted.` : ""}
+                  {" "}Set a document to IN_PROGRESS once its renewal is under way; N/A and resigned staff are never counted.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={handleDismissBadge}
@@ -1118,6 +1150,16 @@ export default function RenewalsAdminPage() {
                             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${docTypeBadgeClass(alert.doc_type)}`}>
                               {DOC_LABELS[alert.doc_type]}
                             </span>
+                            {!resignedStaff && alert.renewal_status === "IN_PROGRESS" ? (
+                              <span className="rounded-full bg-blue-900/50 px-2.5 py-1 text-xs font-semibold text-blue-200">
+                                In progress · not in badge
+                              </span>
+                            ) : null}
+                            {!resignedStaff && alert.renewal_status === "N/A" ? (
+                              <span className="rounded-full bg-neutral-700 px-2.5 py-1 text-xs font-semibold text-neutral-300">
+                                N/A · not in badge
+                              </span>
+                            ) : null}
                           </div>
                           <div className="mt-3 text-sm text-neutral-200">
                             {alert.full_name} · {alert.position || "No position"} · {alert.branch || "No branch"}

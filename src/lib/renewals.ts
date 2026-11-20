@@ -83,6 +83,9 @@ export type RenewalAlertItem = {
   last_renewed_at: string | null;
   alert_level: "EXPIRED" | "CRITICAL" | "WARNING";
   days_until_expiry: number;
+  /** Counted in the menu badge: active staff and status PENDING. IN_PROGRESS,
+   *  N/A and resigned staff stay listed but are not counted (owner, 2026-11-20). */
+  in_badge?: boolean;
 };
 
 export const RENEWALS_BADGE_STORAGE_KEY = "sushizen_renewals_badge_count";
@@ -109,6 +112,16 @@ export function getRenewalsDismissedCount(): number {
   const raw = window.localStorage.getItem(RENEWALS_DISMISSED_STORAGE_KEY);
   const n = Number(raw ?? 0);
   return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Show the server's badge_count less what this browser dismissed, and return it.
+ *  A dismissed count above the server's (alerts were resolved since) is reset. */
+export function applyServerRenewalsBadge(serverCount: number): number {
+  const server = Math.max(0, Number(serverCount) || 0);
+  const dismissed = getRenewalsDismissedCount();
+  const next = Math.max(0, server - (dismissed > server ? 0 : dismissed));
+  setRenewalsBadgeCount(next);
+  return next;
 }
 
 export function dismissRenewalsBadge(serverCount: number) {

@@ -754,3 +754,31 @@ describe("RenewalsAdminPage — helper functions (pure)", () => {
     vi.unstubAllGlobals();
   });
 });
+
+// Cyrine Fernandez / owner, 2026-11-20
+describe("RenewalsAdminPage — badge and Dubai names", () => {
+  it("Add Staff suggests Dubai staff even when a Manila admin is signed in", async () => {
+    const { getAuth } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue({ ...RENEWALS_AUTH, city: "manila" } as any);
+    const mockFetch = makeRenewalsFetch({ alerts: [ALERT_EXPIRED] });
+    vi.stubGlobal("fetch", mockFetch);
+    render(<RenewalsAdminPage />);
+    await screen.findByText("Tanaka Jay");
+    await waitFor(() => {
+      const urls = (mockFetch.mock.calls as any[]).map(([u]) => String(u));
+      expect(urls.some((u) => u.includes("/api/admin/staff_master/names?city=dubai"))).toBe(true);
+      expect(urls.some((u) => u.includes("staff_master/names?city=manila"))).toBe(false);
+    });
+    vi.mocked(getAuth).mockReturnValue(RENEWALS_AUTH as any);
+  });
+
+  it("an IN_PROGRESS document says it is not in the badge", async () => {
+    vi.stubGlobal("fetch", makeRenewalsFetch({
+      alerts: [{ ...ALERT_EXPIRED, renewal_status: "IN_PROGRESS", in_badge: false }],
+    }));
+    render(<RenewalsAdminPage />);
+    await screen.findByText("Tanaka Jay");
+    expect(screen.getByText(/In progress · not in badge/)).toBeInTheDocument();
+    expect(screen.getByText(/1 in progress is listed but not counted/)).toBeInTheDocument();
+  });
+});
