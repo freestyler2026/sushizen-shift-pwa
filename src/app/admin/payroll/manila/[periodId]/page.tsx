@@ -219,6 +219,20 @@ const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: 
          + "— decide whether to collect it next cut-off or have the member pay "
          + "the agency directly.",
   },
+  PHILHEALTH_SOLO_PARENT: {
+    label: "solo parent",
+    cls: "text-emerald-300 bg-emerald-900/25 border-emerald-500/40",
+    title: "Solo parent: the government pays the PhilHealth employee share "
+         + "(RA 11861), so none is deducted; the employer still pays its share. "
+         + "The payslip names the Solo Parent ID's expiry.",
+  },
+  PHILHEALTH_SOLO_PARENT_EXPIRED: {
+    label: "solo parent ID expired",
+    cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
+    title: "The Solo Parent ID on the staff profile has expired, so the PhilHealth "
+         + "employee share is deducted again. Ask for the renewed ID and put its "
+         + "expiry on the staff profile.",
+  },
   LOAN_UNCOLLECTED: {
     label: "loan short",
     cls: "text-amber-300 bg-amber-900/25 border-amber-500/40",

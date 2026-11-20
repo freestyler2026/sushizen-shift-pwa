@@ -65,6 +65,10 @@ type StaffProfile = {
   laundry_allowance: string | null;
   medical_allowance: string | null;
   pagibig_voluntary: string | null;
+  /** Solo parent (RA 11861): first payroll month the government pays the
+   *  PhilHealth employee share, and the Solo Parent ID's expiry. */
+  solo_parent_from?: string | null;
+  solo_parent_until?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -107,6 +111,8 @@ type FormState = {
   laundry_allowance: string;
   medical_allowance: string;
   pagibig_voluntary: string;
+  solo_parent_from: string;   // YYYY-MM
+  solo_parent_until: string;  // YYYY-MM-DD
 };
 
 function emptyForm(): FormState {
@@ -125,6 +131,7 @@ function emptyForm(): FormState {
     cola: "", is_minimum_wage_earner: false,
     rice_allowance: "", clothing_allowance: "", laundry_allowance: "", medical_allowance: "",
     pagibig_voluntary: "",
+    solo_parent_from: "", solo_parent_until: "",
   };
 }
 
@@ -163,6 +170,8 @@ function profileToForm(p: StaffProfile): FormState {
     laundry_allowance:  p.laundry_allowance ?? "",
     medical_allowance:  p.medical_allowance ?? "",
     pagibig_voluntary:  p.pagibig_voluntary ?? "",
+    solo_parent_from:   (p.solo_parent_from ?? "").slice(0, 7),
+    solo_parent_until:  (p.solo_parent_until ?? "").slice(0, 10),
   };
 }
 
@@ -232,7 +241,13 @@ function ProfileModal({
         laundry_allowance:  form.laundry_allowance  ? parseFloat(form.laundry_allowance)  : 0,
         medical_allowance:  form.medical_allowance  ? parseFloat(form.medical_allowance)  : 0,
         pagibig_voluntary:  form.pagibig_voluntary  ? parseFloat(form.pagibig_voluntary)  : 0,
+        solo_parent_from:   form.solo_parent_from ? `${form.solo_parent_from}-01` : null,
+        solo_parent_until:  form.solo_parent_from ? (form.solo_parent_until || null) : null,
       };
+      if (form.solo_parent_from && !form.solo_parent_until) {
+        setErr("Solo parent: enter the Solo Parent ID's expiry date. It is renewed every year; when it passes, the PhilHealth share is deducted again.");
+        return;
+      }
       const r = await apiFetch(`${API}/staff-profiles/${encodeURIComponent(form.staff_name.trim())}`, {
         method: "PUT",
         body: JSON.stringify(body),
@@ -464,6 +479,33 @@ function ProfileModal({
                 readOnly={!canEditSalary}
                 placeholder={canSeeSalary ? "0.00" : SALARY_HIDDEN} />
               <p className="mt-1 text-xs text-slate-500">Extra HDMF contribution above mandatory ₱200 — ER does not match; not deducted from BIR WHT base</p>
+            </div>
+
+            {/* Solo parent — PhilHealth employee share paid by the government */}
+            <div className="col-span-2 rounded-lg border border-white/10 bg-white/[0.02] p-3">
+              <p className="text-sm font-medium text-slate-200">Solo parent — PhilHealth employee share</p>
+              <p className="mt-1 text-xs text-slate-500">
+                With a valid Solo Parent ID, the government pays the employee&apos;s half of the PhilHealth premium
+                (RA 11861; PhilHealth Circular 2026-0015). Nothing is deducted from pay; the employer still pays its half.
+                If this month&apos;s first cut-off already took it, the second cut-off gives it back.
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={L}>From payroll month</label>
+                  <input className={I} type="month" aria-label="Solo parent from payroll month"
+                    value={form.solo_parent_from}
+                    onChange={e => set("solo_parent_from", e.target.value)} />
+                  <p className="mt-1 text-xs text-slate-500">Blank = not a solo parent (the share is deducted as usual)</p>
+                </div>
+                <div>
+                  <label className={L}>Solo Parent ID valid until</label>
+                  <input className={I} type="date" aria-label="Solo Parent ID valid until"
+                    value={form.solo_parent_until}
+                    disabled={!form.solo_parent_from}
+                    onChange={e => set("solo_parent_until", e.target.value)} />
+                  <p className="mt-1 text-xs text-slate-500">After this date the share is deducted again — update it when the ID is renewed</p>
+                </div>
+              </div>
             </div>
 
             {/* Department + Position */}
