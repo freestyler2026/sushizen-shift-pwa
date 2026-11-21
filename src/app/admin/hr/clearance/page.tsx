@@ -36,6 +36,7 @@ import {
 import { earningFields, showsThirteenthMonth } from "@/lib/clearance-fields";
 import { SALARY_HIDDEN, isSalaryHidden } from "@/lib/salary";
 import { prepareDataUrl } from "@/lib/image-compress";
+import { ApproversPanel, ClearanceItemsSection, LeaversWithoutCasePanel } from "./ClearanceItems";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,10 @@ type ClearanceCase = {
   fp_deduction_loans: number | null;
   fp_deduction_other: number | null;
   fp_deduction_other_label: string;
+  /** Unreturned uniforms / keys / devices, from the clearance items (2026-11-22). */
+  fp_deduction_property?: number | null;
+  staff_name?: string;
+  opened_automatically?: boolean;
   fp_total: number | null;
   fp_currency: string;
   fp_notes: string;
@@ -325,6 +330,16 @@ function CreateModal({
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  // Chosen from the staff list, not typed: a typed "john rey" matched nobody,
+  // so nothing could tell who had no case (2026-11-22). The server refuses a
+  // name that is not on the list.
+  const [names, setNames] = useState<string[]>([]);
+  useEffect(() => {
+    fetch(`${API_BASE}/api/admin/staff_master/names?city=${encodeURIComponent(form.city)}&status=&limit=5000`, { headers: getAuthHeaders() })
+      .then(r => r.ok ? r.json() : { names: [] })
+      .then(d => setNames(((d?.names as string[]) || []).sort((a, b) => a.localeCompare(b))))
+      .catch(() => setNames([]));
+  }, [form.city]);
 
   function set(k: keyof NewCaseForm, v: string) {
     setForm((p) => ({ ...p, [k]: v }));
@@ -383,7 +398,10 @@ function CreateModal({
           </div>
           <div>
             <label className={T_LABEL}>Employee Name *</label>
-            <input className={INPUT_CLASS} value={form.employee_name} onChange={e => set("employee_name", e.target.value)} placeholder="Full name" />
+            <input className={INPUT_CLASS} list="clearance-staff-names" aria-label="Employee name" value={form.employee_name} onChange={e => set("employee_name", e.target.value)} placeholder="Type and choose from the staff list" />
+            <datalist id="clearance-staff-names">
+              {names.map(n => <option key={n} value={n} />)}
+            </datalist>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1047,7 +1065,8 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
 
   // Every component null ⇒ the figure is masked, not zero.
   const earningParts = [fp.fp_basic_pay, fp.fp_prorated_13th, fp.fp_leave_conversion, fp.fp_separation_pay, fp.fp_allowance, fp.fp_other_earnings];
-  const deductionParts = [fp.fp_deduction_statutory, fp.fp_deduction_loans, fp.fp_deduction_other];
+  // The property deduction is not typed here: it follows the clearance items.
+  const deductionParts = [fp.fp_deduction_statutory, fp.fp_deduction_loans, fp.fp_deduction_other, c.fp_deduction_property];
   const totalEarnings = earningParts.every(isSalaryHidden) ? null : earningParts.reduce<number>((s, v) => s + (v || 0), 0);
   const totalDeductions = deductionParts.every(isSalaryHidden) ? null : deductionParts.reduce<number>((s, v) => s + (v || 0), 0);
   const netPay = totalEarnings === null && totalDeductions === null ? null : (totalEarnings || 0) - (totalDeductions || 0);
@@ -1167,9 +1186,18 @@ function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updat
               </div>
               <div>
                 <label className={T_LABEL}>Other Label</label>
-                <input className={INPUT_CLASS} placeholder="e.g. Uniform"
+                <input className={INPUT_CLASS} placeholder="e.g. Cash shortage"
                   value={fp.fp_deduction_other_label} onChange={e => setFp(p => ({ ...p, fp_deduction_other_label: e.target.value }))} disabled={readOnly} />
               </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between gap-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <div>
+                <p className={T_LABEL}>Company property not returned</p>
+                <p className={T_CAPTION}>From the clearance items, at the signed authorization&apos;s rates. Not typed here — do not repeat it under Other.</p>
+              </div>
+              <p className="tabular-nums text-rose-300 font-semibold" data-testid="property-deduction">
+                {fmt(c.fp_deduction_property, c.fp_currency)}
+              </p>
             </div>
           </div>
 
@@ -1375,6 +1403,12 @@ function CaseCard({ c, onUpdated, onCancel }: {
   onCancel: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // A signed item changes the property deduction and the net pay on the case.
+  const refreshCase = useCallback(async () => {
+    const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${c.id}`, { headers: getAuthHeaders() });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.case) onUpdated(d.case);
+  }, [c.id, onUpdated]);
 
   const stageBadge = STAGES[c.current_stage]?.label ?? `Stage ${c.current_stage}`;
   const statusColor =
@@ -1441,6 +1475,8 @@ function CaseCard({ c, onUpdated, onCancel }: {
           <LoanedAssetsSection employeeName={c.employee_name} city={c.city} />
 
           <LaptopDeviceSection c={c} onUpdated={onUpdated} />
+
+          <ClearanceItemsSection c={c} onCaseChanged={refreshCase} />
 
           <FinalPaySection c={c} onUpdated={onUpdated} />
 
@@ -1580,6 +1616,11 @@ export default function HrClearancePage() {
         </div>
 
         {err && <div className="text-red-400 text-sm p-3 bg-red-500/10 rounded-lg">{err}</div>}
+
+        {(cityFilter ? [cityFilter] : ["manila", "dubai"]).map(city => (
+          <LeaversWithoutCasePanel key={city} city={city} onOpened={load} />
+        ))}
+        <ApproversPanel />
 
         {loading ? (
           <div className={`${GLASS_CARD} text-center text-white/40 py-12`}>Loading...</div>

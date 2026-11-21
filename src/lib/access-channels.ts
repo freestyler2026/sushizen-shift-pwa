@@ -122,6 +122,7 @@ export const CHANNEL_ROUTES: ReadonlyArray<readonly [string, ChannelRoute]> = [
   ["/store/ck-inventory", { channel: "store_ck_inventory", match: "prefix", admin: false }],
   ["/store/ck-production", { channel: "store_ck_production", match: "prefix", admin: false }],
   ["/store/ck-production-plan", { channel: "store_ck_production_plan", match: "prefix", admin: false }],
+  ["/store/clearance-returns", { channel: "store_clearance_returns", match: "prefix", admin: false }],
   ["/store/cold-chain", { channel: "store_cold_chain", match: "prefix", admin: false }],
   ["/store/daily-check", { channel: "store_daily_check", match: "prefix", admin: false }],
   ["/store/emergency-request", { channel: "store_emergency_request", match: "prefix", admin: false }],

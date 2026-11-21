@@ -35,6 +35,7 @@ import {
   DIVIDER,
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
+import ConsentRow from "./ConsentRow";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -54,7 +55,14 @@ type OnboardingItem = {
   submitted_at: string;
   verified_by: string;
   legally_required?: boolean;
+  /** Uniforms issued (UNIFORM). Clearance counts the return against it. */
+  quantity?: number | null;
 };
+
+async function errorText(res: Response): Promise<string> {
+  const data = await res.json().catch(() => ({}));
+  return (data && (data as { detail?: string }).detail) || `HTTP ${res.status}`;
+}
 
 type OnboardingRecord = {
   id: string;
@@ -163,8 +171,10 @@ function ItemRow({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
+  const isUniform = item.item_key === "UNIFORM";
 
   const isDirty =
+    (draft.quantity ?? null) !== (item.quantity ?? null) ||
     draft.status !== item.status ||
     draft.id_number !== item.id_number ||
     draft.date_issued !== item.date_issued ||
@@ -179,9 +189,9 @@ function ItemRow({
       const res = await fetch(`${API_BASE}/api/admin/hr/onboarding/items/${item.id}`, {
         method: "PATCH",
         headers: getAuthHeaders(getAuth()),
-        body: JSON.stringify({ status: "verified" }),
+        body: JSON.stringify({ status: "verified", ...(isUniform ? { quantity: draft.quantity ?? "" } : {}) }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await errorText(res));
       const data = await res.json();
       const who = data?.verified_by || draft.verified_by;
       setDraft((prev) => ({ ...prev, status: "verified", verified_by: who }));
@@ -208,9 +218,10 @@ function ItemRow({
           date_issued: draft.date_issued,
           notes: draft.notes,
           verified_by: draft.verified_by,
+          ...(isUniform ? { quantity: draft.quantity ?? "" } : {}),
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(await errorText(res));
       const data = await res.json();
       const updated: OnboardingItem = data?.item ?? { ...draft };
       onUpdated(updated);
@@ -256,6 +267,23 @@ function ItemRow({
           </div>
 
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {isUniform && (
+              <div>
+                <label className={`${T_LABEL} block mb-1`}>Uniforms issued *</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="Uniforms issued"
+                  value={draft.quantity ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^0-9]/g, "");
+                    setDraft((prev) => ({ ...prev, quantity: v === "" ? null : Number(v) }));
+                  }}
+                  placeholder="How many pieces"
+                  className="w-full rounded-lg border border-white/10 bg-white/6 px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50"
+                />
+              </div>
+            )}
             <div>
               <label className={`${T_LABEL} block mb-1`}>ID / Reference No.</label>
               <input
@@ -493,13 +521,17 @@ function DetailPanel({
                   {cat.icon} {cat.label}
                 </h3>
                 <div className="space-y-2">
-                  {cat.items.map((it) => (
-                    <ItemRow
-                      key={it.id}
-                      item={it}
-                      onUpdated={handleItemUpdated}
-                    />
-                  ))}
+                  {cat.items.map((it) =>
+                    it.item_key === "PROPERTY_CONSENT" ? (
+                      <ConsentRow key={it.id} item={it} onUpdated={handleItemUpdated} />
+                    ) : (
+                      <ItemRow
+                        key={it.id}
+                        item={it}
+                        onUpdated={handleItemUpdated}
+                      />
+                    ),
+                  )}
                 </div>
               </div>
             ))
