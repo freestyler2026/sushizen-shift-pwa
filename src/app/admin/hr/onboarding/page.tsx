@@ -523,7 +523,7 @@ function DetailPanel({
                 <div className="space-y-2">
                   {cat.items.map((it) =>
                     it.item_key === "PROPERTY_CONSENT" ? (
-                      <ConsentRow key={it.id} item={it} onUpdated={handleItemUpdated} />
+                      <ConsentRow key={it.id} onboardingId={record.id} item={it} onUpdated={(u) => handleItemUpdated({ ...it, ...u, status: u.status as ItemStatus })} />
                     ) : (
                       <ItemRow
                         key={it.id}

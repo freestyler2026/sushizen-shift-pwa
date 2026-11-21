@@ -140,7 +140,7 @@ describe("Clearance items on the HR Clearance page", () => {
 });
 
 describe("Property deduction authorization at onboarding", () => {
-  const item = { id: "p1", onboarding_id: "ob1", item_label: "Property Deduction Authorization (signed by employee)",
+  const item = { id: "p1", item_label: "Property Deduction Authorization (signed by employee)",
     status: "pending", notes: "", verified_by: "" };
 
   it("has no tick or N/A; the employee reads, types their name and signs", async () => {
@@ -148,7 +148,7 @@ describe("Property deduction authorization at onboarding", () => {
     routes.push([/property-consent$/, "POST", () => [200, { ok: true, signed: { witnessed_by: "Peter Villafuerte" } }]]);
     const updated = vi.fn();
     const { default: ConsentRow } = await import("@/app/admin/hr/onboarding/ConsentRow");
-    render(<ConsentRow item={item} onUpdated={updated} />);
+    render(<ConsentRow onboardingId="ob1" item={item} onUpdated={updated} />);
     expect(screen.queryByText(/Mark verified/)).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
     fireEvent.click(screen.getByText("Employee signs"));
@@ -158,6 +158,8 @@ describe("Property deduction authorization at onboarding", () => {
     fireEvent.click(screen.getByText("Save signed authorization"));
     await waitFor(() => expect(updated).toHaveBeenCalledWith(expect.objectContaining({ status: "verified", verified_by: "Peter Villafuerte" })));
     const post = calls.find((c) => c.method === "POST")!;
+    expect(post.url).toMatch(/\/api\/admin\/hr\/onboarding\/ob1\/property-consent$/);
+    expect(calls[0].url).toMatch(/onboarding\/ob1\/property-consent$/);
     expect(post.body).toEqual({ typed_name: "New Hire", signature: "data:image/png;base64,SIGNED" });
   });
 });

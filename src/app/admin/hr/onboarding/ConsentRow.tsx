@@ -8,7 +8,6 @@ import SignaturePad from "@/components/SignaturePad";
 
 export type ConsentItem = {
   id: string;
-  onboarding_id: string;
   item_label: string;
   status: string;
   notes: string;
@@ -26,7 +25,7 @@ async function errorText(res: Response): Promise<string> {
  * N/A, and onboarding does not complete without it (owner, 2026-11-22). It is
  * what lets clearance deduct an unreturned uniform, key or device.
  */
-export default function ConsentRow({ item, onUpdated }: { item: ConsentItem; onUpdated: (u: ConsentItem) => void }) {
+export default function ConsentRow({ onboardingId, item, onUpdated }: { onboardingId: string; item: ConsentItem; onUpdated: (u: ConsentItem) => void }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [name, setName] = useState("");
@@ -38,7 +37,7 @@ export default function ConsentRow({ item, onUpdated }: { item: ConsentItem; onU
   async function start() {
     setOpen(true);
     setErr("");
-    const res = await fetch(`${API_BASE}/api/admin/hr/onboarding/${item.onboarding_id}/property-consent`, {
+    const res = await fetch(`${API_BASE}/api/admin/hr/onboarding/${onboardingId}/property-consent`, {
       headers: getAuthHeaders(getAuth()),
     });
     if (!res.ok) { setErr(await errorText(res)); return; }
@@ -51,7 +50,7 @@ export default function ConsentRow({ item, onUpdated }: { item: ConsentItem; onU
     setBusy(true);
     setErr("");
     try {
-      const res = await fetch(`${API_BASE}/api/admin/hr/onboarding/${item.onboarding_id}/property-consent`, {
+      const res = await fetch(`${API_BASE}/api/admin/hr/onboarding/${onboardingId}/property-consent`, {
         method: "POST",
         headers: { ...getAuthHeaders(getAuth()), "Content-Type": "application/json" },
         body: JSON.stringify({ typed_name: name, signature }),

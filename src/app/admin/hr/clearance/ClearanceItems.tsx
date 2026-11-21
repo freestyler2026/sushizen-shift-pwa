@@ -303,7 +303,9 @@ export function ClearanceItemsSection({ c, onCaseChanged }: { c: CaseLike; onCas
       <p className={T_CAPTION}>
         {data.complete
           ? "Every item is signed."
-          : `${data.missing.length} to sign before HR can approve: ${data.missing.join("; ")}.`}
+          : c.current_stage > 0
+            ? `${data.missing.length} not signed: this case was approved before the checklist existed.`
+            : `${data.missing.length} to sign before HR can approve: ${data.missing.join("; ")}.`}
         {" "}
         {data.consent
           ? `Deduction authorization signed ${data.consent.signed_at ? new Date(data.consent.signed_at).toLocaleDateString() : ""}.`
