@@ -254,6 +254,15 @@ function isResignedStatus(status?: string | null) {
   return String(status || "").trim().toLowerCase() === "resigned";
 }
 
+/** Counted in the menu badge: active staff, status PENDING (the server's
+ *  in_badge; the same rule if it is missing). The Expired / Critical / Warning
+ *  chips count, and filter to, these same documents, so they add up to the
+ *  badge -- they read 11/7/6 = 24 beside a badge of 12 because they took N/A
+ *  in (owner, 2026-11-21; Cyrine Fernandez). */
+function countsInBadge(item: RenewalAlertItem) {
+  return item.in_badge ?? (!isResignedStatus(item.active_status) && item.renewal_status === "PENDING");
+}
+
 function FormInput({
   label,
   children,
@@ -634,9 +643,9 @@ export default function RenewalsAdminPage() {
 
   const summary = useMemo(
     () => ({
-      expired: alerts.filter((item) => item.alert_level === "EXPIRED" && !isResignedStatus(item.active_status)).length,
-      critical: alerts.filter((item) => item.alert_level === "CRITICAL" && !isResignedStatus(item.active_status)).length,
-      warning: alerts.filter((item) => item.alert_level === "WARNING" && !isResignedStatus(item.active_status)).length,
+      expired: alerts.filter((item) => item.alert_level === "EXPIRED" && countsInBadge(item)).length,
+      critical: alerts.filter((item) => item.alert_level === "CRITICAL" && countsInBadge(item)).length,
+      warning: alerts.filter((item) => item.alert_level === "WARNING" && countsInBadge(item)).length,
     }),
     [alerts],
   );
@@ -662,10 +671,10 @@ export default function RenewalsAdminPage() {
       const target = alertStaffFilter === "active" ? "Active" : "Resigned";
       groups = groups.filter((group) => (group.active_status === "Resigned" ? "Resigned" : "Active") === target);
     }
-    // Filter by alert level (when a chip is selected)
+    // Filter by alert level (when a chip is selected): the documents the chip counts.
     if (alertLevelFilter) {
       groups = groups
-        .map((group) => ({ ...group, items: group.items.filter((item) => item.alert_level === alertLevelFilter) }))
+        .map((group) => ({ ...group, items: group.items.filter((item) => item.alert_level === alertLevelFilter && countsInBadge(item)) }))
         .filter((group) => group.items.length > 0);
     }
     return groups;
@@ -839,7 +848,7 @@ export default function RenewalsAdminPage() {
         setAlerts((prev) =>
           prev.map((item) => (item.document_id === documentId
             ? { ...item, renewal_status: renewalStatus,
-                in_badge: !isResignedStatus(item.active_status) && renewalStatus === "PENDING" }
+                in_badge: countsInBadge({ ...item, renewal_status: renewalStatus, in_badge: undefined }) }
             : item)),
         );
       }
@@ -951,6 +960,7 @@ export default function RenewalsAdminPage() {
                 <p className="text-xs text-neutral-500">
                   The menu badge counts {serverBadge} that nobody has started yet.
                   {inProgressCount > 0 ? ` ${inProgressCount} in progress ${inProgressCount === 1 ? "is" : "are"} listed but not counted.` : ""}
+                  {" "}The Expired / Critical / Warning chips count the same documents.
                   {" "}Set a document to IN_PROGRESS once its renewal is under way; N/A and resigned staff are never counted.
                 </p>
               </div>

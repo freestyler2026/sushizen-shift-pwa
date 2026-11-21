@@ -312,7 +312,8 @@ describe("RenewalsAdminPage — alerts tab", () => {
     render(<RenewalsAdminPage />);
     await screen.findByText("Tanaka Jay");
     expect(screen.getByText(/Expired: 1/i)).toBeInTheDocument();
-    expect(screen.getByText(/Warning ≤42d: 1/i)).toBeInTheDocument();
+    // ALERT_WARNING is IN_PROGRESS: listed, but not counted (same rule as the menu badge).
+    expect(screen.getByText(/Warning ≤42d: 0/i)).toBeInTheDocument();
   });
 
   it("shows expiry copy on alert card", async () => {
@@ -780,5 +781,28 @@ describe("RenewalsAdminPage — badge and Dubai names", () => {
     await screen.findByText("Tanaka Jay");
     expect(screen.getByText(/In progress · not in badge/)).toBeInTheDocument();
     expect(screen.getByText(/1 in progress is listed but not counted/)).toBeInTheDocument();
+  });
+
+  it("the Expired / Critical / Warning chips count and filter to the badge's documents only", async () => {
+    // Production 2026-11-21: chips read 11/7/6 = 24 beside a badge of 12 (N/A taken in).
+    vi.stubGlobal("fetch", makeRenewalsFetch({
+      alerts: [
+        ALERT_EXPIRED,                                                            // counted
+        { ...ALERT_EXPIRED, document_id: 201, doc_type: "EID", renewal_status: "N/A" },
+        { ...ALERT_EXPIRED, document_id: 202, doc_type: "OHC", renewal_status: "IN_PROGRESS" },
+        ALERT_RESIGNED,                                                           // resigned, CRITICAL
+        { ...ALERT_WARNING, document_id: 203, full_name: "Santos Maria", renewal_status: "PENDING" }, // counted
+      ],
+    }));
+    render(<RenewalsAdminPage />);
+    await screen.findByText("Tanaka Jay");
+    expect(screen.getByText(/Expired: 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Critical ≤14d: 0/)).toBeInTheDocument();
+    expect(screen.getByText(/Warning ≤42d: 1/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Expired: 1/));
+    await waitFor(() => expect(screen.queryByText("N/A · not in badge")).not.toBeInTheDocument());
+    expect(screen.queryByText("In progress · not in badge")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cruz Pedro")).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Residency Visa/).length).toBeGreaterThan(0);
   });
 });
