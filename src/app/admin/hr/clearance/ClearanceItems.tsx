@@ -341,7 +341,9 @@ export function ClearanceItemsSection({ c, onCaseChanged }: { c: CaseLike; onCas
   );
 }
 
-type Leaver = { staff_name: string; home_branch: string; last_shift: string };
+/** last_worked: the last clock-in. last_shift: the last day on the roster up to
+ *  today, which can run on past someone's real last day. */
+type Leaver = { staff_name: string; home_branch: string; last_shift: string; last_worked?: string | null };
 
 export function LeaversWithoutCasePanel({ city, onOpened }: { city: string; onOpened: () => void }) {
   const [leavers, setLeavers] = useState<Leaver[]>([]);
@@ -362,7 +364,8 @@ export function LeaversWithoutCasePanel({ city, onOpened }: { city: string; onOp
     setErr("");
     try {
       await postJson(`/api/admin/hr/clearance`, {
-        city, employee_name: l.staff_name, separation_type: "resignation", last_working_day: l.last_shift,
+        // Only the clock-in is taken as the last working day; a roster date is not.
+        city, employee_name: l.staff_name, separation_type: "resignation", last_working_day: l.last_worked || "",
       });
       await load();
       onOpened();
@@ -387,7 +390,10 @@ export function LeaversWithoutCasePanel({ city, onOpened }: { city: string; onOp
         {leavers.map((l) => (
           <li key={l.staff_name} className="flex items-center justify-between gap-3 py-1.5">
             <span className="text-white">{l.staff_name}
-              <span className="ml-2 text-xs text-zinc-500">last shift {l.last_shift}{l.home_branch ? ` · ${l.home_branch}` : ""}</span>
+              <span className="ml-2 text-xs text-zinc-500">
+                {l.last_worked ? `last clocked in ${l.last_worked}` : `on the roster until ${l.last_shift}, no clock-in`}
+                {l.home_branch ? ` · ${l.home_branch}` : ""}
+              </span>
             </span>
             <button className="text-xs text-violet-300 hover:text-violet-200" disabled={!!busy} onClick={() => open(l)}>
               {busy === l.staff_name ? "Opening…" : "Open case"}
