@@ -139,6 +139,31 @@ describe("Clearance items on the HR Clearance page", () => {
   });
 });
 
+describe("Who signs the checklist (HR Manager, 2026-11-24)", () => {
+  it("the HR assistant, a checklist signer, gets Sign on a case in Draft", async () => {
+    const r = itemsResponse(["payroll", "checklist"]);
+    routes.push([/\/items$/, "GET", () => [200, { ...r, signers: ["Peter Villafuerte", "Camilla Gadingan"],
+      approval: { ...r.approval, can_sign_items: true } }]]);
+    const { ClearanceItemsSection } = await import("@/app/admin/hr/clearance/ClearanceItems");
+    render(<ClearanceItemsSection c={CASE} onCaseChanged={() => {}} />);
+    await screen.findByText(/1 to sign/);
+    expect(screen.getAllByText("Sign").length).toBeGreaterThan(0);
+    expect(screen.getByText(/HR \(Peter Villafuerte, Camilla Gadingan\), at the office/)).toBeTruthy();
+  });
+
+  it("a case approved before the checklist says so and points to the next approval", async () => {
+    const r = itemsResponse(["payroll", "checklist"]);
+    routes.push([/\/items$/, "GET", () => [200, { ...r, checklist_not_required: true,
+      approval: { flow: ["hr", "payroll", "hq"], next_step: "payroll", next_label: "Payroll", next_names: ["Camilla Gadingan"],
+        my_steps: ["payroll", "checklist"], can_sign_items: true } }]]);
+    const { ClearanceItemsSection } = await import("@/app/admin/hr/clearance/ClearanceItems");
+    render(<ClearanceItemsSection c={{ ...CASE, current_stage: 1 }} onCaseChanged={() => {}} />);
+    const note = await screen.findByTestId("checklist-not-required");
+    expect(note.textContent).toMatch(/Next: Payroll approval \(Camilla Gadingan\), under Workflow below/);
+    expect(screen.queryByText("Uniforms returned")).toBeNull();
+  });
+});
+
 describe("Property deduction authorization at onboarding", () => {
   const item = { id: "p1", item_label: "Property Deduction Authorization (signed by employee)",
     status: "pending", notes: "", verified_by: "" };

@@ -34,6 +34,8 @@ export type ClearanceApproval = {
   next_label: string | null;
   next_names: string[];
   my_steps: string[];
+  /** HR approvers and the checklist signers (e.g. the HR assistant) sign items. */
+  can_sign_items?: boolean;
 };
 
 export type ClearanceItemsResponse = {
@@ -45,6 +47,10 @@ export type ClearanceItemsResponse = {
   currency: string;
   exit_reasons: string[];
   office_location_checked: boolean;
+  /** Who signs the office items (HR approvers + checklist signers). */
+  signers?: string[];
+  /** Approved before the checklist existed: nothing to sign to go on. */
+  checklist_not_required?: boolean;
   approval?: ClearanceApproval;
 };
 

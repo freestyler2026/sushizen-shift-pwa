@@ -220,7 +220,9 @@ function ItemRow({ c, item, data, canSign, onSigned }: {
         <div className="min-w-0">
           <p className="text-sm font-medium text-white">{item.label}</p>
           <p className={T_CAPTION}>
-            {item.where === "kitchen" ? "Kitchen manager or HR, at a kitchen" : "HR only, at the office"}
+            {item.where === "kitchen"
+              ? "Kitchen manager or HR, at a kitchen"
+              : `HR${data.signers?.length ? ` (${data.signers.join(", ")})` : ""}, at the office${data.office_location_checked ? "" : " or online"}`}
           </p>
           {item.status === "done" && (
             <p className="mt-1 text-xs text-zinc-400">
@@ -282,7 +284,7 @@ export function ClearanceItemsSection({ c, onCaseChanged }: { c: CaseLike; onCas
   if (err && !data) return <p className="mt-3 text-sm text-red-400">{err}</p>;
   if (!data) return <p className={`mt-3 ${T_CAPTION}`}>Loading clearance…</p>;
 
-  const isHr = (data.approval?.my_steps || []).includes("hr");
+  const isHr = data.approval?.can_sign_items ?? (data.approval?.my_steps || []).includes("hr");
   const editable = c.status === "active" && c.current_stage === 0;
   const a = data.approval;
 
@@ -300,6 +302,15 @@ export function ClearanceItemsSection({ c, onCaseChanged }: { c: CaseLike; onCas
           </div>
         </div>
       )}
+      {data.checklist_not_required ? (
+        <p className="rounded-lg border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-100" data-testid="checklist-not-required">
+          No checklist needed for this case: HR approved it before the checklist existed.
+          {a?.next_step && a.next_step !== "release"
+            ? ` Next: ${a.next_label} approval${a.next_names.length ? ` (${a.next_names.join(", ")})` : ""}, under Workflow below.`
+            : " Continue under Workflow below."}
+        </p>
+      ) : (
+      <>
       <p className={T_CAPTION}>
         {data.complete
           ? "Every item is signed."
@@ -322,7 +333,11 @@ export function ClearanceItemsSection({ c, onCaseChanged }: { c: CaseLike; onCas
         ))}
       </ul>
       {!isHr && editable && (
-        <p className={T_CAPTION}>Only HR signs these here. Kitchen managers record uniforms, knives and keys under Leaver Returns.</p>
+        <p className={T_CAPTION}>
+          Signed here by {data.signers?.length ? data.signers.join(", ") : "HR"}. Kitchen managers record uniforms, knives and keys under Leaver Returns.
+        </p>
+      )}
+      </>
       )}
       {a && a.next_step && c.status === "active" && (
         <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-sm" data-testid="next-approval">
@@ -449,10 +464,13 @@ export function ApproversPanel() {
           <p className="text-zinc-300">
             <span className="capitalize">{city}</span>: {steps.map((s) => s === "hq" ? "HQ" : `${STEP_NAMES[s]} (${(approvers[city]?.[s] || []).join(", ") || "none"})`).join(" → ")}
           </p>
-          {canEdit && steps.filter((s) => s !== "hq").map((s) => (
+          <p className="text-xs text-zinc-400">
+            Checklist signers (besides HR): {(approvers[city]?.checklist || []).join(", ") || "none"}
+          </p>
+          {canEdit && [...steps.filter((s) => s !== "hq"), "checklist"].map((s) => (
             <div key={s} className="flex gap-2">
               <input className={INPUT_CLASS} aria-label={`${city} ${s} approvers`}
-                placeholder={`${STEP_NAMES[s]} approvers, comma-separated`}
+                placeholder={s === "checklist" ? "Checklist signers, comma-separated" : `${STEP_NAMES[s]} approvers, comma-separated`}
                 value={edit[`${city}.${s}`] ?? (approvers[city]?.[s] || []).join(", ")}
                 onChange={(e) => setEdit((p) => ({ ...p, [`${city}.${s}`]: e.target.value }))} />
               <button className={SECONDARY_BUTTON} onClick={() => save(city, s)}>Save</button>
