@@ -36,6 +36,9 @@ import {
 } from "@/lib/ui-tokens";
 import SelectDark from "@/components/SelectDark";
 import ConsentRow from "./ConsentRow";
+import FollowUpSection from "./FollowUp";
+import OnboardingSettings from "./Settings";
+import type { FuSummary } from "@/lib/onboarding-followup";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -536,6 +539,8 @@ function DetailPanel({
               </div>
             ))
           )}
+          <div className={DIVIDER} />
+          <FollowUpSection onboardingId={record.id} />
         </div>
       </div>
     </div>
@@ -773,9 +778,11 @@ function AddModal({
 
 function RecordCard({
   record,
+  followup,
   onClick,
 }: {
   record: OnboardingRecord;
+  followup?: FuSummary;
   onClick: () => void;
 }) {
   const total = record.total_items || 1;
@@ -814,6 +821,17 @@ function RecordCard({
           <span className="block font-normal text-amber-200/70">
             NBI Clearance · Health Certificate · Food Handler
           </span>
+        </p>
+      )}
+
+      {followup && (followup.overdue.length > 0 || followup.due_today.length > 0 || followup.next) && (
+        <p className={`mt-1.5 rounded-lg px-2 py-1 text-xs font-medium ${followup.overdue.length ? "bg-red-500/10 text-red-300" : "bg-violet-500/10 text-violet-200"}`}
+          data-testid="followup-badge">
+          {followup.overdue.length
+            ? `Follow-up overdue: ${followup.overdue.join(", ")}`
+            : followup.due_today.length
+              ? `Follow-up due today: ${followup.due_today.join(", ")}`
+              : `Next follow-up: ${followup.next!.label} · ${followup.next!.date}`}
         </p>
       )}
 
@@ -857,6 +875,8 @@ export default function HrOnboardingPage() {
   const [error, setError] = useState("");
 
   const [showAdd, setShowAdd] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [followups, setFollowups] = useState<Record<string, FuSummary>>({});
   const [selectedRecord, setSelectedRecord] = useState<OnboardingRecord | null>(null);
 
   // ─── Auth init ────────────────────────────────────────────────────────────
@@ -918,6 +938,11 @@ export default function HrOnboardingPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setRecords(Array.isArray(data?.onboarding) ? data.onboarding : Array.isArray(data?.records) ? data.records : Array.isArray(data) ? data : []);
+      // Follow-up due / overdue per record. Optional: the list stands without it.
+      fetch(`${API_BASE}/api/admin/hr/onboarding/followups?city=${encodeURIComponent(city)}`, { headers: getAuthHeaders(getAuth()), cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : { followups: {} }))
+        .then((d) => setFollowups(d?.followups || {}))
+        .catch(() => setFollowups({}));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1008,6 +1033,12 @@ export default function HrOnboardingPage() {
             Refresh
           </button>
           <button
+            onClick={() => setShowSettings(true)}
+            className={`${SECONDARY_BUTTON} flex items-center gap-2`}
+          >
+            Settings
+          </button>
+          <button
             onClick={() => setShowAdd(true)}
             className={`${PRIMARY_BUTTON} flex items-center gap-2`}
           >
@@ -1080,11 +1111,14 @@ export default function HrOnboardingPage() {
             <RecordCard
               key={r.id}
               record={r}
+              followup={followups[r.id]}
               onClick={() => setSelectedRecord(r)}
             />
           ))}
         </div>
       )}
+
+      {showSettings && <OnboardingSettings onClose={() => setShowSettings(false)} />}
 
       {/* Detail panel */}
       {selectedRecord && (
