@@ -94,6 +94,22 @@ describe("Follow-up on the onboarding record", () => {
 });
 
 describe("Onboarding settings (kept by HR)", () => {
+  it("lets NBI Clearance change city while it stays locked", async () => {
+    const items = [{ item_key: "NBI_CLEARANCE", label: "NBI Clearance", category: "government", city: "all", active: true,
+      locked: true, city_editable: true, sort_order: 50, updated_by: "seed" }];
+    routes.push([/settings\/items$/, "GET", () => [200, { items, categories: ["government"] }]]);
+    routes.push([/settings\/items$/, "POST", (b) => [200, { templates: [{ ...items[0], city: b.city }], added_to_in_progress: 0 }]]);
+    const { default: OnboardingSettings } = await import("@/app/admin/hr/onboarding/Settings");
+    render(<OnboardingSettings onClose={() => {}} />);
+    expect(await screen.findByText("Locked (city can change)")).toBeTruthy();
+    const city = screen.getByLabelText("NBI_CLEARANCE city") as HTMLSelectElement;
+    expect(city.disabled).toBe(false);
+    fireEvent.change(city, { target: { value: "manila" } });
+    fireEvent.click(screen.getByText("Save"));
+    await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
+    expect(calls.find((c) => c.method === "POST")!.body).toMatchObject({ item_key: "NBI_CLEARANCE", city: "manila" });
+  });
+
   it("adds a checklist item, also to new hires in progress", async () => {
     const items = [{ item_key: "UNIFORM", label: "Uniform Size & Issue", category: "contract", city: "all", active: true, locked: true, sort_order: 10, updated_by: "seed" }];
     routes.push([/settings\/items$/, "GET", () => [200, { items, categories: ["contract", "orientation"] }]]);
@@ -101,6 +117,7 @@ describe("Onboarding settings (kept by HR)", () => {
     const { default: OnboardingSettings } = await import("@/app/admin/hr/onboarding/Settings");
     render(<OnboardingSettings onClose={() => {}} />);
     expect(await screen.findByText("Locked")).toBeTruthy();
+    expect((screen.getByLabelText("UNIFORM city") as HTMLSelectElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("New item name"), { target: { value: "Locker assigned" } });
     fireEvent.change(screen.getByLabelText("New item category"), { target: { value: "orientation" } });
     fireEvent.click(screen.getByText("Add item"));

@@ -16,7 +16,9 @@ import { SMALL_BUTTON, T_CAPTION, T_LABEL, TAB_ACTIVE, TAB_CONTAINER, TAB_INACTI
 
 const FIELD = "w-full rounded-lg border border-white/10 bg-white/6 px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50";
 
-type Tpl = { item_key: string; label: string; category: string; city: string; active: boolean; locked: boolean; sort_order: number; updated_by: string };
+/** city_editable: a locked item whose city may still change (NBI Clearance is
+ *  Philippine; owner, 2026-11-24). */
+type Tpl = { item_key: string; label: string; category: string; city: string; active: boolean; locked: boolean; city_editable?: boolean; sort_order: number; updated_by: string };
 
 function ItemRow({ t, categories, onSaved }: { t: Tpl; categories: string[]; onSaved: (rows: Tpl[]) => void }) {
   const [d, setD] = useState(t);
@@ -38,13 +40,13 @@ function ItemRow({ t, categories, onSaved }: { t: Tpl; categories: string[]; onS
         <select className={FIELD} aria-label={`${t.item_key} category`} disabled={t.locked} value={d.category} onChange={(e) => setD({ ...d, category: e.target.value })}>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select className={FIELD} aria-label={`${t.item_key} city`} disabled={t.locked} value={d.city} onChange={(e) => setD({ ...d, city: e.target.value })}>
+        <select className={FIELD} aria-label={`${t.item_key} city`} disabled={!(t.city_editable ?? !t.locked)} value={d.city} onChange={(e) => setD({ ...d, city: e.target.value })}>
           <option value="all">All cities</option><option value="manila">Manila</option><option value="dubai">Dubai</option>
         </select>
         {msg && <p className="text-xs text-red-400 sm:col-span-3">{msg}</p>}
       </div>
       <div className="flex flex-col items-end gap-1">
-        {t.locked ? <span className="text-[10px] text-zinc-500">Locked</span> : (
+        {t.locked ? <span className="text-[10px] text-zinc-500">{t.city_editable ? "Locked (city can change)" : "Locked"}</span> : (
           <label className="flex items-center gap-1 text-xs text-zinc-300">
             <input type="checkbox" checked={d.active} onChange={(e) => setD({ ...d, active: e.target.checked })} /> In use
           </label>
