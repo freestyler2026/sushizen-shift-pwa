@@ -38,6 +38,7 @@ import SelectDark from "@/components/SelectDark";
 import ConsentRow from "./ConsentRow";
 import FollowUpSection from "./FollowUp";
 import OnboardingSettings from "./Settings";
+import EmployeeProfiles from "./Profiles";
 import type { FuSummary } from "@/lib/onboarding-followup";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -876,6 +877,13 @@ export default function HrOnboardingPage() {
 
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // HR Today links here with ?tab=profiles when employees' changes wait for HR.
+  const [showProfiles, setShowProfiles] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "profiles") {
+      setShowProfiles(true);
+    }
+  }, []);
   const [followups, setFollowups] = useState<Record<string, FuSummary>>({});
   const [selectedRecord, setSelectedRecord] = useState<OnboardingRecord | null>(null);
 
@@ -1033,6 +1041,12 @@ export default function HrOnboardingPage() {
             Refresh
           </button>
           <button
+            onClick={() => setShowProfiles(true)}
+            className={`${SECONDARY_BUTTON} flex items-center gap-2`}
+          >
+            Employee profiles
+          </button>
+          <button
             onClick={() => setShowSettings(true)}
             className={`${SECONDARY_BUTTON} flex items-center gap-2`}
           >
@@ -1119,6 +1133,7 @@ export default function HrOnboardingPage() {
       )}
 
       {showSettings && <OnboardingSettings onClose={() => setShowSettings(false)} />}
+      {showProfiles && <EmployeeProfiles city={city} onClose={() => setShowProfiles(false)} />}
 
       {/* Detail panel */}
       {selectedRecord && (

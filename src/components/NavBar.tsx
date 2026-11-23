@@ -202,6 +202,8 @@ const PRIMARY: NavItem[] = [
   { href: "/handbook",              label: "Employee Handbook",     icon: BookCheck,     match: "prefix" , cat: "learn" },
   { href: "/attendance",            label: "Time-in / Time-out",    icon: Fingerprint,   match: "exact" },
   { href: "/my-shift",              label: "My Shift",              icon: CalendarClock, match: "exact" },
+  // My Profile (HR Manager's request, 2026-11-24): grew out of "My Details".
+  { href: "/my-contact",             label: "My Profile",            icon: UserCheck,     match: "exact" },
   { href: "/week",                  label: "Week",                  icon: CalendarDays,  match: "exact" , cat: "sched" },
   { href: "/calendar",              label: "Calendar",              icon: Calendar,      match: "exact" , cat: "sched" },
   { href: "/store/expense-request",  label: "Expense Reimbursement", icon: Receipt,       match: "prefix" , cat: "spend" },
@@ -262,7 +264,6 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/cashier-log", label: "Cashier Log", icon: ClipboardList, match: "prefix" , cat: "daily" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" , cat: "sched" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" , cat: "sched" },
-  { href: "/my-contact",             label: "My Details",          icon: Phone,         match: "exact" , cat: "sched" },
 ];
 
 // Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
