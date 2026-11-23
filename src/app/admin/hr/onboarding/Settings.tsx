@@ -169,10 +169,12 @@ function FollowUpTab() {
               onChange={(e) => setMs(i, e.target.value === "months" ? { offset_months: 1, offset_days: undefined } : { offset_days: 0, offset_months: undefined })}>
               <option value="days">Days after start</option><option value="months">Months after start</option>
             </select>
-            <input className={FIELD} type="number" min={0} aria-label={`Check-in ${i + 1} amount`} value={m.offset_months ?? m.offset_days ?? 0}
-              onChange={(e) => setMs(i, m.offset_months ? { offset_months: Number(e.target.value) } : { offset_days: Number(e.target.value) })} />
-            <input className={FIELD} type="number" min={0} aria-label={`Check-in ${i + 1} grace days`} title="Days of grace before it counts as late" value={m.late_after_days ?? 0}
-              onChange={(e) => setMs(i, { late_after_days: Number(e.target.value) })} />
+            <label className="space-y-0.5"><span className="block text-[10px] text-zinc-500">{m.offset_months ? "Months" : "Days"} after start</span>
+              <input className={FIELD} type="number" min={0} aria-label={`Check-in ${i + 1} amount`} value={m.offset_months ?? m.offset_days ?? 0}
+                onChange={(e) => setMs(i, m.offset_months ? { offset_months: Number(e.target.value) } : { offset_days: Number(e.target.value) })} /></label>
+            <label className="space-y-0.5"><span className="block text-[10px] text-zinc-500">Grace days before late</span>
+              <input className={FIELD} type="number" min={0} aria-label={`Check-in ${i + 1} grace days`} value={m.late_after_days ?? 0}
+                onChange={(e) => setMs(i, { late_after_days: Number(e.target.value) })} /></label>
             <select className={FIELD} aria-label={`Check-in ${i + 1} method`} value={m.suggested_method || ""} onChange={(e) => setMs(i, { suggested_method: e.target.value })}>
               <option value="">Any method</option>
               {t.methods.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
@@ -212,7 +214,7 @@ function FollowUpTab() {
           <span className={T_LABEL}>PIC consultation</span>
           <div className="grid grid-cols-[1fr_6rem] gap-1">
             <input className={FIELD} aria-label="PIC label" value={t.pic.label} onChange={(e) => upd({ pic: { ...t.pic!, label: e.target.value } })} />
-            <input className={FIELD} type="number" min={0} aria-label="PIC due days" title="Days after start" value={t.pic.due_offset_days}
+            <input className={FIELD} type="number" min={0} aria-label="PIC due days" placeholder="Days after start" title="Due: days after start" value={t.pic.due_offset_days}
               onChange={(e) => upd({ pic: { ...t.pic!, due_offset_days: Number(e.target.value) } })} />
           </div>
           <input className={FIELD} aria-label="Competency areas" placeholder="Competency areas, comma-separated" value={t.pic.competency_areas.join(", ")}
