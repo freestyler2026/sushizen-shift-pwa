@@ -75,6 +75,10 @@ interface OrderItem {
   par_source?: string | null;
   inventory_date?: string | null;
   inventory_shift?: string | null;
+  /** The Daily Inventory line the stock was read from, and the catalog's link.
+   *  They differ when the link pointed at a line the store does not count. */
+  stock_code?: string | null;
+  linked_code?: string | null;
 }
 
 interface ItemEdit {
@@ -151,6 +155,9 @@ interface CatalogItem {
   notes: string | null;
   daily_inv_item_code: string | null;
   unit_price: number | null;
+  /** Whether the link finds this store's count (last 14 days), and the line
+   *  the store does count under the same name, when there is exactly one. */
+  link_check?: { ok: boolean; days?: number; suggest_code?: string | null; suggest_name?: string };
 }
 
 interface DailyInvItem {
@@ -687,7 +694,7 @@ export default function StoreSupplierOrdersPage() {
   const onTimeRate = (row: PerformanceRow) =>
     row.on_time_rate != null ? `${row.on_time_rate}%` : "—";
 
-  async function saveCatalogLink(item: CatalogItem) {
+  async function saveCatalogLink(item: CatalogItem, code: string = catalogLinkCode) {
     setCatalogSaving(true);
     try {
       const res = await fetch(`/api/admin/store-supplier/catalog/${store}`, {
@@ -704,7 +711,9 @@ export default function StoreSupplierOrdersPage() {
           supplier_name: item.supplier_name,
           is_active: item.is_active,
           notes: item.notes,
-          daily_inv_item_code: catalogLinkCode || null,
+          daily_inv_item_code: code || null,
+          // Sent so saving a link does not clear the price (it did, 2026-11-24).
+          unit_price: item.unit_price,
         }),
       });
       if (!res.ok) {
@@ -1415,6 +1424,9 @@ export default function StoreSupplierOrdersPage() {
                                                 : <span className="text-zinc-600">—</span>}
                                             {item.suggested_par != null && (
                                               <div className="text-[10px] text-zinc-500">
+                                                {item.stock_code && item.linked_code && item.stock_code !== item.linked_code && (
+                                                  <span className="block text-amber-300/80">counted as {item.stock_code}</span>
+                                                )}
                                                 par {Number(item.suggested_par)}
                                                 {item.par_source ? ` (${item.par_source})` : ""}
                                                 {item.inventory_date
@@ -2147,6 +2159,12 @@ export default function StoreSupplierOrdersPage() {
               </div>
             )}
 
+            {!catalogLoading && catalogItems.some((i) => i.is_active && i.link_check?.ok === false) && (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200" data-testid="link-summary">
+                {catalogItems.filter((i) => i.is_active && i.link_check?.ok === false).length} item(s) are linked to a Daily Inventory line {STORE_LABELS[store]} has not counted lately.
+                Orders still find a line with the same name when there is exactly one, but fix the link below so the order and this screen agree.
+              </p>
+            )}
             {catalogLoading ? (
               <div className="py-12 text-center text-zinc-500">Loading…</div>
             ) : catalogItems.length === 0 ? (
@@ -2306,9 +2324,28 @@ export default function StoreSupplierOrdersPage() {
                               </button>
                             </div>
                           ) : (
-                            <span className={item.daily_inv_item_code ? "text-emerald-400 text-xs font-mono" : "text-zinc-600 text-xs italic"}>
-                              {item.daily_inv_item_code ?? "not linked"}
-                            </span>
+                            <div>
+                              <span className={item.daily_inv_item_code ? (item.link_check?.ok === false && item.is_active ? "text-amber-300 text-xs font-mono" : "text-emerald-400 text-xs font-mono") : "text-zinc-600 text-xs italic"}>
+                                {item.daily_inv_item_code ?? "not linked"}
+                              </span>
+                              {item.is_active && item.link_check?.ok === false && (
+                                <div className="mt-1 max-w-xs text-[11px] leading-snug text-amber-300" data-testid="link-warning">
+                                  {STORE_LABELS[store]} has not counted {item.daily_inv_item_code ? "this line" : "this item"} in {item.link_check.days ?? 14} days, so orders treat its stock as not counted.
+                                  {item.link_check.suggest_code ? (
+                                    <>
+                                      {" "}The store counts it as <span className="font-mono">{item.link_check.suggest_code}</span>.{" "}
+                                      <button
+                                        className="underline decoration-dotted hover:text-white disabled:opacity-50"
+                                        disabled={catalogSaving}
+                                        onClick={() => void saveCatalogLink(item, item.link_check?.suggest_code ?? "")}
+                                      >
+                                        Link to {item.link_check.suggest_code}
+                                      </button>
+                                    </>
+                                  ) : " Link it to the line the store counts."}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3">
