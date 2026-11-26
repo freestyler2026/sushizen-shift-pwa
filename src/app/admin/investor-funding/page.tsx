@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { CONFIDENCES, CONFIDENCE_LABEL, CONFIDENCE_STYLE, confidenceTotals } from "@/lib/investor-confidence";
 
 // HQ only (owner, 2026-11-17): each investor from the guide email to the money
 // arriving. The server refuses every other role, ADMIN included; the check on
@@ -12,6 +13,10 @@ type StepStatus = "pending" | "done" | "skipped";
 type Step = { status: StepStatus; done_on: string | null; memo: string; updated_by: string; updated_at: string | null };
 type Case = {
   id: number; name: string; planned_amount: number; currency: string; method: string; method_note: string;
+  /** The lowest and highest amount talked about; null when not given (HQ, 2026-11-27). */
+  min_amount: number | null; max_amount: number | null;
+  /** A / B / C, NONE = not investing, "" = not set. */
+  confidence: string;
   project: string; email: string; phone: string; notes: string; hold: "" | "ON_HOLD" | "WITHDRAWN";
   received_amount: number | null; received_currency: string; received_account: string; received_ref: string;
   received_diff: number | null; status: string; next_action: { step: StepKey; due: string | null } | null;
@@ -78,6 +83,17 @@ function money(n: number | null | undefined, cur: string) {
   return `${sym}${n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 }
 
+/** "¥1,000,000 – ¥5,000,000", one end alone, or "" without a range. */
+function range(c: { min_amount: number | null; max_amount: number | null; currency: string }) {
+  if (c.min_amount == null && c.max_amount == null) return "";
+  if (c.min_amount != null && c.max_amount != null) return `${money(c.min_amount, c.currency)} – ${money(c.max_amount, c.currency)}`;
+  return c.min_amount != null ? `from ${money(c.min_amount, c.currency)}` : `up to ${money(c.max_amount, c.currency)}`;
+}
+
+function ConfidenceBadge({ value }: { value: string }) {
+  return <span className={`inline-block whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold ${CONFIDENCE_STYLE[value || ""]}`}>{CONFIDENCE_LABEL[value || ""]}</span>;
+}
+
 function shortDate(iso: string | null) {
   if (!iso) return "";
   const [, m, d] = iso.split("-");
@@ -103,6 +119,7 @@ export default function InvestorFundingPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("ALL");
+  const [confFilter, setConfFilter] = useState<string | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -144,7 +161,10 @@ export default function InvestorFundingPage() {
     };
   }, [cases, now]);
 
+  const byConfidence = useMemo(() => confidenceTotals(cases), [cases]);
+
   const shown = cases.filter((c) => {
+    if (confFilter !== null && (c.confidence || "") !== confFilter) return false;
     if (filter === "ALL") return true;
     if (filter === "ACTION") return urgency(c, now) !== null;
     return c.status === filter;
@@ -199,6 +219,44 @@ export default function InvestorFundingPage() {
         </button>
       </div>
 
+      {/* By confidence (HQ, 2026-11-27). Low and high use the planned amount
+          when an investor has no range, so nobody drops out of either total. */}
+      <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03]" data-testid="by-confidence">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead className="text-left text-xs uppercase tracking-wider text-slate-400">
+            <tr>
+              <th className="px-4 py-2">By confidence</th>
+              <th className="px-3 py-2 text-right">Investors</th>
+              <th className="px-3 py-2 text-right">Minimum</th>
+              <th className="px-3 py-2 text-right">Planned</th>
+              <th className="px-3 py-2 text-right">Maximum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {byConfidence.map((r) => {
+              const curs = Object.entries(r.byCur);
+              const total = r.key === "ABC";
+              return (
+                <tr key={r.key} onClick={total ? undefined : () => setConfFilter(confFilter === r.key ? null : r.key)}
+                  className={`border-t border-white/5 ${total ? "bg-white/[0.04] font-semibold" : "cursor-pointer hover:bg-white/[0.03]"} ${confFilter === r.key ? "bg-emerald-500/10" : ""}`}>
+                  <td className="px-4 py-2">{total ? <span className="text-white">A + B + C</span> : <ConfidenceBadge value={r.key} />}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-200">{r.people}</td>
+                  {(["min", "planned", "max"] as const).map((k) => (
+                    <td key={k} className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${k === "planned" ? "text-white" : "text-slate-300"}`}>
+                      {curs.length === 0 ? <span className="text-slate-600">—</span>
+                        : curs.map(([cur, v]) => <div key={cur}>{money(v[k], cur)}</div>)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="px-4 pb-3 pt-1 text-xs text-slate-500">
+          Excludes withdrawn. Where an investor has no minimum or maximum, the planned amount is counted. Click a row to show only those investors.
+        </p>
+      </div>
+
       {settings && <FollowUpDays settings={settings} onSaved={(s) => { setSettings(s); load(); }} />}
 
       {adding && <AddInvestor onAdded={(c) => { setCases((l) => [...l, c]); setAdding(false); setOpenId(c.id); }} />}
@@ -210,13 +268,21 @@ export default function InvestorFundingPage() {
           <button key={k} onClick={() => setFilter(k)} className={chip(filter === k)}>{label}</button>
         ))}
       </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-slate-400">Confidence:</span>
+        <button onClick={() => setConfFilter(null)} className={chip(confFilter === null)}>Any</button>
+        {CONFIDENCES.map((c) => (
+          <button key={c.value || "unset"} onClick={() => setConfFilter(c.value)} className={chip(confFilter === c.value)}>{c.label}</button>
+        ))}
+      </div>
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-white/10">
-        <table className="w-full min-w-[1000px] text-sm">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead className="bg-white/[0.04] text-left text-xs uppercase tracking-wider text-slate-400">
             <tr>
               <th className="px-3 py-2">Investor</th>
+              <th className="px-3 py-2">Confidence</th>
               <th className="px-3 py-2 text-right">Planned</th>
               <th className="px-3 py-2">Method</th>
               {STEPS.map((s) => <th key={s.key} className="px-3 py-2">{s.short}</th>)}
@@ -234,7 +300,11 @@ export default function InvestorFundingPage() {
                     <p className="font-medium text-white">{c.name}</p>
                     {c.project && <p className="text-xs text-slate-400">{c.project}</p>}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-white">{money(c.planned_amount, c.currency)}</td>
+                  <td className="px-3 py-2"><ConfidenceBadge value={c.confidence} /></td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-white">
+                    {money(c.planned_amount, c.currency)}
+                    {range(c) && <p className="text-xs font-normal text-slate-400">{range(c)}</p>}
+                  </td>
                   <td className="px-3 py-2 text-slate-300">{METHOD_LABEL[c.method] || c.method}</td>
                   {STEPS.map((s) => <td key={s.key} className="px-3 py-2"><StepCell step={c.steps[s.key]} due={c.next_action?.step === s.key ? c.next_action.due : null} now={now} /></td>)}
                   <td className="px-3 py-2"><span className={`inline-block whitespace-nowrap rounded-full border px-2 py-0.5 text-xs ${STATUS_STYLE[c.status]}`}>{STATUS_TEXT[c.status]}</span></td>
@@ -254,11 +324,11 @@ export default function InvestorFundingPage() {
               );
             })}
             {!loading && shown.length === 0 && (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-400">
+              <tr><td colSpan={11} className="px-3 py-8 text-center text-slate-400">
                 {cases.length === 0 ? "No investors yet. Add the first one with Add investor." : "No investors match this filter."}
               </td></tr>
             )}
-            {loading && <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-400">Loading…</td></tr>}
+            {loading && <tr><td colSpan={11} className="px-3 py-8 text-center text-slate-400">Loading…</td></tr>}
           </tbody>
         </table>
       </div>
@@ -323,7 +393,30 @@ function FollowUpDays({ settings, onSaved }: { settings: Settings; onSaved: (s: 
   );
 }
 
-const EMPTY_FORM = { name: "", planned_amount: "", currency: "JPY", method: "BANK_TRANSFER", method_note: "", project: "", email: "", phone: "", notes: "" };
+const EMPTY_FORM = { name: "", planned_amount: "", min_amount: "", max_amount: "", confidence: "", currency: "JPY", method: "BANK_TRANSFER", method_note: "", project: "", email: "", phone: "", notes: "" };
+
+/** Minimum, maximum and confidence: the same three fields when adding and editing. */
+function RangeFields({ form, setForm }: {
+  form: { min_amount: string; max_amount: string; confidence: string; currency: string };
+  setForm: (f: { min_amount: string; max_amount: string; confidence: string }) => void;
+}) {
+  return (
+    <>
+      <label className="space-y-1 text-xs text-slate-400">Minimum amount ({form.currency})
+        <input inputMode="decimal" value={form.min_amount} placeholder="Optional"
+          onChange={(e) => setForm({ ...form, min_amount: e.target.value })} className={`${input} w-full`} />
+      </label>
+      <label className="space-y-1 text-xs text-slate-400">Maximum amount ({form.currency})
+        <input inputMode="decimal" value={form.max_amount} placeholder="Optional"
+          onChange={(e) => setForm({ ...form, max_amount: e.target.value })} className={`${input} w-full`} />
+      </label>
+      <label className="space-y-1 text-xs text-slate-400">Confidence
+        <SelectDark value={form.confidence} onChange={(v) => setForm({ ...form, confidence: v })} aria-label="Confidence"
+          options={CONFIDENCES.map((c) => ({ value: c.value, label: c.label }))} />
+      </label>
+    </>
+  );
+}
 
 function AddInvestor({ onAdded }: { onAdded: (c: Case) => void }) {
   const [form, setForm] = useState(EMPTY_FORM);
@@ -354,6 +447,7 @@ function AddInvestor({ onAdded }: { onAdded: (c: Case) => void }) {
             <SelectDark value={form.currency} onChange={(v) => setForm({ ...form, currency: v })} options={CURRENCIES} aria-label="Currency" className="w-24" />
           </div>
         </label>
+        <RangeFields form={form} setForm={(f) => setForm({ ...form, ...f })} />
         <label className="space-y-1 text-xs text-slate-400">Transfer method
           <SelectDark value={form.method} onChange={(v) => setForm({ ...form, method: v })} options={METHODS} aria-label="Transfer method" />
         </label>
@@ -398,7 +492,8 @@ function Detail({ c, onClose, onSaved }: { c: Case; onClose: () => void; onSaved
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-white">{c.name}</h2>
-            <p className="text-sm text-slate-400">{money(c.planned_amount, c.currency)} · {METHOD_LABEL[c.method]}{c.project ? ` · ${c.project}` : ""}</p>
+            <p className="text-sm text-slate-400">{money(c.planned_amount, c.currency)}{range(c) ? ` (${range(c)})` : ""} · {METHOD_LABEL[c.method]}{c.project ? ` · ${c.project}` : ""}</p>
+            <p className="mt-1 text-xs text-slate-400">Confidence <ConfidenceBadge value={c.confidence} /></p>
           </div>
           <button onClick={onClose} className={btn}>Close</button>
         </div>
@@ -529,6 +624,8 @@ function StepEditor({ c, stepKey, onSaved }: { c: Case; stepKey: StepKey; onSave
 function CaseEditor({ c, onSaved }: { c: Case; onSaved: (c: Case) => void }) {
   const [form, setForm] = useState({
     name: c.name, planned_amount: String(c.planned_amount), currency: c.currency, method: c.method, method_note: c.method_note,
+    min_amount: c.min_amount != null ? String(c.min_amount) : "", max_amount: c.max_amount != null ? String(c.max_amount) : "",
+    confidence: c.confidence || "",
     project: c.project, email: c.email, phone: c.phone, notes: c.notes, hold: c.hold as string,
   });
   const [error, setError] = useState("");
@@ -558,6 +655,7 @@ function CaseEditor({ c, onSaved }: { c: Case; onSaved: (c: Case) => void }) {
             <SelectDark value={form.currency} onChange={(v) => setForm({ ...form, currency: v })} options={CURRENCIES} aria-label="Currency" className="w-24" />
           </div>
         </label>
+        <RangeFields form={form} setForm={(f) => setForm({ ...form, ...f })} />
         <label className="space-y-1 text-xs text-slate-400">Transfer method
           <SelectDark value={form.method} onChange={(v) => setForm({ ...form, method: v })} options={METHODS} aria-label="Transfer method" />
         </label>
