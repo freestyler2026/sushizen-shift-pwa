@@ -18,6 +18,7 @@ import SelectDark from "@/components/SelectDark";
 import { getAuth, getAuthHeaders, refreshAuthFromApi, getUploadHeaders } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
+import DayOffMonth from "@/components/request/DayOffMonth";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
   INPUT_CLASS, SELECT_CLASS, TEXTAREA_CLASS,
@@ -429,6 +430,9 @@ function InboxTab({
           </ul>
         </div>
       )}
+
+      {/* Who else is off that month, before answering (HQ, 2026-11-26). */}
+      <DayOffMonth city={city} refreshKey={lastLoaded?.getTime()} />
 
       {loading && items.length === 0 ? (
         <div className="flex justify-center py-12">
