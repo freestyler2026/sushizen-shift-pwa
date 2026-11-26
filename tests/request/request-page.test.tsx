@@ -8,7 +8,7 @@ import {
   act,
 } from "@testing-library/react";
 import { chooseValue, expectSelectShowing } from "#tests/select-dark";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { routerMock } from "../setup";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -961,6 +961,7 @@ describe("/request page — one request, one call", () => {
   it("sends a day off once, carrying the days and the category", async () => {
     await renderPage();
     chooseValue("Time Change", "day_off");
+    fireEvent.change(screen.getByTestId("date-picker"), { target: { value: "2026-12-22" } });
     fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
       target: { value: "Family matter I need to attend to" },
     });
@@ -980,5 +981,60 @@ describe("/request page — one request, one call", () => {
     expect(body.get("request_type")).toBe("day_off");
     expect(Number(body.get("leave_days"))).toBeGreaterThan(0);
     expect(body.get("reason_category")).toBeTruthy();
+  });
+});
+
+/**
+ * Maryson S. Galvez filed a day off on 2026-11-05 that kept the form's date
+ * (today) as its first day, with 18 days: approved as 11-05 → 11-22 when only
+ * the 22nd was meant. A day off now starts on a day the person picks, and more
+ * than a week is said back in words before it is sent.
+ */
+describe("/request page — the first day off is chosen, a long one is confirmed", () => {
+  beforeEach(() => {
+    mockAuth = staffAuth();
+    serve({ "/api/shift_change/submit": { request_id: "leave-1" } });
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  const fill = (days: string) => {
+    chooseValue("Time Change", "day_off");
+    fireEvent.change(screen.getByPlaceholderText(/At least 5 characters/i), {
+      target: { value: "Visiting my grandmother" },
+    });
+    const daysInput = screen.getAllByRole("spinbutton")[0];
+    fireEvent.change(daysInput, { target: { value: days } });
+  };
+  const submits = () => mockFetch.mock.calls.filter((c: unknown[]) => String(c[0]).includes("/api/shift_change/submit"));
+
+  it("does not start a day off on today's date unasked", async () => {
+    await renderPage();
+    fill("1");
+    expect((screen.getByTestId("date-picker") as HTMLInputElement).value).toBe("");
+    fireEvent.click(screen.getByText("Submit Request"));
+    await waitFor(() => expect(screen.getByText("Choose the first day off.")).toBeInTheDocument());
+    expect(submits()).toHaveLength(0);
+  });
+
+  it("asks before sending more than seven days, and sends nothing on Cancel", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    await renderPage();
+    fill("18");
+    fireEvent.change(screen.getByTestId("date-picker"), { target: { value: "2026-11-05" } });
+    fireEvent.click(screen.getByText("Submit Request"));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    expect(confirm.mock.calls[0][0]).toMatch(/18 days off in a row: Thu 5 Nov → Sun 22 Nov/);
+    expect(submits()).toHaveLength(0);
+  });
+
+  it("sends a week or less without asking", async () => {
+    const confirm = vi.spyOn(window, "confirm");
+    await renderPage();
+    fill("2");
+    fireEvent.change(screen.getByTestId("date-picker"), { target: { value: "2026-12-22" } });
+    fireEvent.click(screen.getByText("Submit Request"));
+    await waitFor(() => expect(screen.getByText("Request submitted")).toBeInTheDocument());
+    expect(confirm).not.toHaveBeenCalled();
+    expect(submits()[0][1].body.get("work_date")).toBe("2026-12-22");
   });
 });

@@ -763,6 +763,12 @@ export default function RequestPage() {
   const [branch, setBranch] = useState("");
   const [staffName, setStaffName] = useState("");
   const [workDate, setWorkDate] = useState(todayIso());
+  // A day off starts on the day the person picks, never on the form's default.
+  // Maryson S. Galvez's request (filed 2026-11-05) kept today's date as the
+  // first day with 18 days, and was approved as 2026-11-05 → 11-22 when only
+  // the 22nd was meant. Other request types still open on today.
+  const [workDateChosen, setWorkDateChosen] = useState(false);
+  const chooseWorkDate = (v: string) => { setWorkDate(v); setWorkDateChosen(true); };
   const [requestType, setRequestType] = useState<ReqType>("time_change");
   const [reason, setReason] = useState("");
   const [reasonCategory, setReasonCategory] = useState("medical");
@@ -891,6 +897,12 @@ export default function RequestPage() {
       if (requestType === "overtime_request" && (parseFloat(otHours) || 0) <= 0) throw new Error("Overtime hours must be greater than 0.");
       if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (parseFloat(leaveDays) || 0) <= 0) throw new Error("Leave days must be greater than 0.");
       if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (parseFloat(leaveDays) || 0) > MAX_DAYS) throw new Error(`Leave days must be ${MAX_DAYS} or fewer.`);
+      if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && !workDateChosen) throw new Error("Choose the first day off.");
+      // More than a week is unusual enough to say back in words before sending.
+      if (["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && dayCount(leaveDays) > 7
+          && !window.confirm(`This asks for ${dayCount(leaveDays)} days off in a row: ${spanWords(workDate, leaveDays)}. Send it?`)) {
+        return;
+      }
 
       // One call.
       //
@@ -1080,11 +1092,14 @@ export default function RequestPage() {
                   )}
                 </Field>
                 <Field label={["paid_leave", "vacation", "absence", "day_off"].includes(requestType) ? "First day" : "Work date"}>
-                  <DatePicker value={workDate} onChange={setWorkDate} />
+                  <DatePicker
+                    value={["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && !workDateChosen ? "" : workDate}
+                    onChange={chooseWorkDate}
+                    placeholder="Choose the first day off" />
                 </Field>
 
                 {/* 14-day advance notice warning */}
-                {(() => {
+                {!(["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && !workDateChosen) && (() => {
                   // Calendar days from today (the device's date) to the day asked
                   // for. new Date(workDate) is UTC midnight, so before 08:00 in
                   // Manila a day 13 days away counted as 14 and the warning hid.
@@ -1150,7 +1165,7 @@ export default function RequestPage() {
                         onChange={e => setLeaveDays(e.target.value)} />
                       {/* What is being asked, in days of the week: one request
                           for both days, not one request per day. */}
-                      {(parseFloat(leaveDays) || 0) > 0 && (
+                      {(parseFloat(leaveDays) || 0) > 0 && workDateChosen && (
                         <p className={T_CAPTION + " mt-1"}>
                           {dayCount(leaveDays) > 1 ? "Covers " : "On "}
                           <span className="text-zinc-200">{spanWords(workDate, leaveDays)}</span>
