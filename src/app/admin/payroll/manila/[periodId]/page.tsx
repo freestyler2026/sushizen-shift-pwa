@@ -2423,8 +2423,10 @@ export default function ManilaPayrollPeriodPage() {
                     ))}
                     <span className="ml-auto text-slate-500">{showNotes ? "▲" : "▼"}</span>
                   </button>
+                  {/* Capped at a quarter of the screen: at 40% the list
+                      was left 14px on a 1000px-high window. */}
                   {showNotes && (
-                    <div className="max-h-[40vh] space-y-2 overflow-y-auto border-t border-white/5 p-2">
+                    <div className="max-h-[25vh] space-y-2 overflow-y-auto border-t border-white/5 p-2">
                       {groups.map(g => (
                         <div key={g.code}
                           className="rounded-lg border border-white/10 bg-white/5 p-3">
