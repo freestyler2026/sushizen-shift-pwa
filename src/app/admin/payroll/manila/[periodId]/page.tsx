@@ -195,8 +195,10 @@ function getMissingFields(p: StaffProfileMin | undefined): string[] {
 /** What each statutory flag means to the person reading the list.
  *
  *  Short enough for a table cell, and the title carries the sentence payroll
- *  needs before they ring the employee. */
-const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: string }> = {
+ *  needs before they ring the employee. `action` marks the ones payroll has to
+ *  deal with before approving: the notes bar says "action needed" for them
+ *  even while it is folded. */
+const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: string; action?: boolean }> = {
   STATUTORY_DEFERRED: {
     label: "deferred",
     cls: "text-sky-300 bg-sky-900/25 border-sky-500/40",
@@ -227,6 +229,7 @@ const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: 
          + "The payslip names the Solo Parent ID's expiry.",
   },
   PHILHEALTH_SOLO_PARENT_EXPIRED: {
+    action: true,
     label: "solo parent ID expired",
     cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
     title: "The Solo Parent ID on the staff profile has expired, so the PhilHealth "
@@ -241,6 +244,7 @@ const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: 
          + "Fund directly. SSS: the unpaid part carries a 1% a month penalty.",
   },
   LOAN_MANUAL_DUPLICATE: {
+    action: true,
     label: "loan twice?",
     cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
     title: "This loan is registered under Gov Loans and deducted automatically, and "
@@ -250,6 +254,7 @@ const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: 
          + "deducted twice.",
   },
   LOAN_BALANCE_NEEDED: {
+    action: true,
     label: "loan balance?",
     cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
     title: "Last cut-off: the remaining loan balance has to come off final pay, but "
@@ -257,12 +262,15 @@ const STATUTORY_FLAG_BADGE: Record<string, { label: string; cls: string; title: 
          + "SSS / Pag-IBIG statement on Gov Loans and recompute this payslip.",
   },
   BIR_ANNUAL_INCOMPLETE: {
+    action: true,
     label: "year incomplete",
     cls: "text-rose-300 bg-rose-900/25 border-rose-500/40",
     title: "The year-end adjustment ran without the start of the year. Enter "
          + "the opening year-to-date figures before approving this period.",
   },
 };
+
+const NOTES_OPEN_KEY = "manilaPayroll.notesOpen";
 
 const ITEM_QTY_UNIT: Record<string, "hour" | "day" | "minute" | "fraction"> = {
   // hourly_rate × hours
@@ -1734,6 +1742,17 @@ export default function ManilaPayrollPeriodPage() {
   const [profiles, setProfiles]   = useState<Map<string, StaffProfileMin>>(new Map());
   const [attSummary, setAttSummary] = useState<AttendanceStat[]>([]);
   const [showAttSummary, setShowAttSummary] = useState(false);
+  // Payroll notes start folded (Payroll, 2026-11-26: with OS and the
+  // spreadsheet side by side they left no room for the staff list). The
+  // choice is kept in this browser only; storage may be unavailable.
+  const [showNotes, setShowNotesState] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem(NOTES_OPEN_KEY) === "1") setShowNotesState(true); } catch { /* none */ }
+  }, []);
+  const setShowNotes = (open: boolean) => {
+    setShowNotesState(open);
+    try { localStorage.setItem(NOTES_OPEN_KEY, open ? "1" : "0"); } catch { /* none */ }
+  };
   const [computeCheckEntries, setComputeCheckEntries] = useState<MissingEntry[]>([]);
   const [dtrIssues, setDtrIssues] = useState<{ errors: DtrIssue[]; warnings: DtrIssue[] } | null>(null);
 
@@ -2363,7 +2382,10 @@ export default function ManilaPayrollPeriodPage() {
             {/* Which people are on a statutory rule that moved their
                 contributions. Named here rather than left to be discovered by
                 opening each payslip: the deferred ones need to be told before
-                their next payslip, and that is the whole point of showing it. */}
+                their next payslip, and that is the whole point of showing it.
+                Folded to one bar by default so the staff list keeps its room;
+                each row still carries its badge, and the bar says when one of
+                them has to be dealt with before approving. */}
             {(() => {
               const groups = Object.keys(STATUTORY_FLAG_BADGE)
                 .map(code => ({
@@ -2374,23 +2396,52 @@ export default function ManilaPayrollPeriodPage() {
                 }))
                 .filter(g => g.names.length > 0);
               if (groups.length === 0) return null;
+              const needsAction = groups.some(g => g.meta.action);
               return (
-                <div className="mx-5 mb-3 space-y-2">
-                  {groups.map(g => (
-                    <div key={g.code}
-                      className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border ${g.meta.cls}`}>
-                          {g.meta.label}
-                        </span>
-                        <span className="font-semibold text-slate-200">
-                          {g.names.length} {g.names.length === 1 ? "person" : "people"}
-                        </span>
-                      </div>
-                      <p className="mt-1.5 leading-relaxed text-slate-400">{g.meta.title}</p>
-                      <p className="mt-1.5 text-slate-300">{g.names.join(" · ")}</p>
+                <div className="mx-5 mb-3 flex-none rounded-xl border border-white/10 bg-white/5 text-xs"
+                  data-testid="payroll-notes">
+                  <button
+                    type="button"
+                    onClick={() => setShowNotes(!showNotes)}
+                    aria-expanded={showNotes}
+                    className="flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left"
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Payroll notes
+                    </span>
+                    {needsAction && (
+                      <span data-testid="notes-action-needed"
+                        className="rounded px-1.5 py-0.5 text-[10px] font-bold border text-rose-200 bg-rose-900/40 border-rose-500/60">
+                        action needed
+                      </span>
+                    )}
+                    {groups.map(g => (
+                      <span key={g.code} title={g.meta.title}
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold border whitespace-nowrap ${g.meta.cls}`}>
+                        {g.meta.label} {g.names.length}
+                      </span>
+                    ))}
+                    <span className="ml-auto text-slate-500">{showNotes ? "▲" : "▼"}</span>
+                  </button>
+                  {showNotes && (
+                    <div className="max-h-[40vh] space-y-2 overflow-y-auto border-t border-white/5 p-2">
+                      {groups.map(g => (
+                        <div key={g.code}
+                          className="rounded-lg border border-white/10 bg-white/5 p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border ${g.meta.cls}`}>
+                              {g.meta.label}
+                            </span>
+                            <span className="font-semibold text-slate-200">
+                              {g.names.length} {g.names.length === 1 ? "person" : "people"}
+                            </span>
+                          </div>
+                          <p className="mt-1.5 leading-relaxed text-slate-400">{g.meta.title}</p>
+                          <p className="mt-1.5 text-slate-300">{g.names.join(" · ")}</p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               );
             })()}

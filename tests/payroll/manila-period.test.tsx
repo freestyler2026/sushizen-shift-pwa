@@ -363,3 +363,54 @@ describe("ManilaPayrollPeriodPage — sorting", () => {
     expect(screen.getByText("Maria Santos")).toBeTruthy();
   });
 });
+
+// Payroll, 2026-11-26: the notes about statutory flags took half the screen in
+// split view, so the staff list had no room. They start folded to one bar that
+// still names each kind and its count, says "action needed" when one has to be
+// dealt with before approving, and remembers the reader's choice.
+describe("ManilaPayrollPeriodPage — payroll notes bar", () => {
+  beforeEach(() => { setAdminAuth("manila"); try { localStorage.clear(); } catch { /* none */ } });
+
+  const flagged = (flagsJuan: string[], flagsMaria: string[]) =>
+    [{ ...RUN_JUAN, statutory_flags: flagsJuan }, { ...RUN_MARIA, statutory_flags: flagsMaria }];
+
+  it("starts folded, names each kind with its count, and opens on click", async () => {
+    vi.stubGlobal("fetch", buildPeriodFetch(flagged(["STATUTORY_CATCH_UP"], ["STATUTORY_CATCH_UP", "PHILHEALTH_SOLO_PARENT"])));
+    const { default: Page } = await import("../../src/app/admin/payroll/manila/[periodId]/page");
+    render(<Page />);
+    const bar = await screen.findByTestId("payroll-notes");
+    expect(bar.textContent).toMatch(/whole month 2/);
+    expect(bar.textContent).toMatch(/solo parent 1/);
+    expect(screen.queryByTestId("notes-action-needed")).toBeNull();
+    expect(bar.textContent).not.toMatch(/about twice the usual deduction/);
+    fireEvent.click(screen.getByText("Payroll notes"));
+    expect(bar.textContent).toMatch(/about twice the usual deduction/);
+    expect(bar.textContent).toMatch(/Juan dela Cruz · Maria Santos/);
+    expect(localStorage.getItem("manilaPayroll.notesOpen")).toBe("1");
+  });
+
+  it("says action needed while folded when a flag must be dealt with before approving", async () => {
+    vi.stubGlobal("fetch", buildPeriodFetch(flagged(["BIR_ANNUAL_INCOMPLETE"], [])));
+    const { default: Page } = await import("../../src/app/admin/payroll/manila/[periodId]/page");
+    render(<Page />);
+    expect(await screen.findByTestId("notes-action-needed")).toBeTruthy();
+    expect(screen.getByTestId("payroll-notes").textContent).not.toMatch(/opening year-to-date/);
+  });
+
+  it("opens if the reader left it open last time", async () => {
+    localStorage.setItem("manilaPayroll.notesOpen", "1");
+    vi.stubGlobal("fetch", buildPeriodFetch(flagged(["STATUTORY_CATCH_UP"], [])));
+    const { default: Page } = await import("../../src/app/admin/payroll/manila/[periodId]/page");
+    render(<Page />);
+    await waitFor(() =>
+      expect(screen.getByTestId("payroll-notes").textContent).toMatch(/about twice the usual deduction/));
+  });
+
+  it("shows no bar when nobody has a flag", async () => {
+    vi.stubGlobal("fetch", buildPeriodFetch());
+    const { default: Page } = await import("../../src/app/admin/payroll/manila/[periodId]/page");
+    render(<Page />);
+    await waitFor(() => expect(screen.getByText("Maria Santos")).toBeTruthy());
+    expect(screen.queryByTestId("payroll-notes")).toBeNull();
+  });
+});
