@@ -35,6 +35,8 @@ type TravelPathItem = {
   sort_order: number;
   is_active: boolean;
   item_type: string;           // 'CHECKBOX' | 'TEMPERATURE'
+  /** Must be ticked, or its note must say why, before the report submits. */
+  is_required?: boolean;
   unit_labels_json: string[];  // e.g. ['Chiller 1', 'Freezer 1', ...]
 };
 
@@ -706,10 +708,21 @@ function ChecklistView() {
 
   async function handleSubmit() {
     if (!staffName.trim()) { showToast("error", "Please select a staff name."); return; }
-    // Save first if no reportId
+    // A required item is ticked, or its note says why (Mahalo, 2026-11-27: the
+    // trash bins on the Cubao / CK opening). The server checks the same.
+    const missing = items.filter((it) => it.is_required
+      && !entries[it.item_code]?.checked && !(entries[it.item_code]?.note || "").trim());
+    if (missing.length) {
+      setExpandedNotes((p) => ({ ...p, ...Object.fromEntries(missing.map((m) => [m.item_code, true])) }));
+      showToast("error", "Required: tick this item, or write in its note why it could not be done.");
+      return;
+    }
+    // Save every time, not only the first time. Once a draft existed, Submit
+    // sent only the report id, so ticks and notes made after the draft were
+    // never stored.
     let currentId = reportId;
-    if (!currentId) {
-      setSaving(true);
+    setSaving(true);
+    {
       const auth = getAuth();
       try {
         const res = await fetch(`${API_BASE}/api/travel-path/save`, {
@@ -744,7 +757,12 @@ function ChecklistView() {
         headers: getAuthHeaders(auth),
         body: JSON.stringify({ report_id: currentId, verified_by: "" }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const text = await res.text();
+        let detail = "";
+        try { const j = JSON.parse(text) as { detail?: unknown }; detail = typeof j.detail === "string" ? j.detail : ""; } catch { /* not JSON */ }
+        throw new Error(detail || text);
+      }
       const d = await res.json();
       setReportStatus(d.status);
       showToast("success", "Report submitted successfully!");
@@ -962,6 +980,11 @@ function ChecklistView() {
                       entry.checked ? "text-zinc-400" : "text-zinc-200",
                     ].join(" ")}>
                       {item.item_text}
+                      {item.is_required && (
+                        <span className="ml-2 text-[10px] font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded px-1.5 py-0.5" data-testid="required-badge">
+                          Required
+                        </span>
+                      )}
                       {isTemp && (
                         <span className="ml-2 text-[10px] text-violet-400 bg-violet-500/15 border border-violet-500/25 rounded px-1.5 py-0.5">
                           🌡 TEMP
