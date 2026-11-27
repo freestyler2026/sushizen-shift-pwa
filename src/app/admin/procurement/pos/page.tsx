@@ -231,6 +231,10 @@ export default function ProcurementPoPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const supplierDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Which request the delivery address was filled for. Loading another request
+  // replaces it: the field used to fill only when empty, so after a Warehouse
+  // request the next three CK POs kept the Warehouse address (2026-10-04).
+  const addressForRequestRef = useRef<string>("");
 
   const currency = city === "dubai" ? "AED" : "PHP";
 
@@ -316,9 +320,16 @@ export default function ProcurementPoPage() {
         const suggestedTerms = suppliers.map((row) => row.payment_terms).find((value) => String(value || "").trim());
         if (suggestedTerms) setPaymentTerms(String(suggestedTerms));
       }
-      // Auto-populate delivery address from the request's branch if not yet filled
-      if (!deliveryAddress.trim() && catalogData?.request?.suggested_delivery_address) {
-        setDeliveryAddress(String(catalogData.request.suggested_delivery_address));
+      // The request's branch address: replaces the field for a different
+      // request, fills it when empty for the same one (a typed address stays
+      // while the same request is reloaded).
+      const suggested = String(catalogData?.request?.suggested_delivery_address || "");
+      const loadedId = String(catalogData?.request?.id || "");
+      if (loadedId && addressForRequestRef.current !== loadedId) {
+        addressForRequestRef.current = loadedId;
+        setDeliveryAddress(suggested);
+      } else if (!deliveryAddress.trim() && suggested) {
+        setDeliveryAddress(suggested);
       }
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -766,6 +777,11 @@ export default function ProcurementPoPage() {
           <div className="sm:col-span-2">
             <label className={`${T_LABEL} mb-1.5 block`}>
               Delivery Address
+              {requestSummary?.store_code && (
+                <span className="ml-2 text-[10px] font-normal normal-case text-slate-400" data-testid="address-branch">
+                  for {requestSummary.store_code} ({(requestSummary.city || city) === "dubai" ? "Dubai" : "Manila"})
+                </span>
+              )}
               {requestSummary?.suggested_delivery_address && deliveryAddress !== requestSummary.suggested_delivery_address && (
                 <button
                   type="button"

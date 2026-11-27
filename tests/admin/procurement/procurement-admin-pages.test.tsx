@@ -226,6 +226,43 @@ describe("ProcurementPosPage", () => {
     await screen.findByText(/VendorABC/i);
   });
 
+  // 2026-10-04: after a Warehouse request, the next three CK POs kept the
+  // Warehouse address -- the field filled only when empty. Another request now
+  // brings its own branch's address; the same request keeps a typed one.
+  it("puts each request's own branch address, replacing the previous request's", async () => {
+    mockAuthReturn = HQ_AUTH;
+    const REQ: Record<string, { store_code: string; addr: string }> = {
+      "r-wh": { store_code: "WH", addr: "Lion Tower Warehouse, Recto Ave, Manila" },
+      "r-ck": { store_code: "CK", addr: "20 1st Ave., Quezon City" },
+    };
+    mockProcurementJson = vi.fn(async (url: string) => {
+      const id = (url.match(/request_id=([^&]+)/) || [])[1] || "";
+      if (url.includes("/pos/item-catalog") && REQ[id]) return {
+        request: { id, request_no: id.toUpperCase(), store_code: REQ[id].store_code, request_date: "2026-11-24",
+                   status: "APPROVED", total_amount: 0, city: "manila", suggested_delivery_address: REQ[id].addr },
+        suppliers: [],
+      };
+      return { rows: [] };
+    });
+    render(<Page />);
+    const input = await screen.findByPlaceholderText("Request ID");
+    const load = async (id: string) => {
+      fireEvent.change(input, { target: { value: id } });
+      fireEvent.click(await screen.findByRole("button", { name: /Load Request/i }, { timeout: 5000 }));
+    };
+    await load("r-wh");
+    const address = await screen.findByPlaceholderText("Delivery address") as HTMLInputElement;
+    await waitFor(() => expect(address.value).toBe("Lion Tower Warehouse, Recto Ave, Manila"));
+    expect(screen.getByTestId("address-branch").textContent).toBe("for WH (Manila)");
+    fireEvent.change(address, { target: { value: "Gate 2, Lion Tower" } });
+    await load("r-wh");                                        // same request: the typed address stays
+    await waitFor(() => expect(mockProcurementJson.mock.calls.length).toBeGreaterThan(3));
+    expect((screen.getByPlaceholderText("Delivery address") as HTMLInputElement).value).toBe("Gate 2, Lion Tower");
+    await load("r-ck");                                        // another request: its own branch
+    await waitFor(() => expect((screen.getByPlaceholderText("Delivery address") as HTMLInputElement).value)
+      .toBe("20 1st Ave., Quezon City"));
+  });
+
   it("shows error message when procurementJson throws", async () => {
     mockAuthReturn = HQ_AUTH;
     mockProcurementJson = vi.fn(async () => { throw new Error("PO load error"); });

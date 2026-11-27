@@ -20,7 +20,11 @@ interface BranchAddr {
   address: string;
   active: boolean;
   updated_at: string;
+  /** The branch whose POs use this row, e.g. "Warehouse (WH)"; "" when the code names no branch. */
+  branch?: string;
 }
+
+type StoreCode = { code: string; branch: string };
 
 const EMPTY_FORM = {
   city: "dubai" as City,
@@ -43,6 +47,9 @@ export default function DeliveryAddressesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  // The codes requests are filed under, per city (Purchasing, 2026-11-27: the
+  // Lion Tower address was typed as "WEAREHOUSE" and no PO ever used it).
+  const [storeCodes, setStoreCodes] = useState<Record<string, StoreCode[]>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,6 +64,7 @@ export default function DeliveryAddressesPage() {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setRows(data.rows || []);
+      if (data.store_codes) setStoreCodes((prev) => ({ ...prev, ...data.store_codes }));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -90,7 +98,7 @@ export default function DeliveryAddressesPage() {
 
   const save = async () => {
     if (!approverName.trim() || !pin.trim()) { setError("Approver name and PIN are required."); return; }
-    if (!form.store_code.trim()) { setError("Store code is required."); return; }
+    if (!form.store_code.trim()) { setError("Choose the branch."); return; }
     if (!form.address.trim()) { setError("Address is required."); return; }
     setSaving(true); setError(""); setSuccess("");
     try {
@@ -205,14 +213,19 @@ export default function DeliveryAddressesPage() {
               />
             </div>
             <div>
-              <p className={`${T_LABEL} mb-1`}>Store Code * (e.g. JLT, BB, TAFT)</p>
-              <input
-                className={INPUT_CLASS}
-                placeholder="JLT"
-                value={form.store_code}
-                onChange={(e) => setForm((f) => ({ ...f, store_code: e.target.value.toUpperCase() }))}
-                disabled={editingId !== "new"}
-              />
+              <p className={`${T_LABEL} mb-1`}>Branch *</p>
+              {editingId === "new" ? (
+                <SelectDark
+                  className={SELECT_CLASS}
+                  value={form.store_code}
+                  onChange={(v) => setForm((f) => ({ ...f, store_code: v }))}
+                  placeholder="— Select —"
+                  aria-label="Branch"
+                  options={(storeCodes[form.city] || []).map((s) => ({ value: s.code, label: s.branch }))}
+                />
+              ) : (
+                <input className={INPUT_CLASS} value={form.store_code} disabled />
+              )}
             </div>
             <div>
               <p className={`${T_LABEL} mb-1`}>Display Name (optional)</p>
@@ -261,6 +274,7 @@ export default function DeliveryAddressesPage() {
             <thead>
               <tr className="border-b border-white/10">
                 <th className={`${TABLE_HEADER} px-4 py-3`}>Store Code</th>
+                <th className={`${TABLE_HEADER} px-4 py-3`}>Used for POs of</th>
                 <th className={`${TABLE_HEADER} px-4 py-3`}>Display Name</th>
                 <th className={`${TABLE_HEADER} px-4 py-3`}>Delivery Address</th>
                 <th className={`${TABLE_HEADER} px-4 py-3`}>Status</th>
@@ -270,19 +284,24 @@ export default function DeliveryAddressesPage() {
             <tbody>
               {rows.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-zinc-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-zinc-500">
                     No addresses registered yet for {city}. Click &quot;Add Address&quot; to start.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-500">Loading…</td>
+                  <td colSpan={6} className="px-4 py-6 text-center text-sm text-zinc-500">Loading…</td>
                 </tr>
               )}
               {rows.map((row) => (
                 <tr key={row.id} className={TABLE_ROW}>
                   <td className={`${TABLE_CELL} px-4 font-mono font-semibold text-violet-300`}>{row.store_code}</td>
+                  <td className={`${TABLE_CELL} px-4`} data-testid="used-for">
+                    {row.branch
+                      ? <span className="text-zinc-200">{row.branch}</span>
+                      : <span className="text-amber-300">Not used: {row.store_code} is not a {city === "dubai" ? "Dubai" : "Manila"} branch code. Add the address again under the right branch and delete this row.</span>}
+                  </td>
                   <td className={`${TABLE_CELL} px-4 text-zinc-300`}>{row.display_name || "—"}</td>
                   <td className={`${TABLE_CELL} px-4 max-w-xs text-zinc-400`}>{row.address}</td>
                   <td className={`${TABLE_CELL} px-4`}>
